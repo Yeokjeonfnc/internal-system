@@ -1,0 +1,75 @@
+# Flutter SDK
+# Flutter SDK는 로컬에 설치된 버전을 사용하므로 저장소에 포함하지 않음
+flutter_sdk/
+
+# IDE 관련
+.idea/
+.vs/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Python 관련
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+
+# 환경 변수 및 비밀 정보
+.env
+.env.*
+*.env
+secrets.json
+credentials.json
+firebase_options.dart
+
+# OS 관련
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# 빌드 결과물
+build/
+dist/
+*.egg-info/
+
+# 로그 파일
+*.log
+logs/
+
+# 임시 파일
+*.swp
+*.swo
+*~
+.tmp/
+temp/
+
+# 백업 파일
+*.bak
+*.backup
+
+# 데이터베이스
+*.db
+*.sqlite
+*.sqlite3
+
+# 테스트 커버리지
+coverage/
+.coverage
+htmlcov/
+
+# 문서 생성 파일
+doc/api/
+
+# Flutter app_flutter 폴더는 포함하되, 하위의 .gitignore를 따름
+# (app_flutter/.gitignore가 이미 존재)

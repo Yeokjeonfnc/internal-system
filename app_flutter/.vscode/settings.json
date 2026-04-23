@@ -1,0 +1,11 @@
+{
+  "dart.flutterSdkPath": "C:\\Users\\minhyo\\.puro\\envs\\stable\\flutter",
+  "dart.sdkPath": "C:\\Users\\minhyo\\.puro\\envs\\stable\\flutter\\bin\\cache\\dart-sdk",
+  "terminal.integrated.defaultProfile.windows": "Command Prompt",
+  "terminal.integrated.automationProfile.windows": {
+    "path": "C:\\Windows\\System32\\cmd.exe"
+  },
+  "terminal.integrated.env.windows": {
+    "FLUTTER_ROOT": "C:\\Users\\minhyo\\.puro\\envs\\stable\\flutter"
+  }
+}

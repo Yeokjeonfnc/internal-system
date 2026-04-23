@@ -1,0 +1,156 @@
+# Flutter ERP Development Rules (Updated for Franchise Management)
+
+## 1) Core Stack (Mandatory)
+- Framework: Flutter (Dart)
+- State Management: Riverpod (`flutter_riverpod`)
+- Navigation: GoRouter (Must use ShellRoute for persistent Sidebar)
+- Networking: Dio (`dio`)
+- Model Serialization: JSON Serializable
+- Charts: fl_chart
+- Font: Pretendard
+
+## 2) Architecture & Layout (Side Navigation)
+- **Persistent Sidebar Pattern**:
+  - Use `ShellRoute` from GoRouter to keep the `Sidebar` widget mounted while switching main content.
+  - The Sidebar must always remain on the left, and only the right-hand area should navigate between screens.
+- **App shell (공통 레이아웃)**:
+  - 사이드바·상단 배너 등 **앱 전역 셸**은 `features/`가 아니라 `lib/core/layout/` 에 둔다. (예: `erp_shell_layout.dart`)
+  - **상세 화면 골격**(제목 줄·빨간 메인 탭바·탭뷰 / 탭 없는 스크롤 본문)은 `lib/core/layout/detail_screen_scaffold.dart` 의 `DetailScreenHeadline`, `DetailMainTabBar`, `DetailScreenWithTabs`, `DetailScreenScrollBody` 를 쓴다. 가맹점·물건·창업자 상세에 각각 복붙하지 않는다.
+  - 새 화면을 `feature`로 추가할 때 셸 코드를 복사하지 말고, 라우트만 `app_router.dart`의 `appRouteDefs`에 등록한다.
+- **엔티티별 Flat Feature (이 프로젝트 표준)**:
+  - 도메인 단위로 `lib/features/<엔티티>/` 를 **한 층(flat)** 에 둔다. `features/development/...` 처럼 기능을 한 번 더 감싸지 않는다.
+  - 예: `stores`, `founders`, `properties` 는 서로 형제 폴더다.
+  - 각 feature 내부는 **한 폴더에 파일만** 두고 깊이를 두지 않는다:
+    - `<엔티티>_model.dart` — 해당 엔티티의 모델·enum
+    - `<엔티티>_view.dart`, `<엔티티>_detail_view.dart`, `<엔티티>_register_view.dart` 등 화면
+    - `<엔티티>_repository.dart` — 데이터 소스(현재는 mock, 추후 API)
+    - `<엔티티>_provider.dart` — 목록 화면의 필터·검색 상태 (`RuleListNotifier` + `NotifierProvider`)
+  - **대시보드·쉘**처럼 “한 엔티티 CRUD”가 아닌 영역만 예외적으로 기존처럼 `presentation/` 을 유지해도 된다.
+
+## 3) Brand Theming & UI (Based on Image Analysis)
+- **Color System**:
+  - **Sidebar Background**: `#212529` (Dark Grey/Charcoal)
+  - **Sidebar Active Item**: `#412B2B` (Dark Redish Brown) with Left Accent Border
+  - **Primary Accent (Red)**: `#BC1F26` (Used for Header, Branding, Buttons)
+  - **Background**: `#F2F2F2` (Light Grey Surface)
+  - **Card Background**: `#FFFFFF` (Pure White)
+  - **Status Colors**:
+    - Operating: `#28A745` (Green)
+    - Preparing: `#007BFF` (Blue)
+    - Terminated: `#DC3545` (Red)
+- **UI Metrics**:
+  - Sidebar Width: `240` to `260` logical pixels.
+  - Border Radius: `8` for Table/Cards, `4` for Input fields.
+  - Layout: Left Sidebar + Top Header + Main Content Area with Padding.
+
+## 4) Dashboard & Table Rules
+- **목록 본문 검색(인라인)**: `ListPageTemplate` + **`SearchFilterStackedItems`** + `FilterTextSlot` / `FilterStringOptionsSlot` / `FilterDropdownSlot` (`FilterSlotConfig` → `toItem()`). 가맹점·활동관리·물건·창업자 목록이 표준. 필드 메타·시트 토글은 `common_search_field_catalog.dart` + `CommonSearchFieldPicker`.
+- **필터 시트(2열 슬롯)**: 동일 **슬롯 API**로 **`CommonFilterBar`** + `FilterRowConfig` (사이드 시트 본문).
+- **Data Table**: 관리 리스트는 **`ErpDataTable`** + `ErpTableHeaderCell` / `ErpTableBodyCell` — 빨강 헤더·14px 본문. `AppDimensions.tableMinWidth*`, `listScreenHPadding` 등은 `app_dimensions.dart` 를 쓴다.
+- **Text scale**: 목록/상세 본문에 `MediaQuery.textScaler` 를 임의로 키우지 않는다(다른 화면과 체감 불일치).
+- **KPI Cards**: Use the "Value + Change Rate (%)" pattern with simple borders and generous white space.
+
+## 5) Typography
+- Font: 'Pretendard' is mandatory.
+- Titles: Bold, Dark Grey (`#212529`).
+- Side Menu Labels: White or Light Grey (`#ADB5BD`) for inactive, Bold White for active.
+
+## 6) Development Workflow
+- **Hot Reload Compatibility**: Always use `const` constructors where possible.
+- **State Management**: Use `NotifierProvider` (Riverpod) for screen states.
+- **Responsive**: Ensure the layout handles different screen widths by wrapping the content area in a `Scrollbar` or `SingleChildScrollView`.
+
+## 7) 공통 데이터 & import 규칙 (이 프로젝트)
+- **Mock·고정 옵션**:
+  - 샘플 리스트·시드 데이터는 `lib/core/data/mock/` (`mock_stores.dart` 등).
+  - 여러 화면에서 쓰는 **고정 드롭다운 옵션**(지역 목록 등)은 `lib/core/data/mock_options.dart` 에 모은다.
+  - feature 쪽 `*_model.dart` 는 도메인 타입만 두고, mock 상수는 feature 폴더에 흩뿌리지 않는다.
+- **공통 위젯**:
+  - 여러 feature에서 쓰는 **목록·검색·폼 블록**은 `lib/core/widgets/common/` 에만 둔다. 파일명은 `common_*.dart` 로 통일하고, 폼 조각은 `common/form/`, ERP 테이블은 `common/data_table/` 하위로 나눈다.
+- **cross-import**:
+  - `core` ↔ `features` 또는 feature 간 참조는 **`package:app_flutter/...`** 형태로 통일한다. (깊은 `../../../` 상대경로 남발 금지)
+- **Repository 네이밍 (짧게)**:
+  - 전체: `all()`
+  - 단건 조회: `find(code)` / `find(no)` (문맥상 타입이 드러나게)
+  - 짧은 옵션: `brands()`, `regions()`
+  - 연관 목록: `docs(Store s)` 처럼 한 단어 동사 선호
+
+## 8) Maintenance & Refactoring Rules
+- **Widget Decomposition**: If a build method exceeds 100 lines, extract sub-widgets into separate `StatelessWidget` classes (prefer classes over functions).
+- **Logic Separation**: UI files must only contain layout. All state and logic must reside in Riverpod `Notifier` or `Provider`.
+- **Navigation Structure**: Use `ShellRoute` to ensure the Sidebar remains mounted and stateful across navigation.
+- **Self-Documentation**: Always add descriptive comments for complex business logic and provide a brief summary of the widget's responsibility.
+
+## 9) Naming Convention (Readability First)
+- **Use Intuitive Names**: Prefer simple, descriptive words over complex computer science jargon.
+  - Good: `all()`, `find()`, `brands()`, `regions()`, `StoreView`, `storeProvider`
+  - Bad: `executeFranchiseDataSynchronization()`, `predicateAuthenticationValidity()`
+- **Verb + Noun Pattern**: Start function names with a clear action verb where it is a real operation.
+  - `get...` (데이터 가져올 때)
+  - `save...` (저장할 때)
+  - `show...` (화면에 띄울 때)
+  - `handle...` (클릭 등 이벤트 처리할 때)
+- **List 화면 표준 이름**:
+  - 화면 위젯: `StoreView`, `FounderView`, `PropertyView` …
+  - 필터 상태: `StoreFilter`, `FounderFilter`, `PropertyFilter` …
+  - Notifier / Provider: `StoreNotifier`, `storeProvider`, …
+- **Consistent Korean Context**: When dealing with business-specific terms (like '가맹점'), use consistent names like `Store` or `Franchise` rather than mixing them.
+
+## 10) Encoding & Text Safety (Mandatory)
+- **UTF-8 Only**:
+  - All source files must be saved in UTF-8.
+  - Do not use any workflow that can silently re-encode Korean text.
+- **No Garbled Text Rule**:
+  - Never commit placeholder-like labels such as `???` or broken Korean.
+  - If any Korean text is garbled, stop and fix text integrity first.
+- **Safe Edit Rule**:
+  - Prefer structured edits (editor/patch tools) over shell-based file overwrite for UI text files.
+
+## 11) Route / Feature Consistency
+- **Single Feature Naming**:
+  - If a feature name is changed (e.g., `merchants` -> `stores`), update all related items in one pass:
+    - folder paths
+    - route paths/constants (`AppRoutes`, `AppRouteNames`, `appRouteDefs`)
+    - class names, provider names, model names
+    - imports and UI labels
+- **URL 단순화**:
+  - 엔티티 URL은 가능하면 **짧은 경로**를 쓴다. (예: `/founders`, `/properties` — 불필요한 `/development/` 접두사 없음)
+- **No Legacy Residue**:
+  - After refactor, ensure old feature keywords do not remain in codebase.
+  - Remove empty legacy folders to avoid confusion in IDE explorer.
+
+## 12) Reusable UI Components
+- **Search Filter Standardization** (세부·수치·금지 사항):
+  - 공통: `lib/core/widgets/common/common_search_filter_panel.dart` (`kSearchFilterFontSize`, `SearchFilterDropdownField`, `searchFilterDropdownDecoration`, 라벨 폭 140).
+  - 인라인 본문: `SearchFilterStackedItems` + `Filter*Slot` / `SearchFilterItemData`.
+  - 2열 시트: `CommonFilterBar` + 동일 `Filter*Slot` — **같은 슬롯·같은 토큰**을 쓰면 시트와 본문이 시각적으로 맞는다.
+  - 드롭다운: `itemHeight` 는 `kMinInteractiveDimension` 미만이면 Material assert — 컴팩트는 `isDense`·`decoration`·가로 `compact`로만 조정.
+- **Table Header Consistency**:
+  - `ErpDataTable` + `ErpTableHeaderCell` / `ErpTableBodyCell` — 빨강 헤더, 본문 패딩·14px, 상태 뱃지는 기존 목록과 동일 톤.
+- **프로젝트 전역 UI 정합성**: 상세 규칙은 `.cursor/rules/flutter-erp-ui-consistency.mdc` (에이전트 alwaysApply) 를 따른다.
+
+## 13) 목록 필터 로직 (RuleListNotifier)
+- **공통 베이스**: `lib/core/state/base_list_provider.dart`
+  - 원본 목록 + 필터: `ListFilterNotifier<F, T>` (`source`, `matches`, `filtered()` / `getFilteredList()`)
+  - **규칙만 나열**: `RuleListNotifier<F, T>` — `List<ListFilterRule<F,T>> get rules` 만 구현하면 `matches` 가 자동으로 AND 연산된다.
+- **새 목록 메뉴 추가 시**:
+  1. `core/data/mock/` 에 목업 추가 (또는 기존 mock 확장)
+  2. feature 루트에 `*_repository.dart` (`all()`, `by…()`, 옵션 메서드)
+  3. `*_provider.dart` 에 `RuleListNotifier` + `rules` 정의
+  4. `*_view.dart` 에서 `CommonFilterBar` + 테이블만 구성
+  5. `app_router.dart` 의 `appRouteDefs` 에 라우트·메타 한 줄 추가
+
+## 14) Runtime Validation Rules
+- **Refactor Verification Checklist (required)**:
+  - Run `flutter analyze` after structural changes.
+  - For model field or enum changes, verify with **Hot Restart** (not only Hot Reload).
+  - Confirm target route renders without overflow errors on current screen width.
+- **Compilation Error Priority**:
+  - Fix compile-breaking symbol mismatches first (model fields, enum members, imports) before style adjustments.
+
+## 15) State Management Boundary
+- **Notifier Responsibility**:
+  - Filtering/search/sort/paging logic must stay in Notifier.
+  - UI widgets should only call notifier methods and render state.
+- **Hardcoded Session Data Rule**:
+  - Temporary hardcoded user profile data in shell/sidebar must be marked for later auth-provider integration.
