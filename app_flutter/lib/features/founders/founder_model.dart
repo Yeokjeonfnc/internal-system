@@ -12,7 +12,7 @@ String founderStatusLabelKorean(FounderStatus s) => switch (s) {
 /// 성별.
 enum Gender { male, female }
 
-/// 예비창업자 모델. 목업은 `package:app_flutter/core/data/mock/mock_founders.dart`.
+/// 예비창업자 모델.
 class Founder {
   const Founder({
     required this.no,

@@ -18,8 +18,9 @@ class MasterModulePlaceholderView extends StatelessWidget {
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
-          constraints:
-              const BoxConstraints(maxWidth: AppDimensions.contentMaxWidth),
+          constraints: const BoxConstraints(
+            maxWidth: AppDimensions.contentMaxWidth,
+          ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
               AppDimensions.listScreenHPadding,
@@ -54,7 +55,9 @@ class MasterModulePlaceholderView extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         height: 1.45,
-                        color: FormStylePalette.textPrimary.withValues(alpha: 0.65),
+                        color: FormStylePalette.textPrimary.withValues(
+                          alpha: 0.65,
+                        ),
                         fontFamilyFallback: AppTheme.koreanFontFallback,
                       ),
                     ),

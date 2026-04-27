@@ -1,4 +1,4 @@
-// 임시보관(동일 열) — [ErpDataTable] 목업.
+// 임시보관(동일 열) — [ErpDataTable].
 
 import 'package:flutter/material.dart';
 
@@ -7,7 +7,7 @@ import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 
-/// 활동관리·활동관리결재 목록이 공유하는 임시보관 격자(목업 1행).
+/// 활동관리·활동관리결재 목록이 공유하는 임시보관 격자.
 class ActivityDraftsTable extends StatelessWidget {
   const ActivityDraftsTable({super.key});
 
@@ -47,22 +47,6 @@ class ActivityDraftsTable extends StatelessWidget {
                 ErpTableHeaderCell('결재상태'),
                 ErpTableHeaderCell('관리'),
                 ErpTableHeaderCell('상세'),
-              ],
-            ),
-            TableRow(
-              decoration: const BoxDecoration(color: AppTheme.tableRowOdd),
-              children: const [
-                ErpTableBodyCell('방문', center: true),
-                ErpTableBodyCell('2024-04-20', center: true),
-                ErpTableBodyCell('할맥', center: true),
-                ErpTableBodyCell('강남점', center: true),
-                ErpTableBodyCell('해당', center: true),
-                ErpTableBodyCell('점검 완료'),
-                ErpTableBodyCell('홍길동', center: true),
-                ErpTableBodyCell('O', center: true),
-                ErpTableBodyCell('대기', center: true),
-                ErpTableBodyCell('수정 | 삭제', center: true),
-                ErpTableBodyCell('상세', center: true),
               ],
             ),
           ],

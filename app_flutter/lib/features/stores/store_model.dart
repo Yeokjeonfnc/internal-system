@@ -1,40 +1,86 @@
-/// 가맹점 계약 상태.
-enum StoreStatus { newContract, renewal, transfer }
-
-/// 가맹점 목록·상세 공통 모델. 목업은 `package:app_flutter/core/data/mock/mock_stores.dart`.
+/// 가맹점 목록·상세 공통 모델.
 class Store {
   const Store({
     required this.no,
-    required this.storeName,
-    required this.brand,
-    required this.storeCode,
-    required this.contractStatus,
-    required this.ownerName,
-    required this.contact,
+    required this.storeIdx,
+    required this.storeNm,
+    required this.brandCd,
+    required this.brandNm,
+    required this.storeCd,
+    required this.storeStatus,
+    required this.storeStatusNm,
+    required this.ownerNm,
+    required this.storeTel,
+    required this.zipCd,
     required this.address,
     required this.addressDetail,
-    required this.contractDate,
-    required this.openingDate,
-    required this.storeArea,
-    required this.businessNumber,
+    required this.contStartDt,
+    required this.contEndDt,
+    required this.firstContDt,
+    required this.frFee,
+    required this.eduFee,
+    required this.insuDeposit,
+    required this.contDeposit,
+    required this.contManager,
+    required this.eduManager,
+    required this.contArea,
+    required this.realArea,
+    required this.regionCd,
+    required this.regionNm,
+    required this.storeType,
+    required this.storeTypeNm,
+    required this.svId,
+    required this.floor,
+    required this.parkingCount,
+    required this.monthlyRent,
+    required this.rentDeposit,
+    required this.premiumFee,
+    this.businessNumber = '',
   });
 
   final int no;
-  final String storeName;
-  final String brand;
-  final String storeCode;
-  final StoreStatus contractStatus;
-  final String ownerName;
-  final String contact;
+  final int storeIdx;
+  final String storeNm;
+  final String brandCd;
+  final String brandNm;
+  final String storeCd;
+  final String storeStatus;
+  final String storeStatusNm;
+  final String ownerNm;
+  final String storeTel;
+  final String zipCd;
   final String address;
   final String addressDetail;
-  final String contractDate;
-  final String openingDate;
-  final String storeArea;
+  final String contStartDt;
+  final String contEndDt;
+  final String firstContDt;
+  final String regionCd;
+  final String regionNm;
+  final String storeType;
+  final String storeTypeNm;
+  final String svId;
   final String businessNumber;
+  final String frFee;
+  final String eduFee;
+  final String insuDeposit;
+  final String contDeposit;
+  final String contManager;
+  final String eduManager;
+  final String contArea;
+  final String realArea;
+  final int floor;
+  final int parkingCount;
+  final int monthlyRent;
+  final int rentDeposit;
+  final int premiumFee;
+
+  // 호환성을 위한 getter
+  String get region => regionNm.isNotEmpty ? regionNm : regionCd;
+  String get contractStartDate => contStartDt;
+  String get contractEndDate => contEndDt;
 }
 
-/// 문서 탭 한 행. 목업은 `package:app_flutter/core/data/mock/mock_documents.dart`.
+/// 문서 탭 한 행.
 class Document {
   const Document({
     required this.fileName,
@@ -53,10 +99,17 @@ class Document {
   final String attachedAt;
 }
 
-/// 히스토리 탭 한 행. 목업은 `package:app_flutter/core/data/mock/mock_history.dart`.
+/// 히스토리 탭 한 행.
 class HistoryEntry {
-  const HistoryEntry({required this.registeredAt, required this.content});
+  const HistoryEntry({
+    required this.chgDt,
+    required this.chgContent,
+    required this.content,
+    required this.chgUserId,
+  });
 
-  final String registeredAt;
+  final String chgDt;
+  final String chgContent;
   final String content;
+  final String chgUserId;
 }

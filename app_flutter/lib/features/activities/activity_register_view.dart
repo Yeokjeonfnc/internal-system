@@ -1,4 +1,4 @@
-// 활동 관리 등록 — API·결재 연동 전 목업(제공 화면 구조·[FormStylePalette] 톤).
+// 활동 관리 등록 — 제공 화면 구조·[FormStylePalette] 톤.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -192,27 +192,12 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
 
   String _activityKind = '방문';
   late DateTime _activityDate;
+
   /// 결재 절차선 — [결재라인 설정]에서 반영. `결재` 행(칸 수 [kActivityApprovalLineSlotCount]).
-  List<String> _approvalLineStampSlots = const [
-    '김민효',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-  ];
+  List<String> _approvalLineStampSlots = const ['김민효', '', '', '', '', '', ''];
 
   /// [직급(직책)]. [_approvalLineStampSlots]과 같은 인덱스.
-  List<String> _rankLineStampSlots = const [
-    '사원',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-  ];
+  List<String> _rankLineStampSlots = const ['사원', '', '', '', '', '', ''];
 
   DateTime get _today {
     final n = DateTime.now();
@@ -463,7 +448,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                     FilledButton(
                       onPressed: () {},
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppTheme.statusPreparing,
+                        backgroundColor: AppTheme.statusNew,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -478,7 +463,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                         '* 전체 200MB까지 첨부 가능',
                         style: GoogleFonts.notoSansKr(
                           fontSize: 13,
-                          color: AppTheme.statusPreparing,
+                          color: AppTheme.statusNew,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -939,6 +924,7 @@ class _ApprovalTable extends StatelessWidget {
 
   static const double _labelW = 95;
   static const double _rowSingleH = 40;
+
   /// 기안부서 한 줄(문서·스크린샷에서 세로로 더 촘촘하게 보이도록).
   static const double _rowDeptH = 30;
   static const double _rowStampH = 40;

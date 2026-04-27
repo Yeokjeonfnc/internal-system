@@ -28,22 +28,22 @@ enum CommonSearchFieldGroup {
 /// 공통 검색 필드 식별자(화면·필터 상태와 매핑).
 enum CommonSearchFieldId {
   /// 가맹점명
-  storeName,
+  storeNm,
 
   /// 가맹점코드
-  storeCode,
+  storeCd,
 
   /// 브랜드(옵션 적을 때 브랜드형 칩, 많으면 드롭다운)
-  brand,
+  brandCd,
 
   /// 계약상태 — 다중 칩 등은 화면에서 [CommonSearchPresentation.pageBuilt]로 구현
-  contractStatus,
+  storeStatus,
 
   /// 담당슈퍼바이저
-  supervisor,
+  supervisorCd,
 
   /// 가맹점구분(가맹 / 직영)
-  storeCategory,
+  storeType,
 
   /// 예비창업자(이름 등)
   prospectName,
@@ -52,7 +52,7 @@ enum CommonSearchFieldId {
   entrepreneurStatus,
 
   /// 지역 — 항상 드롭다운
-  region,
+  regionCd,
 
   /// 휴대전화
   mobilePhone,
@@ -87,28 +87,38 @@ enum CommonSearchFieldId {
   // --- 영업지역 관리 (필드 전용, 다른 목록의 동명 필드와 id 분리)
   /// 영업지역명
   salesAreaName,
+
   /// 물건명(영업지역 화면)
   salesAreaPropertyName,
+
   /// 브랜드(영업지역 화면)
   salesAreaBrand,
+
   /// 지역(영업지역 화면)
   salesAreaRegion,
+
   /// 전략출점지역 보기
   salesAreaStrategicOnly,
+
   /// 비가맹 물건 포함
   salesAreaIncludeNonFranchise,
+
   /// 영업지역 미설정 포함
   salesAreaIncludeUnset,
+
   /// 설정일자(기간)
   salesAreaSettingDateRange,
 
   // --- 사원관리(마스터)
   /// 사원명
   employeeName,
+
   /// 부서
   employeeDepartment,
+
   /// 이메일 주소
   employeeEmail,
+
   /// 휴대전화(사원관리)
   employeePhone,
 }
@@ -146,37 +156,37 @@ class CommonSearchFieldDef {
 /// 전체 공통 검색 조건(기획 스프레드시트 순·구역 반영).
 const List<CommonSearchFieldDef> kCommonSearchCatalog = [
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.storeName,
+    id: CommonSearchFieldId.storeNm,
     label: '가맹점명',
     group: CommonSearchFieldGroup.storeSearch,
     presentation: CommonSearchPresentation.text,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.storeCode,
+    id: CommonSearchFieldId.storeCd,
     label: '가맹점코드',
     group: CommonSearchFieldGroup.storeSearch,
     presentation: CommonSearchPresentation.text,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.brand,
+    id: CommonSearchFieldId.brandCd,
     label: '브랜드',
     group: CommonSearchFieldGroup.storeSearch,
     presentation: CommonSearchPresentation.adaptiveChipsOrDropdown,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.contractStatus,
+    id: CommonSearchFieldId.storeStatus,
     label: '계약상태',
     group: CommonSearchFieldGroup.storeSearch,
     presentation: CommonSearchPresentation.pageBuilt,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.supervisor,
+    id: CommonSearchFieldId.supervisorCd,
     label: '담당슈퍼바이저',
     group: CommonSearchFieldGroup.storeSearch,
     presentation: CommonSearchPresentation.text,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.storeCategory,
+    id: CommonSearchFieldId.storeType,
     label: '가맹점구분(가맹 / 직영)',
     group: CommonSearchFieldGroup.storeSearch,
     presentation: CommonSearchPresentation.adaptiveChipsOrDropdown,
@@ -224,7 +234,7 @@ const List<CommonSearchFieldDef> kCommonSearchCatalog = [
     presentation: CommonSearchPresentation.text,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.region,
+    id: CommonSearchFieldId.regionCd,
     label: '지역',
     group: CommonSearchFieldGroup.regionContact,
     presentation: CommonSearchPresentation.alwaysDropdown,

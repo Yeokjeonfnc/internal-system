@@ -80,15 +80,15 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
       case CommonSearchFieldId.salesAreaSettingDateRange:
         n.clearSettingDateRangeToDefault();
         return;
-      case CommonSearchFieldId.storeName:
-      case CommonSearchFieldId.storeCode:
-      case CommonSearchFieldId.brand:
-      case CommonSearchFieldId.contractStatus:
-      case CommonSearchFieldId.supervisor:
-      case CommonSearchFieldId.storeCategory:
+      case CommonSearchFieldId.storeNm:
+      case CommonSearchFieldId.storeCd:
+      case CommonSearchFieldId.brandCd:
+      case CommonSearchFieldId.storeStatus:
+      case CommonSearchFieldId.supervisorCd:
+      case CommonSearchFieldId.storeType:
       case CommonSearchFieldId.prospectName:
       case CommonSearchFieldId.entrepreneurStatus:
-      case CommonSearchFieldId.region:
+      case CommonSearchFieldId.regionCd:
       case CommonSearchFieldId.mobilePhone:
       case CommonSearchFieldId.registrationDate:
       case CommonSearchFieldId.propertyName:
@@ -189,15 +189,15 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
         case CommonSearchFieldId.salesAreaIncludeNonFranchise:
         case CommonSearchFieldId.salesAreaIncludeUnset:
           break;
-        case CommonSearchFieldId.storeName:
-        case CommonSearchFieldId.storeCode:
-        case CommonSearchFieldId.brand:
-        case CommonSearchFieldId.contractStatus:
-        case CommonSearchFieldId.supervisor:
-        case CommonSearchFieldId.storeCategory:
+        case CommonSearchFieldId.storeNm:
+        case CommonSearchFieldId.storeCd:
+        case CommonSearchFieldId.brandCd:
+        case CommonSearchFieldId.storeStatus:
+        case CommonSearchFieldId.supervisorCd:
+        case CommonSearchFieldId.storeType:
         case CommonSearchFieldId.prospectName:
         case CommonSearchFieldId.entrepreneurStatus:
-        case CommonSearchFieldId.region:
+        case CommonSearchFieldId.regionCd:
         case CommonSearchFieldId.mobilePhone:
         case CommonSearchFieldId.registrationDate:
         case CommonSearchFieldId.propertyName:
@@ -274,6 +274,7 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
       filterSheetBody: filterSheet,
       mainSearchFields: topBody,
       countText: '총 ${rows.length}건이 조회되었습니다.',
+      onRefresh: () => setState(() {}),
       table: _SalesAreaTable(
         rows: rows,
         onRowDoubleTap: (row) {
@@ -619,7 +620,10 @@ class _SalesAreaTable extends StatelessWidget {
                   ErpTableBodyCell(e.areaSettingLabel, center: true),
                   onDoubleTap: open,
                 ),
-                _cell(ErpTableBodyCell(formatPhoneNumber(e.salesAreaName)), onDoubleTap: open),
+                _cell(
+                  ErpTableBodyCell(formatPhoneNumber(e.salesAreaName)),
+                  onDoubleTap: open,
+                ),
               ],
             );
           }),

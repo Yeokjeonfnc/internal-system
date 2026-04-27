@@ -20,10 +20,10 @@ import 'activity_register_view.dart';
 
 /// 활동관리 화면에서 켤 수 있는 공통 검색 항목.
 const Set<CommonSearchFieldId> kActivityManagementSupportedSearchFields = {
-  CommonSearchFieldId.storeCode,
-  CommonSearchFieldId.brand,
-  CommonSearchFieldId.storeName,
-  CommonSearchFieldId.supervisor,
+  CommonSearchFieldId.storeCd,
+  CommonSearchFieldId.brandCd,
+  CommonSearchFieldId.storeNm,
+  CommonSearchFieldId.supervisorCd,
   CommonSearchFieldId.activityConsultMemo,
   CommonSearchFieldId.activityDateRange,
 };
@@ -92,16 +92,16 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
 
   void _clearActivityFilterField(CommonSearchFieldId id) {
     switch (id) {
-      case CommonSearchFieldId.storeCode:
+      case CommonSearchFieldId.storeCd:
         _codeCtrl.clear();
         return;
-      case CommonSearchFieldId.storeName:
+      case CommonSearchFieldId.storeNm:
         _nameCtrl.clear();
         return;
-      case CommonSearchFieldId.brand:
+      case CommonSearchFieldId.brandCd:
         _brand = '전체';
         return;
-      case CommonSearchFieldId.supervisor:
+      case CommonSearchFieldId.supervisorCd:
         _supCtrl.clear();
         return;
       case CommonSearchFieldId.activityConsultMemo:
@@ -145,7 +145,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
     final items = <SearchFilterItemData>[];
     for (final def in commonSearchDefsOrdered(_visibleMainSearchFields)) {
       switch (def.id) {
-        case CommonSearchFieldId.storeName:
+        case CommonSearchFieldId.storeNm:
           items.add(
             FilterTextSlot(
               label: def.label,
@@ -155,7 +155,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.storeCode:
+        case CommonSearchFieldId.storeCd:
           items.add(
             FilterTextSlot(
               label: def.label,
@@ -165,7 +165,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.brand:
+        case CommonSearchFieldId.brandCd:
           items.add(
             FilterStringOptionsSlot(
               label: def.label,
@@ -175,7 +175,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.supervisor:
+        case CommonSearchFieldId.supervisorCd:
           items.add(
             FilterTextSlot(
               label: def.label,
@@ -237,7 +237,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
     final chips = <ActiveFilterChip>[];
     for (final def in commonSearchDefsOrdered(_visibleMainSearchFields)) {
       switch (def.id) {
-        case CommonSearchFieldId.storeCode:
+        case CommonSearchFieldId.storeCd:
           final c = _codeCtrl.text.trim();
           chips.add(
             ActiveFilterChip(
@@ -246,7 +246,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
             ),
           );
           break;
-        case CommonSearchFieldId.storeName:
+        case CommonSearchFieldId.storeNm:
           final n = _nameCtrl.text.trim();
           chips.add(
             ActiveFilterChip(
@@ -255,7 +255,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
             ),
           );
           break;
-        case CommonSearchFieldId.brand:
+        case CommonSearchFieldId.brandCd:
           chips.add(
             ActiveFilterChip(
               label: '${def.label}: $_brand',
@@ -263,7 +263,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
             ),
           );
           break;
-        case CommonSearchFieldId.supervisor:
+        case CommonSearchFieldId.supervisorCd:
           final s = _supCtrl.text.trim();
           chips.add(
             ActiveFilterChip(
@@ -333,7 +333,8 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
       activeFilters: _activeFilterChips(),
       filterSheetBody: filterSheet,
       mainSearchFields: mainFields,
-      countText: '총 1건이 조회되었습니다. (목업)',
+      countText: '총 0건이 조회되었습니다.',
+      onRefresh: () => setState(() {}),
       table: table,
     );
   }

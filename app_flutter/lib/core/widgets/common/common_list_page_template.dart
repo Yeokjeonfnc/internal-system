@@ -22,6 +22,7 @@ class ListPageTemplate extends StatelessWidget {
     required this.countText,
     required this.table,
     this.onRegister,
+    this.onRefresh,
     this.filterSheetTitle = '검색 조건',
     this.mainSearchFields,
   });
@@ -38,6 +39,7 @@ class ListPageTemplate extends StatelessWidget {
   final String countText;
   final Widget table;
   final VoidCallback? onRegister;
+  final VoidCallback? onRefresh;
 
   /// 슬라이드 패널 제목.
   final String filterSheetTitle;
@@ -76,6 +78,35 @@ class ListPageTemplate extends StatelessWidget {
                           child: ActiveFilterChipsBar(chips: activeFilters),
                         ),
                         const SizedBox(width: 8),
+                        if (onRefresh != null) ...[
+                          FilledButton.tonalIcon(
+                            onPressed: onRefresh,
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            label: const Text('새로고침'),
+                            style: FilledButton.styleFrom(
+                              foregroundColor: const Color(0xFF059669),
+                              backgroundColor: const Color(0xFFD1FAE5),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                side: const BorderSide(
+                                  color: Color(0xFFA7F3D0),
+                                ),
+                              ),
+                              elevation: 0,
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                letterSpacing: -0.1,
+                                fontFamilyFallback: AppTheme.koreanFontFallback,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                         FilledButton.tonalIcon(
                           onPressed: () => showListFilterEndSheet(
                             context,

@@ -3,8 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:app_flutter/core/data/mock_options.dart';
-import 'package:app_flutter/core/data/mock_data_hub.dart';
+import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/formatting/display_date.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
@@ -17,24 +16,6 @@ import 'package:app_flutter/core/widgets/common/form/common_labeled_form_row.dar
 import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
 import 'package:app_flutter/features/stores/store_controller.dart';
 import 'package:app_flutter/features/stores/store_model.dart';
-
-// ---------------------------------------------------------------------------
-// 계약 상태 라벨
-// ---------------------------------------------------------------------------
-
-/// 계약 상태 → 한글 라벨 변환 헬퍼.
-class StoreStatusLabel {
-  StoreStatusLabel._();
-
-  static String of(StoreStatus? status) {
-    return switch (status) {
-      StoreStatus.newContract => '신규계약',
-      StoreStatus.renewal => '재계약',
-      StoreStatus.transfer => '양수도',
-      null => '-',
-    };
-  }
-}
 
 // ---------------------------------------------------------------------------
 // 상세 패널 편집 모드 공통 입력칸 (지역·연락처 등)
@@ -73,6 +54,34 @@ Widget _storeDetailOutlineTextField(
   );
 }
 
+Widget _storeDetailOutlineTextFieldWithSuffix(
+  TextEditingController controller, {
+  required String suffix,
+  TextInputType keyboardType = TextInputType.text,
+}) {
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Expanded(
+        child: _storeDetailOutlineTextField(
+          controller,
+          keyboardType: keyboardType,
+        ),
+      ),
+      const SizedBox(width: 6),
+      Text(
+        suffix,
+        style: const TextStyle(
+          fontSize: 14,
+          color: FormStylePalette.textSecondary,
+          fontWeight: FontWeight.w500,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
+      ),
+    ],
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 공통 스토어 정보
 // ---------------------------------------------------------------------------
@@ -92,19 +101,16 @@ InputDecoration _commonStoreDropdownDecoration() {
     disabledBorder: border,
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(6),
-      borderSide: const BorderSide(
-        color: FormStylePalette.accent,
-        width: 1.4,
-      ),
+      borderSide: const BorderSide(color: FormStylePalette.accent, width: 1.4),
     ),
   );
 }
 
 /// 모든 상세 탭 상단에 공통으로 노출되는 기본 스토어 정보 영역.
 ///
-/// **그룹·지역**은 드롭다운이며, 수정 모드일 때만 선택 가능하다.
+/// 수정 모드일 때 상단 공통 컬럼을 모두 입력/선택 가능하게 전환한다.
 /// [storeAreaController]에는 선택한 지역 문자열이 반영된다(API 연동 전).
-class CommonStoreInfoSection extends StatefulWidget {
+class CommonStoreInfoSection extends ConsumerStatefulWidget {
   const CommonStoreInfoSection({
     super.key,
     this.store,
@@ -117,57 +123,93 @@ class CommonStoreInfoSection extends StatefulWidget {
   final TextEditingController storeAreaController;
 
   @override
-  State<CommonStoreInfoSection> createState() => _CommonStoreInfoSectionState();
+  ConsumerState<CommonStoreInfoSection> createState() =>
+      _CommonStoreInfoSectionState();
 }
 
-class _CommonStoreInfoSectionState extends State<CommonStoreInfoSection> {
-  static final List<String> _groupOptions =
-      kMockStoreCategoryOptions.where((e) => e != '전체').toList();
-
-  late String _group;
+class _CommonStoreInfoSectionState
+    extends ConsumerState<CommonStoreInfoSection> {
+  late final TextEditingController _storeCodeController;
+  late final TextEditingController _businessNumberController;
+  late final TextEditingController _storeNameController;
+  late String _type;
   late String _region;
-
-  List<String> get _regionOptions {
-    final base = kMockRegionOptions.where((e) => e != '전체').toList();
-    if (_region.isNotEmpty &&
-        _region != '-' &&
-        !base.contains(_region)) {
-      return [_region, ...base];
-    }
-    return base;
-  }
+  late String _brand;
+  late String _status;
 
   @override
   void initState() {
     super.initState();
+    _storeCodeController = TextEditingController();
+    _businessNumberController = TextEditingController();
+    _storeNameController = TextEditingController();
     _syncFromStore();
   }
 
   @override
   void didUpdateWidget(covariant CommonStoreInfoSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.store?.storeCode != widget.store?.storeCode ||
-        oldWidget.isEditing != widget.isEditing) {
+    if (oldWidget.store != widget.store ||
+        (!oldWidget.isEditing && widget.isEditing)) {
       _syncFromStore();
     }
   }
 
+  @override
+  void dispose() {
+    _storeCodeController.dispose();
+    _businessNumberController.dispose();
+    _storeNameController.dispose();
+    super.dispose();
+  }
+
   void _syncFromStore() {
-    _group = _groupOptions.first;
-    final area = widget.store?.storeArea ?? '';
-    final opts = kMockRegionOptions.where((e) => e != '전체').toList();
-    if (area.isEmpty || area == '-') {
-      _region = opts.isNotEmpty ? opts.first : '서울';
-    } else if (opts.contains(area)) {
-      _region = area;
-    } else {
-      _region = area;
-    }
+    _storeCodeController.text = widget.store?.storeCd ?? '';
+    _businessNumberController.text = widget.store?.businessNumber ?? '';
+    _storeNameController.text = widget.store?.storeNm ?? '';
+    _brand = widget.store?.brandCd ?? '';
+    _status = widget.store?.storeStatus ?? '';
+    _type = widget.store?.storeType ?? '';
+    _region = widget.store?.regionCd ?? '';
     widget.storeAreaController.text = _region;
   }
 
-  void _setGroup(String value) {
-    setState(() => _group = value);
+  List<CodeOption> _optionsWithCurrentCode(
+    List<CodeOption> base,
+    String currentCode,
+    String currentName,
+  ) {
+    if (currentCode.isNotEmpty &&
+        currentCode != '-' &&
+        !base.any((e) => e.codeCd == currentCode)) {
+      return [
+        CodeOption(
+          codeCd: currentCode,
+          codeNm: currentName.isNotEmpty ? currentName : currentCode,
+        ),
+        ...base,
+      ];
+    }
+    return base;
+  }
+
+  String _selectedCode(String current, List<CodeOption> options) {
+    if (options.any((e) => e.codeCd == current)) {
+      return current;
+    }
+    return options.isNotEmpty ? options.first.codeCd : '';
+  }
+
+  String _storeTypeFallbackName(String code) {
+    return switch (code) {
+      'FR' => '가맹',
+      'DI' => '직영',
+      _ => code,
+    };
+  }
+
+  void _setType(String value) {
+    setState(() => _type = value);
   }
 
   void _setRegion(String value) {
@@ -177,10 +219,88 @@ class _CommonStoreInfoSectionState extends State<CommonStoreInfoSection> {
     });
   }
 
+  void _setBrand(String value) {
+    setState(() => _brand = value);
+  }
+
+  void _setStatus(String value) {
+    setState(() => _status = value);
+  }
+
+  Map<String, dynamic> toUpdatePayload(
+    Store store, {
+    required String storeTel,
+  }) {
+    return {
+      'storeCd': store.storeCd,
+      'storeNm': _storeNameController.text.trim(),
+      'ownerNm': store.ownerNm,
+      'regionCd': _region,
+      'storeTel': storeTel,
+      'address': store.address,
+      'storeStatus': _status,
+      'contEndDt': _emptyToNull(store.contEndDt),
+      'autoRenewalYn': true,
+      'storeType': _type,
+      'svId': store.svId,
+      'adressDetail': store.addressDetail,
+      'zipCd': store.zipCd,
+      'brandCd': _brand,
+      'contStartDt': _emptyToNull(store.contStartDt),
+      'firstContDt': _emptyToNull(store.firstContDt),
+      'businessNumber': _businessNumberController.text.trim(),
+      'frFee': _numberToNull(store.frFee),
+      'eduFee': _numberToNull(store.eduFee),
+      'insuDeposit': _numberToNull(store.insuDeposit),
+      'contDeposit': _numberToNull(store.contDeposit),
+      'contManager': store.contManager,
+      'eduManager': store.eduManager,
+      'contArea': _numberToNull(store.contArea),
+      'realArea': _numberToNull(store.realArea),
+      'floor': store.floor,
+      'parkingCount': store.parkingCount,
+      'premiumFee': store.premiumFee,
+      'monthlyRent': store.monthlyRent,
+      'rentDeposit': store.rentDeposit,
+    };
+  }
+
+  String? _emptyToNull(String value) {
+    return value.trim().isEmpty ? null : value.trim();
+  }
+
+  num? _numberToNull(String value) {
+    final normalized = value.replaceAll(',', '').trim();
+    if (normalized.isEmpty || normalized == '-') return 0;
+    return num.tryParse(normalized);
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
     final canEdit = widget.isEditing;
+    final brandOptions = _optionsWithCurrentCode(
+      ref.watch(codeOptionsProvider(40)).value ?? const <CodeOption>[],
+      _brand,
+      store?.brandNm ?? '',
+    );
+    final statusOptions = _optionsWithCurrentCode(
+      ref.watch(codeOptionsProvider(10)).value ?? const <CodeOption>[],
+      _status,
+      store?.storeStatusNm ?? '',
+    );
+    final regionOptions = _optionsWithCurrentCode(
+      ref.watch(codeOptionsProvider(20)).value ?? const <CodeOption>[],
+      _region,
+      store?.regionNm ?? '',
+    );
+    final typeOptions = _optionsWithCurrentCode(
+      ref.watch(codeOptionsProvider(30)).value ?? const <CodeOption>[],
+      _type,
+      (store?.storeTypeNm ?? '').isNotEmpty
+          ? store!.storeTypeNm
+          : _storeTypeFallbackName(_type),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -188,85 +308,143 @@ class _CommonStoreInfoSectionState extends State<CommonStoreInfoSection> {
         FormRowTwo(
           left: FormFieldBlock(
             label: '가맹점코드',
-            child: ReadonlyValue(store?.storeCode ?? '-'),
+            child: canEdit
+                ? _storeDetailOutlineTextField(_storeCodeController)
+                : ReadonlyValue(store?.storeCd ?? ''),
           ),
           right: FormFieldBlock(
             label: '사업자번호',
-            child: ReadonlyValue(store?.businessNumber ?? '-'),
+            child: canEdit
+                ? _storeDetailOutlineTextField(_businessNumberController)
+                : ReadonlyValue(store?.businessNumber ?? '-'),
           ),
         ),
         const SizedBox(height: 12),
         FormRowTwo(
           left: FormFieldBlock(
             label: '브랜드',
-            child: ReadonlyValue(store?.brand ?? '-'),
+            child: canEdit
+                ? brandOptions.isEmpty
+                      ? ReadonlyValue(store?.brandNm ?? store?.brandCd ?? '-')
+                      : DropdownButtonFormField<String>(
+                          key: ValueKey('brand-${store?.storeCd}-$_brand'),
+                          initialValue: _selectedCode(_brand, brandOptions),
+                          isExpanded: true,
+                          isDense: true,
+                          style: FormStylePalette.valueStyle,
+                          decoration: _commonStoreDropdownDecoration(),
+                          items: [
+                            for (final brand in brandOptions)
+                              DropdownMenuItem<String>(
+                                value: brand.codeCd,
+                                child: Text(
+                                  brand.codeNm,
+                                  style: FormStylePalette.valueStyle,
+                                ),
+                              ),
+                          ],
+                          onChanged: (v) {
+                            if (v != null) _setBrand(v);
+                          },
+                        )
+                : ReadonlyValue(store?.brandNm ?? store?.brandCd ?? '-'),
           ),
           right: FormFieldBlock(
             label: '가맹점명',
-            child: ReadonlyValue(store?.storeName ?? '-'),
+            child: canEdit
+                ? _storeDetailOutlineTextField(_storeNameController)
+                : ReadonlyValue(store?.storeNm ?? '-'),
           ),
         ),
         const SizedBox(height: 12),
         FormRowThree(
           a: FormFieldBlock(
             label: '계약상태',
-            child: ReadonlyValue(StoreStatusLabel.of(store?.contractStatus)),
+            child: canEdit
+                ? statusOptions.isEmpty
+                      ? ReadonlyValue(store?.storeStatusNm ?? '-')
+                      : DropdownButtonFormField<String>(
+                          key: ValueKey('status-${store?.storeCd}-$_status'),
+                          initialValue: _selectedCode(_status, statusOptions),
+                          isExpanded: true,
+                          isDense: true,
+                          style: FormStylePalette.valueStyle,
+                          decoration: _commonStoreDropdownDecoration(),
+                          items: [
+                            for (final status in statusOptions)
+                              DropdownMenuItem<String>(
+                                value: status.codeCd,
+                                child: Text(
+                                  status.codeNm,
+                                  style: FormStylePalette.valueStyle,
+                                ),
+                              ),
+                          ],
+                          onChanged: (v) {
+                            if (v != null) _setStatus(v);
+                          },
+                        )
+                : ReadonlyValue(store?.storeStatusNm ?? '-'),
           ),
           b: FormFieldBlock(
             label: '그룹',
-            child: DropdownButtonFormField<String>(
-              key: ValueKey('group-${store?.storeCode}-$_group'),
-              initialValue: _groupOptions.contains(_group)
-                  ? _group
-                  : _groupOptions.first,
-              isExpanded: true,
-              isDense: true,
-              style: FormStylePalette.valueStyle,
-              decoration: _commonStoreDropdownDecoration(),
-              items: [
-                for (final g in _groupOptions)
-                  DropdownMenuItem<String>(
-                    value: g,
-                    child: Text(
-                      g,
-                      style: FormStylePalette.valueStyle,
-                    ),
+            child: typeOptions.isEmpty
+                ? ReadonlyValue(
+                    (store?.storeTypeNm ?? '').isNotEmpty
+                        ? store!.storeTypeNm
+                        : _storeTypeFallbackName(store?.storeType ?? '-'),
+                  )
+                : DropdownButtonFormField<String>(
+                    key: ValueKey('type-${store?.storeCd}-$_type'),
+                    initialValue: _selectedCode(_type, typeOptions),
+                    isExpanded: true,
+                    isDense: true,
+                    style: FormStylePalette.valueStyle,
+                    decoration: _commonStoreDropdownDecoration(),
+                    items: [
+                      for (final t in typeOptions)
+                        DropdownMenuItem<String>(
+                          value: t.codeCd,
+                          child: Text(
+                            t.codeNm,
+                            style: FormStylePalette.valueStyle,
+                          ),
+                        ),
+                    ],
+                    onChanged: canEdit
+                        ? (v) {
+                            if (v != null) _setType(v);
+                          }
+                        : null,
                   ),
-              ],
-              onChanged: canEdit
-                  ? (v) {
-                      if (v != null) _setGroup(v);
-                    }
-                  : null,
-            ),
           ),
           c: FormFieldBlock(
             label: '지역',
-            child: DropdownButtonFormField<String>(
-              key: ValueKey('region-${store?.storeCode}-$_region'),
-              initialValue: _regionOptions.contains(_region)
-                  ? _region
-                  : _regionOptions.first,
-              isExpanded: true,
-              isDense: true,
-              style: FormStylePalette.valueStyle,
-              decoration: _commonStoreDropdownDecoration(),
-              items: [
-                for (final r in _regionOptions)
-                  DropdownMenuItem<String>(
-                    value: r,
-                    child: Text(
-                      r,
-                      style: FormStylePalette.valueStyle,
-                    ),
+            child: regionOptions.isEmpty
+                ? ReadonlyValue(store?.regionNm ?? store?.regionCd ?? '-')
+                : DropdownButtonFormField<String>(
+                    key: ValueKey('region-${store?.storeCd}-$_region'),
+                    initialValue: _selectedCode(_region, regionOptions),
+                    isExpanded: true,
+                    isDense: true,
+                    style: FormStylePalette.valueStyle,
+                    decoration: _commonStoreDropdownDecoration(),
+                    items: [
+                      for (final r in regionOptions)
+                        DropdownMenuItem<String>(
+                          value: r.codeCd,
+                          child: Text(
+                            r.codeNm,
+                            style: FormStylePalette.valueStyle,
+                          ),
+                        ),
+                    ],
+                    onChanged: canEdit
+                        ? (v) {
+                            if (v != null) _setRegion(v);
+                          }
+                        : null,
                   ),
-              ],
-              onChanged: canEdit
-                  ? (v) {
-                      if (v != null) _setRegion(v);
-                    }
-                  : null,
-            ),
           ),
         ),
       ],
@@ -403,7 +581,9 @@ class _DocumentsTableHeader extends StatelessWidget {
               flex: columns[i].flex,
               child: Text(
                 columns[i].label,
-                textAlign: columns[i].alignStart ? TextAlign.left : TextAlign.center,
+                textAlign: columns[i].alignStart
+                    ? TextAlign.left
+                    : TextAlign.center,
                 style: const TextStyle(
                   color: FormStylePalette.textSecondary,
                   fontSize: 12,
@@ -822,30 +1002,82 @@ class BasicInfoTab extends StatefulWidget {
 }
 
 class _BasicInfoTabState extends State<BasicInfoTab> {
-  late DateTime? _openingDate;
+  late DateTime? _firstContDt;
   late DateTime? _contractExpiryDate;
   late DateTime? _leaseStartDate;
   late DateTime? _leaseEndDate;
+  late TextEditingController _floorController;
+  late TextEditingController _parkingController;
+  late TextEditingController _contArea;
+  late TextEditingController _realAreaController;
+  late TextEditingController _storeNameController;
+  late TextEditingController _zipCodeController;
+  late TextEditingController _addressController;
+  late TextEditingController _rentDepositController;
+  late TextEditingController _premiumFeeController;
+  late TextEditingController _monthlyRentController;
 
   Store? get _store => widget.store;
 
   @override
   void initState() {
     super.initState();
+    _floorController = TextEditingController();
+    _parkingController = TextEditingController();
+    _contArea = TextEditingController(text: _store?.contArea ?? '');
+    _realAreaController = TextEditingController(text: _store?.realArea ?? '');
+    _storeNameController = TextEditingController(text: _store?.storeNm ?? '');
+    _zipCodeController = TextEditingController(text: _store?.zipCd ?? '12345');
+    _addressController = TextEditingController(text: _store?.address ?? '');
+    _rentDepositController = TextEditingController(
+      text: _store?.rentDeposit.toString() ?? '',
+    );
+    _premiumFeeController = TextEditingController(
+      text: _store?.insuDeposit ?? '',
+    );
+    _monthlyRentController = TextEditingController(
+      text: _store?.monthlyRent.toString() ?? '',
+    );
     _syncDates();
   }
 
   @override
   void didUpdateWidget(covariant BasicInfoTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.store?.storeCode != widget.store?.storeCode) {
+    if (oldWidget.store != widget.store ||
+        (!oldWidget.panelEditing && widget.panelEditing)) {
       setState(_syncDates);
+      _floorController.text = _store?.floor.toString() ?? '';
+      _parkingController.text = _store?.parkingCount.toString() ?? '';
+      _contArea.text = _store?.contArea ?? '';
+      _realAreaController.text = _store?.realArea ?? '';
+      _storeNameController.text = _store?.storeNm ?? '';
+      _zipCodeController.text = _store?.zipCd ?? '12345';
+      _addressController.text = _store?.address ?? '';
+      _rentDepositController.text = _store?.rentDeposit.toString() ?? '';
+      _premiumFeeController.text = _store?.premiumFee.toString() ?? '';
+      _monthlyRentController.text = _store?.monthlyRent.toString() ?? '';
     }
   }
 
+  @override
+  void dispose() {
+    _floorController.dispose();
+    _parkingController.dispose();
+    _contArea.dispose();
+    _realAreaController.dispose();
+    _storeNameController.dispose();
+    _zipCodeController.dispose();
+    _addressController.dispose();
+    _rentDepositController.dispose();
+    _premiumFeeController.dispose();
+    _monthlyRentController.dispose();
+    super.dispose();
+  }
+
   void _syncDates() {
-    _openingDate = tryParseLooseDate(widget.store?.openingDate);
-    _contractExpiryDate = tryParseLooseDate(widget.store?.contractDate);
+    _firstContDt = tryParseLooseDate(widget.store?.firstContDt);
+    _contractExpiryDate = tryParseLooseDate(widget.store?.contEndDt);
     if (widget.store != null) {
       _leaseStartDate = DateTime(2023, 1, 1);
       _leaseEndDate = DateTime(2028, 12, 31);
@@ -853,6 +1085,13 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
       _leaseStartDate = null;
       _leaseEndDate = null;
     }
+  }
+
+  String _sqmToPyeong(String? rawSqm) {
+    final normalized = rawSqm?.replaceAll(',', '').trim();
+    final sqm = double.tryParse(normalized ?? '');
+    if (sqm == null) return '-';
+    return (sqm / 3.305785).toStringAsFixed(1);
   }
 
   void _snack(String message) {
@@ -882,12 +1121,12 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
       children: [
         FormRowTwo(
           left: FormFieldBlock(
-            label: '개업일자',
+            label: '최초 가맹계약 체결일자',
             child: DateInputWithPicker(
-              value: _openingDate,
+              value: _firstContDt,
               onPick: () => _pickDate(
-                current: _openingDate,
-                onPicked: (d) => _openingDate = d,
+                current: _firstContDt,
+                onPicked: (d) => _firstContDt = d,
               ),
             ),
           ),
@@ -910,17 +1149,18 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: ReadonlyInputShell(
-                  child: Text(
-                    _store?.storeName ?? '-',
-                    style: FormStylePalette.valueStyle,
-                  ),
-                ),
+                child: widget.panelEditing
+                    ? _storeDetailOutlineTextField(_storeNameController)
+                    : ReadonlyInputShell(
+                        child: Text(
+                          _store?.storeNm ?? '-',
+                          style: FormStylePalette.valueStyle,
+                        ),
+                      ),
               ),
               const SizedBox(width: 8),
               OutlinedButton(
-                onPressed: () =>
-                    _snack('물건 상세정보 조회는 추후 연결됩니다.'),
+                onPressed: () => _snack('물건 상세정보 조회는 추후 연결됩니다.'),
                 style: accentOutlineButtonStyle(iconOnly: false),
                 child: const Text(
                   '물건 상세정보 조회',
@@ -945,28 +1185,31 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
                 children: [
                   SizedBox(
                     width: 112,
-                    child: ReadonlyInputShell(
-                      child: Text(
-                        _store == null ? '-' : '12345',
-                        style: FormStylePalette.valueStyle,
-                      ),
-                    ),
+                    child: widget.panelEditing
+                        ? _storeDetailOutlineTextField(_zipCodeController)
+                        : ReadonlyInputShell(
+                            child: Text(
+                              _store == null ? '-' : '12345',
+                              style: FormStylePalette.valueStyle,
+                            ),
+                          ),
                   ),
                   const SizedBox(width: 10),
                   AccentOutlinedButton(
                     label: '지도보기/영업지역',
-                    onPressed: () =>
-                        _snack('지도보기는 추후 연결됩니다.'),
+                    onPressed: () => _snack('지도보기는 추후 연결됩니다.'),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              ReadonlyInputShell(
-                child: Text(
-                  _store?.address ?? '-',
-                  style: FormStylePalette.valueStyle,
-                ),
-              ),
+              widget.panelEditing
+                  ? _storeDetailOutlineTextField(_addressController)
+                  : ReadonlyInputShell(
+                      child: Text(
+                        _store?.address ?? '-',
+                        style: FormStylePalette.valueStyle,
+                      ),
+                    ),
             ],
           ),
         ),
@@ -979,7 +1222,7 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
                     widget.contactController,
                     keyboardType: TextInputType.phone,
                   )
-                : ReadonlyValue(_store?.contact ?? '-'),
+                : ReadonlyValue(_store?.storeTel ?? '-'),
           ),
           right: FormFieldBlock(
             label: '임대차 기간',
@@ -1001,65 +1244,168 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
         FormRowTwo(
           left: FormFieldBlock(
             label: '면적(계약㎡)',
-            child: UnitPairRow(
-              primary: detailMockIfLoaded(
-                _store,
-                kMockStoreBasicContractAreaSqm,
-              ),
-              primarySuffix: '㎡',
-              secondary: '40.1',
-              secondarySuffix: '평',
-            ),
+            child: widget.panelEditing
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: _storeDetailOutlineTextField(
+                          _contArea,
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        '㎡',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: FormStylePalette.textSecondary,
+                          fontWeight: FontWeight.w500,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                    ],
+                  )
+                : UnitPairRow(
+                    primary: _store?.contArea ?? '-',
+                    primarySuffix: '㎡',
+                    secondary: _sqmToPyeong(_store?.contArea),
+                    secondarySuffix: '평',
+                  ),
           ),
           right: FormFieldBlock(
             label: '면적(실㎡)',
-            child: UnitPairRow(
-              primary: detailMockIfLoaded(_store, kMockStoreBasicActualAreaSqm),
-              primarySuffix: '㎡',
-              secondary: '38.7',
-              secondarySuffix: '평',
-            ),
+            child: widget.panelEditing
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: _storeDetailOutlineTextField(
+                          _realAreaController,
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        '㎡',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: FormStylePalette.textSecondary,
+                          fontWeight: FontWeight.w500,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                    ],
+                  )
+                : UnitPairRow(
+                    primary: _store?.realArea ?? '-',
+                    primarySuffix: '㎡',
+                    secondary: _sqmToPyeong(_store?.realArea),
+                    secondarySuffix: '평',
+                  ),
           ),
         ),
         const SizedBox(height: 12),
         FormRowTwo(
           left: FormFieldBlock(
             label: '층수',
-            child: ReadonlyWithSuffix(
-              value: detailMockIfLoaded(_store, kMockStoreBasicFloorLabel),
-              suffix: '층',
-            ),
+            child: widget.panelEditing
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: _storeDetailOutlineTextField(
+                          _floorController,
+                          keyboardType: TextInputType.text,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        '층',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: FormStylePalette.textSecondary,
+                          fontWeight: FontWeight.w500,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                    ],
+                  )
+                : ReadonlyWithSuffix(
+                    value: _store?.floor.toString() ?? '-',
+                    suffix: '층',
+                  ),
           ),
           right: FormFieldBlock(
             label: '주차가능대수',
-            child: ReadonlyWithSuffix(
-              value: detailMockIfLoaded(_store, kMockStoreBasicParkingCount),
-              suffix: '대',
-            ),
+            child: widget.panelEditing
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: _storeDetailOutlineTextField(
+                          _parkingController,
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        '대',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: FormStylePalette.textSecondary,
+                          fontWeight: FontWeight.w500,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                    ],
+                  )
+                : ReadonlyWithSuffix(
+                    value: _store?.parkingCount.toString() ?? '-',
+                    suffix: '대',
+                  ),
           ),
         ),
         const SizedBox(height: 12),
         FormRowThree(
           a: FormFieldBlock(
             label: '입대차 보증금',
-            child: ReadonlyWithSuffix(
-              value: detailMockIfLoaded(_store, kMockStoreBasicLeaseDeposit),
-              suffix: '원',
-            ),
+            child: widget.panelEditing
+                ? _storeDetailOutlineTextFieldWithSuffix(
+                    _rentDepositController,
+                    suffix: '원',
+                    keyboardType: TextInputType.number,
+                  )
+                : ReadonlyWithSuffix(
+                    value: _store?.rentDeposit.toString() ?? '-',
+                    suffix: '원',
+                  ),
           ),
           b: FormFieldBlock(
             label: '권리금',
-            child: ReadonlyWithSuffix(
-              value: detailMockIfLoaded(_store, kMockStoreBasicKeyMoney),
-              suffix: '원',
-            ),
+            child: widget.panelEditing
+                ? _storeDetailOutlineTextFieldWithSuffix(
+                    _premiumFeeController,
+                    suffix: '원',
+                    keyboardType: TextInputType.number,
+                  )
+                : ReadonlyWithSuffix(
+                    value: _store?.premiumFee.toString() ?? '-',
+                    suffix: '원',
+                  ),
           ),
           c: FormFieldBlock(
             label: '임차료',
-            child: ReadonlyWithSuffix(
-              value: detailMockIfLoaded(_store, kMockStoreBasicMonthlyRent),
-              suffix: '원',
-            ),
+            child: widget.panelEditing
+                ? _storeDetailOutlineTextFieldWithSuffix(
+                    _monthlyRentController,
+                    suffix: '원',
+                    keyboardType: TextInputType.number,
+                  )
+                : ReadonlyWithSuffix(
+                    value: _store?.monthlyRent.toString() ?? '-',
+                    suffix: '원',
+                  ),
           ),
         ),
       ],
@@ -1072,47 +1418,119 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
 // ---------------------------------------------------------------------------
 
 class ContractInfoTab extends StatefulWidget {
-  const ContractInfoTab({super.key, this.store});
+  const ContractInfoTab({super.key, this.store, required this.panelEditing});
 
   final Store? store;
+  final bool panelEditing;
 
   @override
   State<ContractInfoTab> createState() => _ContractInfoTabState();
 }
 
 class _ContractInfoTabState extends State<ContractInfoTab> {
-  late DateTime? _firstContractDate;
+  late DateTime? _firstContDt;
   late DateTime? _currentContractStart;
   late DateTime? _currentContractEnd;
+  late TextEditingController _frFreeController;
+  late TextEditingController _eduFeeController;
+  late TextEditingController _insuDepositController;
+  late TextEditingController _contDepositController;
+  // late TextEditingController _royaltyRateController;
+  late TextEditingController _contManagerController;
+  late TextEditingController _eduManagerController;
+  late TextEditingController _supervisorController;
 
   Store? get _store => widget.store;
+
+  Map<String, dynamic> toUpdatePayload() {
+    return {
+      'firstContDt': _dateToYmd(_firstContDt),
+      'contStartDt': _dateToYmd(_currentContractStart),
+      'contEndDt': _dateToYmd(_currentContractEnd),
+      'frFee': _numberToNull(_frFreeController.text),
+      'eduFee': _numberToNull(_eduFeeController.text),
+      'insuDeposit': _numberToNull(_insuDepositController.text),
+      'contDeposit': _numberToNull(_contDepositController.text),
+      'contManager': _contManagerController.text.trim(),
+      'eduManager': _eduManagerController.text.trim(),
+      'svId': _supervisorController.text.trim(),
+    };
+  }
+
+  String? _dateToYmd(DateTime? value) {
+    if (value == null) return null;
+    final y = value.year.toString().padLeft(4, '0');
+    final m = value.month.toString().padLeft(2, '0');
+    final d = value.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  num? _numberToNull(String value) {
+    final normalized = value.replaceAll(',', '').trim();
+    if (normalized.isEmpty || normalized == '-') return 0;
+    return num.tryParse(normalized);
+  }
 
   @override
   void initState() {
     super.initState();
+    _frFreeController = TextEditingController(
+      text: _store?.frFee != null ? _store!.frFee : '0',
+    );
+    _eduFeeController = TextEditingController(
+      text: _store?.eduFee != null ? _store!.eduFee : '0',
+    );
+    _insuDepositController = TextEditingController(
+      text: _store?.insuDeposit != null ? _store!.insuDeposit : '0',
+    );
+    _contDepositController = TextEditingController(
+      text: _store?.contDeposit != null ? _store!.contDeposit : '0',
+    );
+    _contManagerController = TextEditingController(
+      text: _store?.contManager != null ? _store!.contManager : '',
+    );
+    _eduManagerController = TextEditingController(
+      text: _store?.eduManager != null ? _store!.eduManager : '',
+    );
+    _supervisorController = TextEditingController(
+      text: _store?.svId != null ? _store!.svId : '',
+    );
     _syncDates();
   }
 
   @override
   void didUpdateWidget(covariant ContractInfoTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.store?.storeCode != widget.store?.storeCode) {
+    if (oldWidget.store != widget.store ||
+        (!oldWidget.panelEditing && widget.panelEditing)) {
       setState(_syncDates);
+      _frFreeController.text = _store?.frFee ?? '';
+      _eduFeeController.text = _store?.eduFee ?? '';
+      _insuDepositController.text = _store?.insuDeposit ?? '';
+      _contDepositController.text = _store?.contDeposit ?? '';
+      _contManagerController.text = _store?.contManager ?? '';
+      _eduManagerController.text = _store?.eduManager ?? '';
+      _supervisorController.text = _store?.svId ?? '';
     }
   }
 
+  @override
+  void dispose() {
+    _frFreeController.dispose();
+    _eduFeeController.dispose();
+    _insuDepositController.dispose();
+    _contDepositController.dispose();
+    // _royaltyRateController.dispose();
+    _contManagerController.dispose();
+    _eduManagerController.dispose();
+    _supervisorController.dispose();
+    super.dispose();
+  }
+
   void _syncDates() {
-    if (widget.store == null) {
-      _firstContractDate = null;
-      _currentContractStart = null;
-      _currentContractEnd = null;
-      return;
-    }
-    _firstContractDate = DateTime(2020, 5, 15);
-    _currentContractStart =
-        tryParseLooseDate(widget.store?.openingDate) ?? DateTime(2023, 5, 15);
-    _currentContractEnd =
-        tryParseLooseDate(widget.store?.contractDate) ?? DateTime(2028, 5, 14);
+    _firstContDt = tryParseLooseDate(widget.store?.firstContDt);
+    _currentContractStart = tryParseLooseDate(widget.store?.contStartDt);
+    _currentContractEnd = tryParseLooseDate(widget.store?.contEndDt);
   }
 
   Future<void> _pickDate({
@@ -1137,10 +1555,10 @@ class _ContractInfoTabState extends State<ContractInfoTab> {
           left: FormFieldBlock(
             label: '최초 가맹계약 체결일자',
             child: DateInputWithPicker(
-              value: _firstContractDate,
+              value: _firstContDt,
               onPick: () => _pickDate(
-                current: _firstContractDate,
-                onPicked: (d) => _firstContractDate = d,
+                current: _firstContDt,
+                onPicked: (d) => _firstContDt = d,
               ),
             ),
           ),
@@ -1164,72 +1582,170 @@ class _ContractInfoTabState extends State<ContractInfoTab> {
         FormRowTwo(
           left: FormFieldBlock(
             label: '가맹비',
-            child: ReadonlyWithSuffix(
-              value: detailMockIfLoaded(_store, kMockStoreContractFranchiseFee),
-              suffix: '원',
-            ),
+            child: widget.panelEditing
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: _storeDetailOutlineTextField(
+                          _frFreeController,
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        '원',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: FormStylePalette.textSecondary,
+                          fontWeight: FontWeight.w500,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                    ],
+                  )
+                : ReadonlyWithSuffix(value: _store?.frFee ?? '-', suffix: '원'),
           ),
           right: FormFieldBlock(
             label: '교육비',
-            child: ReadonlyWithSuffix(
-              value: detailMockIfLoaded(_store, kMockStoreContractEducationFee),
-              suffix: '원',
-            ),
+            child: widget.panelEditing
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: _storeDetailOutlineTextField(
+                          _eduFeeController,
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        '원',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: FormStylePalette.textSecondary,
+                          fontWeight: FontWeight.w500,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                    ],
+                  )
+                : ReadonlyWithSuffix(value: _store?.eduFee ?? '-', suffix: '원'),
           ),
         ),
         const SizedBox(height: 12),
         FormRowTwo(
           left: FormFieldBlock(
             label: '보증보험금',
-            child: ReadonlyWithSuffix(
-              value: detailMockIfLoaded(
-                _store,
-                kMockStoreContractGuaranteeInsurance,
-              ),
-              suffix: '원',
-            ),
+            child: widget.panelEditing
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: _storeDetailOutlineTextField(
+                          _insuDepositController,
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        '원',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: FormStylePalette.textSecondary,
+                          fontWeight: FontWeight.w500,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                    ],
+                  )
+                : ReadonlyWithSuffix(
+                    value: _store?.insuDeposit ?? '-',
+                    suffix: '원',
+                  ),
           ),
           right: FormFieldBlock(
             label: '계약보증금',
-            child: ReadonlyWithSuffix(
-              value: detailMockIfLoaded(_store, kMockStoreContractDeposit),
-              suffix: '원',
-            ),
+            child: widget.panelEditing
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: _storeDetailOutlineTextField(
+                          _contDepositController,
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        '원',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: FormStylePalette.textSecondary,
+                          fontWeight: FontWeight.w500,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                    ],
+                  )
+                : ReadonlyWithSuffix(
+                    value: _store?.contDeposit ?? '-',
+                    suffix: '원',
+                  ),
           ),
         ),
-        const SizedBox(height: 12),
-        FormRowTwo(
-          left: FormFieldBlock(
-            label: '로열티',
-            child: ReadonlyWithSuffix(
-              value: detailMockIfLoaded(_store, kMockStoreContractRoyaltyRate),
-              suffix: '%',
-            ),
-          ),
-          right: const SizedBox.shrink(),
-        ),
+        // const SizedBox(height: 12),
+        // FormRowTwo(
+        //   left: FormFieldBlock(
+        //     label: '로열티',
+        //     child: widget.panelEditing
+        //         ? Row(
+        //             crossAxisAlignment: CrossAxisAlignment.center,
+        //             children: [
+        //               Expanded(
+        //                 child: _storeDetailOutlineTextField(
+        //                   _royaltyRateController,
+        //                   keyboardType: TextInputType.number,
+        //                 ),
+        //               ),
+        //               const SizedBox(width: 6),
+        //               const Text(
+        //                 '%',
+        //                 style: TextStyle(
+        //                   fontSize: 14,
+        //                   color: FormStylePalette.textSecondary,
+        //                   fontWeight: FontWeight.w500,
+        //                   fontFamilyFallback: AppTheme.koreanFontFallback,
+        //                 ),
+        //               ),
+        //             ],
+        //           )
+        //         : ReadonlyWithSuffix(
+        //             value: _store?.royaltyRate ?? '-',
+        //             suffix: '%',
+        //           ),
+        //   ),
+        //   right: const SizedBox.shrink(),
+        // ),
         const SizedBox(height: 12),
         FormRowThree(
           a: FormFieldBlock(
             label: '가맹계약 담당자',
-            child: ReadonlyValue(
-              detailMockIfLoaded(_store, kMockStoreContractManagerName),
-            ),
+            child: widget.panelEditing
+                ? _storeDetailOutlineTextField(_contManagerController)
+                : ReadonlyValue(_store?.contManager ?? '-'),
           ),
           b: FormFieldBlock(
             label: '기본교육 담당자',
-            child: ReadonlyValue(
-              detailMockIfLoaded(
-                _store,
-                kMockStoreContractEducationManagerName,
-              ),
-            ),
+            child: widget.panelEditing
+                ? _storeDetailOutlineTextField(_eduManagerController)
+                : ReadonlyValue(_store?.eduManager ?? '-'),
           ),
           c: FormFieldBlock(
             label: '담당 수퍼바이저',
-            child: ReadonlyValue(
-              detailMockIfLoaded(_store, kMockStoreContractSupervisorName),
-            ),
+            child: widget.panelEditing
+                ? _storeDetailOutlineTextField(_supervisorController)
+                : ReadonlyValue(_store?.svId ?? '-'),
           ),
         ),
       ],
@@ -1394,16 +1910,33 @@ class _DocumentsTabState extends ConsumerState<DocumentsTab> {
 // 히스토리 탭
 // ---------------------------------------------------------------------------
 
-class HistoryTab extends StatelessWidget {
+class HistoryTab extends ConsumerWidget {
   const HistoryTab({super.key, this.store});
 
   final Store? store;
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final entriesAsync = store == null
+        ? const AsyncValue<List<HistoryEntry>>.data(<HistoryEntry>[])
+        : ref.watch(storeHistoriesProvider(store!.storeIdx));
+
+    return entriesAsync.when(
+      data: (entries) => _HistoryTable(entries: entries),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) =>
+          Center(child: Text('히스토리 조회 중 오류가 발생했습니다: $error')),
+    );
+  }
+}
+
+class _HistoryTable extends StatelessWidget {
+  const _HistoryTable({required this.entries});
+
+  final List<HistoryEntry> entries;
+
+  @override
   Widget build(BuildContext context) {
-    final entries = store == null
-        ? const <HistoryEntry>[]
-        : kMockHistoryEntries;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: FormStylePalette.panelBg,
@@ -1448,10 +1981,9 @@ class _HistoryTableHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: const [
-          _HistoryHeaderCell(label: '등록일'),
-          _HistoryHeaderCell(label: '내용', flex: 2),
-          _HistoryHeaderCell(label: '등록일'),
-          _HistoryHeaderCell(label: '내용', flex: 2),
+          _HistoryHeaderCell(label: '변경일'),
+          _HistoryHeaderCell(label: '내용', flex: 3),
+          _HistoryHeaderCell(label: '수정자'),
         ],
       ),
     );
@@ -1498,10 +2030,9 @@ class _HistoryTableRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       child: Row(
         children: [
-          _HistoryValueCell(text: entry.registeredAt),
-          _HistoryValueCell(text: entry.content, flex: 2),
-          const _HistoryValueCell(text: ''),
-          const _HistoryValueCell(text: '', flex: 2),
+          _HistoryValueCell(text: entry.chgDt),
+          _HistoryValueCell(text: entry.content, flex: 3),
+          _HistoryValueCell(text: entry.chgUserId),
         ],
       ),
     );
@@ -1542,18 +2073,20 @@ class _HistoryValueCell extends StatelessWidget {
 /// - 상단: 탭 타이틀 + 수정/저장/취소 액션
 /// - 중단: 공통 스토어 정보
 /// - 하단: 탭별 컨텐츠 (title 기반 디스패치)
-class StoreDetailPanel extends StatefulWidget {
+class StoreDetailPanel extends ConsumerStatefulWidget {
   const StoreDetailPanel({super.key, required this.title, this.store});
 
   final String title;
   final Store? store;
 
   @override
-  State<StoreDetailPanel> createState() => _StoreDetailPanelState();
+  ConsumerState<StoreDetailPanel> createState() => _StoreDetailPanelState();
 }
 
-class _StoreDetailPanelState extends State<StoreDetailPanel> {
+class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
   bool _isEditing = false;
+  final _commonInfoKey = GlobalKey<_CommonStoreInfoSectionState>();
+  final _contractInfoKey = GlobalKey<_ContractInfoTabState>();
   late final TextEditingController _storeAreaCtrl;
   late final TextEditingController _contactCtrl;
 
@@ -1567,7 +2100,7 @@ class _StoreDetailPanelState extends State<StoreDetailPanel> {
   @override
   void didUpdateWidget(covariant StoreDetailPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_isEditing && oldWidget.store?.storeCode != widget.store?.storeCode) {
+    if (oldWidget.store != widget.store) {
       _storeAreaCtrl.text = _storeAreaFromStore();
       _contactCtrl.text = _contactFromStore();
     }
@@ -1580,11 +2113,24 @@ class _StoreDetailPanelState extends State<StoreDetailPanel> {
     super.dispose();
   }
 
-  String _storeAreaFromStore() => widget.store?.storeArea ?? '';
+  String _storeAreaFromStore() => widget.store?.regionCd ?? '';
 
-  String _contactFromStore() => widget.store?.contact ?? '';
+  String _contactFromStore() => widget.store?.storeTel ?? '';
+
+  void _invalidateStoreProviders() {
+    final storeCd = widget.store?.storeCd;
+    final storeIdx = widget.store?.storeIdx;
+    if (storeCd != null && storeCd.isNotEmpty) {
+      ref.invalidate(storeDetailProvider(storeCd));
+    }
+    if (storeIdx != null && storeIdx > 0) {
+      ref.invalidate(storeHistoriesProvider(storeIdx));
+    }
+    ref.invalidate(storeDataProvider);
+  }
 
   void editStore() {
+    _invalidateStoreProviders();
     setState(() {
       _isEditing = true;
       _storeAreaCtrl.text = _storeAreaFromStore();
@@ -1593,6 +2139,8 @@ class _StoreDetailPanelState extends State<StoreDetailPanel> {
   }
 
   void cancelStoreEdit() {
+    _invalidateStoreProviders();
+    _commonInfoKey.currentState?._syncFromStore();
     setState(() {
       _isEditing = false;
       _storeAreaCtrl.text = _storeAreaFromStore();
@@ -1601,9 +2149,50 @@ class _StoreDetailPanelState extends State<StoreDetailPanel> {
     _snack('취소되었습니다.');
   }
 
-  void saveStore() {
+  Future<void> saveStore() async {
+    final store = widget.store;
+    final commonInfo = _commonInfoKey.currentState;
+    if (store == null || commonInfo == null) {
+      setState(() => _isEditing = false);
+      _snack('저장할 가맹점 정보가 없습니다.');
+      return;
+    }
+
+    final payload = commonInfo.toUpdatePayload(
+      store,
+      storeTel: _contactCtrl.text.trim(),
+    );
+    if (widget.title == '계약정보') {
+      final contractInfo = _contractInfoKey.currentState;
+      if (contractInfo == null) {
+        _snack('계약정보 입력값을 확인할 수 없습니다.');
+        return;
+      }
+      payload.addAll(contractInfo.toUpdatePayload());
+    }
+
+    final updated = await ref
+        .read(storeApiServiceProvider)
+        .updateStore(store.storeCd, payload);
+
+    if (!mounted) return;
+    if (updated == null) {
+      _snack('저장에 실패했습니다.');
+      return;
+    }
+
+    ref.invalidate(storeDataProvider);
+    ref.invalidate(storeHistoriesProvider(store.storeIdx));
+    final refreshed = await ref.refresh(
+      storeDetailProvider(store.storeCd).future,
+    );
+    if (!mounted) return;
+    if (refreshed == null) {
+      _snack('저장 후 최신 가맹점 정보를 다시 불러오지 못했습니다.');
+      return;
+    }
     setState(() => _isEditing = false);
-    _snack('저장되었습니다. (API 연동 예정)');
+    _snack('저장되었습니다.');
   }
 
   void _snack(String message) {
@@ -1622,7 +2211,11 @@ class _StoreDetailPanelState extends State<StoreDetailPanel> {
           contactController: _contactCtrl,
         );
       case '계약정보':
-        return ContractInfoTab(store: widget.store);
+        return ContractInfoTab(
+          key: _contractInfoKey,
+          store: widget.store,
+          panelEditing: _isEditing,
+        );
       case '문서정보':
         return DocumentsTab(store: widget.store);
       case '히스토리':
@@ -1664,6 +2257,7 @@ class _StoreDetailPanelState extends State<StoreDetailPanel> {
                     ),
                     const SizedBox(height: 14),
                     CommonStoreInfoSection(
+                      key: _commonInfoKey,
                       store: widget.store,
                       isEditing: _isEditing,
                       storeAreaController: _storeAreaCtrl,

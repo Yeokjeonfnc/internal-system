@@ -22,9 +22,7 @@ class ManagedTab {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ManagedTab &&
-          location == other.location &&
-          title == other.title;
+      other is ManagedTab && location == other.location && title == other.title;
 
   @override
   int get hashCode => Object.hash(location, title);
@@ -32,8 +30,8 @@ class ManagedTab {
 
 final tabManagerProvider =
     NotifierProvider<TabManagerNotifier, List<ManagedTab>>(
-  TabManagerNotifier.new,
-);
+      TabManagerNotifier.new,
+    );
 
 class TabManagerNotifier extends Notifier<List<ManagedTab>> {
   @override
@@ -100,17 +98,16 @@ class TabManagerNotifier extends Notifier<List<ManagedTab>> {
     final newList = List<ManagedTab>.from(state)..removeAt(i);
 
     if (newList.isEmpty) {
-      state = [
-        ManagedTab(location: AppRoutes.dashboard, title: '대시보드'),
-      ];
+      state = [ManagedTab(location: AppRoutes.dashboard, title: '대시보드')];
       if (current != AppRoutes.dashboard) {
         context.go(AppRoutes.dashboard);
       }
       return;
     }
 
-    final nextIdx =
-        current == location ? (i < newList.length ? i : i - 1) : null;
+    final nextIdx = current == location
+        ? (i < newList.length ? i : i - 1)
+        : null;
 
     state = canonicalOrder(newList);
 

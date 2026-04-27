@@ -1,11 +1,7 @@
-// 영업지역 관리 — 필터·탭·목(memo) Repository.
+// 영업지역 관리 — 필터·탭·임시 Repository.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:app_flutter/core/data/mock/mock_stores.dart'
-    show kStoreBrandFilterOptions;
-import 'package:app_flutter/core/data/mock_options.dart'
-    show kMockRegionOptions;
 import 'package:app_flutter/core/state/base_list_provider.dart';
 import 'sales_area_model.dart';
 
@@ -72,25 +68,16 @@ class InMemorySalesAreaRepository implements SalesAreaRepository {
   const InMemorySalesAreaRepository();
 
   @override
-  List<SalesAreaRow> all() => _kMockRows;
+  List<SalesAreaRow> all() => const <SalesAreaRow>[];
 
   @override
-  SalesAreaRow? rowById(int id) {
-    for (final r in _kMockRows) {
-      if (r.id == id) return r;
-    }
-    return null;
-  }
+  SalesAreaRow? rowById(int id) => null;
 
   @override
-  List<String> brandOptions() {
-    return kStoreBrandFilterOptions;
-  }
+  List<String> brandOptions() => const <String>['전체'];
 
   @override
-  List<String> regionOptions() {
-    return kMockRegionOptions;
-  }
+  List<String> regionOptions() => const <String>['전체'];
 }
 
 final salesAreaRepositoryProvider = Provider<SalesAreaRepository>(
@@ -206,90 +193,3 @@ DateTime? _parseYmd(String s) {
 }
 
 DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
-
-const List<SalesAreaRow> _kMockRows = [
-  SalesAreaRow(
-    id: 1,
-    settingDateYmd: '2026-04-20',
-    propertyName: '할맥 서울은평구청입구점',
-    region: '서울',
-    franchiseLabel: '가맹',
-    storeName: '할맥 서울은평구청입구점',
-    brand: '역전할머니맥주',
-    areaSettingLabel: '설정',
-    salesAreaName: '할맥 서울은평구청입구점',
-    isAreaConfigured: true,
-    isStrategicOpening: true,
-    isFranchise: true,
-  ),
-  SalesAreaRow(
-    id: 2,
-    settingDateYmd: '2026-04-18',
-    propertyName: '할맥 청주복대',
-    region: '충북',
-    franchiseLabel: '가맹',
-    storeName: '할맥 청주복대',
-    brand: '역전할머니맥주',
-    areaSettingLabel: '설정',
-    salesAreaName: '할맥 청주복대',
-    isAreaConfigured: true,
-    isStrategicOpening: false,
-    isFranchise: true,
-  ),
-  SalesAreaRow(
-    id: 3,
-    settingDateYmd: '2026-04-15',
-    propertyName: '할맥 수원영통점',
-    region: '경기',
-    franchiseLabel: '가맹',
-    storeName: '할맥 수원영통점',
-    brand: '역전할머니맥주',
-    areaSettingLabel: '설정',
-    salesAreaName: '할맥 수원영통점',
-    isAreaConfigured: true,
-    isStrategicOpening: false,
-    isFranchise: true,
-  ),
-  SalesAreaRow(
-    id: 4,
-    settingDateYmd: '2026-04-10',
-    propertyName: '할맥 부천점',
-    region: '경기',
-    franchiseLabel: '가맹',
-    storeName: '할맥 부천점',
-    brand: '역전할머니맥주',
-    areaSettingLabel: '미설정',
-    salesAreaName: ' ',
-    isAreaConfigured: false,
-    isStrategicOpening: false,
-    isFranchise: true,
-  ),
-  SalesAreaRow(
-    id: 5,
-    settingDateYmd: '2026-04-02',
-    propertyName: '대전 둔산',
-    region: '대전',
-    franchiseLabel: '비가맹',
-    storeName: '테스트 둔산점',
-    brand: '역전할머니맥주',
-    areaSettingLabel: '미설정',
-    salesAreaName: '-',
-    isAreaConfigured: false,
-    isStrategicOpening: true,
-    isFranchise: false,
-  ),
-  SalesAreaRow(
-    id: 6,
-    settingDateYmd: '2026-03-25',
-    propertyName: '강남역2번',
-    region: '서울',
-    franchiseLabel: '가맹',
-    storeName: '할맥 강남',
-    brand: '역전할머니맥주',
-    areaSettingLabel: '설정',
-    salesAreaName: '강남 중앙',
-    isAreaConfigured: true,
-    isStrategicOpening: true,
-    isFranchise: true,
-  ),
-];

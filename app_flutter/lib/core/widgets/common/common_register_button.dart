@@ -9,11 +9,7 @@ import 'package:app_flutter/core/theme/app_colors.dart';
 /// 브랜드 accent 컬러를 배경으로 쓰는 작은 FilledButton 스타일이며,
 /// 좌측에 `+` 아이콘이 표시됩니다.
 class RegisterButton extends StatelessWidget {
-  const RegisterButton({
-    super.key,
-    required this.onPressed,
-    this.label = '등록',
-  });
+  const RegisterButton({super.key, required this.onPressed, this.label = '등록'});
 
   final VoidCallback onPressed;
   final String label;

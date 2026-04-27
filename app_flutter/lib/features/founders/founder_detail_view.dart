@@ -33,14 +33,9 @@ class FounderDetailView extends ConsumerWidget {
     final displayName = founder?.name ?? '알 수 없음';
 
     return DetailScreenWithTabs(
-      title: DetailScreenHeadline.leadTail(
-        lead: displayName,
-        tail: '님 상세 정보',
-      ),
+      title: DetailScreenHeadline.leadTail(lead: displayName, tail: '님 상세 정보'),
       tabTitles: _tabTitles,
-      tabPages: [
-        _FounderInfoPanel(founder: founder),
-      ],
+      tabPages: [_FounderInfoPanel(founder: founder)],
     );
   }
 }
@@ -110,7 +105,10 @@ class _FounderInfoPanelState extends State<_FounderInfoPanel> {
                       onCancel: cancelFounderEdit,
                     ),
                     const SizedBox(height: 14),
-                    const Divider(color: FormStylePalette.panelBorder, height: 1),
+                    const Divider(
+                      color: FormStylePalette.panelBorder,
+                      height: 1,
+                    ),
                     const SizedBox(height: 16),
                     _FounderInfoForm(founder: widget.founder),
                   ],
@@ -355,9 +353,7 @@ class FounderRegisterView extends StatelessWidget {
       /// 셸 상단 배너와 제목이 겹치지 않게 본문에서 제목 띠 생략.
       title: const SizedBox.shrink(),
       tabTitles: _tabTitles,
-      tabPages: const [
-        _FounderRegisterPanel(),
-      ],
+      tabPages: const [_FounderRegisterPanel()],
     );
   }
 }
@@ -414,9 +410,9 @@ class _FounderRegisterPanelState extends State<_FounderRegisterPanel> {
   }
 
   void _openAddressSearch() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('주소 검색은 추후 연동 예정입니다.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('주소 검색은 추후 연동 예정입니다.')));
   }
 
   bool _validate() {
@@ -436,9 +432,9 @@ class _FounderRegisterPanelState extends State<_FounderRegisterPanel> {
 
   void _save() {
     if (!_validate()) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('등록되었습니다. (API 연동 예정)')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('등록되었습니다. (API 연동 예정)')));
     context.go(AppRoutes.founders);
   }
 
@@ -469,9 +465,15 @@ class _FounderRegisterPanelState extends State<_FounderRegisterPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _FounderRegisterPanelHeader(onSave: _save, onCancel: _cancel),
+                    _FounderRegisterPanelHeader(
+                      onSave: _save,
+                      onCancel: _cancel,
+                    ),
                     const SizedBox(height: 14),
-                    const Divider(color: FormStylePalette.panelBorder, height: 1),
+                    const Divider(
+                      color: FormStylePalette.panelBorder,
+                      height: 1,
+                    ),
                     const SizedBox(height: 16),
                     _buildForm(),
                   ],
@@ -536,10 +538,7 @@ class _FounderRegisterPanelState extends State<_FounderRegisterPanel> {
         const SizedBox(height: 10),
         LabeledFormRow(
           label: '생년월일',
-          child: DateInputWithPicker(
-            value: _birthDate,
-            onPick: _pickBirthDate,
-          ),
+          child: DateInputWithPicker(value: _birthDate, onPick: _pickBirthDate),
         ),
         const SizedBox(height: 10),
         LabeledFormRow(

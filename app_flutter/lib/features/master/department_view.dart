@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
+import 'package:app_flutter/core/widgets/common/common_detail_action_buttons.dart';
 import 'package:app_flutter/core/widgets/common/common_register_button.dart';
 import 'package:app_flutter/features/master/department_model.dart';
 import 'package:app_flutter/features/master/department_repository.dart';
@@ -20,6 +21,8 @@ class _DepartmentViewState extends State<DepartmentView> {
   final _repo = DepartmentRepository();
   late final List<Department> _departments;
   final Set<String> _expandedIds = {'root', 'mgmt'};
+  String? _selectedDeptId;
+  bool _isEditing = false;
 
   @override
   void initState() {
@@ -35,6 +38,48 @@ class _DepartmentViewState extends State<DepartmentView> {
         _expandedIds.add(id);
       }
     });
+  }
+
+  void _selectDepartment(String id) {
+    setState(() {
+      _selectedDeptId = id;
+      _isEditing = false;
+    });
+  }
+
+  void _enterEditMode() {
+    setState(() => _isEditing = true);
+  }
+
+  void _cancelEdit() {
+    setState(() => _isEditing = false);
+    _showSnackBar('취소되었습니다.');
+  }
+
+  void _saveEdit() {
+    setState(() => _isEditing = false);
+    _showSnackBar('저장되었습니다. (API 연동 예정)');
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Department? _findDepartmentById(String id, List<Department> departments) {
+    for (final dept in departments) {
+      if (dept.id == id) return dept;
+      final found = _findDepartmentById(id, dept.children);
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  Department? get _selectedDepartment {
+    if (_selectedDeptId == null) return null;
+    return _findDepartmentById(_selectedDeptId!, _departments);
   }
 
   int _getTotalCount() {
@@ -91,9 +136,20 @@ class _DepartmentViewState extends State<DepartmentView> {
                             ),
                           ),
                         ),
+                        if (_selectedDepartment != null) ...[
+                          if (_isEditing) ...[
+                            SaveActionButton(onPressed: _saveEdit),
+                            const SizedBox(width: 8),
+                            CancelActionButton(onPressed: _cancelEdit),
+                            const SizedBox(width: 8),
+                          ] else ...[
+                            EditActionButton(onPressed: _enterEditMode),
+                            const SizedBox(width: 8),
+                          ],
+                        ],
                         RegisterButton(
                           onPressed: () {
-                            // TODO: 부서 등록 화면 이동
+                            _showSnackBar('부서 등록 화면은 추후 연동 예정입니다.');
                           },
                         ),
                       ],
@@ -103,7 +159,9 @@ class _DepartmentViewState extends State<DepartmentView> {
                       child: _DepartmentTable(
                         departments: _departments,
                         expandedIds: _expandedIds,
+                        selectedDeptId: _selectedDeptId,
                         onToggleExpanded: _toggleExpanded,
+                        onSelectDepartment: _selectDepartment,
                       ),
                     ),
                   ],
@@ -121,12 +179,16 @@ class _DepartmentTable extends StatelessWidget {
   const _DepartmentTable({
     required this.departments,
     required this.expandedIds,
+    required this.selectedDeptId,
     required this.onToggleExpanded,
+    required this.onSelectDepartment,
   });
 
   final List<Department> departments;
   final Set<String> expandedIds;
+  final String? selectedDeptId;
   final ValueChanged<String> onToggleExpanded;
+  final ValueChanged<String> onSelectDepartment;
 
   @override
   Widget build(BuildContext context) {
@@ -187,20 +249,19 @@ class _DepartmentTable extends StatelessWidget {
     );
   }
 
-  void _addDepartmentRows(
-    List<TableRow> rows,
-    Department dept,
-    int level,
-  ) {
+  void _addDepartmentRows(List<TableRow> rows, Department dept, int level) {
     final isExpanded = expandedIds.contains(dept.id);
     final hasChildren = dept.hasChildren;
+    final isSelected = selectedDeptId == dept.id;
 
     rows.add(
       TableRow(
         decoration: BoxDecoration(
-          color: rows.length.isEven
-              ? AppTheme.tableRowEven
-              : AppTheme.tableRowOdd,
+          color: isSelected
+              ? const Color(0xFFFFE4E4)
+              : (rows.length.isEven
+                    ? AppTheme.tableRowEven
+                    : AppTheme.tableRowOdd),
         ),
         children: [
           _DepartmentNameCell(
@@ -208,7 +269,9 @@ class _DepartmentTable extends StatelessWidget {
             level: level,
             hasChildren: hasChildren,
             isExpanded: isExpanded,
+            isSelected: isSelected,
             onToggle: hasChildren ? () => onToggleExpanded(dept.id) : null,
+            onSelect: () => onSelectDepartment(dept.id),
           ),
           _DepartmentBodyCell(dept.manager.isEmpty ? '-' : dept.manager),
           _DepartmentBodyCell(dept.userCount.toString(), center: true),
@@ -282,19 +345,28 @@ class _DepartmentNameCell extends StatelessWidget {
     required this.level,
     required this.hasChildren,
     required this.isExpanded,
+    required this.isSelected,
     required this.onToggle,
+    required this.onSelect,
   });
 
   final String name;
   final int level;
   final bool hasChildren;
   final bool isExpanded;
+  final bool isSelected;
   final VoidCallback? onToggle;
+  final VoidCallback onSelect;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onToggle,
+      onTap: () {
+        onSelect();
+        if (hasChildren && onToggle != null) {
+          onToggle!();
+        }
+      },
       child: Padding(
         padding: EdgeInsets.only(
           left: 8.0 + (level * 24.0),
@@ -327,7 +399,9 @@ class _DepartmentNameCell extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   color: const Color(0xFF212529),
-                  fontWeight: level == 0 ? FontWeight.w600 : FontWeight.w400,
+                  fontWeight: isSelected || level == 0
+                      ? FontWeight.w600
+                      : FontWeight.w400,
                   fontFamilyFallback: AppTheme.koreanFontFallback,
                 ),
                 maxLines: 1,

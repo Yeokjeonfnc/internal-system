@@ -1,6 +1,7 @@
 // go_router 기반 앱 라우트 등록.
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:app_flutter/features/dashboard/presentation/screens/dashboard_screen.dart';
@@ -26,13 +27,14 @@ import 'package:app_flutter/features/master/master_management_placeholders.dart'
 import 'package:app_flutter/features/master/department_view.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import '../layout/main_frame_layout.dart';
+import 'app_data_refresh.dart';
 import 'app_route_def.dart';
 
 class AppRoutes {
   static const String dashboard = '/';
   static const String stores = '/stores';
   static const String storeRegister = '/stores/new';
-  static const String storeDetail = '/stores/:storeCode';
+  static const String storeDetail = '/stores/:storeIdx';
   static const String founders = '/founders';
   static const String founderRegister = '/founders/new';
   static const String founderDetail = '/founders/:founderNo';
@@ -123,7 +125,7 @@ final List<AppRouteDef> appRouteDefs = <AppRouteDef>[
     parentPath: AppRoutes.stores,
     pageBuilder: (context, state) => NoTransitionPage(
       child: StoreDetailView(
-        storeCode: Uri.decodeComponent(state.pathParameters['storeCode'] ?? ''),
+        storeCd: Uri.decodeComponent(state.pathParameters['storeCd'] ?? ''),
       ),
     ),
   ),
@@ -258,12 +260,12 @@ List<RouteBase> _shellChildRoutes() {
               const NoTransitionPage(child: StoreRegisterView()),
         ),
         GoRoute(
-          path: ':storeCode',
+          path: ':storeCd',
           name: AppRouteNames.storeDetail,
           pageBuilder: (context, state) => NoTransitionPage(
             child: StoreDetailView(
-              storeCode: Uri.decodeComponent(
-                state.pathParameters['storeCode'] ?? '',
+              storeCd: Uri.decodeComponent(
+                state.pathParameters['storeCd'] ?? '',
               ),
             ),
           ),
@@ -401,8 +403,50 @@ final appRouter = GoRouter(
   },
   routes: [
     ShellRoute(
-      builder: (context, state, child) => MainFrameLayout(child: child),
+      builder: (context, state, child) => _RouteDataRefreshBoundary(
+        routeKey: state.uri.toString(),
+        child: MainFrameLayout(child: child),
+      ),
       routes: _shellChildRoutes(),
     ),
   ],
 );
+
+class _RouteDataRefreshBoundary extends ConsumerStatefulWidget {
+  const _RouteDataRefreshBoundary({
+    required this.routeKey,
+    required this.child,
+  });
+
+  final String routeKey;
+  final Widget child;
+
+  @override
+  ConsumerState<_RouteDataRefreshBoundary> createState() =>
+      _RouteDataRefreshBoundaryState();
+}
+
+class _RouteDataRefreshBoundaryState
+    extends ConsumerState<_RouteDataRefreshBoundary> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_refreshAllScreenData);
+  }
+
+  @override
+  void didUpdateWidget(covariant _RouteDataRefreshBoundary oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.routeKey != widget.routeKey) {
+      Future.microtask(_refreshAllScreenData);
+    }
+  }
+
+  void _refreshAllScreenData() {
+    if (!mounted) return;
+    refreshAllScreenData(ref);
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}

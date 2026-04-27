@@ -29,26 +29,15 @@ class PropertyDetailView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final property = ref
-        .watch(propertyRepositoryProvider)
-        .find(propertyNo);
+    final property = ref.watch(propertyRepositoryProvider).find(propertyNo);
     final displayName = property?.name ?? '알 수 없음';
 
     return DetailScreenWithTabs(
-      title: DetailScreenHeadline.leadTail(
-        lead: displayName,
-        tail: ' 상세 정보',
-      ),
+      title: DetailScreenHeadline.leadTail(lead: displayName, tail: ' 상세 정보'),
       tabTitles: _tabTitles,
       tabPages: [
-        PropertyInfoPanel(
-          property: property,
-          fixedTabIndex: 0,
-        ),
-        PropertyInfoPanel(
-          property: property,
-          fixedTabIndex: 1,
-        ),
+        PropertyInfoPanel(property: property, fixedTabIndex: 0),
+        PropertyInfoPanel(property: property, fixedTabIndex: 1),
       ],
     );
   }
@@ -160,17 +149,12 @@ class _PropertyInfoPanelState extends State<PropertyInfoPanel> {
                               onCancel: cancelPropertyEdit,
                             ),
                             const SizedBox(height: 14),
-                            const DetailMainTabBar(
-                              tabTitles: ['기본정보', '상세조건'],
-                            ),
+                            const DetailMainTabBar(tabTitles: ['기본정보', '상세조건']),
                             const SizedBox(height: 16),
                             SizedBox(
                               height: 640,
                               child: TabBarView(
-                                children: [
-                                  tabBody(0),
-                                  tabBody(1),
-                                ],
+                                children: [tabBody(0), tabBody(1)],
                               ),
                             ),
                           ],
@@ -281,7 +265,7 @@ class _BasicInfoTabState extends State<_BasicInfoTab> {
     );
   }
 
-  /// mock 데이터의 placeholder('-')는 비어 있는 값으로 간주하여 입력창에 표시하지 않는다.
+  /// 표시용 placeholder('-')는 비어 있는 값으로 간주하여 입력창에 표시하지 않는다.
   String _normalizeDisplay(String? raw) {
     if (raw == null) return '';
     final trimmed = raw.trim();
@@ -351,9 +335,7 @@ class _BasicInfoTabState extends State<_BasicInfoTab> {
                   const SizedBox(width: 8),
                   AccentOutlinedButton(
                     label: '주소검색',
-                    onPressed: () => _snack(
-                      '주소 검색은 추후 연동 예정입니다.',
-                    ),
+                    onPressed: () => _snack('주소 검색은 추후 연동 예정입니다.'),
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
@@ -475,16 +457,12 @@ class _BasicInfoTabState extends State<_BasicInfoTab> {
               const SizedBox(width: 8),
               AccentOutlinedButton(
                 label: '사진첨부',
-                onPressed: () => _snack(
-                  '사진 첨부는 추후 연동 예정입니다.',
-                ),
+                onPressed: () => _snack('사진 첨부는 추후 연동 예정입니다.'),
               ),
               const SizedBox(width: 6),
               AccentOutlinedButton(
                 label: '미리보기',
-                onPressed: () => _snack(
-                  '첨부된 사진이 없어 미리볼 수 없습니다.',
-                ),
+                onPressed: () => _snack('첨부된 사진이 없어 미리볼 수 없습니다.'),
               ),
             ],
           ),
@@ -719,7 +697,10 @@ class _DetailTextInput extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: FormStylePalette.accent, width: 1.4),
+          borderSide: const BorderSide(
+            color: FormStylePalette.accent,
+            width: 1.4,
+          ),
         ),
       ),
     );

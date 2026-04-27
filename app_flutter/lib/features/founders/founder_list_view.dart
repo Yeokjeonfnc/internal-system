@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:app_flutter/core/router/app_router.dart';
-import 'package:app_flutter/core/data/mock_options.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/widgets/common/common_search_field_picker.dart';
@@ -19,13 +18,15 @@ import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
 import 'package:app_flutter/features/founders/founder_controller.dart';
 import 'package:app_flutter/features/founders/founder_model.dart';
 
+const List<String> _founderStatusOptions = ['전체', '예비창업자', '가맹점사업자'];
+
 /// 예비창업자 목록에서 켤 수 있는 공통 검색 항목.
 const Set<CommonSearchFieldId> kFounderListSupportedSearchFields = {
   CommonSearchFieldId.founderName,
   CommonSearchFieldId.mobilePhone,
   CommonSearchFieldId.founderEvaluation,
   CommonSearchFieldId.founderStatus,
-  CommonSearchFieldId.region,
+  CommonSearchFieldId.regionCd,
 };
 
 /// 예비창업자 목록.
@@ -72,18 +73,18 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
       case CommonSearchFieldId.founderEvaluation:
         n.setEvaluation(null);
         return;
-      case CommonSearchFieldId.region:
+      case CommonSearchFieldId.regionCd:
         n.setRegion('전체');
         return;
       case CommonSearchFieldId.founderStatus:
         n.setFounderStatus('전체');
         return;
-      case CommonSearchFieldId.storeName:
-      case CommonSearchFieldId.storeCode:
-      case CommonSearchFieldId.brand:
-      case CommonSearchFieldId.contractStatus:
-      case CommonSearchFieldId.supervisor:
-      case CommonSearchFieldId.storeCategory:
+      case CommonSearchFieldId.storeNm:
+      case CommonSearchFieldId.storeCd:
+      case CommonSearchFieldId.brandCd:
+      case CommonSearchFieldId.storeStatus:
+      case CommonSearchFieldId.supervisorCd:
+      case CommonSearchFieldId.storeType:
       case CommonSearchFieldId.prospectName:
       case CommonSearchFieldId.entrepreneurStatus:
       case CommonSearchFieldId.registrationDate:
@@ -175,7 +176,7 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.region:
+        case CommonSearchFieldId.regionCd:
           items.add(
             FilterStringOptionsSlot(
               label: def.label,
@@ -191,17 +192,17 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
             FilterStringOptionsSlot(
               label: def.label,
               value: filter.founderStatus,
-              options: kMockFounderStatusOptions,
+              options: _founderStatusOptions,
               onSelected: n.setFounderStatus,
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.storeName:
-        case CommonSearchFieldId.storeCode:
-        case CommonSearchFieldId.brand:
-        case CommonSearchFieldId.contractStatus:
-        case CommonSearchFieldId.supervisor:
-        case CommonSearchFieldId.storeCategory:
+        case CommonSearchFieldId.storeNm:
+        case CommonSearchFieldId.storeCd:
+        case CommonSearchFieldId.brandCd:
+        case CommonSearchFieldId.storeStatus:
+        case CommonSearchFieldId.supervisorCd:
+        case CommonSearchFieldId.storeType:
         case CommonSearchFieldId.prospectName:
         case CommonSearchFieldId.entrepreneurStatus:
         case CommonSearchFieldId.registrationDate:
@@ -263,6 +264,7 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
       mainSearchFields: mainFields,
       countText: '총 ${rows.length}명이 조회되었습니다.',
       onRegister: () => context.goNamed(AppRouteNames.founderRegister),
+      onRefresh: () => setState(() {}),
       table: _FounderTable(rows: rows),
     );
   }
@@ -431,7 +433,7 @@ class _EvalChip extends StatelessWidget {
         color = const Color(0xFF9CA3AF);
       case EvaluationStatus.completed:
         label = '평가완료';
-        color = AppTheme.statusOperating;
+        color = AppTheme.statusNew;
     }
     return Row(
       mainAxisSize: MainAxisSize.min,

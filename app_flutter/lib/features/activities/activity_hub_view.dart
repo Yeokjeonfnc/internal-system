@@ -28,9 +28,7 @@ class ActivityHubView extends StatelessWidget {
         color: AppTheme.appSurface,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-          children: const [
-            ActivityStatusDetailView(),
-          ],
+          children: const [ActivityStatusDetailView()],
         ),
       );
     }
@@ -41,7 +39,7 @@ class ActivityHubView extends StatelessWidget {
     }
 
     if (s == 'approval') {
-      ///「활동관리」와 같이 5탭 본문만 전환(필터·테이블은 임시보관과 동일 목업).
+      ///「활동관리」와 같이 5탭 본문만 전환.
       return const ActivityApprovalManagementView(initialTab: 0);
     }
 

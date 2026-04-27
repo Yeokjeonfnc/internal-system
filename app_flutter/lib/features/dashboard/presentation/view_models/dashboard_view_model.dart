@@ -6,10 +6,10 @@ import '../../data/models/dashboard_kpi_model.dart';
 import '../../data/models/dashboard_summary_slot.dart';
 import '../../data/models/franchise_contract_card_data.dart';
 
-final dashboardViewModelProvider = NotifierProvider<
-    DashboardViewModelNotifier, DashboardViewModel>(
-  DashboardViewModelNotifier.new,
-);
+final dashboardViewModelProvider =
+    NotifierProvider<DashboardViewModelNotifier, DashboardViewModel>(
+      DashboardViewModelNotifier.new,
+    );
 
 class DashboardViewModelNotifier extends Notifier<DashboardViewModel> {
   @override

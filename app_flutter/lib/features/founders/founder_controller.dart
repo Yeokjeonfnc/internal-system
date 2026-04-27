@@ -1,8 +1,7 @@
-// 예비창업자 목록 필터와 목 메모리 Repository를 한 파일에서 관리한다.
+// 예비창업자 목록 필터와 임시 메모리 Repository를 한 파일에서 관리한다.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:app_flutter/core/data/mock_data_hub.dart';
 import 'package:app_flutter/core/state/base_list_provider.dart';
 import 'package:app_flutter/features/founders/founder_model.dart';
 
@@ -16,14 +15,13 @@ class InMemoryFounderRepository implements FounderRepository {
   const InMemoryFounderRepository();
 
   @override
-  List<Founder> all() => kMockFounders;
+  List<Founder> all() => const <Founder>[];
 
   @override
-  Founder? find(int no) =>
-      kMockFounders.where((row) => row.no == no).firstOrNull;
+  Founder? find(int no) => null;
 
   @override
-  List<String> regions() => kFounderRegionOptions;
+  List<String> regions() => const <String>['전체'];
 }
 
 final founderRepositoryProvider = Provider<FounderRepository>(
@@ -42,6 +40,7 @@ class FounderFilter {
   final String name;
   final String phone;
   final String region;
+
   /// [Founder.founderStatus]와 같은 한글 라벨(`전체`·`예비창업자`·`가맹점사업자`).
   final String founderStatus;
   final EvaluationStatus? evaluation;
@@ -64,8 +63,9 @@ class FounderFilter {
   }
 }
 
-final founderProvider =
-    NotifierProvider<FounderNotifier, FounderFilter>(FounderNotifier.new);
+final founderProvider = NotifierProvider<FounderNotifier, FounderFilter>(
+  FounderNotifier.new,
+);
 
 class FounderNotifier extends RuleListNotifier<FounderFilter, Founder> {
   @override
@@ -76,21 +76,21 @@ class FounderNotifier extends RuleListNotifier<FounderFilter, Founder> {
 
   @override
   List<ListFilterRule<FounderFilter, Founder>> get rules => [
-        (s, r) => s.evaluation == null || r.evaluationStatus == s.evaluation,
-        (s, r) => s.region == '전체' || r.region == s.region,
-        (s, r) {
-          if (s.founderStatus == '전체') return true;
-          return founderStatusLabelKorean(r.founderStatus) == s.founderStatus;
-        },
-        (s, r) {
-          final q = s.name.trim();
-          return q.isEmpty || r.name.contains(q);
-        },
-        (s, r) {
-          final q = s.phone.trim();
-          return q.isEmpty || r.phone.contains(q);
-        },
-      ];
+    (s, r) => s.evaluation == null || r.evaluationStatus == s.evaluation,
+    (s, r) => s.region == '전체' || r.region == s.region,
+    (s, r) {
+      if (s.founderStatus == '전체') return true;
+      return founderStatusLabelKorean(r.founderStatus) == s.founderStatus;
+    },
+    (s, r) {
+      final q = s.name.trim();
+      return q.isEmpty || r.name.contains(q);
+    },
+    (s, r) {
+      final q = s.phone.trim();
+      return q.isEmpty || r.phone.contains(q);
+    },
+  ];
 
   void setName(String v) => state = state.copy(name: v);
   void setPhone(String v) => state = state.copy(phone: v);

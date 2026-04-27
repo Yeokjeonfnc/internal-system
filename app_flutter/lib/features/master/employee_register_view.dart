@@ -28,7 +28,6 @@ class _EmployeeRegisterViewState extends ConsumerState<EmployeeRegisterView> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _emailCtrl;
-  late final TextEditingController _jobTitleCtrl;
 
   String _selectedDepartment = '영업팀';
   String _selectedJobTitle = '사원'; // Added for dropdown
@@ -52,7 +51,6 @@ class _EmployeeRegisterViewState extends ConsumerState<EmployeeRegisterView> {
     _nameCtrl = TextEditingController();
     _phoneCtrl = TextEditingController();
     _emailCtrl = TextEditingController();
-    // _jobTitleCtrl = TextEditingController(); // No longer needed for dropdown
   }
 
   @override
@@ -60,7 +58,6 @@ class _EmployeeRegisterViewState extends ConsumerState<EmployeeRegisterView> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
-    // _jobTitleCtrl.dispose(); // No longer needed for dropdown
     super.dispose();
   }
 

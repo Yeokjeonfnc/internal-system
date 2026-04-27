@@ -1,4 +1,4 @@
-// 활동 현황 — 스크린샷 기준 목업 데이터·상세 레이아웃 (앱 기본 라이트 테마).
+// 활동 현황 — 상세 레이아웃 (앱 기본 라이트 테마).
 
 import 'package:flutter/material.dart';
 
@@ -441,7 +441,7 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
       child: TextButton(
         onPressed: () {},
         style: TextButton.styleFrom(
-          foregroundColor: AppTheme.statusPreparing,
+          foregroundColor: AppTheme.statusNew,
           padding: const EdgeInsets.symmetric(horizontal: 6),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -473,7 +473,7 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
       child: TextButton(
         onPressed: () {},
         style: TextButton.styleFrom(
-          foregroundColor: AppTheme.statusPreparing,
+          foregroundColor: AppTheme.statusNew,
           padding: const EdgeInsets.symmetric(horizontal: 4),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -490,153 +490,9 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
     );
   }
 
-  /// 스크린샷 1 — 담당자별
-  List<_StatusRow> get _assigneeRows => [
-    _StatusRow(
-      '강동우',
-      storeName: '서울강남서초타운점',
-      totalDisplay: '56',
-      totalIsLink: true,
-      days: const {},
-    ),
-    _StatusRow('관리자', totalDisplay: null, totalIsLink: false, days: const {}),
-    _StatusRow(
-      '김땡땡',
-      storeName: '서울독산역점',
-      totalDisplay: '63',
-      totalIsLink: true,
-      days: const {2: 2, 5: 4, 6: 5, 8: 4},
-    ),
-    _StatusRow(
-      '김똥똥',
-      storeName: '서울송리단길석촌역점',
-      totalDisplay: '52',
-      totalIsLink: true,
-      days: const {2: 1, 6: 5, 7: 5, 8: 6, 9: 1},
-    ),
-    _StatusRow(
-      '김뿡뿡',
-      storeName: '서울여의도점',
-      totalDisplay: '53',
-      totalIsLink: true,
-      days: const {5: 1, 6: 4, 7: 5, 8: 3},
-    ),
-    _StatusRow(
-      '노준호',
-      storeName: '파주LG디스플레이점',
-      totalDisplay: '56',
-      totalIsLink: true,
-      days: const {7: 7, 8: 6},
-    ),
-    _StatusRow('박경팔', totalDisplay: null, totalIsLink: false, days: const {}),
-    _StatusRow('박현수', totalDisplay: null, totalIsLink: false, days: const {}),
-    _StatusRow(
-      '서영인',
-      storeName: '할맥 울산천곡점',
-      totalDisplay: '52',
-      totalIsLink: true,
-      days: const {7: 4, 8: 8, 9: 5},
-    ),
-    _StatusRow(
-      '성화정',
-      storeName: '할맥 가평 현리점(소)',
-      totalDisplay: '35',
-      totalIsLink: true,
-      days: const {5: 1, 6: 4, 7: 5, 8: 3, 9: 1},
-    ),
-    _StatusRow(
-      '순현진',
-      storeName: '할맥 강릉 교동점',
-      totalDisplay: '47',
-      totalIsLink: true,
-      days: const {5: 1, 6: 4, 7: 4},
-    ),
-    _StatusRow(
-      '안기주',
-      storeName: '할맥 강원 홍천점',
-      totalDisplay: '54',
-      totalIsLink: true,
-      days: const {5: 1, 6: 4, 7: 5, 8: 5, 9: 5},
-    ),
-    _StatusRow(
-      '역전F&C공용',
-      storeName: '본사',
-      totalDisplay: null,
-      totalIsLink: false,
-      days: const {},
-    ),
-  ];
+  List<_StatusRow> get _assigneeRows => <_StatusRow>[];
 
-  /// 스크린샷 2 — 가맹점별 (일별은 모두 '-', 총합만 일부 표기)
-  List<_StatusRow> get _storeRows => [
-    _StatusRow('본사', totalDisplay: null, totalIsLink: false, days: const {}),
-    _StatusRow(
-      '서울강남서초타운점',
-      totalDisplay: null,
-      totalIsLink: false,
-      days: const {},
-    ),
-    _StatusRow(
-      '서울독산역점',
-      totalDisplay: null,
-      totalIsLink: false,
-      days: const {},
-    ),
-    _StatusRow(
-      '서울송리단길석촌역점',
-      totalDisplay: '1',
-      totalIsLink: true,
-      days: const {},
-    ),
-    _StatusRow(
-      '서울여의도점',
-      totalDisplay: null,
-      totalIsLink: false,
-      days: const {},
-    ),
-    _StatusRow(
-      '안동 옥동점 - 사용안함',
-      totalDisplay: null,
-      totalIsLink: false,
-      days: const {},
-    ),
-    _StatusRow(
-      '역전할머니맥주(충북 혁신점)',
-      totalDisplay: null,
-      totalIsLink: false,
-      days: const {},
-    ),
-    _StatusRow(
-      '파주LG디스플레이점',
-      totalDisplay: '1',
-      totalIsLink: true,
-      days: const {},
-    ),
-    _StatusRow(
-      '할맥 울산천곡점',
-      totalDisplay: '1',
-      totalIsLink: true,
-      days: const {},
-    ),
-    _StatusRow(
-      '할맥 가평 현리점(소)',
-      totalDisplay: null,
-      totalIsLink: false,
-      days: const {},
-    ),
-    _StatusRow(
-      '할맥 강릉 교동점',
-      totalDisplay: '1',
-      totalIsLink: true,
-      days: const {},
-    ),
-    _StatusRow(
-      '할맥 강원 홍천점',
-      totalDisplay: '1',
-      totalIsLink: true,
-      days: const {},
-    ),
-  ];
+  List<_StatusRow> get _storeRows => <_StatusRow>[];
 }
 
 class _ActivityPeriodFilterSlot extends FilterSlotConfig {
@@ -780,7 +636,7 @@ class _ActivityPeriodFilterSlot extends FilterSlotConfig {
 class _StatusRow {
   _StatusRow(
     this.name, {
-    this.storeName,
+    required this.storeName,
     required this.totalDisplay,
     required this.totalIsLink,
     required this.days,

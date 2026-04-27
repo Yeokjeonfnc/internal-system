@@ -20,11 +20,11 @@ import 'package:app_flutter/features/stores/store_controller.dart';
 
 /// 가맹점 목록에서 켤 수 있는 공통 검색 항목(다른 화면은 다른 [Set]을 두면 됨).
 const Set<CommonSearchFieldId> kStoreListSupportedSearchFields = {
-  CommonSearchFieldId.storeName,
-  CommonSearchFieldId.storeCode,
-  CommonSearchFieldId.brand,
-  CommonSearchFieldId.contractStatus,
-  CommonSearchFieldId.region,
+  CommonSearchFieldId.storeNm,
+  CommonSearchFieldId.storeCd,
+  CommonSearchFieldId.brandCd,
+  CommonSearchFieldId.storeStatus,
+  CommonSearchFieldId.regionCd,
 };
 
 /// 가맹점 목록.
@@ -46,8 +46,9 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
   void initState() {
     super.initState();
     final s = ref.read(storeProvider);
-    _nameCtrl = TextEditingController(text: s.name);
-    _codeCtrl = TextEditingController(text: s.code);
+    _nameCtrl = TextEditingController(text: s.storeNm);
+    _codeCtrl = TextEditingController(text: s.storeCd);
+    Future.microtask(() => ref.read(storeProvider.notifier).refresh());
   }
 
   @override
@@ -61,25 +62,25 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
 
   void _clearStoreFilterField(CommonSearchFieldId id, StoreNotifier n) {
     switch (id) {
-      case CommonSearchFieldId.storeName:
+      case CommonSearchFieldId.storeNm:
         _nameCtrl.clear();
         n.setName('');
         return;
-      case CommonSearchFieldId.storeCode:
+      case CommonSearchFieldId.storeCd:
         _codeCtrl.clear();
         n.setCode('');
         return;
-      case CommonSearchFieldId.brand:
+      case CommonSearchFieldId.brandCd:
         n.setBrand('전체');
         return;
-      case CommonSearchFieldId.contractStatus:
+      case CommonSearchFieldId.storeStatus:
         n.clearContractStatuses();
         return;
-      case CommonSearchFieldId.region:
+      case CommonSearchFieldId.regionCd:
         n.setRegion('전체');
         return;
-      case CommonSearchFieldId.supervisor:
-      case CommonSearchFieldId.storeCategory:
+      case CommonSearchFieldId.supervisorCd:
+      case CommonSearchFieldId.storeType:
       case CommonSearchFieldId.prospectName:
       case CommonSearchFieldId.entrepreneurStatus:
       case CommonSearchFieldId.mobilePhone:
@@ -132,7 +133,7 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
     final items = <SearchFilterItemData>[];
     for (final def in commonSearchDefsOrdered(_visibleMainSearchFields)) {
       switch (def.id) {
-        case CommonSearchFieldId.storeName:
+        case CommonSearchFieldId.storeNm:
           items.add(
             FilterTextSlot(
               label: def.label,
@@ -142,7 +143,7 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.storeCode:
+        case CommonSearchFieldId.storeCd:
           items.add(
             FilterTextSlot(
               label: def.label,
@@ -152,34 +153,38 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.brand:
+        case CommonSearchFieldId.brandCd:
           items.add(
             FilterStringOptionsSlot(
               label: def.label,
-              value: filter.brand,
+              value: filter.brandCd,
               options: brands,
               onSelected: n.setBrand,
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.contractStatus:
+        case CommonSearchFieldId.storeStatus:
           items.add(
-            _StoreContractStatusMultiSlot(filter: filter, notifier: n).toItem(),
+            _StoreContractStatusMultiSlot(
+              filter: filter,
+              notifier: n,
+              availableStatuses: const ['신규계약', '재계약', '양수도'],
+            ).toItem(),
           );
           break;
-        case CommonSearchFieldId.region:
+        case CommonSearchFieldId.regionCd:
           items.add(
             FilterStringOptionsSlot(
               label: def.label,
-              value: filter.region,
+              value: filter.regionCd,
               options: regions,
               onSelected: n.setRegion,
               forceDropdown: true,
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.supervisor:
-        case CommonSearchFieldId.storeCategory:
+        case CommonSearchFieldId.supervisorCd:
+        case CommonSearchFieldId.storeType:
         case CommonSearchFieldId.prospectName:
         case CommonSearchFieldId.entrepreneurStatus:
         case CommonSearchFieldId.mobilePhone:
@@ -225,39 +230,112 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
   Widget build(BuildContext context) {
     final filter = ref.watch(storeProvider);
     final n = ref.read(storeProvider.notifier);
-    final rows = n.getFilteredList();
-    final brands = ref.watch(storeRepositoryProvider).brands();
-    final regions = ref.watch(storeRepositoryProvider).regions();
+    final storesAsync = ref.watch(storeDataProvider);
+    final regionsAsync = ref.watch(regionNamesProvider);
+    final brandsAsync = ref.watch(brandNamesProvider);
 
-    final filterSheet = StatefulBuilder(
-      builder: (context, setModalState) {
-        void refreshSheet() => setModalState(() {});
-        return _filterPickerSheet(refreshSheet, n);
+    return storesAsync.when(
+      data: (stores) {
+        return regionsAsync.when(
+          data: (regions) {
+            return brandsAsync.when(
+              data: (brands) {
+                // 로드된 데이터로 필터링
+                final rows = n.getFilteredList();
+
+                final filterSheet = StatefulBuilder(
+                  builder: (context, setModalState) {
+                    void refreshSheet() => setModalState(() {});
+                    return _filterPickerSheet(refreshSheet, n);
+                  },
+                );
+
+                final mainFields = _anyMainFilter
+                    ? SearchFilterStackedItems(
+                        items: _mainFilterItems(filter, brands, regions, n),
+                      )
+                    : null;
+
+                return ListPageTemplate(
+                  activeFilters: _activeFilterChips(filter, n),
+                  filterSheetBody: filterSheet,
+                  mainSearchFields: mainFields,
+                  countText: '총 ${rows.length}개의 가맹점이 조회되었습니다.',
+                  onRegister: () =>
+                      context.goNamed(AppRouteNames.storeRegister),
+                  onRefresh: () => n.refresh(),
+                  table: _StoreTable(rows: rows),
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) =>
+                  Center(child: Text('브랜드 데이터를 불러오는 중 오류가 발생했습니다: $error')),
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, stack) => Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  '지역 데이터를 불러오는 중 오류가 발생했습니다.',
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '$error',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    ref.invalidate(regionNamesProvider);
+                    n.refresh();
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('다시 시도'),
+                ),
+              ],
+            ),
+          ),
+        );
       },
-    );
-
-    final mainFields = _anyMainFilter
-        ? SearchFilterStackedItems(
-            items: _mainFilterItems(filter, brands, regions, n),
-          )
-        : null;
-
-    return ListPageTemplate(
-      activeFilters: _activeFilterChips(filter, n),
-      filterSheetBody: filterSheet,
-      mainSearchFields: mainFields,
-      countText: '총 ${rows.length}개의 가맹점이 조회되었습니다.',
-      onRegister: () => context.goNamed(AppRouteNames.storeRegister),
-      table: _StoreTable(rows: rows),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(
+              '데이터를 불러오는 중 오류가 발생했습니다.',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$error',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => n.refresh(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('다시 시도'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   List<ActiveFilterChip> _activeFilterChips(StoreFilter f, StoreNotifier n) {
     final chips = <ActiveFilterChip>[];
-    if (f.name.trim().isNotEmpty) {
+    if (f.storeNm.trim().isNotEmpty) {
       chips.add(
         ActiveFilterChip(
-          label: '가맹점명: ${f.name}',
+          label: '가맹점명: ${f.storeNm}',
           onClear: () {
             setState(() {
               _nameCtrl.clear();
@@ -267,10 +345,10 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
         ),
       );
     }
-    if (f.code.trim().isNotEmpty) {
+    if (f.storeCd.trim().isNotEmpty) {
       chips.add(
         ActiveFilterChip(
-          label: '가맹점코드: ${f.code}',
+          label: '가맹점코드: ${f.storeCd}',
           onClear: () {
             setState(() {
               _codeCtrl.clear();
@@ -280,24 +358,24 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
         ),
       );
     }
-    if (f.brand != '전체') {
+    if (f.brandCd != '전체') {
       chips.add(
         ActiveFilterChip(
-          label: '브랜드: ${f.brand}',
+          label: '브랜드: ${f.brandCd}',
           onClear: () => n.setBrand('전체'),
         ),
       );
     }
-    if (f.region != '전체') {
+    if (f.regionCd != '전체') {
       chips.add(
         ActiveFilterChip(
-          label: '지역: ${f.region}',
+          label: '지역: ${f.regionCd}',
           onClear: () => n.setRegion('전체'),
         ),
       );
     }
-    if (f.statuses.isNotEmpty) {
-      final joined = f.statuses.map(_storeStatusLabel).join(', ');
+    if (f.storeStatus.isNotEmpty) {
+      final joined = f.storeStatus.join(', ');
       chips.add(
         ActiveFilterChip(
           label: '계약상태: $joined',
@@ -309,18 +387,17 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
   }
 }
 
-String _storeStatusLabel(StoreStatus s) => switch (s) {
-  StoreStatus.newContract => '신규계약',
-  StoreStatus.renewal => '재계약',
-  StoreStatus.transfer => '양수도',
-};
-
 /// 계약상태: [FilterChip] 으로 중복 선택.
 class _StoreContractStatusMultiSlot implements FilterSlotConfig {
-  _StoreContractStatusMultiSlot({required this.filter, required this.notifier});
+  _StoreContractStatusMultiSlot({
+    required this.filter,
+    required this.notifier,
+    required this.availableStatuses,
+  });
 
   final StoreFilter filter;
   final StoreNotifier notifier;
+  final List<String> availableStatuses;
 
   @override
   SearchFilterItemData toItem() {
@@ -336,54 +413,54 @@ class _StoreContractStatusMultiSlot implements FilterSlotConfig {
               '전체',
               style: TextStyle(
                 fontSize: kSearchFilterFontSize,
-                fontWeight: filter.statuses.isEmpty
+                fontWeight: filter.storeStatus.isEmpty
                     ? FontWeight.w700
                     : FontWeight.w500,
-                color: filter.statuses.isEmpty
+                color: filter.storeStatus.isEmpty
                     ? AppTheme.accentRed
                     : kSearchFilterTextColor,
                 fontFamilyFallback: AppTheme.koreanFontFallback,
               ),
             ),
-            selected: filter.statuses.isEmpty,
+            selected: filter.storeStatus.isEmpty,
             onSelected: (_) => notifier.clearContractStatuses(),
             selectedColor: const Color(0xFFFFF1F2),
             backgroundColor: Colors.white,
             side: BorderSide(
-              color: filter.statuses.isEmpty
+              color: filter.storeStatus.isEmpty
                   ? AppTheme.accentRed
                   : const Color(0xFFE5E7EB),
-              width: filter.statuses.isEmpty ? 1.4 : 1,
+              width: filter.storeStatus.isEmpty ? 1.4 : 1,
             ),
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: VisualDensity.compact,
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
           ),
-          for (final s in StoreStatus.values)
+          for (final s in availableStatuses)
             FilterChip(
               showCheckmark: false,
               label: Text(
-                _storeStatusLabel(s),
+                s,
                 style: TextStyle(
                   fontSize: kSearchFilterFontSize,
-                  fontWeight: filter.statuses.contains(s)
+                  fontWeight: filter.storeStatus.contains(s)
                       ? FontWeight.w700
                       : FontWeight.w500,
-                  color: filter.statuses.contains(s)
+                  color: filter.storeStatus.contains(s)
                       ? AppTheme.accentRed
                       : kSearchFilterTextColor,
                   fontFamilyFallback: AppTheme.koreanFontFallback,
                 ),
               ),
-              selected: filter.statuses.contains(s),
+              selected: filter.storeStatus.contains(s),
               onSelected: (_) => notifier.toggleContractStatus(s),
               selectedColor: const Color(0xFFFFF1F2),
               backgroundColor: Colors.white,
               side: BorderSide(
-                color: filter.statuses.contains(s)
+                color: filter.storeStatus.contains(s)
                     ? AppTheme.accentRed
                     : const Color(0xFFE5E7EB),
-                width: filter.statuses.contains(s) ? 1.4 : 1,
+                width: filter.storeStatus.contains(s) ? 1.4 : 1,
               ),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.compact,
@@ -403,14 +480,22 @@ class _StoreTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ErpDataTable(
-      minWidth: 1300,
+      minWidth: 2000,
       tableBuilder: (context, _) => Table(
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         border: kErpTableInnerGridBorder,
         columnWidths: const {
-          0: FlexColumnWidth(0.4),
-          4: FlexColumnWidth(0.8),
-          7: FlexColumnWidth(1.8),
+          0: IntrinsicColumnWidth(),
+          1: IntrinsicColumnWidth(),
+          2: IntrinsicColumnWidth(),
+          3: IntrinsicColumnWidth(),
+          4: IntrinsicColumnWidth(),
+          5: IntrinsicColumnWidth(),
+          6: IntrinsicColumnWidth(),
+          7: IntrinsicColumnWidth(),
+          8: IntrinsicColumnWidth(),
+          9: IntrinsicColumnWidth(),
+          10: IntrinsicColumnWidth(),
         },
         children: [
           const TableRow(
@@ -437,28 +522,31 @@ class _StoreTable extends StatelessWidget {
                     : AppTheme.tableRowEven,
               ),
               children: [
-                ErpTableBodyCell('${entry.value.no}', center: true),
-                ErpTableBodyCell(entry.value.brand, center: true),
-                ErpTableBodyCell(entry.value.storeName, center: true),
-                ErpTableBodyCell(entry.value.storeCode, center: true),
+                ErpTableBodyCell('${entry.key + 1}', center: true),
+                ErpTableBodyCell(entry.value.brandNm, center: true),
+                ErpTableBodyCell(entry.value.storeNm, center: true),
+                ErpTableBodyCell(entry.value.storeCd, center: true),
                 Padding(
                   padding: const EdgeInsets.all(8),
                   child: Center(
-                    child: _StatusChip(status: entry.value.contractStatus),
+                    child: _StatusChip(
+                      storeStatus: entry.value.storeStatus,
+                      storeStatusNm: entry.value.storeStatusNm,
+                    ),
                   ),
                 ),
-                ErpTableBodyCell(entry.value.ownerName, center: true),
-                ErpTableBodyCell(entry.value.contact, center: true),
+                ErpTableBodyCell(entry.value.ownerNm, center: true),
+                ErpTableBodyCell(entry.value.storeTel, center: true),
                 ErpTableBodyCell(entry.value.address),
-                ErpTableBodyCell(entry.value.contractDate, center: true),
-                ErpTableBodyCell(entry.value.openingDate, center: true),
+                ErpTableBodyCell(entry.value.contStartDt, center: true),
+                ErpTableBodyCell(entry.value.contEndDt, center: true),
                 Padding(
                   padding: const EdgeInsets.all(8),
                   child: Center(
                     child: DetailButton(
                       onPressed: () => context.goNamed(
                         AppRouteNames.storeDetail,
-                        pathParameters: {'storeCode': entry.value.storeCode},
+                        pathParameters: {'storeCd': entry.value.storeCd},
                       ),
                     ),
                   ),
@@ -473,32 +561,34 @@ class _StoreTable extends StatelessWidget {
 }
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
+  const _StatusChip({required this.storeStatus, required this.storeStatusNm});
 
-  final StoreStatus status;
-
+  final String storeStatus;
+  final String storeStatusNm;
   @override
   Widget build(BuildContext context) {
-    late final String label;
-    late final Color color;
-    switch (status) {
-      case StoreStatus.newContract:
-        label = '신규계약';
-        color = AppTheme.statusOperating;
-      case StoreStatus.renewal:
-        label = '재계약';
-        color = AppTheme.statusPreparing;
-      case StoreStatus.transfer:
-        label = '양수도';
-        color = AppTheme.statusTerminated;
+    Color color = Colors.black;
+    String displayName = storeStatusNm.isNotEmpty ? storeStatusNm : storeStatus;
+    // 영어 코드로 색상 결정
+    final statusLower = storeStatus.toLowerCase();
+    if (statusLower == 'new') {
+      color = AppTheme.statusNew;
+      displayName = '신규계약';
+    } else if (statusLower == 'renewal') {
+      color = AppTheme.statusRenewal;
+      displayName = '갱신계약';
+    } else if (statusLower == 'transfer') {
+      color = AppTheme.statusTransfer;
+      displayName = '이전계약';
     }
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(Icons.circle, size: 10, color: color),
         const SizedBox(width: 4),
         Text(
-          label,
+          displayName,
           style: TextStyle(
             color: color,
             fontWeight: FontWeight.w700,

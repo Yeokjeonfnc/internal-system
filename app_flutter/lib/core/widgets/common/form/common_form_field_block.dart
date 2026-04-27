@@ -7,11 +7,7 @@ import 'package:app_flutter/core/theme/form_style_palette.dart';
 
 /// 라벨(상단) + 입력 필드(하단)로 구성된 기본 폼 셀.
 class FormFieldBlock extends StatelessWidget {
-  const FormFieldBlock({
-    super.key,
-    required this.label,
-    required this.child,
-  });
+  const FormFieldBlock({super.key, required this.label, required this.child});
 
   final String label;
   final Widget child;

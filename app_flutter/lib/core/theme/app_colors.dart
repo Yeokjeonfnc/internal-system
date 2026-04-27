@@ -21,9 +21,9 @@ class AppTheme {
   /// 테이블 바디의 홀수/짝수 행 배경색 (zebra striping).
   static const Color tableRowOdd = Color(0xFFFFFFFF);
   static const Color tableRowEven = Color(0xFFF5F7FA);
-  static const Color statusOperating = Color(0xFF28A745);
-  static const Color statusPreparing = Color(0xFF007BFF);
-  static const Color statusTerminated = Color(0xFFDC3545);
+  static const Color statusNew = Color(0xFF28A745);
+  static const Color statusRenewal = Color(0xFF007BFF);
+  static const Color statusTransfer = Color(0xFFDC3545);
   static const Color chromeBlack = Color(0xFF1E2126);
   static const Color chromeDark = Color(0xFF2B2F35);
 

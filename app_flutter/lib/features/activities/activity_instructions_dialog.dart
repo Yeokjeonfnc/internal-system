@@ -51,7 +51,7 @@ class _InstructionRow {
 }
 
 /// API 연동 전: 빈 목록(스크린샷과 동일하게 본문 안내).
-const _kInstructionMock = <_InstructionRow>[];
+const _instructionRows = <_InstructionRow>[];
 
 class _InstructionsDialog extends StatefulWidget {
   const _InstructionsDialog({
@@ -69,9 +69,6 @@ class _InstructionsDialog extends StatefulWidget {
 class _InstructionsDialogState extends State<_InstructionsDialog> {
   late final TextEditingController _brand;
   late final TextEditingController _store;
-  final bool _showAll = false;
-  final int _rowsPerPage = 30;
-  final int _page = 1;
 
   @override
   void initState() {
@@ -105,12 +102,7 @@ class _InstructionsDialogState extends State<_InstructionsDialog> {
     );
   }
 
-  int get _totalCount => _kInstructionMock.length;
-
-  int get _totalPages {
-    if (_totalCount == 0) return 1;
-    return (_totalCount + _rowsPerPage - 1) ~/ _rowsPerPage;
-  }
+  int get _totalCount => _instructionRows.length;
 
   @override
   Widget build(BuildContext context) {
@@ -244,7 +236,7 @@ class _InstructionsDialogState extends State<_InstructionsDialog> {
                                   ErpTableHeaderCell('체크리스트'),
                                 ],
                               ),
-                              for (var i = 0; i < _kInstructionMock.length; i++)
+                              for (var i = 0; i < _instructionRows.length; i++)
                                 TableRow(
                                   decoration: BoxDecoration(
                                     color: i.isEven
@@ -253,28 +245,28 @@ class _InstructionsDialogState extends State<_InstructionsDialog> {
                                   ),
                                   children: [
                                     ErpTableBodyCell(
-                                      _kInstructionMock[i].activity,
+                                      _instructionRows[i].activity,
                                       center: true,
                                     ),
                                     ErpTableBodyCell(
-                                      _kInstructionMock[i].date,
+                                      _instructionRows[i].date,
                                       center: true,
                                     ),
-                                    ErpTableBodyCell(_kInstructionMock[i].memo),
+                                    ErpTableBodyCell(_instructionRows[i].memo),
                                     ErpTableBodyCell(
-                                      _kInstructionMock[i].supervisor,
-                                      center: true,
-                                    ),
-                                    ErpTableBodyCell(
-                                      _kInstructionMock[i].drafter,
+                                      _instructionRows[i].supervisor,
                                       center: true,
                                     ),
                                     ErpTableBodyCell(
-                                      _kInstructionMock[i].confirmed,
+                                      _instructionRows[i].drafter,
                                       center: true,
                                     ),
                                     ErpTableBodyCell(
-                                      _kInstructionMock[i].checklist,
+                                      _instructionRows[i].confirmed,
+                                      center: true,
+                                    ),
+                                    ErpTableBodyCell(
+                                      _instructionRows[i].checklist,
                                       center: true,
                                     ),
                                   ],

@@ -26,7 +26,9 @@ class SalesAreaRegisterView extends ConsumerWidget {
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppDimensions.contentMaxWidth),
+          constraints: const BoxConstraints(
+            maxWidth: AppDimensions.contentMaxWidth,
+          ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
               AppDimensions.listScreenHPadding,
@@ -119,14 +121,9 @@ class _RegisterBody extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const SizedBox(
-                          width: 240,
-                          child: _LeftToolColumn(),
-                        ),
+                        const SizedBox(width: 240, child: _LeftToolColumn()),
                         const SizedBox(width: 12),
-                        const Expanded(
-                          child: _MapPlaceholder(),
-                        ),
+                        const Expanded(child: _MapPlaceholder()),
                       ],
                     ),
                   ),
@@ -174,7 +171,10 @@ class _TopFilterStrip extends StatelessWidget {
                 ),
                 decoration: const InputDecoration(
                   isDense: true,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -226,7 +226,10 @@ class _TopFilterStrip extends StatelessWidget {
                 ),
                 decoration: const InputDecoration(
                   isDense: true,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -319,7 +322,10 @@ class _LeftToolColumn extends StatelessWidget {
             decoration: InputDecoration(
               hintText: '영업지역명을 입력하세요',
               isDense: true,
-              contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 10,
+              ),
               border: OutlineInputBorder(),
             ),
           ),
@@ -333,11 +339,7 @@ class _LeftToolColumn extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          for (final t in [
-            '다각형 그리기',
-            '원형 그리기',
-            '기준거리로 그리기',
-          ])
+          for (final t in ['다각형 그리기', '원형 그리기', '기준거리로 그리기'])
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: FilledButton.tonal(
@@ -414,9 +416,7 @@ class _MapPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: _DashedRectPainter(
-        color: const Color(0xFFC9CDD3),
-      ),
+      painter: _DashedRectPainter(color: const Color(0xFFC9CDD3)),
       child: SizedBox.expand(
         child: Center(
           child: Column(

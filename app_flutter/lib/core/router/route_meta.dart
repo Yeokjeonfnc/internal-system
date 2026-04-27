@@ -11,11 +11,7 @@ import 'app_router.dart';
 /// - [parentPath]: 히스토리가 없을 때 뒤로가기에서 fallback 으로 이동할 경로.
 ///   null 이면 상위가 없음(홈/루트).
 class RouteMeta {
-  const RouteMeta({
-    required this.title,
-    this.subtitle = '',
-    this.parentPath,
-  });
+  const RouteMeta({required this.title, this.subtitle = '', this.parentPath});
 
   final String title;
   final String subtitle;
@@ -30,16 +26,10 @@ class RouteMeta {
 /// 3. 모두 실패하면 기본값(루트 타이틀) 반환.
 RouteMeta resolveRouteMeta(String path) {
   if (path == AppRoutes.salesAreas) {
-    return const RouteMeta(
-      title: '영업지역 관리',
-      parentPath: AppRoutes.dashboard,
-    );
+    return const RouteMeta(title: '영업지역 관리', parentPath: AppRoutes.dashboard);
   }
   if (path.startsWith('${AppRoutes.salesAreas}/register/')) {
-    return const RouteMeta(
-      title: '영업지역 등록',
-      parentPath: AppRoutes.salesAreas,
-    );
+    return const RouteMeta(title: '영업지역 등록', parentPath: AppRoutes.salesAreas);
   }
   for (final def in appRouteDefs) {
     if (def.path == path) {
@@ -65,10 +55,7 @@ RouteMeta resolveRouteMeta(String path) {
 
   if (path.startsWith(kActivitiesRoot)) {
     if (path == ActivityRoutes.hub) {
-      return const RouteMeta(
-        title: '활동 관리',
-        parentPath: AppRoutes.dashboard,
-      );
+      return const RouteMeta(title: '활동 관리', parentPath: AppRoutes.dashboard);
     }
     final title = activityPageTitle(path);
     return RouteMeta(title: title, parentPath: ActivityRoutes.hub);

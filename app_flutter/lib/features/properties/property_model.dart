@@ -7,7 +7,7 @@ enum FranchiseFlag { franchised, nonFranchised }
 /// 주소 구분 (국내/국외).
 enum AddressScope { domestic, overseas }
 
-/// 물건 모델. 목업은 `package:app_flutter/core/data/mock/mock_properties.dart`.
+/// 물건 모델.
 class Property {
   const Property({
     required this.no,

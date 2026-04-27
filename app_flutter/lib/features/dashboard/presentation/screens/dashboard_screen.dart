@@ -40,7 +40,11 @@ class _DashboardSummaryGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final crossAxisCount = width > 1500 ? 4 : width > 1200 ? 3 : 2;
+    final crossAxisCount = width > 1500
+        ? 4
+        : width > 1200
+        ? 3
+        : 2;
 
     return GridView.builder(
       itemCount: slots.length,
@@ -55,7 +59,9 @@ class _DashboardSummaryGrid extends StatelessWidget {
       itemBuilder: (context, index) {
         final slot = slots[index];
         return switch (slot) {
-          DashboardSummarySlotFranchise(:final data) => FranchiseContractCard(data: data),
+          DashboardSummarySlotFranchise(:final data) => FranchiseContractCard(
+            data: data,
+          ),
           DashboardSummarySlotSimple(:final kpi) => KpiCard(item: kpi),
         };
       },
@@ -80,7 +86,8 @@ class _BoardSection extends StatelessWidget {
               itemCount: tasks.length,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              separatorBuilder: (context, index) => const Divider(color: Colors.white12, height: 14),
+              separatorBuilder: (context, index) =>
+                  const Divider(color: Colors.white12, height: 14),
               itemBuilder: (context, index) => Text(
                 '- ${tasks[index]}',
                 style: TextStyle(

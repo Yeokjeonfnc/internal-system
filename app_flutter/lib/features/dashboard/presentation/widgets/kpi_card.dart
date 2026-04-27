@@ -13,7 +13,9 @@ class KpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final deltaColor = item.deltaRate >= 0 ? Colors.teal : Colors.redAccent;
-    final deltaLabel = item.deltaRate >= 0 ? '+${item.deltaRate}' : '${item.deltaRate}';
+    final deltaLabel = item.deltaRate >= 0
+        ? '+${item.deltaRate}'
+        : '${item.deltaRate}';
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Padding(
@@ -29,9 +31,7 @@ class KpiCard extends StatelessWidget {
               ),
               child: Text(
                 item.label,
-                style: Theme.of(
-                  context,
-                ).textTheme.labelMedium?.copyWith(
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   color: AppTheme.accentRed,
                   fontWeight: FontWeight.w600,
                 ),

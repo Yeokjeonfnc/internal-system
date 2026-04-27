@@ -22,7 +22,7 @@ import 'package:app_flutter/features/properties/property_model.dart';
 const Set<CommonSearchFieldId> kPropertyListSupportedSearchFields = {
   CommonSearchFieldId.propertyName,
   CommonSearchFieldId.propertyOwnership,
-  CommonSearchFieldId.region,
+  CommonSearchFieldId.regionCd,
   CommonSearchFieldId.propertyAddress,
 };
 
@@ -70,15 +70,15 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
       case CommonSearchFieldId.propertyOwnership:
         n.setOwnership(null);
         return;
-      case CommonSearchFieldId.region:
+      case CommonSearchFieldId.regionCd:
         n.setRegion('전체');
         return;
-      case CommonSearchFieldId.storeName:
-      case CommonSearchFieldId.storeCode:
-      case CommonSearchFieldId.brand:
-      case CommonSearchFieldId.contractStatus:
-      case CommonSearchFieldId.supervisor:
-      case CommonSearchFieldId.storeCategory:
+      case CommonSearchFieldId.storeNm:
+      case CommonSearchFieldId.storeCd:
+      case CommonSearchFieldId.brandCd:
+      case CommonSearchFieldId.storeStatus:
+      case CommonSearchFieldId.supervisorCd:
+      case CommonSearchFieldId.storeType:
       case CommonSearchFieldId.prospectName:
       case CommonSearchFieldId.entrepreneurStatus:
       case CommonSearchFieldId.mobilePhone:
@@ -160,7 +160,7 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.region:
+        case CommonSearchFieldId.regionCd:
           items.add(
             FilterStringOptionsSlot(
               label: def.label,
@@ -181,12 +181,12 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.storeName:
-        case CommonSearchFieldId.storeCode:
-        case CommonSearchFieldId.brand:
-        case CommonSearchFieldId.contractStatus:
-        case CommonSearchFieldId.supervisor:
-        case CommonSearchFieldId.storeCategory:
+        case CommonSearchFieldId.storeNm:
+        case CommonSearchFieldId.storeCd:
+        case CommonSearchFieldId.brandCd:
+        case CommonSearchFieldId.storeStatus:
+        case CommonSearchFieldId.supervisorCd:
+        case CommonSearchFieldId.storeType:
         case CommonSearchFieldId.prospectName:
         case CommonSearchFieldId.entrepreneurStatus:
         case CommonSearchFieldId.mobilePhone:
@@ -214,10 +214,7 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
     return items;
   }
 
-  Widget _filterPickerSheet(
-    VoidCallback refreshSheet,
-    PropertyNotifier n,
-  ) {
+  Widget _filterPickerSheet(VoidCallback refreshSheet, PropertyNotifier n) {
     return CommonSearchFieldPicker(
       supported: kPropertyListSupportedSearchFields,
       visible: _visibleMainSearchFields,
@@ -243,9 +240,7 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
     );
 
     final mainFields = _anyMainFilter
-        ? SearchFilterStackedItems(
-            items: _mainFilterItems(filter, regions, n),
-          )
+        ? SearchFilterStackedItems(items: _mainFilterItems(filter, regions, n))
         : null;
 
     return ListPageTemplate(
@@ -254,6 +249,7 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
       mainSearchFields: mainFields,
       countText: '총 ${rows.length}건이 조회되었습니다.',
       onRegister: () => context.goNamed(AppRouteNames.propertyRegister),
+      onRefresh: () => setState(() {}),
       table: _PropertyTable(rows: rows),
     );
   }
@@ -351,57 +347,55 @@ class _PropertyTable extends StatelessWidget {
             ],
           ),
           ...rows.asMap().entries.map(
-                (entry) => TableRow(
-                  decoration: BoxDecoration(
-                    color: entry.key.isEven
-                        ? AppTheme.tableRowOdd
-                        : AppTheme.tableRowEven,
-                  ),
-                  children: [
-                    ErpTableBodyCell(entry.value.surveyDate, center: true),
-                    ErpTableBodyCell(entry.value.name),
-                    ErpTableBodyCell(entry.value.region, center: true),
-                    ErpTableBodyCell(
-                      _ownershipLabel(entry.value.ownership),
-                      center: true,
-                    ),
-                    ErpTableBodyCell(
-                      _formatArea(entry.value.areaSqm),
-                      center: true,
-                    ),
-                    ErpTableBodyCell(
-                      _formatMoney(entry.value.keyMoney),
-                      alignRight: true,
-                    ),
-                    ErpTableBodyCell(
-                      _formatMoney(entry.value.deposit),
-                      alignRight: true,
-                    ),
-                    ErpTableBodyCell(
-                      _formatMoney(entry.value.rent),
-                      alignRight: true,
-                    ),
-                    ErpTableBodyCell(
-                      _franchiseLabel(entry.value.franchiseFlag),
-                      center: true,
-                    ),
-                    ErpTableBodyCell(entry.value.address),
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Center(
-                        child: DetailButton(
-                          onPressed: () => context.goNamed(
-                            AppRouteNames.propertyDetail,
-                            pathParameters: {
-                              'propertyNo': '${entry.value.no}',
-                            },
-                          ),
-                        ),
+            (entry) => TableRow(
+              decoration: BoxDecoration(
+                color: entry.key.isEven
+                    ? AppTheme.tableRowOdd
+                    : AppTheme.tableRowEven,
+              ),
+              children: [
+                ErpTableBodyCell(entry.value.surveyDate, center: true),
+                ErpTableBodyCell(entry.value.name),
+                ErpTableBodyCell(entry.value.region, center: true),
+                ErpTableBodyCell(
+                  _ownershipLabel(entry.value.ownership),
+                  center: true,
+                ),
+                ErpTableBodyCell(
+                  _formatArea(entry.value.areaSqm),
+                  center: true,
+                ),
+                ErpTableBodyCell(
+                  _formatMoney(entry.value.keyMoney),
+                  alignRight: true,
+                ),
+                ErpTableBodyCell(
+                  _formatMoney(entry.value.deposit),
+                  alignRight: true,
+                ),
+                ErpTableBodyCell(
+                  _formatMoney(entry.value.rent),
+                  alignRight: true,
+                ),
+                ErpTableBodyCell(
+                  _franchiseLabel(entry.value.franchiseFlag),
+                  center: true,
+                ),
+                ErpTableBodyCell(entry.value.address),
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Center(
+                    child: DetailButton(
+                      onPressed: () => context.goNamed(
+                        AppRouteNames.propertyDetail,
+                        pathParameters: {'propertyNo': '${entry.value.no}'},
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
+            ),
+          ),
         ],
       ),
     );

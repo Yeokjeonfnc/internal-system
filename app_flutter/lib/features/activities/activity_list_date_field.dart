@@ -26,14 +26,7 @@ class ActivityListDateField extends StatefulWidget {
 }
 
 class _ActivityListDateFieldState extends State<ActivityListDateField> {
-  static const _opts = [
-    '최근1개월',
-    '최근2개월',
-    '최근3개월',
-    '최근6개월',
-    '최근1년',
-    '직접 설정',
-  ];
+  static const _opts = ['최근1개월', '최근2개월', '최근3개월', '최근6개월', '최근1년', '직접 설정'];
 
   static const _dateFieldWidth = 120.0;
 
@@ -65,11 +58,7 @@ class _ActivityListDateFieldState extends State<ActivityListDateField> {
     );
     if (!mounted || d == null) return;
     var e = DateTime(d.year, d.month, d.day);
-    var s = DateTime(
-      widget.start.year,
-      widget.start.month,
-      widget.start.day,
-    );
+    var s = DateTime(widget.start.year, widget.start.month, widget.start.day);
     if (e.isBefore(s)) e = s;
     setState(() => _preset = '직접 설정');
     widget.onRangeChanged(s, e);

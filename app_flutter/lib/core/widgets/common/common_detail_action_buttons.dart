@@ -1,7 +1,11 @@
 // 상세 헤더 수정·저장·취소 액션 버튼.
 
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:app_flutter/core/router/app_data_refresh.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 
@@ -16,7 +20,7 @@ class DetailActionButton extends StatelessWidget {
     required this.foregroundColor,
   });
 
-  final VoidCallback onPressed;
+  final FutureOr<void> Function() onPressed;
   final IconData icon;
   final String label;
   final Color backgroundColor;
@@ -25,7 +29,7 @@ class DetailActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FilledButton.icon(
-      onPressed: onPressed,
+      onPressed: () => unawaited(Future<void>.sync(onPressed)),
       icon: Icon(icon, size: 16),
       label: Text(
         label,
@@ -45,15 +49,15 @@ class DetailActionButton extends StatelessWidget {
   }
 }
 
-class EditActionButton extends StatelessWidget {
+class EditActionButton extends ConsumerWidget {
   const EditActionButton({super.key, required this.onPressed});
 
-  final VoidCallback onPressed;
+  final FutureOr<void> Function() onPressed;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return DetailActionButton(
-      onPressed: onPressed,
+      onPressed: () => _runAndRefresh(context, ref, onPressed),
       icon: Icons.edit_rounded,
       label: '수정',
       backgroundColor: FormStylePalette.accent,
@@ -62,15 +66,15 @@ class EditActionButton extends StatelessWidget {
   }
 }
 
-class SaveActionButton extends StatelessWidget {
+class SaveActionButton extends ConsumerWidget {
   const SaveActionButton({super.key, required this.onPressed});
 
-  final VoidCallback onPressed;
+  final FutureOr<void> Function() onPressed;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return DetailActionButton(
-      onPressed: onPressed,
+      onPressed: () => _runAndRefresh(context, ref, onPressed),
       icon: Icons.check_rounded,
       label: '저장',
       backgroundColor: FormStylePalette.accent,
@@ -79,19 +83,33 @@ class SaveActionButton extends StatelessWidget {
   }
 }
 
-class CancelActionButton extends StatelessWidget {
+class CancelActionButton extends ConsumerWidget {
   const CancelActionButton({super.key, required this.onPressed});
 
-  final VoidCallback onPressed;
+  final FutureOr<void> Function() onPressed;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return DetailActionButton(
-      onPressed: onPressed,
+      onPressed: () => _runAndRefresh(context, ref, onPressed),
       icon: Icons.close_rounded,
       label: '취소',
       backgroundColor: FormStylePalette.neutralGray,
       foregroundColor: Colors.white,
     );
+  }
+}
+
+Future<void> _runAndRefresh(
+  BuildContext context,
+  WidgetRef ref,
+  FutureOr<void> Function() action,
+) async {
+  try {
+    await action();
+  } finally {
+    if (context.mounted) {
+      refreshAllScreenData(ref);
+    }
   }
 }

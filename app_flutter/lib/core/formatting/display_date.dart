@@ -20,9 +20,3 @@ String formatYmdOrDash(DateTime? d) {
   final day = d.day.toString().padLeft(2, '0');
   return '$y-$m-$day';
 }
-
-/// 상세 화면 등: 엔티티가 로드된 경우에만 [value]를 보이고, 없으면 `'-'`.
-String detailMockIfLoaded(Object? entity, String value) {
-  if (entity == null) return '-';
-  return value;
-}

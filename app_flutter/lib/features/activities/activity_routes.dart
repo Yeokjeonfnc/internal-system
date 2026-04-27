@@ -10,6 +10,7 @@ abstract final class ActivityRoutes {
   static const String _b = kActivitiesRoot;
 
   static String get hub => _b;
+
   /// 사이드바 3분할(개발관리와 동일 패턴).
   static String get groupStatus => '$_b/group/status';
   static String get groupManage => '$_b/group/manage';
@@ -42,8 +43,7 @@ int activityApprovalInitialTabForPath(String path) {
 }
 
 /// 하위 화면 스텁 제목.
-String activityPageTitle(String path) =>
-    _activityTitles[path] ?? '활동 관리';
+String activityPageTitle(String path) => _activityTitles[path] ?? '활동 관리';
 
 final Map<String, String> _activityTitles = {
   ActivityRoutes.groupStatus: '활동현황',
@@ -64,4 +64,3 @@ final Map<String, String> _activityTitles = {
   ActivityRoutes.approvalChecklist: '체크리스트',
   ActivityRoutes.approvalChecklistStats: '체크리스트 통계',
 };
-

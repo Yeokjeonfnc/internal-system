@@ -39,7 +39,7 @@ class AppRouteDef {
 
   /// 동적 경로인 경우 `:param` 직전까지의 prefix (뒤에 `/` 포함).
   ///
-  /// 예: `/stores/:storeCode` → `/stores/`. 정적 경로면 `null`.
+  /// 예: `/stores/:storeIdx` → `/stores/`. 정적 경로면 `null`.
   /// [resolveRouteMeta] 에서 상세 화면 prefix 매칭에 사용한다.
   String? get dynamicPrefix {
     final idx = path.indexOf('/:');

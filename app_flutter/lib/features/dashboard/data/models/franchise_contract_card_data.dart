@@ -1,4 +1,4 @@
-/// 가맹계약/개점 요약 카드용 표시 데이터 (대시보드 목업).
+/// 가맹계약/개점 요약 카드용 표시 데이터.
 class FranchiseContractCardData {
   const FranchiseContractCardData({
     required this.title,

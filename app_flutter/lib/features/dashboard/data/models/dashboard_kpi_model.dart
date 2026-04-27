@@ -18,7 +18,8 @@ class DashboardKpiModel {
   final String unit;
   final double deltaRate;
 
-  factory DashboardKpiModel.fromJson(Map<String, dynamic> json) => _$DashboardKpiModelFromJson(json);
+  factory DashboardKpiModel.fromJson(Map<String, dynamic> json) =>
+      _$DashboardKpiModelFromJson(json);
 
   Map<String, dynamic> toJson() => _$DashboardKpiModelToJson(this);
 }

@@ -48,33 +48,7 @@ class _VisitHistoryRow {
   final String approval;
 }
 
-const _kVisitHistoryMock = <_VisitHistoryRow>[
-  _VisitHistoryRow(
-    '방문',
-    '2026-04-08',
-    '가게 앞·간판 청소 상태·출입·임대차 관련…',
-    '최지호',
-    '완료',
-    '완료',
-  ),
-  _VisitHistoryRow(
-    '방문',
-    '2026-04-01',
-    '주요 상담: 매출·프로모션, 체크리스트 협의.',
-    '김민효',
-    '완료',
-    '상신',
-  ),
-  _VisitHistoryRow('전화', '2026-03-25', '유선 민원·CS 확인.', '최지호', '완료', '완료'),
-  _VisitHistoryRow(
-    '방문',
-    '2026-03-18',
-    '현장 점검(주방·홀) 및 개선 권고.',
-    '이수진',
-    '완료',
-    '완료',
-  ),
-];
+const _visitHistoryRows = <_VisitHistoryRow>[];
 
 class _VisitHistoryDialog extends StatefulWidget {
   const _VisitHistoryDialog({
@@ -92,9 +66,6 @@ class _VisitHistoryDialog extends StatefulWidget {
 class _VisitHistoryDialogState extends State<_VisitHistoryDialog> {
   late final TextEditingController _brand;
   late final TextEditingController _store;
-  final bool _showAll = false;
-  final int _rowsPerPage = 30;
-  final int _page = 1;
 
   @override
   void initState() {
@@ -128,15 +99,8 @@ class _VisitHistoryDialogState extends State<_VisitHistoryDialog> {
     );
   }
 
-  int get _totalPages {
-    final n = _kVisitHistoryMock.length;
-    if (n == 0) return 1;
-    return (n + _rowsPerPage - 1) ~/ _rowsPerPage;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final w = _kVisitHistoryMock.length;
     final h = MediaQuery.sizeOf(context).height * 0.82;
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -261,7 +225,7 @@ class _VisitHistoryDialogState extends State<_VisitHistoryDialog> {
                             ErpTableHeaderCell('결재상태'),
                           ],
                         ),
-                        for (var i = 0; i < _kVisitHistoryMock.length; i++)
+                        for (var i = 0; i < _visitHistoryRows.length; i++)
                           TableRow(
                             decoration: BoxDecoration(
                               color: i.isEven
@@ -270,24 +234,24 @@ class _VisitHistoryDialogState extends State<_VisitHistoryDialog> {
                             ),
                             children: [
                               ErpTableBodyCell(
-                                _kVisitHistoryMock[i].activity,
+                                _visitHistoryRows[i].activity,
                                 center: true,
                               ),
                               ErpTableBodyCell(
-                                _kVisitHistoryMock[i].date,
+                                _visitHistoryRows[i].date,
                                 center: true,
                               ),
-                              ErpTableBodyCell(_kVisitHistoryMock[i].memo),
+                              ErpTableBodyCell(_visitHistoryRows[i].memo),
                               ErpTableBodyCell(
-                                _kVisitHistoryMock[i].drafter,
-                                center: true,
-                              ),
-                              ErpTableBodyCell(
-                                _kVisitHistoryMock[i].checklist,
+                                _visitHistoryRows[i].drafter,
                                 center: true,
                               ),
                               ErpTableBodyCell(
-                                _kVisitHistoryMock[i].approval,
+                                _visitHistoryRows[i].checklist,
+                                center: true,
+                              ),
+                              ErpTableBodyCell(
+                                _visitHistoryRows[i].approval,
                                 center: true,
                               ),
                             ],

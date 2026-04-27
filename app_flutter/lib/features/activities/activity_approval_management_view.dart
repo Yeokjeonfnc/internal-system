@@ -1,4 +1,4 @@
-// 활동관리결재 — [ListPageTemplate] + 임시보관과 동일 필터/표(목업).
+// 활동관리결재 — [ListPageTemplate] + 임시보관과 동일 필터/표.
 
 import 'package:flutter/material.dart';
 
@@ -14,7 +14,8 @@ import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart'
 import 'activity_date_presets.dart';
 import 'activity_drafts_table.dart';
 import 'activity_list_date_field.dart';
-import 'activity_management_view.dart' show kActivityManagementSupportedSearchFields;
+import 'activity_management_view.dart'
+    show kActivityManagementSupportedSearchFields;
 
 /// `/activities/approval/...` 등에서 열릴 때 [initialTab]으로 탭 선택(0=전체 … 4=체크리스트).
 class ActivityApprovalManagementView extends StatefulWidget {
@@ -80,16 +81,16 @@ class _ActivityApprovalManagementViewState
 
   void _clearActivityFilterField(CommonSearchFieldId id) {
     switch (id) {
-      case CommonSearchFieldId.storeCode:
+      case CommonSearchFieldId.storeCd:
         _codeCtrl.clear();
         return;
-      case CommonSearchFieldId.storeName:
+      case CommonSearchFieldId.storeNm:
         _nameCtrl.clear();
         return;
-      case CommonSearchFieldId.brand:
+      case CommonSearchFieldId.brandCd:
         _brand = '전체';
         return;
-      case CommonSearchFieldId.supervisor:
+      case CommonSearchFieldId.supervisorCd:
         _supCtrl.clear();
         return;
       case CommonSearchFieldId.activityConsultMemo:
@@ -133,7 +134,7 @@ class _ActivityApprovalManagementViewState
     final items = <SearchFilterItemData>[];
     for (final def in commonSearchDefsOrdered(_visibleMainSearchFields)) {
       switch (def.id) {
-        case CommonSearchFieldId.storeName:
+        case CommonSearchFieldId.storeNm:
           items.add(
             FilterTextSlot(
               label: def.label,
@@ -143,7 +144,7 @@ class _ActivityApprovalManagementViewState
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.storeCode:
+        case CommonSearchFieldId.storeCd:
           items.add(
             FilterTextSlot(
               label: def.label,
@@ -153,7 +154,7 @@ class _ActivityApprovalManagementViewState
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.brand:
+        case CommonSearchFieldId.brandCd:
           items.add(
             FilterStringOptionsSlot(
               label: def.label,
@@ -163,7 +164,7 @@ class _ActivityApprovalManagementViewState
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.supervisor:
+        case CommonSearchFieldId.supervisorCd:
           items.add(
             FilterTextSlot(
               label: def.label,
@@ -222,7 +223,7 @@ class _ActivityApprovalManagementViewState
     final chips = <ActiveFilterChip>[];
     for (final def in commonSearchDefsOrdered(_visibleMainSearchFields)) {
       switch (def.id) {
-        case CommonSearchFieldId.storeCode:
+        case CommonSearchFieldId.storeCd:
           final c = _codeCtrl.text.trim();
           chips.add(
             ActiveFilterChip(
@@ -231,7 +232,7 @@ class _ActivityApprovalManagementViewState
             ),
           );
           break;
-        case CommonSearchFieldId.storeName:
+        case CommonSearchFieldId.storeNm:
           final n = _nameCtrl.text.trim();
           chips.add(
             ActiveFilterChip(
@@ -240,7 +241,7 @@ class _ActivityApprovalManagementViewState
             ),
           );
           break;
-        case CommonSearchFieldId.brand:
+        case CommonSearchFieldId.brandCd:
           chips.add(
             ActiveFilterChip(
               label: '${def.label}: $_brand',
@@ -248,7 +249,7 @@ class _ActivityApprovalManagementViewState
             ),
           );
           break;
-        case CommonSearchFieldId.supervisor:
+        case CommonSearchFieldId.supervisorCd:
           final s = _supCtrl.text.trim();
           chips.add(
             ActiveFilterChip(
@@ -313,7 +314,8 @@ class _ActivityApprovalManagementViewState
       activeFilters: _activeFilterChips(),
       filterSheetBody: filterSheet,
       mainSearchFields: mainFields,
-      countText: '총 1건이 조회되었습니다. (목업)',
+      countText: '총 0건이 조회되었습니다.',
+      onRefresh: () => setState(() {}),
       table: const ActivityDraftsTable(),
     );
   }

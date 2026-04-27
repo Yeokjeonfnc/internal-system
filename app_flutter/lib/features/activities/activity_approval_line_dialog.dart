@@ -19,7 +19,7 @@ class ActivityApprovalLineResult {
   final List<String> names;
 }
 
-/// [결재라인] — 목업(조직·사원)으로 직급+이름 슬롯을 채운다.
+/// [결재라인] — 직급+이름 슬롯을 채운다.
 Future<ActivityApprovalLineResult?> showActivityApprovalLineDialog(
   BuildContext context, {
   List<String> initialNames = const [],
@@ -62,27 +62,9 @@ class _EmployeeRow {
   final String name;
 }
 
-/// 경영지원 본부 산하 팀 — 스크린샷·목업.
-const _kDepartments = <String>[
-  '재무팀',
-  '인사총무팀',
-  '구매메뉴운영팀',
-  '마케팅팀',
-  '인테리어팀',
-  '점포개발팀',
-  '운영2팀',
-];
+const _kDepartments = <String>[];
 
-final _kAllEmployees = <_EmployeeRow>[
-  const _EmployeeRow(id: '1', department: '운영2팀', title: '대리', name: '강동우'),
-  const _EmployeeRow(id: '2', department: '인사총무팀', title: '과장', name: '이수진'),
-  const _EmployeeRow(id: '3', department: '재무팀', title: '사원', name: '박지훈'),
-  const _EmployeeRow(id: '4', department: '마케팅팀', title: '차장', name: '최지호'),
-  const _EmployeeRow(id: '5', department: '구매메뉴운영팀', title: '대리', name: '한소영'),
-  const _EmployeeRow(id: '6', department: '점포개발팀', title: '부장', name: '오민석'),
-  const _EmployeeRow(id: '7', department: '인테리어팀', title: '사원', name: '김민효'),
-  const _EmployeeRow(id: '8', department: '운영2팀', title: '과장', name: '정우진'),
-];
+final _kAllEmployees = <_EmployeeRow>[];
 
 String _titleForName(String name) {
   for (final e in _kAllEmployees) {
@@ -641,11 +623,6 @@ class _SelectedStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const lineStyle = TextStyle(
-      fontSize: 12,
-      fontWeight: FontWeight.w700,
-      color: Colors.white,
-    );
     final cells = <({String t, String n})>[];
     for (var i = 0; i < kActivityApprovalLineSlotCount; i++) {
       final n = i < lineNames.length ? lineNames[i] : '';
