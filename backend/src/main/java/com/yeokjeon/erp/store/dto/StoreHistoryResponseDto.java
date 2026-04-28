@@ -20,6 +20,6 @@ public class StoreHistoryResponseDto {
     private String storeNm;
     private JsonNode chgContent;
     private String content;
-    private String createdBy;
-    private LocalDateTime createdAt;
+    private String chgUserId;
+    private LocalDateTime chgDt;
 }

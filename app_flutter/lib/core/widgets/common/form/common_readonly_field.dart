@@ -68,7 +68,7 @@ class ReadonlyWithSuffix extends StatelessWidget {
               value,
               style: const TextStyle(
                 color: FormStylePalette.textPrimary,
-                fontSize: 13,
+                fontSize: 15,
                 fontFamilyFallback: AppTheme.koreanFontFallback,
               ),
             ),
@@ -77,7 +77,7 @@ class ReadonlyWithSuffix extends StatelessWidget {
             suffix,
             style: const TextStyle(
               color: FormStylePalette.textMuted,
-              fontSize: 13,
+              fontSize: 15,
               fontFamilyFallback: AppTheme.koreanFontFallback,
             ),
           ),

@@ -1,6 +1,9 @@
 /// 물건 구분 (자가/임대차).
 enum PropertyOwnership { owned, leased }
 
+/// 물건 상태 (체결/보류/부적합).
+enum PropertyStatus { contracted, pending, unsuitable }
+
 /// 가맹 여부 (가맹/비가맹).
 enum FranchiseFlag { franchised, nonFranchised }
 
@@ -11,9 +14,11 @@ enum AddressScope { domestic, overseas }
 class Property {
   const Property({
     required this.no,
+    required this.propIdx,
     required this.surveyDate,
     required this.name,
     required this.region,
+    required this.status,
     required this.ownership,
     required this.areaSqm,
     required this.keyMoney,
@@ -30,13 +35,17 @@ class Property {
     this.managementFee = 0,
     this.postalCode = '',
     this.addressDetail = '',
+    this.latitude,
+    this.longitude,
     this.addressScope = AddressScope.domestic,
   });
 
   final int no;
+  final int propIdx;
   final String surveyDate;
   final String name;
   final String region;
+  final PropertyStatus status;
   final PropertyOwnership ownership;
   final double areaSqm;
   final int keyMoney;
@@ -53,5 +62,7 @@ class Property {
   final int managementFee;
   final String postalCode;
   final String addressDetail;
+  final String? latitude;
+  final String? longitude;
   final AddressScope addressScope;
 }

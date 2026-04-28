@@ -7,7 +7,7 @@ enum CommonSearchFieldGroup {
   storeSearch,
 
   /// 예비창업자 검색
-  prospectSearch,
+  partnerSearch,
 
   /// 물건 검색
   propertySearch,
@@ -63,20 +63,23 @@ enum CommonSearchFieldId {
   /// 물건명
   propertyName,
 
+  /// 예비창업자명
+  partnerName,
+
   /// 종류(자가·임대차)
   propertyOwnership,
+
+  /// 구분(체결물건 / 보류물건 / 부적합물건)
+  propertyStatus,
 
   /// 주소(키워드)
   propertyAddress,
 
-  /// 예비창업자 목록 — 이름
-  founderName,
-
   /// 예비창업자 목록 — 평가상태
   founderEvaluation,
 
-  /// 예비창업자 목록 — 상태(예비창업자 / 가맹점사업자) [Founder.founderStatus]
-  founderStatus,
+  /// 예비창업자 목록 — 상태(예비창업자 / 가맹점사업자) [Partner.partnerStatus]
+  partnerStatus,
 
   /// 활동관리 — 상담내용 및 의견
   activityConsultMemo,
@@ -192,27 +195,15 @@ const List<CommonSearchFieldDef> kCommonSearchCatalog = [
     presentation: CommonSearchPresentation.adaptiveChipsOrDropdown,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.prospectName,
+    id: CommonSearchFieldId.partnerName,
     label: '예비창업자',
-    group: CommonSearchFieldGroup.prospectSearch,
+    group: CommonSearchFieldGroup.partnerSearch,
     presentation: CommonSearchPresentation.text,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.founderName,
-    label: '물건 이름',
-    group: CommonSearchFieldGroup.prospectSearch,
-    presentation: CommonSearchPresentation.text,
-  ),
-  CommonSearchFieldDef(
-    id: CommonSearchFieldId.founderEvaluation,
-    label: '평가상태',
-    group: CommonSearchFieldGroup.prospectSearch,
-    presentation: CommonSearchPresentation.pageBuilt,
-  ),
-  CommonSearchFieldDef(
-    id: CommonSearchFieldId.founderStatus,
+    id: CommonSearchFieldId.partnerStatus,
     label: '상태',
-    group: CommonSearchFieldGroup.prospectSearch,
+    group: CommonSearchFieldGroup.partnerSearch,
     presentation: CommonSearchPresentation.pageBuilt,
   ),
   CommonSearchFieldDef(
@@ -224,6 +215,12 @@ const List<CommonSearchFieldDef> kCommonSearchCatalog = [
   CommonSearchFieldDef(
     id: CommonSearchFieldId.propertyOwnership,
     label: '물건 종류',
+    group: CommonSearchFieldGroup.propertySearch,
+    presentation: CommonSearchPresentation.pageBuilt,
+  ),
+  CommonSearchFieldDef(
+    id: CommonSearchFieldId.propertyStatus,
+    label: '구분',
     group: CommonSearchFieldGroup.propertySearch,
     presentation: CommonSearchPresentation.pageBuilt,
   ),
@@ -339,7 +336,7 @@ const List<CommonSearchFieldDef> kCommonSearchCatalog = [
 
 String commonSearchGroupTitle(CommonSearchFieldGroup g) => switch (g) {
   CommonSearchFieldGroup.storeSearch => '가맹점 검색',
-  CommonSearchFieldGroup.prospectSearch => '예비창업자 검색',
+  CommonSearchFieldGroup.partnerSearch => '예비창업자 검색',
   CommonSearchFieldGroup.propertySearch => '물건 검색',
   CommonSearchFieldGroup.regionContact => '지역·연락처 검색',
   CommonSearchFieldGroup.activitySearch => '활동관리 검색',

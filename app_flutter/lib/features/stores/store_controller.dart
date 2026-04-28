@@ -11,7 +11,7 @@ import 'package:app_flutter/features/stores/store_api_service.dart';
 
 abstract class StoreRepository {
   Future<List<Store>> all();
-  Future<Store?> find(String code);
+  Future<Store?> find(int storeIdx);
 }
 
 class ApiStoreRepository implements StoreRepository {
@@ -25,8 +25,8 @@ class ApiStoreRepository implements StoreRepository {
   }
 
   @override
-  Future<Store?> find(String code) async {
-    return await _apiService.getStoreByCode(code);
+  Future<Store?> find(int storeIdx) async {
+    return await _apiService.getStoreByIndex(storeIdx);
   }
 }
 
@@ -62,11 +62,11 @@ final brandNamesProvider = FutureProvider<List<String>>((ref) async {
 });
 
 /// 특정 가맹점 로드 Provider
-final storeDetailProvider = FutureProvider.family<Store?, String>((
+final storeDetailProvider = FutureProvider.family<Store?, int>((
   ref,
   storeIdx,
 ) async {
-  if (storeIdx.isEmpty) return null;
+  if (storeIdx <= 0) return null;
   return await ref.watch(storeRepositoryProvider).find(storeIdx);
 });
 

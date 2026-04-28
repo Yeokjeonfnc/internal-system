@@ -87,10 +87,11 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
       case CommonSearchFieldId.registrationDate:
       case CommonSearchFieldId.propertyName:
       case CommonSearchFieldId.propertyOwnership:
+      case CommonSearchFieldId.propertyStatus:
       case CommonSearchFieldId.propertyAddress:
-      case CommonSearchFieldId.founderName:
+      case CommonSearchFieldId.partnerName:
       case CommonSearchFieldId.founderEvaluation:
-      case CommonSearchFieldId.founderStatus:
+      case CommonSearchFieldId.partnerStatus:
       case CommonSearchFieldId.activityConsultMemo:
       case CommonSearchFieldId.activityDateRange:
       case CommonSearchFieldId.salesAreaName:
@@ -191,10 +192,11 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
         case CommonSearchFieldId.registrationDate:
         case CommonSearchFieldId.propertyName:
         case CommonSearchFieldId.propertyOwnership:
+        case CommonSearchFieldId.propertyStatus:
         case CommonSearchFieldId.propertyAddress:
-        case CommonSearchFieldId.founderName:
+        case CommonSearchFieldId.partnerName:
         case CommonSearchFieldId.founderEvaluation:
-        case CommonSearchFieldId.founderStatus:
+        case CommonSearchFieldId.partnerStatus:
         case CommonSearchFieldId.activityConsultMemo:
         case CommonSearchFieldId.activityDateRange:
         case CommonSearchFieldId.salesAreaName:
@@ -472,13 +474,55 @@ class _StoreContractStatusMultiSlot implements FilterSlotConfig {
   }
 }
 
-class _StoreTable extends StatelessWidget {
+class _StoreTable extends ConsumerWidget {
   const _StoreTable({required this.rows});
 
   final List<Store> rows;
 
+  Future<void> _confirmAndDelete(
+    BuildContext context,
+    WidgetRef ref,
+    Store store,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('가맹점 삭제'),
+        content: Text('${store.storeNm} 데이터를 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.accentRed),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final deleted = await ref
+        .read(storeApiServiceProvider)
+        .deleteStore(store.storeIdx);
+    if (!context.mounted) return;
+
+    if (deleted) {
+      ref.invalidate(storeDataProvider);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('삭제되었습니다.')));
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('삭제에 실패했습니다.')));
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return ErpDataTable(
       minWidth: 2000,
       tableBuilder: (context, _) => Table(
@@ -496,6 +540,7 @@ class _StoreTable extends StatelessWidget {
           8: IntrinsicColumnWidth(),
           9: IntrinsicColumnWidth(),
           10: IntrinsicColumnWidth(),
+          11: IntrinsicColumnWidth(),
         },
         children: [
           const TableRow(
@@ -512,6 +557,7 @@ class _StoreTable extends StatelessWidget {
               ErpTableHeaderCell('개업일자'),
               ErpTableHeaderCell('계약 만료일자'),
               ErpTableHeaderCell('상세보기'),
+              ErpTableHeaderCell('삭제'),
             ],
           ),
           ...rows.asMap().entries.map(
@@ -543,11 +589,28 @@ class _StoreTable extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.all(8),
                   child: Center(
-                    child: DetailButton(
-                      onPressed: () => context.goNamed(
-                        AppRouteNames.storeDetail,
-                        pathParameters: {'storeCd': entry.value.storeCd},
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        DetailButton(
+                          onPressed: () => context.goNamed(
+                            AppRouteNames.storeDetail,
+                            pathParameters: {
+                              'storeIdx': '${entry.value.storeIdx}',
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Center(
+                    child: _StoreDeleteButton(
+                      onPressed: () =>
+                          _confirmAndDelete(context, ref, entry.value),
                     ),
                   ),
                 ),
@@ -555,6 +618,32 @@ class _StoreTable extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StoreDeleteButton extends StatelessWidget {
+  const _StoreDeleteButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+      label: const Text('삭제'),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 30),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        foregroundColor: AppTheme.accentRed,
+        side: const BorderSide(color: AppTheme.accentRed),
+        textStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
       ),
     );
   }
@@ -576,10 +665,10 @@ class _StatusChip extends StatelessWidget {
       displayName = '신규계약';
     } else if (statusLower == 'renewal') {
       color = AppTheme.statusRenewal;
-      displayName = '갱신계약';
+      displayName = '재계약';
     } else if (statusLower == 'transfer') {
       color = AppTheme.statusTransfer;
-      displayName = '이전계약';
+      displayName = '양수도';
     }
 
     return Row(

@@ -235,6 +235,8 @@ class _EmployeeRegisterViewState extends ConsumerState<EmployeeRegisterView> {
                             child: DateInputWithPicker(
                               value: _hireDate,
                               onPick: _pickHireDate,
+                              onChanged: (value) =>
+                                  setState(() => _hireDate = value),
                               placeholder: '날짜를 선택하세요.',
                             ),
                           ),

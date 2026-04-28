@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="@127.0.0.1" uuid="ca95fecd-48b7-459d-841a-93bbe00ebcca">
-      <driver-ref>oracle.19</driver-ref>
+    <data-source source="LOCAL" name="yeokjeon_db@localhost" uuid="9ac4cca1-1138-4911-a6b2-057e034f1c15">
+      <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
-      <auto-commit>false</auto-commit>
-      <jdbc-driver>oracle.jdbc.OracleDriver</jdbc-driver>
-      <jdbc-url>jdbc:oracle:thin:@//127.0.0.1:1521/FREE</jdbc-url>
+      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
+      <jdbc-url>jdbc:postgresql://localhost:5432/yeokjeon_db</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
   </component>

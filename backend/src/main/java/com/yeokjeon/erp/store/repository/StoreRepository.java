@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface StoreRepository extends JpaRepository<Store, String> {
+public interface StoreRepository extends JpaRepository<Store, Integer> {
     
     @Query("SELECT s FROM Store s ORDER BY s.storeIdx DESC")
     List<Store> findAllStores();

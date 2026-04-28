@@ -93,10 +93,11 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
       case CommonSearchFieldId.registrationDate:
       case CommonSearchFieldId.propertyName:
       case CommonSearchFieldId.propertyOwnership:
+      case CommonSearchFieldId.propertyStatus:
       case CommonSearchFieldId.propertyAddress:
-      case CommonSearchFieldId.founderName:
+      case CommonSearchFieldId.partnerName:
       case CommonSearchFieldId.founderEvaluation:
-      case CommonSearchFieldId.founderStatus:
+      case CommonSearchFieldId.partnerStatus:
       case CommonSearchFieldId.activityConsultMemo:
       case CommonSearchFieldId.activityDateRange:
       case CommonSearchFieldId.employeeName:
@@ -202,10 +203,11 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
         case CommonSearchFieldId.registrationDate:
         case CommonSearchFieldId.propertyName:
         case CommonSearchFieldId.propertyOwnership:
+        case CommonSearchFieldId.propertyStatus:
         case CommonSearchFieldId.propertyAddress:
-        case CommonSearchFieldId.founderName:
+        case CommonSearchFieldId.partnerName:
         case CommonSearchFieldId.founderEvaluation:
-        case CommonSearchFieldId.founderStatus:
+        case CommonSearchFieldId.partnerStatus:
         case CommonSearchFieldId.activityConsultMemo:
         case CommonSearchFieldId.activityDateRange:
         case CommonSearchFieldId.employeeName:

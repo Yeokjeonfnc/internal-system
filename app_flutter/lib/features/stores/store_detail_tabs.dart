@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/formatting/display_date.dart';
@@ -14,6 +15,10 @@ import 'package:app_flutter/core/widgets/common/form/common_form_field_block.dar
 import 'package:app_flutter/core/widgets/common/form/common_form_row.dart';
 import 'package:app_flutter/core/widgets/common/form/common_labeled_form_row.dart';
 import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
+import 'package:app_flutter/features/founders/partner_controller.dart';
+import 'package:app_flutter/features/founders/partner_model.dart';
+import 'package:app_flutter/features/properties/property_controller.dart';
+import 'package:app_flutter/features/properties/property_model.dart';
 import 'package:app_flutter/features/stores/store_controller.dart';
 import 'package:app_flutter/features/stores/store_model.dart';
 
@@ -24,10 +29,12 @@ import 'package:app_flutter/features/stores/store_model.dart';
 Widget _storeDetailOutlineTextField(
   TextEditingController controller, {
   TextInputType keyboardType = TextInputType.text,
+  List<TextInputFormatter>? inputFormatters,
 }) {
   return TextField(
     controller: controller,
     keyboardType: keyboardType,
+    inputFormatters: inputFormatters,
     style: FormStylePalette.valueStyle,
     cursorColor: FormStylePalette.accent,
     decoration: InputDecoration(
@@ -54,10 +61,122 @@ Widget _storeDetailOutlineTextField(
   );
 }
 
+Widget _storeDetailOutlineMultilineTextField(
+  TextEditingController controller, {
+  int minLines = 4,
+  int maxLines = 8,
+}) {
+  return TextField(
+    controller: controller,
+    keyboardType: TextInputType.multiline,
+    minLines: minLines,
+    maxLines: maxLines,
+    style: FormStylePalette.valueStyle,
+    cursorColor: FormStylePalette.accent,
+    decoration: InputDecoration(
+      filled: true,
+      fillColor: FormStylePalette.inputBg,
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: const BorderSide(color: FormStylePalette.panelBorder),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: const BorderSide(color: FormStylePalette.panelBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: const BorderSide(
+          color: FormStylePalette.accent,
+          width: 1.4,
+        ),
+      ),
+    ),
+  );
+}
+
+String _formatPhoneNumber(String value) {
+  final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.isEmpty) return '';
+
+  if (digits.startsWith('02')) {
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 5) {
+      return '${digits.substring(0, 2)}-${digits.substring(2)}';
+    }
+    if (digits.length <= 9) {
+      return '${digits.substring(0, 2)}-${digits.substring(2, digits.length - 4)}-${digits.substring(digits.length - 4)}';
+    }
+    final clipped = digits.substring(0, 10);
+    return '${clipped.substring(0, 2)}-${clipped.substring(2, 6)}-${clipped.substring(6)}';
+  }
+
+  final clipped = digits.length > 11 ? digits.substring(0, 11) : digits;
+  if (clipped.length <= 3) return clipped;
+  if (clipped.length <= 7) {
+    return '${clipped.substring(0, 3)}-${clipped.substring(3)}';
+  }
+  return '${clipped.substring(0, 3)}-${clipped.substring(3, clipped.length - 4)}-${clipped.substring(clipped.length - 4)}';
+}
+
+String _formatPhoneNumberOrDash(String value) {
+  final formatted = _formatPhoneNumber(value);
+  return formatted.isEmpty ? '-' : formatted;
+}
+
+class _PhoneNumberTextInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final formatted = _formatPhoneNumber(newValue.text);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+String _formatMoneyInput(Object? value) {
+  final digits = value?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '';
+  if (digits.isEmpty) return '';
+
+  final buffer = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    final remaining = digits.length - i;
+    buffer.write(digits[i]);
+    if (remaining > 1 && remaining % 3 == 1) buffer.write(',');
+  }
+  return buffer.toString();
+}
+
+String _formatMoneyOrDash(Object? value) {
+  final formatted = _formatMoneyInput(value);
+  return formatted.isEmpty ? '-' : formatted;
+}
+
+class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final formatted = _formatMoneyInput(newValue.text);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
 Widget _storeDetailOutlineTextFieldWithSuffix(
   TextEditingController controller, {
   required String suffix,
   TextInputType keyboardType = TextInputType.text,
+  List<TextInputFormatter>? inputFormatters,
 }) {
   return Row(
     crossAxisAlignment: CrossAxisAlignment.center,
@@ -66,6 +185,7 @@ Widget _storeDetailOutlineTextFieldWithSuffix(
         child: _storeDetailOutlineTextField(
           controller,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
         ),
       ),
       const SizedBox(width: 6),
@@ -80,6 +200,81 @@ Widget _storeDetailOutlineTextFieldWithSuffix(
       ),
     ],
   );
+}
+
+/// 가맹점 등록 화면에서 탭 간 입력값을 공유하기 위한 임시 상태.
+class StoreRegisterDraft {
+  final storeAreaController = TextEditingController();
+  final contactController = TextEditingController();
+  final storeCodeController = TextEditingController();
+  final businessNumberController = TextEditingController();
+  final storeNameController = TextEditingController();
+  final ownerNameController = TextEditingController();
+
+  final floorController = TextEditingController();
+  final parkingController = TextEditingController();
+  final contAreaController = TextEditingController();
+  final realAreaController = TextEditingController();
+  final propertyNameController = TextEditingController();
+  final zipCodeController = TextEditingController();
+  final addressController = TextEditingController();
+  final addressDetailController = TextEditingController();
+  final notesController = TextEditingController();
+  final rentDepositController = TextEditingController();
+  final premiumFeeController = TextEditingController();
+  final monthlyRentController = TextEditingController();
+
+  final frFeeController = TextEditingController(text: '0');
+  final eduFeeController = TextEditingController(text: '0');
+  final insuDepositController = TextEditingController(text: '0');
+  final contDepositController = TextEditingController(text: '0');
+  final contManagerController = TextEditingController();
+  final eduManagerController = TextEditingController();
+  final supervisorController = TextEditingController();
+
+  String type = '';
+  String region = '';
+  String brand = '';
+  String status = '';
+  String notes = '';
+  String? latitude;
+  String? longitude;
+
+  DateTime? firstContDt;
+  DateTime? contractExpiryDate;
+  DateTime? leaseStartDate;
+  DateTime? leaseEndDate;
+  DateTime? contractFirstContDt;
+  DateTime? currentContractStart;
+  DateTime? currentContractEnd;
+
+  void dispose() {
+    storeAreaController.dispose();
+    contactController.dispose();
+    storeCodeController.dispose();
+    businessNumberController.dispose();
+    storeNameController.dispose();
+    ownerNameController.dispose();
+    floorController.dispose();
+    parkingController.dispose();
+    contAreaController.dispose();
+    realAreaController.dispose();
+    propertyNameController.dispose();
+    zipCodeController.dispose();
+    addressController.dispose();
+    addressDetailController.dispose();
+    rentDepositController.dispose();
+    premiumFeeController.dispose();
+    monthlyRentController.dispose();
+    frFeeController.dispose();
+    eduFeeController.dispose();
+    insuDepositController.dispose();
+    contDepositController.dispose();
+    contManagerController.dispose();
+    eduManagerController.dispose();
+    supervisorController.dispose();
+    notesController.dispose();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -116,11 +311,13 @@ class CommonStoreInfoSection extends ConsumerStatefulWidget {
     this.store,
     required this.isEditing,
     required this.storeAreaController,
+    this.registerDraft,
   });
 
   final Store? store;
   final bool isEditing;
   final TextEditingController storeAreaController;
+  final StoreRegisterDraft? registerDraft;
 
   @override
   ConsumerState<CommonStoreInfoSection> createState() =>
@@ -132,6 +329,8 @@ class _CommonStoreInfoSectionState
   late final TextEditingController _storeCodeController;
   late final TextEditingController _businessNumberController;
   late final TextEditingController _storeNameController;
+  late final TextEditingController _notesController;
+  late final bool _ownsControllers;
   late String _type;
   late String _region;
   late String _brand;
@@ -140,9 +339,15 @@ class _CommonStoreInfoSectionState
   @override
   void initState() {
     super.initState();
-    _storeCodeController = TextEditingController();
-    _businessNumberController = TextEditingController();
-    _storeNameController = TextEditingController();
+    final draft = widget.registerDraft;
+    _ownsControllers = draft == null;
+    _storeCodeController =
+        draft?.storeCodeController ?? TextEditingController();
+    _businessNumberController =
+        draft?.businessNumberController ?? TextEditingController();
+    _storeNameController =
+        draft?.storeNameController ?? TextEditingController();
+    _notesController = draft?.notesController ?? TextEditingController();
     _syncFromStore();
   }
 
@@ -157,13 +362,26 @@ class _CommonStoreInfoSectionState
 
   @override
   void dispose() {
-    _storeCodeController.dispose();
-    _businessNumberController.dispose();
-    _storeNameController.dispose();
+    if (_ownsControllers) {
+      _storeCodeController.dispose();
+      _businessNumberController.dispose();
+      _storeNameController.dispose();
+      _notesController.dispose();
+    }
     super.dispose();
   }
 
   void _syncFromStore() {
+    final draft = widget.registerDraft;
+    if (draft != null && widget.store == null) {
+      _brand = draft.brand;
+      _status = draft.status;
+      _type = draft.type;
+      _region = draft.region;
+      widget.storeAreaController.text = _region;
+      _notesController.text = draft.notes;
+      return;
+    }
     _storeCodeController.text = widget.store?.storeCd ?? '';
     _businessNumberController.text = widget.store?.businessNumber ?? '';
     _storeNameController.text = widget.store?.storeNm ?? '';
@@ -179,16 +397,15 @@ class _CommonStoreInfoSectionState
     String currentCode,
     String currentName,
   ) {
+    final hasValidLabel =
+        currentName.isNotEmpty &&
+        currentName != '-' &&
+        currentName != currentCode;
     if (currentCode.isNotEmpty &&
         currentCode != '-' &&
+        hasValidLabel &&
         !base.any((e) => e.codeCd == currentCode)) {
-      return [
-        CodeOption(
-          codeCd: currentCode,
-          codeNm: currentName.isNotEmpty ? currentName : currentCode,
-        ),
-        ...base,
-      ];
+      return [CodeOption(codeCd: currentCode, codeNm: currentName), ...base];
     }
     return base;
   }
@@ -200,6 +417,33 @@ class _CommonStoreInfoSectionState
     return options.isNotEmpty ? options.first.codeCd : '';
   }
 
+  void _applyRegisterDefaultSelections({
+    required List<CodeOption> brandOptions,
+    required List<CodeOption> statusOptions,
+    required List<CodeOption> regionOptions,
+    required List<CodeOption> typeOptions,
+  }) {
+    if (widget.store != null || widget.registerDraft == null) return;
+
+    if (_brand.isEmpty && brandOptions.isNotEmpty) {
+      _brand = brandOptions.first.codeCd;
+      widget.registerDraft!.brand = _brand;
+    }
+    if (_status.isEmpty && statusOptions.isNotEmpty) {
+      _status = statusOptions.first.codeCd;
+      widget.registerDraft!.status = _status;
+    }
+    if (_region.isEmpty && regionOptions.isNotEmpty) {
+      _region = regionOptions.first.codeCd;
+      widget.registerDraft!.region = _region;
+      widget.storeAreaController.text = _region;
+    }
+    if (_type.isEmpty && typeOptions.isNotEmpty) {
+      _type = typeOptions.first.codeCd;
+      widget.registerDraft!.type = _type;
+    }
+  }
+
   String _storeTypeFallbackName(String code) {
     return switch (code) {
       'FR' => '가맹',
@@ -209,22 +453,44 @@ class _CommonStoreInfoSectionState
   }
 
   void _setType(String value) {
-    setState(() => _type = value);
+    setState(() {
+      _type = value;
+      widget.registerDraft?.type = value;
+    });
   }
 
   void _setRegion(String value) {
     setState(() {
       _region = value;
+      widget.registerDraft?.region = value;
       widget.storeAreaController.text = value;
     });
   }
 
+  void applyPropertySelection(Property property) {
+    setState(() {
+      _storeNameController.text = property.name;
+      widget.registerDraft?.storeNameController.text = property.name;
+      if (property.region.isNotEmpty) {
+        _region = property.region;
+        widget.registerDraft?.region = property.region;
+        widget.storeAreaController.text = property.region;
+      }
+    });
+  }
+
   void _setBrand(String value) {
-    setState(() => _brand = value);
+    setState(() {
+      _brand = value;
+      widget.registerDraft?.brand = value;
+    });
   }
 
   void _setStatus(String value) {
-    setState(() => _status = value);
+    setState(() {
+      _status = value;
+      widget.registerDraft?.status = value;
+    });
   }
 
   Map<String, dynamic> toUpdatePayload(
@@ -265,6 +531,41 @@ class _CommonStoreInfoSectionState
     };
   }
 
+  Map<String, dynamic> toCreatePayload({required String storeTel}) {
+    return {
+      'storeCd': _storeCodeController.text.trim(),
+      'storeNm': _storeNameController.text.trim(),
+      'ownerNm': null,
+      'regionCd': _emptyToNull(_region),
+      'storeTel': _emptyToNull(storeTel),
+      'address': null,
+      'storeStatus': _emptyToNull(_status),
+      'contEndDt': null,
+      'autoRenewalYn': true,
+      'storeType': _emptyToNull(_type),
+      'svId': null,
+      'adressDetail': null,
+      'zipCd': null,
+      'brandCd': _emptyToNull(_brand),
+      'contStartDt': null,
+      'firstContDt': null,
+      'businessNumber': _emptyToNull(_businessNumberController.text),
+      'frFee': 0,
+      'eduFee': 0,
+      'insuDeposit': 0,
+      'contDeposit': 0,
+      'contManager': null,
+      'eduManager': null,
+      'contArea': 0,
+      'realArea': 0,
+      'floor': 0,
+      'parkingCount': 0,
+      'premiumFee': 0,
+      'monthlyRent': 0,
+      'rentDeposit': 0,
+    };
+  }
+
   String? _emptyToNull(String value) {
     return value.trim().isEmpty ? null : value.trim();
   }
@@ -301,6 +602,12 @@ class _CommonStoreInfoSectionState
           ? store!.storeTypeNm
           : _storeTypeFallbackName(_type),
     );
+    _applyRegisterDefaultSelections(
+      brandOptions: brandOptions,
+      statusOptions: statusOptions,
+      regionOptions: regionOptions,
+      typeOptions: typeOptions,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -327,7 +634,7 @@ class _CommonStoreInfoSectionState
                 ? brandOptions.isEmpty
                       ? ReadonlyValue(store?.brandNm ?? store?.brandCd ?? '-')
                       : DropdownButtonFormField<String>(
-                          key: ValueKey('brand-${store?.storeCd}-$_brand'),
+                          key: ValueKey('brand-${store?.storeIdx}-$_brand'),
                           initialValue: _selectedCode(_brand, brandOptions),
                           isExpanded: true,
                           isDense: true,
@@ -364,7 +671,7 @@ class _CommonStoreInfoSectionState
                 ? statusOptions.isEmpty
                       ? ReadonlyValue(store?.storeStatusNm ?? '-')
                       : DropdownButtonFormField<String>(
-                          key: ValueKey('status-${store?.storeCd}-$_status'),
+                          key: ValueKey('status-${store?.storeIdx}-$_status'),
                           initialValue: _selectedCode(_status, statusOptions),
                           isExpanded: true,
                           isDense: true,
@@ -518,36 +825,39 @@ class DocumentsTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: FormStylePalette.panelBg,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: FormStylePalette.panelBorder),
-      ),
-      child: Column(
-        children: [
-          const _DocumentsTableHeader(columns: kDocumentColumns),
-          if (rows.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Text(
-                '표시할 문서가 없습니다.',
-                style: TextStyle(
-                  color: FormStylePalette.textMuted,
-                  fontSize: 13,
-                  fontFamilyFallback: AppTheme.koreanFontFallback,
+    return _AlwaysVisibleHorizontalScroll(
+      minWidth: 1120,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: FormStylePalette.panelBg,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: FormStylePalette.panelBorder),
+        ),
+        child: Column(
+          children: [
+            const _DocumentsTableHeader(columns: kDocumentColumns),
+            if (rows.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Text(
+                  '표시할 문서가 없습니다.',
+                  style: TextStyle(
+                    color: FormStylePalette.textMuted,
+                    fontSize: 13,
+                    fontFamilyFallback: AppTheme.koreanFontFallback,
+                  ),
                 ),
-              ),
-            )
-          else
-            for (var i = 0; i < rows.length; i++)
-              _DocumentsTableRow(
-                row: rows[i],
-                columns: kDocumentColumns,
-                selected: selectedIndex == i,
-                onTap: () => onRowTap(i),
-              ),
-        ],
+              )
+            else
+              for (var i = 0; i < rows.length; i++)
+                _DocumentsTableRow(
+                  row: rows[i],
+                  columns: kDocumentColumns,
+                  selected: selectedIndex == i,
+                  onTap: () => onRowTap(i),
+                ),
+          ],
+        ),
       ),
     );
   }
@@ -670,6 +980,55 @@ class _DocumentsTableRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AlwaysVisibleHorizontalScroll extends StatefulWidget {
+  const _AlwaysVisibleHorizontalScroll({
+    required this.child,
+    required this.minWidth,
+  });
+
+  final Widget child;
+  final double minWidth;
+
+  @override
+  State<_AlwaysVisibleHorizontalScroll> createState() =>
+      _AlwaysVisibleHorizontalScrollState();
+}
+
+class _AlwaysVisibleHorizontalScrollState
+    extends State<_AlwaysVisibleHorizontalScroll> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final width = maxWidth.isFinite && maxWidth > widget.minWidth
+            ? maxWidth
+            : widget.minWidth;
+
+        return Scrollbar(
+          controller: _scrollController,
+          thumbVisibility: true,
+          trackVisibility: true,
+          interactive: true,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(width: width, child: widget.child),
+          ),
+        );
+      },
     );
   }
 }
@@ -943,14 +1302,18 @@ class _StoreDateRangeRow extends StatelessWidget {
   const _StoreDateRangeRow({
     required this.start,
     required this.end,
-    required this.onPickStart,
-    required this.onPickEnd,
+    this.onPickStart,
+    this.onPickEnd,
+    this.onChangedStart,
+    this.onChangedEnd,
   });
 
   final DateTime? start;
   final DateTime? end;
-  final VoidCallback onPickStart;
-  final VoidCallback onPickEnd;
+  final VoidCallback? onPickStart;
+  final VoidCallback? onPickEnd;
+  final ValueChanged<DateTime?>? onChangedStart;
+  final ValueChanged<DateTime?>? onChangedEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -958,7 +1321,11 @@ class _StoreDateRangeRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          child: DateInputWithPicker(value: start, onPick: onPickStart),
+          child: DateInputWithPicker(
+            value: start,
+            onPick: onPickStart,
+            onChanged: onChangedStart,
+          ),
         ),
         const Padding(
           padding: EdgeInsets.fromLTRB(6, 0, 6, 0),
@@ -972,7 +1339,11 @@ class _StoreDateRangeRow extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: DateInputWithPicker(value: end, onPick: onPickEnd),
+          child: DateInputWithPicker(
+            value: end,
+            onPick: onPickEnd,
+            onChanged: onChangedEnd,
+          ),
         ),
       ],
     );
@@ -983,12 +1354,14 @@ class _StoreDateRangeRow extends StatelessWidget {
 // 기본정보 탭
 // ---------------------------------------------------------------------------
 
-class BasicInfoTab extends StatefulWidget {
+class BasicInfoTab extends ConsumerStatefulWidget {
   const BasicInfoTab({
     super.key,
     this.store,
     required this.panelEditing,
     required this.contactController,
+    this.registerDraft,
+    this.onPropertySelected,
   });
 
   final Store? store;
@@ -996,12 +1369,14 @@ class BasicInfoTab extends StatefulWidget {
   /// [StoreDetailPanel] 헤더의 수정 모드와 동기화된다.
   final bool panelEditing;
   final TextEditingController contactController;
+  final StoreRegisterDraft? registerDraft;
+  final ValueChanged<Property>? onPropertySelected;
 
   @override
-  State<BasicInfoTab> createState() => _BasicInfoTabState();
+  ConsumerState<BasicInfoTab> createState() => _BasicInfoTabState();
 }
 
-class _BasicInfoTabState extends State<BasicInfoTab> {
+class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
   late DateTime? _firstContDt;
   late DateTime? _contractExpiryDate;
   late DateTime? _leaseStartDate;
@@ -1010,34 +1385,61 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
   late TextEditingController _parkingController;
   late TextEditingController _contArea;
   late TextEditingController _realAreaController;
+  late TextEditingController _notesController;
   late TextEditingController _storeNameController;
+  late TextEditingController _ownerNameController;
   late TextEditingController _zipCodeController;
   late TextEditingController _addressController;
+  late TextEditingController _addressDetailController;
   late TextEditingController _rentDepositController;
   late TextEditingController _premiumFeeController;
   late TextEditingController _monthlyRentController;
+  String? _latitude;
+  String? _longitude;
 
   Store? get _store => widget.store;
 
   @override
   void initState() {
     super.initState();
-    _floorController = TextEditingController();
-    _parkingController = TextEditingController();
-    _contArea = TextEditingController(text: _store?.contArea ?? '');
-    _realAreaController = TextEditingController(text: _store?.realArea ?? '');
-    _storeNameController = TextEditingController(text: _store?.storeNm ?? '');
-    _zipCodeController = TextEditingController(text: _store?.zipCd ?? '12345');
-    _addressController = TextEditingController(text: _store?.address ?? '');
-    _rentDepositController = TextEditingController(
-      text: _store?.rentDeposit.toString() ?? '',
-    );
-    _premiumFeeController = TextEditingController(
-      text: _store?.insuDeposit ?? '',
-    );
-    _monthlyRentController = TextEditingController(
-      text: _store?.monthlyRent.toString() ?? '',
-    );
+    final draft = widget.registerDraft;
+    _floorController = draft?.floorController ?? TextEditingController();
+    _parkingController = draft?.parkingController ?? TextEditingController();
+    _contArea =
+        draft?.contAreaController ??
+        TextEditingController(text: _store?.contArea ?? '');
+    _realAreaController =
+        draft?.realAreaController ??
+        TextEditingController(text: _store?.realArea ?? '');
+    _storeNameController =
+        draft?.propertyNameController ??
+        TextEditingController(text: _store?.storeNm ?? '');
+    _ownerNameController =
+        draft?.ownerNameController ??
+        TextEditingController(text: _store?.ownerNm ?? '');
+    _zipCodeController =
+        draft?.zipCodeController ??
+        TextEditingController(text: _store?.zipCd ?? '');
+    _addressController =
+        draft?.addressController ??
+        TextEditingController(text: _store?.address ?? '');
+    _addressDetailController =
+        draft?.addressDetailController ??
+        TextEditingController(text: _store?.addressDetail ?? '');
+    _latitude = draft?.latitude;
+    _longitude = draft?.longitude;
+    _notesController =
+        draft?.notesController ??
+        TextEditingController(text: _store?.notes ?? '');
+    _rentDepositController =
+        draft?.rentDepositController ??
+        TextEditingController(text: _formatMoneyInput(_store?.rentDeposit));
+    _premiumFeeController =
+        draft?.premiumFeeController ??
+        TextEditingController(text: _formatMoneyInput(_store?.premiumFee));
+    _monthlyRentController =
+        draft?.monthlyRentController ??
+        TextEditingController(text: _formatMoneyInput(_store?.monthlyRent));
     _syncDates();
   }
 
@@ -1052,30 +1454,46 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
       _contArea.text = _store?.contArea ?? '';
       _realAreaController.text = _store?.realArea ?? '';
       _storeNameController.text = _store?.storeNm ?? '';
-      _zipCodeController.text = _store?.zipCd ?? '12345';
+      _ownerNameController.text = _store?.ownerNm ?? '';
+      _zipCodeController.text = _store?.zipCd ?? '';
       _addressController.text = _store?.address ?? '';
-      _rentDepositController.text = _store?.rentDeposit.toString() ?? '';
-      _premiumFeeController.text = _store?.premiumFee.toString() ?? '';
-      _monthlyRentController.text = _store?.monthlyRent.toString() ?? '';
+      _addressDetailController.text = _store?.addressDetail ?? '';
+      _rentDepositController.text = _store?.rentDeposit.toString() ?? '0';
+      _premiumFeeController.text = _store?.premiumFee.toString() ?? '0';
+      _monthlyRentController.text = _store?.monthlyRent.toString() ?? '0';
+      _notesController.text = _store?.notes ?? '';
     }
   }
 
   @override
   void dispose() {
-    _floorController.dispose();
-    _parkingController.dispose();
-    _contArea.dispose();
-    _realAreaController.dispose();
-    _storeNameController.dispose();
-    _zipCodeController.dispose();
-    _addressController.dispose();
-    _rentDepositController.dispose();
-    _premiumFeeController.dispose();
-    _monthlyRentController.dispose();
+    if (widget.registerDraft == null) {
+      _floorController.dispose();
+      _parkingController.dispose();
+      _contArea.dispose();
+      _realAreaController.dispose();
+      _notesController.dispose();
+      _storeNameController.dispose();
+      _ownerNameController.dispose();
+      _zipCodeController.dispose();
+      _addressController.dispose();
+      _addressDetailController.dispose();
+      _rentDepositController.dispose();
+      _premiumFeeController.dispose();
+      _monthlyRentController.dispose();
+    }
     super.dispose();
   }
 
   void _syncDates() {
+    final draft = widget.registerDraft;
+    if (draft != null && widget.store == null) {
+      _firstContDt = draft.firstContDt;
+      _contractExpiryDate = draft.contractExpiryDate;
+      _leaseStartDate = draft.leaseStartDate;
+      _leaseEndDate = draft.leaseEndDate;
+      return;
+    }
     _firstContDt = tryParseLooseDate(widget.store?.firstContDt);
     _contractExpiryDate = tryParseLooseDate(widget.store?.contEndDt);
     if (widget.store != null) {
@@ -1085,6 +1503,73 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
       _leaseStartDate = null;
       _leaseEndDate = null;
     }
+  }
+
+  Map<String, dynamic> toUpdatePayload() {
+    return {
+      'firstContDt': _dateToYmd(_firstContDt),
+      'contEndDt': _dateToYmd(_contractExpiryDate),
+      'ownerNm': _ownerNameController.text.trim(),
+      'zipCd': _emptyToNull(_zipCodeController.text),
+      'address': _emptyToNull(_addressController.text),
+      'adressDetail': _emptyToNull(_addressDetailController.text),
+      'latitude': _decimalToNull(_latitude),
+      'longitude': _decimalToNull(_longitude),
+      'contArea': _numberToNull(_contArea.text),
+      'realArea': _numberToNull(_realAreaController.text),
+      'floor': _intToNull(_floorController.text),
+      'parkingCount': _intToNull(_parkingController.text),
+      'rentDeposit': _intToNull(_rentDepositController.text),
+      'premiumFee': _intToNull(_premiumFeeController.text),
+      'monthlyRent': _intToNull(_monthlyRentController.text),
+      'notes': _notesController.text.trim(),
+    };
+  }
+
+  String? _dateToYmd(DateTime? value) {
+    if (value == null) return null;
+    final y = value.year.toString().padLeft(4, '0');
+    final m = value.month.toString().padLeft(2, '0');
+    final d = value.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  String? _emptyToNull(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  num? _numberToNull(String value) {
+    final normalized = value.replaceAll(',', '').trim();
+    if (normalized.isEmpty || normalized == '-') return 0;
+    return num.tryParse(normalized);
+  }
+
+  int? _intToNull(String value) {
+    final normalized = value.replaceAll(',', '').trim();
+    if (normalized.isEmpty || normalized == '-') return 0;
+    return int.tryParse(normalized);
+  }
+
+  num? _decimalToNull(String? value) {
+    final normalized = value?.replaceAll(',', '').trim() ?? '';
+    if (normalized.isEmpty || normalized == '-') return null;
+    return num.tryParse(normalized);
+  }
+
+  void _setFirstContDt(DateTime value) {
+    _firstContDt = value;
+    widget.registerDraft?.firstContDt = value;
+  }
+
+  void _setLeaseStartDate(DateTime value) {
+    _leaseStartDate = value;
+    widget.registerDraft?.leaseStartDate = value;
+  }
+
+  void _setLeaseEndDate(DateTime value) {
+    _leaseEndDate = value;
+    widget.registerDraft?.leaseEndDate = value;
   }
 
   String _sqmToPyeong(String? rawSqm) {
@@ -1114,6 +1599,123 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
     }
   }
 
+  Future<void> _openPropertyLookup() async {
+    if (!widget.panelEditing) {
+      _snack('수정 모드에서 물건 정보를 선택할 수 있습니다.');
+      return;
+    }
+
+    final selected = await showDialog<Property>(
+      context: context,
+      builder: (dialogContext) => _PropertyLookupDialog(
+        propertiesFuture: ref.read(propertyDataProvider.future),
+      ),
+    );
+    if (selected == null || !mounted) return;
+
+    final detail =
+        await ref
+            .read(propertyApiServiceProvider)
+            .getProperty(selected.propIdx) ??
+        selected;
+    if (!mounted) return;
+    _applyProperty(detail);
+  }
+
+  Future<void> _openPartnerLookup() async {
+    if (!widget.panelEditing) {
+      _snack('수정 모드에서 예비창업자를 선택할 수 있습니다.');
+      return;
+    }
+
+    final selected = await showDialog<Partner>(
+      context: context,
+      builder: (dialogContext) => _PartnerLookupDialog(
+        partnersFuture: ref.read(partnerDataProvider.future),
+      ),
+    );
+    if (selected == null || !mounted) return;
+
+    final detail =
+        await ref
+            .read(partnerApiServiceProvider)
+            .getPartner(selected.partnerIdx) ??
+        selected;
+    if (!mounted) return;
+    _applyPartner(detail);
+  }
+
+  void _applyPartner(Partner partner) {
+    final formattedTel = _formatPhoneNumber(partner.partnerTel);
+    setState(() {
+      _ownerNameController.text = partner.partnerNm;
+      widget.contactController.text = formattedTel;
+    });
+
+    final draft = widget.registerDraft;
+    if (draft != null) {
+      draft.ownerNameController.text = partner.partnerNm;
+      draft.contactController.text = formattedTel;
+    }
+
+    _snack('예비창업자 정보가 입력되었습니다.');
+  }
+
+  void _applyProperty(Property property) {
+    setState(() {
+      _storeNameController.text = property.name;
+      _zipCodeController.text = property.postalCode;
+      _addressController.text = property.address;
+      _addressDetailController.text = property.addressDetail;
+      _contArea.text = _numberText(property.areaSqm);
+      _realAreaController.text = _numberText(property.actualAreaSqm);
+      _floorController.text = property.floor == '-' ? '' : property.floor;
+      _rentDepositController.text = property.deposit == 0
+          ? ''
+          : property.deposit.toString();
+      _premiumFeeController.text = property.keyMoney == 0
+          ? ''
+          : property.keyMoney.toString();
+      _monthlyRentController.text = property.rent == 0
+          ? ''
+          : property.rent.toString();
+      _latitude = property.latitude;
+      _longitude = property.longitude;
+    });
+
+    final draft = widget.registerDraft;
+    if (draft != null) {
+      draft.storeNameController.text = property.name;
+      draft.propertyNameController.text = property.name;
+      draft.zipCodeController.text = property.postalCode;
+      draft.addressController.text = property.address;
+      draft.addressDetailController.text = property.addressDetail;
+      draft.contAreaController.text = _numberText(property.areaSqm);
+      draft.realAreaController.text = _numberText(property.actualAreaSqm);
+      draft.floorController.text = property.floor == '-' ? '' : property.floor;
+      draft.rentDepositController.text = property.deposit == 0
+          ? ''
+          : _formatMoneyInput(property.deposit);
+      draft.premiumFeeController.text = property.keyMoney == 0
+          ? ''
+          : _formatMoneyInput(property.keyMoney);
+      draft.monthlyRentController.text = property.rent == 0
+          ? ''
+          : _formatMoneyInput(property.rent);
+      draft.latitude = property.latitude;
+      draft.longitude = property.longitude;
+    }
+
+    widget.onPropertySelected?.call(property);
+    _snack('물건 정보가 입력되었습니다.');
+  }
+
+  String _numberText(num value) {
+    if (value == 0) return '';
+    if (value == value.truncateToDouble()) return value.toStringAsFixed(0);
+    return value.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -1121,23 +1723,51 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
       children: [
         FormRowTwo(
           left: FormFieldBlock(
-            label: '최초 가맹계약 체결일자',
-            child: DateInputWithPicker(
-              value: _firstContDt,
-              onPick: () => _pickDate(
-                current: _firstContDt,
-                onPicked: (d) => _firstContDt = d,
-              ),
+            label: '가맹점 사업자 성명',
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: widget.panelEditing
+                      ? _storeDetailOutlineTextField(
+                          _ownerNameController,
+                          keyboardType: TextInputType.text,
+                        )
+                      : ReadonlyValue(_store?.ownerNm ?? '-'),
+                ),
+                if (widget.panelEditing) ...[
+                  const SizedBox(width: 8),
+                  IconButton.outlined(
+                    onPressed: _openPartnerLookup,
+                    icon: const Icon(Icons.search, size: 18),
+                    tooltip: '예비창업자 조회',
+                    style: IconButton.styleFrom(
+                      foregroundColor: FormStylePalette.accent,
+                      side: const BorderSide(color: FormStylePalette.accent),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           right: FormFieldBlock(
-            label: '계약 만료일자',
+            label: '최초 가맹계약 체결일자',
             child: DateInputWithPicker(
-              value: _contractExpiryDate,
-              onPick: () => _pickDate(
-                current: _contractExpiryDate,
-                onPicked: (d) => _contractExpiryDate = d,
-              ),
+              value: _firstContDt,
+              onPick: widget.panelEditing
+                  ? () => _pickDate(
+                      current: _firstContDt,
+                      onPicked: _setFirstContDt,
+                    )
+                  : null,
+              onChanged: widget.panelEditing
+                  ? (value) {
+                      if (value != null) setState(() => _setFirstContDt(value));
+                    }
+                  : null,
             ),
           ),
         ),
@@ -1160,7 +1790,7 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
               ),
               const SizedBox(width: 8),
               OutlinedButton(
-                onPressed: () => _snack('물건 상세정보 조회는 추후 연결됩니다.'),
+                onPressed: _openPropertyLookup,
                 style: accentOutlineButtonStyle(iconOnly: false),
                 child: const Text(
                   '물건 상세정보 조회',
@@ -1210,6 +1840,15 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
                         style: FormStylePalette.valueStyle,
                       ),
                     ),
+              const SizedBox(height: 8),
+              widget.panelEditing
+                  ? _storeDetailOutlineTextField(_addressDetailController)
+                  : ReadonlyInputShell(
+                      child: Text(
+                        _store?.addressDetail ?? '-',
+                        style: FormStylePalette.valueStyle,
+                      ),
+                    ),
             ],
           ),
         ),
@@ -1221,22 +1860,43 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
                 ? _storeDetailOutlineTextField(
                     widget.contactController,
                     keyboardType: TextInputType.phone,
+                    inputFormatters: [_PhoneNumberTextInputFormatter()],
                   )
-                : ReadonlyValue(_store?.storeTel ?? '-'),
+                : ReadonlyValue(
+                    _formatPhoneNumberOrDash(_store?.storeTel ?? ''),
+                  ),
           ),
           right: FormFieldBlock(
             label: '임대차 기간',
             child: _StoreDateRangeRow(
               start: _leaseStartDate,
               end: _leaseEndDate,
-              onPickStart: () => _pickDate(
-                current: _leaseStartDate,
-                onPicked: (d) => _leaseStartDate = d,
-              ),
-              onPickEnd: () => _pickDate(
-                current: _leaseEndDate,
-                onPicked: (d) => _leaseEndDate = d,
-              ),
+              onPickStart: widget.panelEditing
+                  ? () => _pickDate(
+                      current: _leaseStartDate,
+                      onPicked: _setLeaseStartDate,
+                    )
+                  : null,
+              onPickEnd: widget.panelEditing
+                  ? () => _pickDate(
+                      current: _leaseEndDate,
+                      onPicked: _setLeaseEndDate,
+                    )
+                  : null,
+              onChangedStart: widget.panelEditing
+                  ? (value) {
+                      if (value != null) {
+                        setState(() => _setLeaseStartDate(value));
+                      }
+                    }
+                  : null,
+              onChangedEnd: widget.panelEditing
+                  ? (value) {
+                      if (value != null) {
+                        setState(() => _setLeaseEndDate(value));
+                      }
+                    }
+                  : null,
             ),
           ),
         ),
@@ -1369,15 +2029,16 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
         const SizedBox(height: 12),
         FormRowThree(
           a: FormFieldBlock(
-            label: '입대차 보증금',
+            label: '임대차 보증금',
             child: widget.panelEditing
                 ? _storeDetailOutlineTextFieldWithSuffix(
                     _rentDepositController,
                     suffix: '원',
                     keyboardType: TextInputType.number,
+                    inputFormatters: [_ThousandsSeparatorInputFormatter()],
                   )
                 : ReadonlyWithSuffix(
-                    value: _store?.rentDeposit.toString() ?? '-',
+                    value: _formatMoneyOrDash(_store?.rentDeposit),
                     suffix: '원',
                   ),
           ),
@@ -1388,9 +2049,10 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
                     _premiumFeeController,
                     suffix: '원',
                     keyboardType: TextInputType.number,
+                    inputFormatters: [_ThousandsSeparatorInputFormatter()],
                   )
                 : ReadonlyWithSuffix(
-                    value: _store?.premiumFee.toString() ?? '-',
+                    value: _formatMoneyOrDash(_store?.premiumFee),
                     suffix: '원',
                   ),
           ),
@@ -1401,14 +2063,390 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
                     _monthlyRentController,
                     suffix: '원',
                     keyboardType: TextInputType.number,
+                    inputFormatters: [_ThousandsSeparatorInputFormatter()],
                   )
                 : ReadonlyWithSuffix(
-                    value: _store?.monthlyRent.toString() ?? '-',
+                    value: _formatMoneyOrDash(_store?.monthlyRent),
                     suffix: '원',
                   ),
           ),
         ),
+        const SizedBox(height: 12),
+        LabeledFormRow(
+          label: '특이사항',
+          requiredField: true,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: widget.panelEditing
+                    ? _storeDetailOutlineMultilineTextField(_notesController)
+                    : ReadonlyInputShell(
+                        child: Text(
+                          _store?.notes ?? '-',
+                          style: FormStylePalette.valueStyle,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _PartnerLookupDialog extends StatelessWidget {
+  const _PartnerLookupDialog({required this.partnersFuture});
+
+  final Future<List<Partner>> partnersFuture;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('예비창업자 조회'),
+      contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+      content: SizedBox(
+        width: 680,
+        height: 480,
+        child: FutureBuilder<List<Partner>>(
+          future: partnersFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  '예비창업자 목록을 불러오지 못했습니다.',
+                  style: FormStylePalette.valueStyle,
+                ),
+              );
+            }
+
+            final partners = snapshot.data ?? const <Partner>[];
+            if (partners.isEmpty) {
+              return Center(
+                child: Text(
+                  '조회된 예비창업자가 없습니다.',
+                  style: FormStylePalette.valueStyle,
+                ),
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _PartnerLookupHeader(),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: partners.length,
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                    itemBuilder: (context, index) {
+                      return _PartnerLookupRow(
+                        displayNo: index + 1,
+                        partner: partners[index],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('닫기'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PartnerLookupHeader extends StatelessWidget {
+  const _PartnerLookupHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: FormStylePalette.accent,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(width: 70, child: _PartnerLookupHeaderText('NO')),
+          Expanded(flex: 2, child: _PartnerLookupHeaderText('성명')),
+          Expanded(flex: 2, child: _PartnerLookupHeaderText('휴대전화')),
+          Expanded(flex: 2, child: _PartnerLookupHeaderText('상태')),
+          // Expanded(flex: 3, child: _PartnerLookupHeaderText('지역')),
+        ],
+      ),
+    );
+  }
+}
+
+class _PartnerLookupHeaderText extends StatelessWidget {
+  const _PartnerLookupHeaderText(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      textAlign: TextAlign.center,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        fontFamilyFallback: AppTheme.koreanFontFallback,
+      ),
+    );
+  }
+}
+
+class _PartnerLookupRow extends StatelessWidget {
+  const _PartnerLookupRow({required this.displayNo, required this.partner});
+
+  final int displayNo;
+  final Partner partner;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => Navigator.of(context).pop(partner),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            SizedBox(width: 70, child: _PartnerLookupCell('$displayNo')),
+            Expanded(flex: 2, child: _PartnerLookupCell(partner.partnerNm)),
+            Expanded(
+              flex: 2,
+              child: _PartnerLookupCell(_formatPhoneNumber(partner.partnerTel)),
+            ),
+            Expanded(
+              flex: 2,
+              child: _PartnerLookupCell(
+                partnerStatusLabelKorean(partner.partnerStatus),
+              ),
+            ),
+            // Expanded(flex: 3, child: _PartnerLookupCell(partner.pRegion)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PartnerLookupCell extends StatelessWidget {
+  const _PartnerLookupCell(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.isEmpty ? '-' : text,
+      textAlign: TextAlign.center,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: FormStylePalette.valueStyle,
+    );
+  }
+}
+
+class _PropertyLookupDialog extends StatelessWidget {
+  const _PropertyLookupDialog({required this.propertiesFuture});
+
+  final Future<List<Property>> propertiesFuture;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('물건 상세정보 조회'),
+      contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+      content: SizedBox(
+        width: 760,
+        height: 500,
+        child: FutureBuilder<List<Property>>(
+          future: propertiesFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  '물건 목록을 불러오지 못했습니다.',
+                  style: FormStylePalette.valueStyle,
+                ),
+              );
+            }
+
+            final properties = snapshot.data ?? const <Property>[];
+            if (properties.isEmpty) {
+              return Center(
+                child: Text(
+                  '조회된 물건이 없습니다.',
+                  style: FormStylePalette.valueStyle,
+                ),
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _PropertyLookupHeader(),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: properties.length,
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                    itemBuilder: (context, index) {
+                      final property = properties[index];
+                      return _PropertyLookupRow(property: property);
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('닫기'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PropertyLookupHeader extends StatelessWidget {
+  const _PropertyLookupHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: FormStylePalette.accent,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(width: 70, child: _PropertyLookupHeaderText('번호')),
+          Expanded(flex: 2, child: _PropertyLookupHeaderText('물건명')),
+          Expanded(flex: 3, child: _PropertyLookupHeaderText('주소')),
+          SizedBox(width: 110, child: _PropertyLookupHeaderText('보증금')),
+          SizedBox(width: 110, child: _PropertyLookupHeaderText('임차료')),
+          SizedBox(width: 110, child: _PropertyLookupHeaderText('권리금')),
+        ],
+      ),
+    );
+  }
+}
+
+class _PropertyLookupHeaderText extends StatelessWidget {
+  const _PropertyLookupHeaderText(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        fontFamilyFallback: AppTheme.koreanFontFallback,
+      ),
+    );
+  }
+}
+
+class _PropertyLookupRow extends StatelessWidget {
+  const _PropertyLookupRow({required this.property});
+
+  final Property property;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => Navigator.of(context).pop(property),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 70,
+              child: _PropertyLookupCell('${property.propIdx}'),
+            ),
+            Expanded(flex: 2, child: _PropertyLookupCell(property.name)),
+            Expanded(
+              flex: 3,
+              child: _PropertyLookupCell(_propertyAddress(property)),
+            ),
+            SizedBox(
+              width: 110,
+              child: _PropertyLookupCell(_formatWon(property.deposit)),
+            ),
+            SizedBox(
+              width: 110,
+              child: _PropertyLookupCell(_formatWon(property.rent)),
+            ),
+            SizedBox(
+              width: 110,
+              child: _PropertyLookupCell(_formatWon(property.keyMoney)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _propertyAddress(Property property) {
+    final detail = property.addressDetail.trim();
+    if (detail.isEmpty) return property.address;
+    return '${property.address} $detail';
+  }
+
+  String _formatWon(int value) {
+    if (value == 0) return '-';
+    final raw = value.toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < raw.length; i++) {
+      final remaining = raw.length - i;
+      buffer.write(raw[i]);
+      if (remaining > 1 && remaining % 3 == 1) buffer.write(',');
+    }
+    return buffer.toString();
+  }
+}
+
+class _PropertyLookupCell extends StatelessWidget {
+  const _PropertyLookupCell(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.isEmpty ? '-' : text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: FormStylePalette.valueStyle,
     );
   }
 }
@@ -1418,10 +2456,16 @@ class _BasicInfoTabState extends State<BasicInfoTab> {
 // ---------------------------------------------------------------------------
 
 class ContractInfoTab extends StatefulWidget {
-  const ContractInfoTab({super.key, this.store, required this.panelEditing});
+  const ContractInfoTab({
+    super.key,
+    this.store,
+    required this.panelEditing,
+    this.registerDraft,
+  });
 
   final Store? store;
   final bool panelEditing;
+  final StoreRegisterDraft? registerDraft;
 
   @override
   State<ContractInfoTab> createState() => _ContractInfoTabState();
@@ -1474,27 +2518,32 @@ class _ContractInfoTabState extends State<ContractInfoTab> {
   @override
   void initState() {
     super.initState();
-    _frFreeController = TextEditingController(
-      text: _store?.frFee != null ? _store!.frFee : '0',
-    );
-    _eduFeeController = TextEditingController(
-      text: _store?.eduFee != null ? _store!.eduFee : '0',
-    );
-    _insuDepositController = TextEditingController(
-      text: _store?.insuDeposit != null ? _store!.insuDeposit : '0',
-    );
-    _contDepositController = TextEditingController(
-      text: _store?.contDeposit != null ? _store!.contDeposit : '0',
-    );
-    _contManagerController = TextEditingController(
-      text: _store?.contManager != null ? _store!.contManager : '',
-    );
-    _eduManagerController = TextEditingController(
-      text: _store?.eduManager != null ? _store!.eduManager : '',
-    );
-    _supervisorController = TextEditingController(
-      text: _store?.svId != null ? _store!.svId : '',
-    );
+    final draft = widget.registerDraft;
+    _frFreeController =
+        draft?.frFeeController ??
+        TextEditingController(text: _formatMoneyInput(_store?.frFee ?? '0'));
+    _eduFeeController =
+        draft?.eduFeeController ??
+        TextEditingController(text: _formatMoneyInput(_store?.eduFee ?? '0'));
+    _insuDepositController =
+        draft?.insuDepositController ??
+        TextEditingController(
+          text: _formatMoneyInput(_store?.insuDeposit ?? '0'),
+        );
+    _contDepositController =
+        draft?.contDepositController ??
+        TextEditingController(
+          text: _formatMoneyInput(_store?.contDeposit ?? '0'),
+        );
+    _contManagerController =
+        draft?.contManagerController ??
+        TextEditingController(text: _store?.contManager ?? '');
+    _eduManagerController =
+        draft?.eduManagerController ??
+        TextEditingController(text: _store?.eduManager ?? '');
+    _supervisorController =
+        draft?.supervisorController ??
+        TextEditingController(text: _store?.svId ?? '');
     _syncDates();
   }
 
@@ -1504,10 +2553,10 @@ class _ContractInfoTabState extends State<ContractInfoTab> {
     if (oldWidget.store != widget.store ||
         (!oldWidget.panelEditing && widget.panelEditing)) {
       setState(_syncDates);
-      _frFreeController.text = _store?.frFee ?? '';
-      _eduFeeController.text = _store?.eduFee ?? '';
-      _insuDepositController.text = _store?.insuDeposit ?? '';
-      _contDepositController.text = _store?.contDeposit ?? '';
+      _frFreeController.text = _formatMoneyInput(_store?.frFee);
+      _eduFeeController.text = _formatMoneyInput(_store?.eduFee);
+      _insuDepositController.text = _formatMoneyInput(_store?.insuDeposit);
+      _contDepositController.text = _formatMoneyInput(_store?.contDeposit);
       _contManagerController.text = _store?.contManager ?? '';
       _eduManagerController.text = _store?.eduManager ?? '';
       _supervisorController.text = _store?.svId ?? '';
@@ -1516,21 +2565,45 @@ class _ContractInfoTabState extends State<ContractInfoTab> {
 
   @override
   void dispose() {
-    _frFreeController.dispose();
-    _eduFeeController.dispose();
-    _insuDepositController.dispose();
-    _contDepositController.dispose();
-    // _royaltyRateController.dispose();
-    _contManagerController.dispose();
-    _eduManagerController.dispose();
-    _supervisorController.dispose();
+    if (widget.registerDraft == null) {
+      _frFreeController.dispose();
+      _eduFeeController.dispose();
+      _insuDepositController.dispose();
+      _contDepositController.dispose();
+      // _royaltyRateController.dispose();
+      _contManagerController.dispose();
+      _eduManagerController.dispose();
+      _supervisorController.dispose();
+    }
     super.dispose();
   }
 
   void _syncDates() {
+    final draft = widget.registerDraft;
+    if (draft != null && widget.store == null) {
+      _firstContDt = draft.contractFirstContDt;
+      _currentContractStart = draft.currentContractStart;
+      _currentContractEnd = draft.currentContractEnd;
+      return;
+    }
     _firstContDt = tryParseLooseDate(widget.store?.firstContDt);
     _currentContractStart = tryParseLooseDate(widget.store?.contStartDt);
     _currentContractEnd = tryParseLooseDate(widget.store?.contEndDt);
+  }
+
+  void _setFirstContDt(DateTime value) {
+    _firstContDt = value;
+    widget.registerDraft?.contractFirstContDt = value;
+  }
+
+  void _setCurrentContractStart(DateTime value) {
+    _currentContractStart = value;
+    widget.registerDraft?.currentContractStart = value;
+  }
+
+  void _setCurrentContractEnd(DateTime value) {
+    _currentContractEnd = value;
+    widget.registerDraft?.currentContractEnd = value;
   }
 
   Future<void> _pickDate({
@@ -1556,10 +2629,17 @@ class _ContractInfoTabState extends State<ContractInfoTab> {
             label: '최초 가맹계약 체결일자',
             child: DateInputWithPicker(
               value: _firstContDt,
-              onPick: () => _pickDate(
-                current: _firstContDt,
-                onPicked: (d) => _firstContDt = d,
-              ),
+              onPick: widget.panelEditing
+                  ? () => _pickDate(
+                      current: _firstContDt,
+                      onPicked: _setFirstContDt,
+                    )
+                  : null,
+              onChanged: widget.panelEditing
+                  ? (value) {
+                      if (value != null) setState(() => _setFirstContDt(value));
+                    }
+                  : null,
             ),
           ),
           right: FormFieldBlock(
@@ -1567,14 +2647,32 @@ class _ContractInfoTabState extends State<ContractInfoTab> {
             child: _StoreDateRangeRow(
               start: _currentContractStart,
               end: _currentContractEnd,
-              onPickStart: () => _pickDate(
-                current: _currentContractStart,
-                onPicked: (d) => _currentContractStart = d,
-              ),
-              onPickEnd: () => _pickDate(
-                current: _currentContractEnd,
-                onPicked: (d) => _currentContractEnd = d,
-              ),
+              onPickStart: widget.panelEditing
+                  ? () => _pickDate(
+                      current: _currentContractStart,
+                      onPicked: _setCurrentContractStart,
+                    )
+                  : null,
+              onPickEnd: widget.panelEditing
+                  ? () => _pickDate(
+                      current: _currentContractEnd,
+                      onPicked: _setCurrentContractEnd,
+                    )
+                  : null,
+              onChangedStart: widget.panelEditing
+                  ? (value) {
+                      if (value != null) {
+                        setState(() => _setCurrentContractStart(value));
+                      }
+                    }
+                  : null,
+              onChangedEnd: widget.panelEditing
+                  ? (value) {
+                      if (value != null) {
+                        setState(() => _setCurrentContractEnd(value));
+                      }
+                    }
+                  : null,
             ),
           ),
         ),
@@ -1583,54 +2681,30 @@ class _ContractInfoTabState extends State<ContractInfoTab> {
           left: FormFieldBlock(
             label: '가맹비',
             child: widget.panelEditing
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: _storeDetailOutlineTextField(
-                          _frFreeController,
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        '원',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: FormStylePalette.textSecondary,
-                          fontWeight: FontWeight.w500,
-                          fontFamilyFallback: AppTheme.koreanFontFallback,
-                        ),
-                      ),
-                    ],
+                ? _storeDetailOutlineTextFieldWithSuffix(
+                    _frFreeController,
+                    suffix: '원',
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [_ThousandsSeparatorInputFormatter()],
                   )
-                : ReadonlyWithSuffix(value: _store?.frFee ?? '-', suffix: '원'),
+                : ReadonlyWithSuffix(
+                    value: _formatMoneyOrDash(_store?.frFee),
+                    suffix: '원',
+                  ),
           ),
           right: FormFieldBlock(
             label: '교육비',
             child: widget.panelEditing
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: _storeDetailOutlineTextField(
-                          _eduFeeController,
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        '원',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: FormStylePalette.textSecondary,
-                          fontWeight: FontWeight.w500,
-                          fontFamilyFallback: AppTheme.koreanFontFallback,
-                        ),
-                      ),
-                    ],
+                ? _storeDetailOutlineTextFieldWithSuffix(
+                    _eduFeeController,
+                    suffix: '원',
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [_ThousandsSeparatorInputFormatter()],
                   )
-                : ReadonlyWithSuffix(value: _store?.eduFee ?? '-', suffix: '원'),
+                : ReadonlyWithSuffix(
+                    value: _formatMoneyOrDash(_store?.eduFee),
+                    suffix: '원',
+                  ),
           ),
         ),
         const SizedBox(height: 12),
@@ -1638,58 +2712,28 @@ class _ContractInfoTabState extends State<ContractInfoTab> {
           left: FormFieldBlock(
             label: '보증보험금',
             child: widget.panelEditing
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: _storeDetailOutlineTextField(
-                          _insuDepositController,
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        '원',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: FormStylePalette.textSecondary,
-                          fontWeight: FontWeight.w500,
-                          fontFamilyFallback: AppTheme.koreanFontFallback,
-                        ),
-                      ),
-                    ],
+                ? _storeDetailOutlineTextFieldWithSuffix(
+                    _insuDepositController,
+                    suffix: '원',
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [_ThousandsSeparatorInputFormatter()],
                   )
                 : ReadonlyWithSuffix(
-                    value: _store?.insuDeposit ?? '-',
+                    value: _formatMoneyOrDash(_store?.insuDeposit),
                     suffix: '원',
                   ),
           ),
           right: FormFieldBlock(
             label: '계약보증금',
             child: widget.panelEditing
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: _storeDetailOutlineTextField(
-                          _contDepositController,
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        '원',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: FormStylePalette.textSecondary,
-                          fontWeight: FontWeight.w500,
-                          fontFamilyFallback: AppTheme.koreanFontFallback,
-                        ),
-                      ),
-                    ],
+                ? _storeDetailOutlineTextFieldWithSuffix(
+                    _contDepositController,
+                    suffix: '원',
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [_ThousandsSeparatorInputFormatter()],
                   )
                 : ReadonlyWithSuffix(
-                    value: _store?.contDeposit ?? '-',
+                    value: _formatMoneyOrDash(_store?.contDeposit),
                     suffix: '원',
                   ),
           ),
@@ -1937,30 +2981,33 @@ class _HistoryTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: FormStylePalette.panelBg,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: FormStylePalette.panelBorder),
-      ),
-      child: Column(
-        children: [
-          const _HistoryTableHeader(),
-          if (entries.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Text(
-                '표시할 히스토리가 없습니다.',
-                style: TextStyle(
-                  color: FormStylePalette.textMuted,
-                  fontSize: 13,
-                  fontFamilyFallback: AppTheme.koreanFontFallback,
+    return _AlwaysVisibleHorizontalScroll(
+      minWidth: 900,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: FormStylePalette.panelBg,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: FormStylePalette.panelBorder),
+        ),
+        child: Column(
+          children: [
+            const _HistoryTableHeader(),
+            if (entries.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Text(
+                  '표시할 히스토리가 없습니다.',
+                  style: TextStyle(
+                    color: FormStylePalette.textMuted,
+                    fontSize: 13,
+                    fontFamilyFallback: AppTheme.koreanFontFallback,
+                  ),
                 ),
-              ),
-            )
-          else
-            for (final entry in entries) _HistoryTableRow(entry: entry),
-        ],
+              )
+            else
+              for (final entry in entries) _HistoryTableRow(entry: entry),
+          ],
+        ),
       ),
     );
   }
@@ -2074,10 +3121,18 @@ class _HistoryValueCell extends StatelessWidget {
 /// - 중단: 공통 스토어 정보
 /// - 하단: 탭별 컨텐츠 (title 기반 디스패치)
 class StoreDetailPanel extends ConsumerStatefulWidget {
-  const StoreDetailPanel({super.key, required this.title, this.store});
+  const StoreDetailPanel({
+    super.key,
+    required this.title,
+    this.store,
+    this.isRegisterMode = false,
+    this.registerDraft,
+  });
 
   final String title;
   final Store? store;
+  final bool isRegisterMode;
+  final StoreRegisterDraft? registerDraft;
 
   @override
   ConsumerState<StoreDetailPanel> createState() => _StoreDetailPanelState();
@@ -2086,6 +3141,7 @@ class StoreDetailPanel extends ConsumerStatefulWidget {
 class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
   bool _isEditing = false;
   final _commonInfoKey = GlobalKey<_CommonStoreInfoSectionState>();
+  final _basicInfoKey = GlobalKey<_BasicInfoTabState>();
   final _contractInfoKey = GlobalKey<_ContractInfoTabState>();
   late final TextEditingController _storeAreaCtrl;
   late final TextEditingController _contactCtrl;
@@ -2093,13 +3149,21 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
   @override
   void initState() {
     super.initState();
-    _storeAreaCtrl = TextEditingController(text: _storeAreaFromStore());
-    _contactCtrl = TextEditingController(text: _contactFromStore());
+    _isEditing = widget.isRegisterMode;
+    _storeAreaCtrl =
+        widget.registerDraft?.storeAreaController ??
+        TextEditingController(text: _storeAreaFromStore());
+    _contactCtrl =
+        widget.registerDraft?.contactController ??
+        TextEditingController(text: _contactFromStore());
   }
 
   @override
   void didUpdateWidget(covariant StoreDetailPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.isRegisterMode != widget.isRegisterMode) {
+      _isEditing = widget.isRegisterMode;
+    }
     if (oldWidget.store != widget.store) {
       _storeAreaCtrl.text = _storeAreaFromStore();
       _contactCtrl.text = _contactFromStore();
@@ -2108,22 +3172,22 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
 
   @override
   void dispose() {
-    _storeAreaCtrl.dispose();
-    _contactCtrl.dispose();
+    if (widget.registerDraft == null) {
+      _storeAreaCtrl.dispose();
+      _contactCtrl.dispose();
+    }
     super.dispose();
   }
 
   String _storeAreaFromStore() => widget.store?.regionCd ?? '';
 
-  String _contactFromStore() => widget.store?.storeTel ?? '';
+  String _contactFromStore() =>
+      _formatPhoneNumber(widget.store?.storeTel ?? '');
 
   void _invalidateStoreProviders() {
-    final storeCd = widget.store?.storeCd;
     final storeIdx = widget.store?.storeIdx;
-    if (storeCd != null && storeCd.isNotEmpty) {
-      ref.invalidate(storeDetailProvider(storeCd));
-    }
     if (storeIdx != null && storeIdx > 0) {
+      ref.invalidate(storeDetailProvider(storeIdx));
       ref.invalidate(storeHistoriesProvider(storeIdx));
     }
     ref.invalidate(storeDataProvider);
@@ -2139,6 +3203,10 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
   }
 
   void cancelStoreEdit() {
+    if (widget.isRegisterMode) {
+      Navigator.of(context).maybePop();
+      return;
+    }
     _invalidateStoreProviders();
     _commonInfoKey.currentState?._syncFromStore();
     setState(() {
@@ -2152,7 +3220,18 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
   Future<void> saveStore() async {
     final store = widget.store;
     final commonInfo = _commonInfoKey.currentState;
-    if (store == null || commonInfo == null) {
+    if (commonInfo == null) {
+      setState(() => _isEditing = widget.isRegisterMode);
+      _snack('저장할 가맹점 정보가 없습니다.');
+      return;
+    }
+
+    if (widget.isRegisterMode) {
+      await _createStore(commonInfo);
+      return;
+    }
+
+    if (store == null) {
       setState(() => _isEditing = false);
       _snack('저장할 가맹점 정보가 없습니다.');
       return;
@@ -2162,7 +3241,14 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
       store,
       storeTel: _contactCtrl.text.trim(),
     );
-    if (widget.title == '계약정보') {
+    if (widget.title == '기본정보') {
+      final basicInfo = _basicInfoKey.currentState;
+      if (basicInfo == null) {
+        _snack('기본정보 입력값을 확인할 수 없습니다.');
+        return;
+      }
+      payload.addAll(basicInfo.toUpdatePayload());
+    } else if (widget.title == '계약정보') {
       final contractInfo = _contractInfoKey.currentState;
       if (contractInfo == null) {
         _snack('계약정보 입력값을 확인할 수 없습니다.');
@@ -2173,7 +3259,7 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
 
     final updated = await ref
         .read(storeApiServiceProvider)
-        .updateStore(store.storeCd, payload);
+        .updateStore(store.storeIdx, payload);
 
     if (!mounted) return;
     if (updated == null) {
@@ -2184,7 +3270,7 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
     ref.invalidate(storeDataProvider);
     ref.invalidate(storeHistoriesProvider(store.storeIdx));
     final refreshed = await ref.refresh(
-      storeDetailProvider(store.storeCd).future,
+      storeDetailProvider(store.storeIdx).future,
     );
     if (!mounted) return;
     if (refreshed == null) {
@@ -2193,6 +3279,112 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
     }
     setState(() => _isEditing = false);
     _snack('저장되었습니다.');
+  }
+
+  Future<void> _createStore(_CommonStoreInfoSectionState commonInfo) async {
+    final payload = commonInfo.toCreatePayload(storeTel: _contactCtrl.text);
+    final draft = widget.registerDraft;
+    if (draft != null) {
+      payload.addAll(_basicDraftPayload(draft));
+      payload.addAll(_contractDraftPayload(draft));
+    } else if (widget.title == '기본정보') {
+      final basicInfo = _basicInfoKey.currentState;
+      if (basicInfo == null) {
+        _snack('기본정보 입력값을 확인할 수 없습니다.');
+        return;
+      }
+      payload.addAll(basicInfo.toUpdatePayload());
+    } else if (widget.title == '계약정보') {
+      final contractInfo = _contractInfoKey.currentState;
+      if (contractInfo == null) {
+        _snack('계약정보 입력값을 확인할 수 없습니다.');
+        return;
+      }
+      payload.addAll(contractInfo.toUpdatePayload());
+    }
+
+    if ((payload['storeNm'] as String? ?? '').isEmpty) {
+      _snack('가맹점명은 필수입니다.');
+      return;
+    }
+
+    final created = await ref
+        .read(storeApiServiceProvider)
+        .createStore(payload);
+    if (!mounted) return;
+    if (created == null) {
+      _snack('저장에 실패했습니다.');
+      return;
+    }
+
+    ref.invalidate(storeDataProvider);
+    _snack('저장되었습니다.');
+    Navigator.of(context).maybePop();
+  }
+
+  Map<String, dynamic> _basicDraftPayload(StoreRegisterDraft draft) {
+    return {
+      'firstContDt': _dateToYmd(draft.firstContDt),
+      'contEndDt': _dateToYmd(draft.contractExpiryDate),
+      'ownerNm': draft.ownerNameController.text.trim(),
+      'zipCd': _emptyToNull(draft.zipCodeController.text),
+      'address': _emptyToNull(draft.addressController.text),
+      'adressDetail': _emptyToNull(draft.addressDetailController.text),
+      'latitude': _numberToNull(draft.latitude ?? ''),
+      'longitude': _numberToNull(draft.longitude ?? ''),
+      'contArea': _numberToNull(draft.contAreaController.text),
+      'realArea': _numberToNull(draft.realAreaController.text),
+      'floor': _intToNull(draft.floorController.text),
+      'parkingCount': _intToNull(draft.parkingController.text),
+      'rentDeposit': _intToNull(draft.rentDepositController.text),
+      'premiumFee': _intToNull(draft.premiumFeeController.text),
+      'monthlyRent': _intToNull(draft.monthlyRentController.text),
+      'notes': draft.notesController.text.trim(),
+    };
+  }
+
+  Map<String, dynamic> _contractDraftPayload(StoreRegisterDraft draft) {
+    return {
+      'firstContDt':
+          _dateToYmd(draft.contractFirstContDt) ??
+          _dateToYmd(draft.firstContDt),
+      'contStartDt': _dateToYmd(draft.currentContractStart),
+      'contEndDt':
+          _dateToYmd(draft.currentContractEnd) ??
+          _dateToYmd(draft.contractExpiryDate),
+      'frFee': _numberToNull(draft.frFeeController.text),
+      'eduFee': _numberToNull(draft.eduFeeController.text),
+      'insuDeposit': _numberToNull(draft.insuDepositController.text),
+      'contDeposit': _numberToNull(draft.contDepositController.text),
+      'contManager': _emptyToNull(draft.contManagerController.text),
+      'eduManager': _emptyToNull(draft.eduManagerController.text),
+      'svId': _emptyToNull(draft.supervisorController.text),
+    };
+  }
+
+  String? _dateToYmd(DateTime? value) {
+    if (value == null) return null;
+    final y = value.year.toString().padLeft(4, '0');
+    final m = value.month.toString().padLeft(2, '0');
+    final d = value.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  String? _emptyToNull(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  num? _numberToNull(String value) {
+    final normalized = value.replaceAll(',', '').trim();
+    if (normalized.isEmpty || normalized == '-') return 0;
+    return num.tryParse(normalized);
+  }
+
+  int? _intToNull(String value) {
+    final normalized = value.replaceAll(',', '').trim();
+    if (normalized.isEmpty || normalized == '-') return 0;
+    return int.tryParse(normalized);
   }
 
   void _snack(String message) {
@@ -2206,15 +3398,20 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
     switch (widget.title) {
       case '기본정보':
         return BasicInfoTab(
+          key: _basicInfoKey,
           store: widget.store,
           panelEditing: _isEditing,
           contactController: _contactCtrl,
+          registerDraft: widget.registerDraft,
+          onPropertySelected: (property) =>
+              _commonInfoKey.currentState?.applyPropertySelection(property),
         );
       case '계약정보':
         return ContractInfoTab(
           key: _contractInfoKey,
           store: widget.store,
           panelEditing: _isEditing,
+          registerDraft: widget.registerDraft,
         );
       case '문서정보':
         return DocumentsTab(store: widget.store);
@@ -2261,6 +3458,7 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
                       store: widget.store,
                       isEditing: _isEditing,
                       storeAreaController: _storeAreaCtrl,
+                      registerDraft: widget.registerDraft,
                     ),
                     const SizedBox(height: 12),
                     const Divider(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
@@ -15,29 +16,28 @@ import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cell
 import 'package:app_flutter/core/widgets/common/common_detail_button.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
-import 'package:app_flutter/features/founders/founder_controller.dart';
-import 'package:app_flutter/features/founders/founder_model.dart';
+import 'package:app_flutter/features/founders/partner_controller.dart';
+import 'package:app_flutter/features/founders/partner_model.dart';
 
-const List<String> _founderStatusOptions = ['전체', '예비창업자', '가맹점사업자'];
+const List<String> _partnerStatusOptions = ['전체', '예비창업자', '가맹점사업자'];
 
 /// 예비창업자 목록에서 켤 수 있는 공통 검색 항목.
-const Set<CommonSearchFieldId> kFounderListSupportedSearchFields = {
-  CommonSearchFieldId.founderName,
+const Set<CommonSearchFieldId> kPartnerListSupportedSearchFields = {
+  CommonSearchFieldId.partnerName,
+  CommonSearchFieldId.partnerStatus,
   CommonSearchFieldId.mobilePhone,
-  CommonSearchFieldId.founderEvaluation,
-  CommonSearchFieldId.founderStatus,
   CommonSearchFieldId.regionCd,
 };
 
 /// 예비창업자 목록.
-class FounderListView extends ConsumerStatefulWidget {
-  const FounderListView({super.key});
+class PartnerListView extends ConsumerStatefulWidget {
+  const PartnerListView({super.key});
 
   @override
-  ConsumerState<FounderListView> createState() => _FounderListViewState();
+  ConsumerState<PartnerListView> createState() => _PartnerListViewState();
 }
 
-class _FounderListViewState extends ConsumerState<FounderListView> {
+class _PartnerListViewState extends ConsumerState<PartnerListView> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _phoneCtrl;
 
@@ -46,9 +46,9 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
   @override
   void initState() {
     super.initState();
-    final s = ref.read(founderProvider);
-    _nameCtrl = TextEditingController(text: s.name);
-    _phoneCtrl = TextEditingController(text: s.phone);
+    final s = ref.read(partnerProvider);
+    _nameCtrl = TextEditingController(text: s.partnerNm);
+    _phoneCtrl = TextEditingController(text: s.partnerTel);
   }
 
   @override
@@ -60,9 +60,9 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
 
   bool get _anyMainFilter => _visibleMainSearchFields.isNotEmpty;
 
-  void _clearFounderFilterField(CommonSearchFieldId id, FounderNotifier n) {
+  void _clearPartnerFilterField(CommonSearchFieldId id, PartnerNotifier n) {
     switch (id) {
-      case CommonSearchFieldId.founderName:
+      case CommonSearchFieldId.partnerName:
         _nameCtrl.clear();
         n.setName('');
         return;
@@ -70,14 +70,14 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
         _phoneCtrl.clear();
         n.setPhone('');
         return;
-      case CommonSearchFieldId.founderEvaluation:
-        n.setEvaluation(null);
-        return;
       case CommonSearchFieldId.regionCd:
         n.setRegion('전체');
         return;
-      case CommonSearchFieldId.founderStatus:
-        n.setFounderStatus('전체');
+      case CommonSearchFieldId.founderEvaluation:
+        n.setEvaluation(null);
+        return;
+      case CommonSearchFieldId.partnerStatus:
+        n.setPartnerStatus('전체');
         return;
       case CommonSearchFieldId.storeNm:
       case CommonSearchFieldId.storeCd:
@@ -90,6 +90,7 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
       case CommonSearchFieldId.registrationDate:
       case CommonSearchFieldId.propertyName:
       case CommonSearchFieldId.propertyOwnership:
+      case CommonSearchFieldId.propertyStatus:
       case CommonSearchFieldId.propertyAddress:
       case CommonSearchFieldId.activityConsultMemo:
       case CommonSearchFieldId.activityDateRange:
@@ -112,27 +113,27 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
   void _onMainSearchFieldToggle(
     CommonSearchFieldId id,
     bool nowVisible,
-    FounderNotifier n,
+    PartnerNotifier n,
   ) {
     setState(() {
       if (nowVisible) {
         _visibleMainSearchFields.add(id);
       } else {
         _visibleMainSearchFields.remove(id);
-        _clearFounderFilterField(id, n);
+        _clearPartnerFilterField(id, n);
       }
     });
   }
 
   List<SearchFilterItemData> _mainFilterItems(
-    FounderFilter filter,
-    List<String> regions,
-    FounderNotifier n,
+    PartnerFilter filter,
+    List<CodeOption> regionOptions,
+    PartnerNotifier n,
   ) {
     final items = <SearchFilterItemData>[];
     for (final def in commonSearchDefsOrdered(_visibleMainSearchFields)) {
       switch (def.id) {
-        case CommonSearchFieldId.founderName:
+        case CommonSearchFieldId.partnerName:
           items.add(
             FilterTextSlot(
               label: def.label,
@@ -178,22 +179,28 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
           break;
         case CommonSearchFieldId.regionCd:
           items.add(
-            FilterStringOptionsSlot(
+            FilterDropdownSlot<String>(
               label: def.label,
-              value: filter.region,
-              options: regions,
-              onSelected: n.setRegion,
-              forceDropdown: true,
+              value: filter.pRegion,
+              items: [
+                const DropdownMenuItem<String?>(value: '전체', child: Text('전체')),
+                for (final region in regionOptions)
+                  DropdownMenuItem<String?>(
+                    value: region.codeCd,
+                    child: Text(region.codeNm),
+                  ),
+              ],
+              onChanged: (v) => n.setRegion(v ?? '전체'),
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.founderStatus:
+        case CommonSearchFieldId.partnerStatus:
           items.add(
             FilterStringOptionsSlot(
               label: def.label,
-              value: filter.founderStatus,
-              options: _founderStatusOptions,
-              onSelected: n.setFounderStatus,
+              value: filter.partnerStatus,
+              options: _partnerStatusOptions,
+              onSelected: n.setPartnerStatus,
             ).toItem(),
           );
           break;
@@ -208,6 +215,7 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
         case CommonSearchFieldId.registrationDate:
         case CommonSearchFieldId.propertyName:
         case CommonSearchFieldId.propertyOwnership:
+        case CommonSearchFieldId.propertyStatus:
         case CommonSearchFieldId.propertyAddress:
         case CommonSearchFieldId.activityConsultMemo:
         case CommonSearchFieldId.activityDateRange:
@@ -229,9 +237,9 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
     return items;
   }
 
-  Widget _filterPickerSheet(VoidCallback refreshSheet, FounderNotifier n) {
+  Widget _filterPickerSheet(VoidCallback refreshSheet, PartnerNotifier n) {
     return CommonSearchFieldPicker(
-      supported: kFounderListSupportedSearchFields,
+      supported: kPartnerListSupportedSearchFields,
       visible: _visibleMainSearchFields,
       onToggle: (id, nowVisible) {
         _onMainSearchFieldToggle(id, nowVisible, n);
@@ -242,10 +250,12 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
 
   @override
   Widget build(BuildContext context) {
-    final filter = ref.watch(founderProvider);
-    final n = ref.read(founderProvider.notifier);
+    final partnersAsync = ref.watch(partnerDataProvider);
+    final filter = ref.watch(partnerProvider);
+    final n = ref.read(partnerProvider.notifier);
     final rows = n.getFilteredList();
-    final regions = ref.watch(founderRepositoryProvider).regions();
+    final regionOptions =
+        ref.watch(partnerCodeOptionsProvider(20)).value ?? const <CodeOption>[];
 
     final filterSheet = StatefulBuilder(
       builder: (context, setModalState) {
@@ -255,29 +265,37 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
     );
 
     final mainFields = _anyMainFilter
-        ? SearchFilterStackedItems(items: _mainFilterItems(filter, regions, n))
+        ? SearchFilterStackedItems(
+            items: _mainFilterItems(filter, regionOptions, n),
+          )
         : null;
 
     return ListPageTemplate(
-      activeFilters: _activeFilterChips(filter, n),
+      activeFilters: _activeFilterChips(filter, n, regionOptions),
       filterSheetBody: filterSheet,
       mainSearchFields: mainFields,
-      countText: '총 ${rows.length}명이 조회되었습니다.',
+      countText: partnersAsync.isLoading
+          ? '조회 중입니다.'
+          : '총 ${rows.length}명이 조회되었습니다.',
       onRegister: () => context.goNamed(AppRouteNames.founderRegister),
-      onRefresh: () => setState(() {}),
-      table: _FounderTable(rows: rows),
+      onRefresh: () {
+        n.refresh();
+        setState(() {});
+      },
+      table: _PartnerTable(rows: rows),
     );
   }
 
   List<ActiveFilterChip> _activeFilterChips(
-    FounderFilter f,
-    FounderNotifier n,
+    PartnerFilter f,
+    PartnerNotifier n,
+    List<CodeOption> regionOptions,
   ) {
     final chips = <ActiveFilterChip>[];
-    if (f.name.trim().isNotEmpty) {
+    if (f.partnerNm.trim().isNotEmpty) {
       chips.add(
         ActiveFilterChip(
-          label: '이름: ${f.name}',
+          label: '이름: ${f.partnerNm}',
           onClear: () {
             setState(() {
               _nameCtrl.clear();
@@ -287,10 +305,10 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
         ),
       );
     }
-    if (f.phone.trim().isNotEmpty) {
+    if (f.partnerTel.trim().isNotEmpty) {
       chips.add(
         ActiveFilterChip(
-          label: '휴대전화: ${f.phone}',
+          label: '휴대전화: ${f.partnerTel}',
           onClear: () {
             setState(() {
               _phoneCtrl.clear();
@@ -303,43 +321,53 @@ class _FounderListViewState extends ConsumerState<FounderListView> {
     if (f.evaluation != null) {
       chips.add(
         ActiveFilterChip(
-          label: '평가상태: ${_founderEvaluationLabel(f.evaluation!)}',
+          label: '평가상태: ${_partnerEvaluationLabel(f.evaluation!)}',
           onClear: () => n.setEvaluation(null),
         ),
       );
     }
-    if (f.region != '전체') {
+    if (f.pRegion != '전체') {
       chips.add(
         ActiveFilterChip(
-          label: '지역: ${f.region}',
+          label: '지역: ${_regionLabel(f.pRegion, regionOptions)}',
           onClear: () => n.setRegion('전체'),
         ),
       );
     }
-    if (f.founderStatus != '전체') {
+    if (f.partnerStatus != '전체') {
       chips.add(
         ActiveFilterChip(
-          label: '상태: ${f.founderStatus}',
-          onClear: () => n.setFounderStatus('전체'),
+          label: '상태: ${f.partnerStatus}',
+          onClear: () => n.setPartnerStatus('전체'),
         ),
       );
     }
     return chips;
   }
+
+  String _regionLabel(String code, List<CodeOption> options) {
+    if (code.isEmpty || code == '전체') return '전체';
+    for (final option in options) {
+      if (option.codeCd == code) return option.codeNm;
+    }
+    return code;
+  }
 }
 
-String _founderEvaluationLabel(EvaluationStatus s) => switch (s) {
+String _partnerEvaluationLabel(EvaluationStatus s) => switch (s) {
   EvaluationStatus.pending => '평가전',
   EvaluationStatus.completed => '평가완료',
 };
 
-class _FounderTable extends StatelessWidget {
-  const _FounderTable({required this.rows});
+class _PartnerTable extends ConsumerWidget {
+  const _PartnerTable({required this.rows});
 
-  final List<Founder> rows;
+  final List<Partner> rows;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final regionOptions =
+        ref.watch(partnerCodeOptionsProvider(20)).value ?? const <CodeOption>[];
     return ErpDataTable(
       minWidth: 1080,
       tableBuilder: (context, _) => Table(
@@ -348,27 +376,27 @@ class _FounderTable extends StatelessWidget {
         columnWidths: const {
           0: FixedColumnWidth(60),
           1: FixedColumnWidth(130),
-          2: FlexColumnWidth(1.1),
-          3: FixedColumnWidth(110),
-          4: FlexColumnWidth(1.3),
-          5: FlexColumnWidth(1.1),
-          6: FixedColumnWidth(100),
-          7: FlexColumnWidth(0.9),
-          8: FixedColumnWidth(120),
+          2: FlexColumnWidth(1),
+          3: FixedColumnWidth(150),
+          4: FlexColumnWidth(1),
+          5: FixedColumnWidth(300),
+          6: FlexColumnWidth(0.5),
+          7: FixedColumnWidth(100),
+          8: FixedColumnWidth(150),
         },
         children: [
           const TableRow(
             decoration: BoxDecoration(color: AppTheme.accentRed),
             children: [
-              ErpTableHeaderCell('No'),
-              ErpTableHeaderCell('등록일자'),
-              ErpTableHeaderCell('이름'),
-              ErpTableHeaderCell('상태'),
-              ErpTableHeaderCell('휴대전화'),
-              ErpTableHeaderCell('평가상태'),
-              ErpTableHeaderCell('평가점수'),
-              ErpTableHeaderCell('지역'),
-              ErpTableHeaderCell('상세보기'),
+              ErpTableHeaderCell('No'), // 0
+              ErpTableHeaderCell('등록일자'), // 1
+              ErpTableHeaderCell('이름'), // 2
+              ErpTableHeaderCell('상태'), // 3
+              ErpTableHeaderCell('휴대전화'), // 4
+              ErpTableHeaderCell('이메일'), // 5
+              ErpTableHeaderCell('지역'), // 6
+              ErpTableHeaderCell('성별'), // 7
+              ErpTableHeaderCell('상세보기'), //8
             ],
           ),
           ...rows.asMap().entries.map(
@@ -379,32 +407,58 @@ class _FounderTable extends StatelessWidget {
                     : AppTheme.tableRowEven,
               ),
               children: [
-                ErpTableBodyCell('${entry.value.no}', center: true),
-                ErpTableBodyCell(entry.value.registrationDate, center: true),
-                ErpTableBodyCell(entry.value.name, center: true),
-                ErpTableBodyCell(
-                  founderStatusLabelKorean(entry.value.founderStatus),
-                  center: true,
-                ),
-                ErpTableBodyCell(entry.value.phone, center: true),
+                ErpTableBodyCell('${entry.value.partnerIdx}', center: true),
+                ErpTableBodyCell(entry.value.createDt, center: true),
+                ErpTableBodyCell(entry.value.partnerNm, center: true),
                 Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 10,
+                  ),
                   child: Center(
-                    child: _EvalChip(status: entry.value.evaluationStatus),
+                    child: Text(
+                      partnerStatusLabelKorean(entry.value.partnerStatus),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _partnerStatusColor(entry.value.partnerStatus),
+                        fontFamilyFallback: AppTheme.koreanFontFallback,
+                      ),
+                    ),
                   ),
                 ),
+                ErpTableBodyCell(entry.value.partnerTel, center: true),
+                ErpTableBodyCell(entry.value.partnerEmail, center: true),
                 ErpTableBodyCell(
-                  entry.value.evaluationScore?.toString() ?? '-',
+                  _regionLabel(entry.value.pRegion, regionOptions),
                   center: true,
                 ),
-                ErpTableBodyCell(entry.value.region, center: true),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 10,
+                  ),
+                  child: Center(
+                    child: Text(
+                      entry.value.gender == Gender.male ? '남성' : '여성',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _genderColor(entry.value.gender),
+                        fontFamilyFallback: AppTheme.koreanFontFallback,
+                      ),
+                    ),
+                  ),
+                ),
                 Padding(
                   padding: const EdgeInsets.all(8),
                   child: Center(
                     child: DetailButton(
                       onPressed: () => context.goNamed(
                         AppRouteNames.founderDetail,
-                        pathParameters: {'founderNo': '${entry.value.no}'},
+                        pathParameters: {
+                          'partnerIdx': '${entry.value.partnerIdx}',
+                        },
                       ),
                     ),
                   ),
@@ -416,40 +470,24 @@ class _FounderTable extends StatelessWidget {
       ),
     );
   }
-}
 
-class _EvalChip extends StatelessWidget {
-  const _EvalChip({required this.status});
-
-  final EvaluationStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    late final String label;
-    late final Color color;
-    switch (status) {
-      case EvaluationStatus.pending:
-        label = '평가전';
-        color = const Color(0xFF9CA3AF);
-      case EvaluationStatus.completed:
-        label = '평가완료';
-        color = AppTheme.statusNew;
+  String _regionLabel(String code, List<CodeOption> options) {
+    if (code.isEmpty) return '-';
+    for (final option in options) {
+      if (option.codeCd == code) return option.codeNm;
     }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.circle, size: 10, color: color),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-            fontFamilyFallback: AppTheme.koreanFontFallback,
-          ),
-        ),
-      ],
-    );
+    return code;
+  }
+
+  Color _genderColor(Gender gender) {
+    return gender == Gender.female
+        ? const Color(0xFFE91E63)
+        : const Color(0xFF1E3A8A);
+  }
+
+  Color _partnerStatusColor(PartnerStatus status) {
+    return status == PartnerStatus.prospect
+        ? const Color(0xFFC2185B)
+        : const Color(0xFF7B1FA2);
   }
 }

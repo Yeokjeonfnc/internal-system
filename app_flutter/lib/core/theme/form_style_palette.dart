@@ -43,6 +43,16 @@ class FormStylePalette {
     fontSize: 15,
     fontFamilyFallback: AppTheme.koreanFontFallback,
   );
+  static const TextStyle hintStyle = TextStyle(
+    color: Color.fromARGB(255, 119, 122, 129),
+    fontSize: 13,
+    fontFamilyFallback: AppTheme.koreanFontFallback,
+  );
+  static const TextStyle readStyle = TextStyle(
+    color: Color.fromARGB(255, 119, 122, 129),
+    fontSize: 15,
+    fontFamilyFallback: AppTheme.koreanFontFallback,
+  );
 
   /// 상세 패널(흰 카드) 가로 상한. 너무 좁으면 ERP 폼이 답답해 보이므로 웹·데스크톱 기준으로 넉넉히 둔다.
   static const double formMaxWidth = 1000.0;

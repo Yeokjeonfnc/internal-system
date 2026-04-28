@@ -26,7 +26,7 @@ class FormFieldBlock extends StatelessWidget {
             fontFamilyFallback: AppTheme.koreanFontFallback,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 13),
         child,
       ],
     );

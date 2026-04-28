@@ -36,17 +36,18 @@ class DetailScreenHeadline extends StatelessWidget {
             style: GoogleFonts.notoSansKr(
               fontSize: 28,
               fontWeight: FontWeight.w800,
-              color: FormStylePalette.textPrimary,
+              color: kDetailHeadlineMuted,
               height: 1.2,
               letterSpacing: -0.2,
             ),
           ),
+          const SizedBox(width: 10),
           Text(
             tail,
             style: GoogleFonts.notoSansKr(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: kDetailHeadlineMuted,
+              color: FormStylePalette.textPrimary,
               height: 1.2,
             ),
           ),

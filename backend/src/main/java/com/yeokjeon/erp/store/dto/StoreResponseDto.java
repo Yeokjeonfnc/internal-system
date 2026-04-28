@@ -54,4 +54,5 @@ public class StoreResponseDto {
     private Integer premiumFee;
     private Integer monthlyRent;
     private Integer rentDeposit;
+    private String notes;
 }   

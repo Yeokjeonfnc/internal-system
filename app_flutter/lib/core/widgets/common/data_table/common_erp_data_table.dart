@@ -27,7 +27,7 @@ String formatPhoneNumber(String number) {
   return number;
 }
 
-class ErpDataTable extends StatelessWidget {
+class ErpDataTable extends StatefulWidget {
   const ErpDataTable({
     super.key,
     required this.tableBuilder,
@@ -40,6 +40,19 @@ class ErpDataTable extends StatelessWidget {
 
   /// 이 테이블이 가질 최소 가로 폭. 화면이 더 넓으면 자동 확장된다.
   final double minWidth;
+
+  @override
+  State<ErpDataTable> createState() => _ErpDataTableState();
+}
+
+class _ErpDataTableState extends State<ErpDataTable> {
+  final ScrollController _horizontalController = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontalController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,16 +72,23 @@ class ErpDataTable extends StatelessWidget {
           builder: (context, constraints) {
             // 화면보다 넓은 표는 [minWidth] 기준. 가로 스크롤을 **밖**에 두어
             // 터치/트랙패드/웹에서 세로·가로 제스처가 둘 다 동작하도록 한다.
-            final width = constraints.maxWidth > minWidth
+            final width = constraints.maxWidth > widget.minWidth
                 ? constraints.maxWidth
-                : minWidth;
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+                : widget.minWidth;
+            return Scrollbar(
+              controller: _horizontalController,
+              thumbVisibility: true,
+              trackVisibility: true,
+              interactive: true,
               child: SingleChildScrollView(
-                scrollDirection: Axis.vertical,
-                child: SizedBox(
-                  width: width,
-                  child: tableBuilder(context, width),
+                controller: _horizontalController,
+                scrollDirection: Axis.horizontal,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: SizedBox(
+                    width: width,
+                    child: widget.tableBuilder(context, width),
+                  ),
                 ),
               ),
             );

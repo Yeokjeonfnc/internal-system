@@ -46,6 +46,10 @@ server:
       enabled: true
       force: true
 
+external:
+  kakao:
+    rest-api-key: 15c5f01644e0aa8f06fc80b5afd310da
+
 logging:
   level:
     com.yeokjeon: DEBUG

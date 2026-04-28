@@ -17,14 +17,14 @@ class DetailButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
       onPressed: onPressed,
-      icon: const Icon(Icons.description_outlined, size: 14),
+      icon: const Icon(Icons.description_outlined, size: 18),
       label: Text(label),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, 30),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         side: const BorderSide(color: Color(0xFFD1D5DB)),
         textStyle: const TextStyle(
-          fontSize: 11,
+          fontSize: 13,
           fontWeight: FontWeight.w600,
           fontFamilyFallback: AppTheme.koreanFontFallback,
         ),

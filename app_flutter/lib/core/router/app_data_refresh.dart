@@ -3,7 +3,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app_flutter/features/dashboard/presentation/view_models/dashboard_view_model.dart';
-import 'package:app_flutter/features/founders/founder_controller.dart';
+import 'package:app_flutter/features/founders/partner_controller.dart';
 import 'package:app_flutter/features/master/employee_controller.dart';
 import 'package:app_flutter/features/properties/property_controller.dart';
 import 'package:app_flutter/features/sales_area/sales_area_controller.dart';
@@ -19,7 +19,11 @@ void refreshAllScreenData(WidgetRef ref) {
   ref.invalidate(codeOptionsProvider(30));
   ref.invalidate(codeOptionsProvider(40));
   ref.invalidate(storeProvider);
-  ref.invalidate(founderProvider);
+  ref.invalidate(partnerDataProvider);
+  ref.invalidate(partnerCodeOptionsProvider(20));
+  ref.invalidate(partnerProvider);
+  ref.invalidate(propertyDataProvider);
+  ref.invalidate(propertyCodeOptionsProvider(20));
   ref.invalidate(propertyProvider);
   ref.invalidate(employeeProvider);
   ref.invalidate(salesAreaProvider);

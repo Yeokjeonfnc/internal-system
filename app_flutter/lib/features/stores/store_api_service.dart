@@ -28,10 +28,10 @@ class StoreApiService {
     }
   }
 
-  /// 가맹점 코드로 조회
-  Future<Store?> getStoreByCode(String storeCd) async {
+  /// 가맹점 인덱스로 조회
+  Future<Store?> getStoreByIndex(int storeIdx) async {
     try {
-      final response = await _client.get('/stores/$storeCd');
+      final response = await _client.get('/stores/$storeIdx');
 
       if (response.statusCode == 200 && response.data != null) {
         final data = response.data as Map<String, dynamic>;
@@ -44,7 +44,7 @@ class StoreApiService {
 
       return null;
     } catch (e) {
-      debugPrint('Error fetching store by code: $e');
+      debugPrint('Error fetching store by index: $e');
       return null;
     }
   }
@@ -76,10 +76,29 @@ class StoreApiService {
     }
   }
 
-  /// 가맹점 수정
-  Future<Store?> updateStore(String storeCd, Map<String, dynamic> data) async {
+  /// 가맹점 신규 등록
+  Future<Store?> createStore(Map<String, dynamic> data) async {
     try {
-      final response = await _client.put('/stores/$storeCd', data: data);
+      final response = await _client.post('/stores', data: data);
+
+      if (response.statusCode == 201 && response.data != null) {
+        final responseData = response.data as Map<String, dynamic>;
+        final storeJson = responseData['data'];
+
+        if (storeJson != null) {
+          return _mapToStore(storeJson);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error creating store: $e');
+    }
+    return null;
+  }
+
+  /// 가맹점 수정
+  Future<Store?> updateStore(int storeIdx, Map<String, dynamic> data) async {
+    try {
+      final response = await _client.put('/stores/$storeIdx', data: data);
 
       if (response.statusCode == 200 && response.data != null) {
         final responseData = response.data as Map<String, dynamic>;
@@ -93,6 +112,17 @@ class StoreApiService {
       debugPrint('Error updating store: $e');
     }
     return null;
+  }
+
+  /// 가맹점 삭제
+  Future<bool> deleteStore(int storeIdx) async {
+    try {
+      final response = await _client.delete('/stores/$storeIdx');
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Error deleting store: $e');
+      return false;
+    }
   }
 
   /// 가맹점 히스토리 조회
@@ -141,6 +171,7 @@ class StoreApiService {
       storeTypeNm: json['storeTypeNm'] ?? '',
       svId: json['svId'] ?? json['supervisorId'] ?? '',
       businessNumber: json['businessNumber'] ?? '',
+      notes: json['notes'] ?? '',
       frFee: json['frFee']?.toString() ?? '',
       eduFee: json['eduFee']?.toString() ?? '',
       insuDeposit: json['insuDeposit']?.toString() ?? '',
@@ -159,10 +190,13 @@ class StoreApiService {
     final rawContent = json['chgContent'];
     final fallbackContent = json['content']?.toString() ?? '';
     return HistoryEntry(
-      chgDt: _formatHistoryDate(json['chgDt']?.toString() ?? ''),
+      chgDt: _formatHistoryDate(
+        json['chgDt']?.toString() ?? json['createdAt']?.toString() ?? '',
+      ),
       chgContent: rawContent == null ? '[]' : jsonEncode(rawContent),
       content: _formatHistoryContent(rawContent, fallbackContent),
-      chgUserId: json['chgUserId']?.toString() ?? '',
+      chgUserId:
+          json['chgUserId']?.toString() ?? json['createdBy']?.toString() ?? '',
     );
   }
 

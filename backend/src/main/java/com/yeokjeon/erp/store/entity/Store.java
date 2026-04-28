@@ -22,11 +22,12 @@ import java.time.LocalDateTime;
 public class Store {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "store_idx")
+    private Integer storeIdx;
+
     @Column(name = "store_cd", length = 20)
     private String storeCd;
-
-    @Column(name = "store_idx", insertable = false, updatable = false)
-    private Integer storeIdx;
 
     @Column(name = "store_nm", nullable = false, length = 100)
     private String storeNm;
@@ -87,7 +88,7 @@ public class Store {
     @Column(name = "brand_cd", columnDefinition = "TEXT")
     private String brandCd;
 
-    @Formula("(select cm.code_nm from code_mst cm where cm.code_cd = brand_cd and cm.grp_cd = 40)")
+    @Formula("(select cm.code_nm from code_mst cm where cm.code_cd = brand_cd and cm.grp_cd = 40 order by cm.code_nm)")
     private String brandNm;
 
     @Column(name = "cont_start_dt")
@@ -95,6 +96,9 @@ public class Store {
 
     @Column(name = "business_number", length = 20)
     private String businessNumber;
+
+    @Column(name = "notes", length = 500)
+    private String notes;
 
     public enum StoreType {
         FR, // 가맹점

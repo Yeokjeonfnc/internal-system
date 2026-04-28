@@ -16,12 +16,12 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class StoreCreateDto {
     
-    @NotBlank(message = "가맹점 코드는 필수입니다")
-    private String storeCd;
+    private Integer storeIdx;
     
     @NotBlank(message = "가맹점명은 필수입니다")
     private String storeNm;
-    
+
+    private String storeCd;
     private String ownerNm;
     private String regionCd;
     private String storeTel;
@@ -52,10 +52,12 @@ public class StoreCreateDto {
     private Integer premiumFee;
     private Integer monthlyRent;
     private Integer rentDeposit;
+    private String notes;
 
     public Store toEntity() {
         return Store.builder()
                 .storeCd(storeCd)
+                .storeIdx(storeIdx)
                 .storeNm(storeNm)
                 .ownerNm(ownerNm)
                 .regionCd(regionCd)
@@ -87,6 +89,7 @@ public class StoreCreateDto {
                 .premiumFee(premiumFee)
                 .monthlyRent(monthlyRent)
                 .rentDeposit(rentDeposit)
+                .notes(notes)
                 .build();
     }
 }

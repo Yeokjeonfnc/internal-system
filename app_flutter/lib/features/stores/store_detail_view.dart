@@ -16,9 +16,13 @@ import 'package:app_flutter/features/stores/store_model.dart';
 /// [isRegisterMode] 가 true이면 API 연동 전까지 데이터 없이 빈 상태로 연다.
 /// 존재하지 않는 [storeIdx] 로 열었을 때도 동일하게 빈 상태다.
 class StoreDetailView extends ConsumerStatefulWidget {
-  const StoreDetailView({super.key, this.storeCd, this.isRegisterMode = false});
+  const StoreDetailView({
+    super.key,
+    this.storeIdx,
+    this.isRegisterMode = false,
+  });
 
-  final String? storeCd;
+  final int? storeIdx;
   final bool isRegisterMode;
 
   static const List<String> _tabTitles = [
@@ -34,24 +38,39 @@ class StoreDetailView extends ConsumerStatefulWidget {
 }
 
 class _StoreDetailViewState extends ConsumerState<StoreDetailView> {
+  StoreRegisterDraft? _registerDraft;
+
   @override
   void initState() {
     super.initState();
+    if (widget.isRegisterMode) {
+      _registerDraft = StoreRegisterDraft();
+    }
     Future.microtask(_reloadCurrentStore);
   }
 
   @override
   void didUpdateWidget(covariant StoreDetailView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.storeCd != widget.storeCd ||
+    if (oldWidget.isRegisterMode != widget.isRegisterMode) {
+      _registerDraft?.dispose();
+      _registerDraft = widget.isRegisterMode ? StoreRegisterDraft() : null;
+    }
+    if (oldWidget.storeIdx != widget.storeIdx ||
         oldWidget.isRegisterMode != widget.isRegisterMode) {
       Future.microtask(_reloadCurrentStore);
     }
   }
 
+  @override
+  void dispose() {
+    _registerDraft?.dispose();
+    super.dispose();
+  }
+
   void _reloadCurrentStore() {
-    if (!mounted || widget.isRegisterMode || widget.storeCd == null) return;
-    ref.invalidate(storeDetailProvider(widget.storeCd!));
+    if (!mounted || widget.isRegisterMode || widget.storeIdx == null) return;
+    ref.invalidate(storeDetailProvider(widget.storeIdx!));
     ref.invalidate(storeDataProvider);
   }
 
@@ -59,8 +78,8 @@ class _StoreDetailViewState extends ConsumerState<StoreDetailView> {
   Widget build(BuildContext context) {
     final storeAsync = widget.isRegisterMode
         ? const AsyncValue<Store?>.data(null)
-        : (widget.storeCd != null
-              ? ref.watch(storeDetailProvider(widget.storeCd!))
+        : (widget.storeIdx != null
+              ? ref.watch(storeDetailProvider(widget.storeIdx!))
               : const AsyncValue<Store?>.data(null));
 
     return storeAsync.when(
@@ -83,7 +102,12 @@ class _StoreDetailViewState extends ConsumerState<StoreDetailView> {
           tabTitles: StoreDetailView._tabTitles,
           tabPages: [
             for (final title in StoreDetailView._tabTitles)
-              StoreDetailPanel(title: title, store: store),
+              StoreDetailPanel(
+                title: title,
+                store: store,
+                isRegisterMode: widget.isRegisterMode,
+                registerDraft: _registerDraft,
+              ),
           ],
         );
       },

@@ -36,6 +36,7 @@ class Store {
     required this.rentDeposit,
     required this.premiumFee,
     this.businessNumber = '',
+    this.notes = '',
   });
 
   final int no;
@@ -50,6 +51,7 @@ class Store {
   final String storeTel;
   final String zipCd;
   final String address;
+  final String notes;
   final String addressDetail;
   final String contStartDt;
   final String contEndDt;

@@ -29,11 +29,11 @@ public class StoreController {
         return ResponseEntity.ok(ApiResponse.success(stores));
     }
 
-    @GetMapping("/{storeCd}")
+    @GetMapping("/{storeIdx}")
     public ResponseEntity<ApiResponse<StoreResponseDto>> getStore(
-            @PathVariable String storeCd) {
-        log.info("가맹점 상세 조회 요청: {}", storeCd);
-        StoreResponseDto store = storeService.getStoreByCode(storeCd);
+            @PathVariable Integer storeIdx) {
+        log.info("가맹점 상세 조회 요청: {}", storeIdx);
+        StoreResponseDto store = storeService.getStoreByIdx(storeIdx);
         return ResponseEntity.ok(ApiResponse.success(store));
     }
 
@@ -55,21 +55,21 @@ public class StoreController {
                 .body(ApiResponse.success("가맹점이 생성되었습니다", createdStore));
     }
 
-    @PutMapping("/{storeCd}")
+    @PutMapping("/{storeIdx}")
     public ResponseEntity<ApiResponse<StoreResponseDto>> updateStore(
-            @PathVariable String storeCd,
+            @PathVariable Integer storeIdx,
             @Valid @RequestBody StoreCreateDto dto) {
-        log.info("가맹점 수정 요청: {}", storeCd);
-        StoreResponseDto updatedStore = storeService.updateStore(storeCd, dto);
+        log.info("가맹점 수정 요청: {}", storeIdx);
+        StoreResponseDto updatedStore = storeService.updateStore(storeIdx, dto);
         return ResponseEntity.ok(
                 ApiResponse.success("가맹점이 수정되었습니다", updatedStore));
     }
 
-    @DeleteMapping("/{storeCd}")
+    @DeleteMapping("/{storeIdx}")
     public ResponseEntity<ApiResponse<Void>> deleteStore(
-            @PathVariable String storeCd) {
-        log.info("가맹점 삭제 요청: {}", storeCd);
-        storeService.deleteStore(storeCd);
+            @PathVariable Integer storeIdx) {
+        log.info("가맹점 삭제 요청: {}", storeIdx);
+        storeService.deleteStore(storeIdx);
         return ResponseEntity.ok(
                 ApiResponse.success("가맹점이 삭제되었습니다", null));
     }

@@ -5,8 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:app_flutter/features/dashboard/presentation/screens/dashboard_screen.dart';
-import 'package:app_flutter/features/founders/founder_detail_view.dart';
-import 'package:app_flutter/features/founders/founder_list_view.dart';
+import 'package:app_flutter/features/founders/partner_detail_view.dart';
+import 'package:app_flutter/features/founders/partner_list_view.dart';
 import 'package:app_flutter/features/master/employee_list_view.dart';
 import 'package:app_flutter/features/master/employee_register_view.dart';
 import 'package:app_flutter/features/properties/property_detail_view.dart';
@@ -37,7 +37,7 @@ class AppRoutes {
   static const String storeDetail = '/stores/:storeIdx';
   static const String founders = '/founders';
   static const String founderRegister = '/founders/new';
-  static const String founderDetail = '/founders/:founderNo';
+  static const String founderDetail = '/founders/:partnerIdx';
   static const String properties = '/properties';
   static const String propertyRegister = '/properties/new';
   static const String propertyDetail = '/properties/:propertyNo';
@@ -125,7 +125,7 @@ final List<AppRouteDef> appRouteDefs = <AppRouteDef>[
     parentPath: AppRoutes.stores,
     pageBuilder: (context, state) => NoTransitionPage(
       child: StoreDetailView(
-        storeCd: Uri.decodeComponent(state.pathParameters['storeCd'] ?? ''),
+        storeIdx: int.tryParse(state.pathParameters['storeIdx'] ?? ''),
       ),
     ),
   ),
@@ -135,7 +135,7 @@ final List<AppRouteDef> appRouteDefs = <AppRouteDef>[
     title: '예비창업자 관리',
     parentPath: AppRoutes.dashboard,
     pageBuilder: (context, state) =>
-        const NoTransitionPage(child: FounderListView()),
+        const NoTransitionPage(child: PartnerListView()),
   ),
   AppRouteDef(
     name: AppRouteNames.founderRegister,
@@ -143,7 +143,7 @@ final List<AppRouteDef> appRouteDefs = <AppRouteDef>[
     title: '예비창업자 등록',
     parentPath: AppRoutes.founders,
     pageBuilder: (context, state) =>
-        const NoTransitionPage(child: FounderRegisterView()),
+        const NoTransitionPage(child: PartnerRegisterView()),
   ),
   AppRouteDef(
     name: AppRouteNames.founderDetail,
@@ -151,9 +151,9 @@ final List<AppRouteDef> appRouteDefs = <AppRouteDef>[
     title: '예비창업자 상세',
     parentPath: AppRoutes.founders,
     pageBuilder: (context, state) {
-      final raw = state.pathParameters['founderNo'] ?? '';
-      final founderNo = int.tryParse(raw) ?? -1;
-      return NoTransitionPage(child: FounderDetailView(founderNo: founderNo));
+      final raw = state.pathParameters['partnerIdx'] ?? '';
+      final partnerIdx = int.tryParse(raw) ?? -1;
+      return NoTransitionPage(child: PartnerDetailView(partnerIdx: partnerIdx));
     },
   ),
   AppRouteDef(
@@ -260,13 +260,11 @@ List<RouteBase> _shellChildRoutes() {
               const NoTransitionPage(child: StoreRegisterView()),
         ),
         GoRoute(
-          path: ':storeCd',
+          path: ':storeIdx',
           name: AppRouteNames.storeDetail,
           pageBuilder: (context, state) => NoTransitionPage(
             child: StoreDetailView(
-              storeCd: Uri.decodeComponent(
-                state.pathParameters['storeCd'] ?? '',
-              ),
+              storeIdx: int.tryParse(state.pathParameters['storeIdx'] ?? ''),
             ),
           ),
         ),

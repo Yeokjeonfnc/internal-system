@@ -37,9 +37,9 @@ public class StoreService {
                 .collect(Collectors.toList());
     }
 
-    public StoreResponseDto getStoreByCode(String storeCd) {
-        Store store = storeRepository.findById(storeCd)
-                .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeCd", storeCd));
+    public StoreResponseDto getStoreByIdx(Integer storeIdx) {
+        Store store = storeRepository.findByStoreIdx(storeIdx)
+                .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeIdx", storeIdx));
         return toDto(store);
     }
 
@@ -63,18 +63,18 @@ public class StoreService {
                                 rs.getString("chg_type"),
                                 rs.getString("store_nm"),
                                 rs.getString("chg_content")))
-                        .createdBy(rs.getString("chg_user_id"))
-                        .createdAt(rs.getTimestamp("chg_dt").toLocalDateTime())
+                        .chgUserId(rs.getString("chg_user_id"))
+                        .chgDt(rs.getTimestamp("chg_dt").toLocalDateTime())
                         .build(),
                 storeIdx);
     }
     
     private StoreResponseDto toDto(Store store) {
-        log.debug("Converting store: {}, status: {}", store.getStoreCd(), store.getStoreStatus());
+        log.debug("Converting store: {}, name: {}", store.getStoreIdx(), store.getStoreNm());
         
         return StoreResponseDto.builder()
-                .storeCd(store.getStoreCd())
                 .storeIdx(store.getStoreIdx())
+                .storeCd(store.getStoreCd())
                 .storeNm(store.getStoreNm())
                 .ownerNm(store.getOwnerNm())
                 .regionCd(store.getRegionCd())
@@ -112,6 +112,7 @@ public class StoreService {
                 .premiumFee(store.getPremiumFee())
                 .monthlyRent(store.getMonthlyRent())
                 .rentDeposit(store.getRentDeposit())
+                .notes(store.getNotes())
                 .build();
     }
 
@@ -146,8 +147,8 @@ public class StoreService {
 
     @Transactional
     public StoreResponseDto createStore(StoreCreateDto dto) {
-        if (storeRepository.existsById(dto.getStoreCd())) {
-            throw new IllegalArgumentException("이미 존재하는 가맹점 코드입니다: " + dto.getStoreCd());
+        if (dto.getStoreIdx() != null && storeRepository.findByStoreIdx(dto.getStoreIdx()).isPresent()) {
+            throw new IllegalArgumentException("이미 존재하는 가맹점 인덱스입니다: " + dto.getStoreIdx());
         }
 
         Store store = dto.toEntity();
@@ -155,15 +156,15 @@ public class StoreService {
         entityManager.refresh(savedStore);
         saveHistory(savedStore.getStoreIdx(), "INSERT", savedStore.getStoreNm(),
                 String.format("가맹점 신규 생성: %s", savedStore.getStoreNm()));
-        
-        log.info("가맹점 생성 완료: {}", savedStore.getStoreCd());
+
+        log.info("가맹점 생성 완료: {}", savedStore.getStoreIdx());
         return toDto(savedStore);
     }
 
     @Transactional
-    public StoreResponseDto updateStore(String storeCd, StoreCreateDto dto) {
-        Store store = storeRepository.findById(storeCd)
-                .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeCd", storeCd));
+    public StoreResponseDto updateStore(Integer storeIdx, StoreCreateDto dto) {
+        Store store = storeRepository.findByStoreIdx(storeIdx)
+                .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeIdx", storeIdx));
 
         if (dto.getStoreNm() != null) store.setStoreNm(dto.getStoreNm());
         if (dto.getOwnerNm() != null) store.setOwnerNm(dto.getOwnerNm());
@@ -182,6 +183,7 @@ public class StoreService {
         if (dto.getBrandCd() != null) store.setBrandCd(dto.getBrandCd());
         if (dto.getContStartDt() != null) store.setContStartDt(dto.getContStartDt());
         if (dto.getBusinessNumber() != null) store.setBusinessNumber(dto.getBusinessNumber());
+        if (dto.getNotes() != null) store.setNotes(dto.getNotes());
         if (dto.getFirstContDt() != null) store.setFirstContDt(dto.getFirstContDt());
         if (dto.getFrFee() != null) store.setFrFee(dto.getFrFee());
         if (dto.getEduFee() != null) store.setEduFee(dto.getEduFee());
@@ -205,14 +207,19 @@ public class StoreService {
     }
 
     @Transactional
-    public void deleteStore(String storeCd) {
-        Store store = storeRepository.findById(storeCd)
-                .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeCd", storeCd));
-        
+    public void deleteStore(Integer storeIdx) {
+        Store store = storeRepository.findByStoreIdx(storeIdx)
+                .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeIdx", storeIdx));
+
+        dropStoreHistoryForeignKeyIfExists();
         saveHistory(store.getStoreIdx(), "DELETE", store.getStoreNm(),
                 String.format("가맹점 삭제: %s", store.getStoreNm()));
         storeRepository.delete(store);
-        log.info("가맹점 삭제 완료: {}", storeCd);
+        log.info("가맹점 삭제 완료: {}", storeIdx);
+    }
+
+    private void dropStoreHistoryForeignKeyIfExists() {
+        jdbcTemplate.execute("alter table store_history drop constraint if exists fk_his_store_idx");
     }
 
     private void saveHistory(Integer storeIdx, String chgType, String storeNm, String content) {

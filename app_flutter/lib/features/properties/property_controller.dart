@@ -2,31 +2,61 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/state/base_list_provider.dart';
+import 'package:app_flutter/features/properties/property_api_service.dart';
 import 'package:app_flutter/features/properties/property_model.dart';
 
 abstract class PropertyRepository {
-  List<Property> all();
-  Property? find(int no);
+  Future<List<Property>> all();
+  Future<Property?> find(int no);
   List<String> regions();
 }
 
-class InMemoryPropertyRepository implements PropertyRepository {
-  const InMemoryPropertyRepository();
+class ApiPropertyRepository implements PropertyRepository {
+  const ApiPropertyRepository(this._apiService);
+
+  final PropertyApiService _apiService;
 
   @override
-  List<Property> all() => const <Property>[];
+  Future<List<Property>> all() => _apiService.getAllProperties();
 
   @override
-  Property? find(int no) => null;
+  Future<Property?> find(int no) => _apiService.getProperty(no);
 
   @override
   List<String> regions() => const <String>['전체'];
 }
 
-final propertyRepositoryProvider = Provider<PropertyRepository>(
-  (ref) => const InMemoryPropertyRepository(),
+final propertyApiServiceProvider = Provider<PropertyApiService>(
+  (ref) => PropertyApiService(),
 );
+
+final propertyCommonCodeApiServiceProvider = Provider<CommonCodeApiService>(
+  (ref) => CommonCodeApiService(),
+);
+
+final propertyCodeOptionsProvider =
+    FutureProvider.family<List<CodeOption>, int>(
+      (ref, grpCd) =>
+          ref.watch(propertyCommonCodeApiServiceProvider).getCodes(grpCd),
+    );
+
+final propertyRepositoryProvider = Provider<PropertyRepository>(
+  (ref) => ApiPropertyRepository(ref.watch(propertyApiServiceProvider)),
+);
+
+final propertyDataProvider = FutureProvider<List<Property>>((ref) async {
+  return ref.watch(propertyRepositoryProvider).all();
+});
+
+final propertyDetailProvider = FutureProvider.family<Property?, int>((
+  ref,
+  propIdx,
+) async {
+  if (propIdx <= 0) return null;
+  return ref.watch(propertyRepositoryProvider).find(propIdx);
+});
 
 class PropertyFilter {
   const PropertyFilter({
@@ -34,25 +64,30 @@ class PropertyFilter {
     this.address = '',
     this.region = '전체',
     this.ownership,
+    this.status,
   });
 
   final String name;
   final String address;
   final String region;
   final PropertyOwnership? ownership;
+  final PropertyStatus? status;
 
   PropertyFilter copy({
     String? name,
     String? address,
     String? region,
     PropertyOwnership? ownership,
+    PropertyStatus? status,
     bool clearOwnership = false,
+    bool clearStatus = false,
   }) {
     return PropertyFilter(
       name: name ?? this.name,
       address: address ?? this.address,
       region: region ?? this.region,
       ownership: clearOwnership ? null : ownership ?? this.ownership,
+      status: clearStatus ? null : status ?? this.status,
     );
   }
 }
@@ -66,11 +101,15 @@ class PropertyNotifier extends RuleListNotifier<PropertyFilter, Property> {
   PropertyFilter build() => const PropertyFilter();
 
   @override
-  List<Property> get source => ref.read(propertyRepositoryProvider).all();
+  List<Property> get source {
+    final propertiesAsync = ref.watch(propertyDataProvider);
+    return propertiesAsync.maybeWhen(data: (rows) => rows, orElse: () => []);
+  }
 
   @override
   List<ListFilterRule<PropertyFilter, Property>> get rules => [
     (s, r) => s.ownership == null || r.ownership == s.ownership,
+    (s, r) => s.status == null || r.status == s.status,
     (s, r) => s.region == '전체' || r.region == s.region,
     (s, r) {
       final q = s.name.trim();
@@ -88,4 +127,11 @@ class PropertyNotifier extends RuleListNotifier<PropertyFilter, Property> {
   void setOwnership(PropertyOwnership? v) => state = v == null
       ? state.copy(clearOwnership: true)
       : state.copy(ownership: v);
+  void setStatus(PropertyStatus? v) =>
+      state = v == null ? state.copy(clearStatus: true) : state.copy(status: v);
+
+  void refresh() {
+    ref.invalidate(propertyDataProvider);
+    ref.invalidate(propertyCodeOptionsProvider(20));
+  }
 }
