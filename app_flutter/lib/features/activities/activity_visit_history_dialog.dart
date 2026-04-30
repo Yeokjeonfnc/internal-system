@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
+import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 
@@ -113,32 +114,10 @@ class _VisitHistoryDialogState extends State<_VisitHistoryDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 4, 8),
-              child: Row(
-                children: [
-                  const Text(
-                    '방문이력',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: FormStylePalette.textPrimary,
-                      fontFamilyFallback: AppTheme.koreanFontFallback,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: IconButton.styleFrom(
-                      foregroundColor: FormStylePalette.textSecondary,
-                    ),
-                    icon: const Icon(Icons.close, size: 24),
-                    tooltip: '닫기',
-                  ),
-                ],
-              ),
+            ErpDialogHeader(
+              title: '방문이력',
+              onClose: () => Navigator.of(context).pop(),
             ),
-            const Divider(height: 1, color: FormStylePalette.panelBorder),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Row(

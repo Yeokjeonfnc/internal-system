@@ -33,7 +33,7 @@ class _EmployeeRegisterViewState extends ConsumerState<EmployeeRegisterView> {
   String _selectedJobTitle = '사원'; // Added for dropdown
   String _selectedMenuPermission = '일반사원';
   DateTime? _hireDate;
-  bool _tagEnabled = false;
+  bool _tagYn = false;
 
   static const _menuPermissionOptions = ['일반사원', '팀장', '부서장', '관리자'];
   static const _jobTitleOptions = [
@@ -266,9 +266,9 @@ class _EmployeeRegisterViewState extends ConsumerState<EmployeeRegisterView> {
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: CheckboxListTile(
-                                value: _tagEnabled,
+                                value: _tagYn,
                                 onChanged: (v) {
-                                  setState(() => _tagEnabled = v ?? false);
+                                  setState(() => _tagYn = v ?? false);
                                 },
                                 contentPadding: EdgeInsets.zero,
                                 visualDensity: VisualDensity.compact,

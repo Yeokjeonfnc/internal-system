@@ -115,4 +115,11 @@ class TabManagerNotifier extends Notifier<List<ManagedTab>> {
       context.go(state[nextIdx].location);
     }
   }
+
+  void closeAllTabs(BuildContext context) {
+    state = const [ManagedTab(location: AppRoutes.dashboard, title: '대시보드')];
+    if (GoRouterState.of(context).uri.path != AppRoutes.dashboard) {
+      context.go(AppRoutes.dashboard);
+    }
+  }
 }

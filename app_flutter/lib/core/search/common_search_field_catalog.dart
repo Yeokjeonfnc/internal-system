@@ -124,6 +124,9 @@ enum CommonSearchFieldId {
 
   /// 휴대전화(사원관리)
   employeePhone,
+
+  /// 직급(사원관리)
+  employeePosition,
 }
 
 /// UI 표현 방식(브랜드형 칩 vs 드롭다운 vs 텍스트 등).
@@ -331,6 +334,12 @@ const List<CommonSearchFieldDef> kCommonSearchCatalog = [
     label: '휴대전화',
     group: CommonSearchFieldGroup.masterEmployeeSearch,
     presentation: CommonSearchPresentation.text,
+  ),
+  CommonSearchFieldDef(
+    id: CommonSearchFieldId.employeePosition,
+    label: '직급',
+    group: CommonSearchFieldGroup.masterEmployeeSearch,
+    presentation: CommonSearchPresentation.alwaysDropdown,
   ),
 ];
 

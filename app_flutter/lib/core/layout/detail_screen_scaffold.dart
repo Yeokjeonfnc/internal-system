@@ -106,7 +106,7 @@ class DetailMainTabBar extends StatelessWidget {
 }
 
 /// [DefaultTabController] + 배경 + 제목 + [DetailMainTabBar] + [TabBarView].
-class DetailScreenWithTabs extends StatelessWidget {
+class DetailScreenWithTabs extends StatefulWidget {
   const DetailScreenWithTabs({
     super.key,
     required this.title,
@@ -119,17 +119,37 @@ class DetailScreenWithTabs extends StatelessWidget {
   final List<Widget> tabPages;
 
   @override
+  State<DetailScreenWithTabs> createState() => _DetailScreenWithTabsState();
+}
+
+class _DetailScreenWithTabsState extends State<DetailScreenWithTabs> {
+  @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: tabTitles.length,
+      length: widget.tabTitles.length,
       child: ColoredBox(
         color: AppTheme.appSurface,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            title,
-            DetailMainTabBar(tabTitles: tabTitles),
-            Expanded(child: TabBarView(children: tabPages)),
+            widget.title,
+            DetailMainTabBar(tabTitles: widget.tabTitles),
+            Expanded(
+              child: Builder(
+                builder: (context) {
+                  final controller = DefaultTabController.of(context);
+                  return AnimatedBuilder(
+                    animation: controller,
+                    builder: (context, _) {
+                      return IndexedStack(
+                        index: controller.index,
+                        children: widget.tabPages,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),

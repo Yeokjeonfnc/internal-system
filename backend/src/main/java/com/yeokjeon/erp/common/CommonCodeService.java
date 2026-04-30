@@ -20,7 +20,7 @@ public class CommonCodeService {
                 select code_cd, code_nm
                 from code_mst
                 where grp_cd = ?
-                  and use_yn = 'Y'
+                  and (use_yn is null or use_yn = 'Y')
                 order by code_cd
                 """,
                 (rs, rowNum) -> CodeOptionDto.builder()

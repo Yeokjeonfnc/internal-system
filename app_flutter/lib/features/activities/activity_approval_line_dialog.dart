@@ -5,9 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
+import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
+import 'package:app_flutter/features/master/department_model.dart';
+import 'package:app_flutter/features/master/department_repository.dart';
+import 'package:app_flutter/features/master/employee_model.dart';
+import 'package:app_flutter/features/master/user_api_service.dart';
 
 /// 격자형 직급/결재 열 수(기안·스크린샷 기준 7).
 const int kActivityApprovalLineSlotCount = 7;
@@ -48,31 +53,6 @@ List<String> _padToSlots(List<String> items) {
   );
 }
 
-class _EmployeeRow {
-  const _EmployeeRow({
-    required this.id,
-    required this.department,
-    required this.title,
-    required this.name,
-  });
-
-  final String id;
-  final String department;
-  final String title;
-  final String name;
-}
-
-const _kDepartments = <String>[];
-
-final _kAllEmployees = <_EmployeeRow>[];
-
-String _titleForName(String name) {
-  for (final e in _kAllEmployees) {
-    if (e.name == name) return e.title;
-  }
-  return '';
-}
-
 class _ApprovalLineDialog extends StatefulWidget {
   const _ApprovalLineDialog({
     required this.initialNames,
@@ -87,69 +67,122 @@ class _ApprovalLineDialog extends StatefulWidget {
 }
 
 class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
-  final TextEditingController _lineName = TextEditingController();
-  String? _selectedDept;
-  final Set<String> _rowChecked = {};
+  final TextEditingController _searchController = TextEditingController();
+  final DepartmentRepository _deptRepo = DepartmentRepository();
+  final UserApiService _userApi = UserApiService();
+
+  String? _selectedDeptId;
+  final Set<int> _rowChecked = {};
   late List<String> _lineNames;
   late List<String> _lineTitles;
+
+  List<Department> _departments = [];
+  List<Employee> _allEmployees = [];
+  List<Employee> _displayedEmployees = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _lineNames = List<String>.from(widget.initialNames);
     _lineTitles = List<String>.from(widget.initialTitles);
-    for (var i = 0; i < kActivityApprovalLineSlotCount; i++) {
-      if (_lineNames[i].isNotEmpty && _lineTitles[i].isEmpty) {
-        _lineTitles[i] = _titleForName(_lineNames[i]);
-      }
-    }
-    _selectedDept = '경영지원본부';
+    _loadData();
   }
 
   @override
   void dispose() {
-    _lineName.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
-  List<_EmployeeRow> get _visibleEmployees {
-    var list = _kAllEmployees;
-    final q = _lineName.text.trim();
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    try {
+      final depts = await _deptRepo.all();
+      final employees = await _userApi.getUsers();
+      setState(() {
+        _departments = depts;
+        _allEmployees = employees;
+        _displayedEmployees = employees;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('결재라인 데이터 로딩 실패: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadEmployeesByDept(String deptId) async {
+    try {
+      final deptIdx = int.tryParse(deptId);
+      if (deptIdx == null) {
+        setState(() => _displayedEmployees = _allEmployees);
+        return;
+      }
+      final employees = await _userApi.getUsers(deptIdx: deptIdx);
+      setState(() => _displayedEmployees = employees);
+    } catch (e) {
+      debugPrint('부서별 사원 조회 실패: $e');
+      setState(() => _displayedEmployees = []);
+    }
+  }
+
+  List<Employee> get _visibleEmployees {
+    var list = _displayedEmployees;
+    final q = _searchController.text.trim();
     if (q.isNotEmpty) {
       list = list
           .where(
             (e) =>
                 e.name.contains(q) ||
                 e.department.contains(q) ||
-                e.title.contains(q),
+                e.jobTitle.contains(q),
           )
           .toList();
     }
-    final d = _selectedDept;
-    if (d == null) return list;
-    if (d == '역전F&C' || d == '경영지원본부') {
-      return list;
+    return list;
+  }
+
+  void _onDeptSelect(String? deptId) {
+    setState(() {
+      _selectedDeptId = deptId;
+      _rowChecked.clear();
+    });
+    if (deptId == null || deptId == 'root') {
+      setState(() => _displayedEmployees = _allEmployees);
+    } else {
+      _loadEmployeesByDept(deptId);
     }
-    return list.where((e) => e.department == d).toList();
   }
 
   void _onAddApprovers() {
     final ids = _rowChecked.toList()..sort();
-    final toAdd = <_EmployeeRow>[];
+    final toAdd = <Employee>[];
     for (final id in ids) {
-      final m = _kAllEmployees.firstWhere(
-        (e) => e.id == id,
-        orElse: () => _kAllEmployees.first,
+      final emp = _allEmployees.firstWhere(
+        (e) => e.no == id,
+        orElse: () => _allEmployees.isNotEmpty
+            ? _allEmployees.first
+            : const Employee(
+                no: 0,
+                name: '',
+                department: '',
+                jobTitle: '',
+                mobilePhone: '',
+                email: '',
+                hireDateYmd: '',
+                tagEnabled: false,
+              ),
       );
-      if (m.id == id) toAdd.add(m);
+      if (emp.no == id) toAdd.add(emp);
     }
     setState(() {
-      for (final m in toAdd) {
-        if (_lineNames.contains(m.name)) continue;
+      for (final emp in toAdd) {
+        if (_lineNames.contains(emp.name)) continue;
         final i = _lineNames.indexWhere((e) => e.isEmpty);
         if (i >= 0) {
-          _lineNames[i] = m.name;
-          _lineTitles[i] = m.title;
+          _lineNames[i] = emp.name;
+          _lineTitles[i] = emp.jobTitle;
         }
       }
       _rowChecked.clear();
@@ -208,33 +241,10 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 4, 8),
-              child: Row(
-                children: [
-                  const Text(
-                    '결재라인 선택',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: FormStylePalette.textPrimary,
-                      fontFamilyFallback: AppTheme.koreanFontFallback,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: IconButton.styleFrom(
-                      backgroundColor: FormStylePalette.inputBg,
-                      foregroundColor: FormStylePalette.textSecondary,
-                    ),
-                    icon: const Icon(Icons.close, size: 24),
-                    tooltip: '닫기',
-                  ),
-                ],
-              ),
+            ErpDialogHeader(
+              title: '결재라인 선택',
+              onClose: () => Navigator.of(context).pop(),
             ),
-            const Divider(height: 1, color: FormStylePalette.panelBorder),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
               child: Row(
@@ -243,7 +253,7 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
                   const SizedBox(
                     width: 120,
                     child: Text(
-                      '결재라인명',
+                      '사원 검색',
                       style: TextStyle(
                         fontSize: kSearchFilterFontSize,
                         fontWeight: FontWeight.w600,
@@ -254,7 +264,7 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
                   ),
                   Expanded(
                     child: TextField(
-                      controller: _lineName,
+                      controller: _searchController,
                       onChanged: (_) => setState(() {}),
                       style: const TextStyle(
                         fontSize: kSearchFilterFontSize,
@@ -262,7 +272,7 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
                         fontFamilyFallback: AppTheme.koreanFontFallback,
                       ),
                       decoration: _searchDeco().copyWith(
-                        hintText: '검색',
+                        hintText: '이름, 부서, 직급 검색',
                         hintStyle: const TextStyle(
                           fontSize: kSearchFilterFontSize,
                           color: FormStylePalette.textMuted,
@@ -282,41 +292,48 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
                 ],
               ),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: _OrgTreePanel(
-                        selectedDept: _selectedDept,
-                        onSelect: (d) {
-                          setState(() => _selectedDept = d);
-                        },
-                        departments: _kDepartments,
+            if (_isLoading)
+              const Expanded(
+                child: Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentRed),
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _OrgTreePanel(
+                          selectedDeptId: _selectedDeptId,
+                          onSelect: _onDeptSelect,
+                          departments: _departments,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _EmployeeTablePanel(
-                        employees: _visibleEmployees,
-                        checked: _rowChecked,
-                        onToggle: (id, v) {
-                          setState(() {
-                            if (v) {
-                              _rowChecked.add(id);
-                            } else {
-                              _rowChecked.remove(id);
-                            }
-                          });
-                        },
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _EmployeeTablePanel(
+                          employees: _visibleEmployees,
+                          checked: _rowChecked,
+                          onToggle: (id, v) {
+                            setState(() {
+                              if (v) {
+                                _rowChecked.add(id);
+                              } else {
+                                _rowChecked.remove(id);
+                              }
+                            });
+                          },
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: FilledButton(
@@ -380,14 +397,14 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
 
 class _OrgTreePanel extends StatelessWidget {
   const _OrgTreePanel({
-    required this.selectedDept,
+    required this.selectedDeptId,
     required this.onSelect,
     required this.departments,
   });
 
-  final String? selectedDept;
+  final String? selectedDeptId;
   final void Function(String?) onSelect;
-  final List<String> departments;
+  final List<Department> departments;
 
   @override
   Widget build(BuildContext context) {
@@ -418,32 +435,30 @@ class _OrgTreePanel extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
               children: [
                 _TreeTile(
-                  label: '역전F&C',
-                  isSelected: selectedDept == '역전F&C',
-                  onTap: () => onSelect('역전F&C'),
-                  children: [
-                    _TreeTile(
-                      label: '경영지원본부',
-                      isSelected: selectedDept == '경영지원본부',
-                      onTap: () => onSelect('경영지원본부'),
-                      depth: 1,
-                      children: [
-                        for (final d in departments)
-                          _TreeTile(
-                            label: d,
-                            isSelected: selectedDept == d,
-                            onTap: () => onSelect(d),
-                            depth: 2,
-                          ),
-                      ],
-                    ),
-                  ],
+                  label: '전체',
+                  isSelected: selectedDeptId == 'root',
+                  onTap: () => onSelect('root'),
                 ),
+                for (final dept in departments)
+                  _buildDeptTree(dept, 0),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDeptTree(Department dept, int depth) {
+    return _TreeTile(
+      label: '${dept.name} (${dept.userCount})',
+      isSelected: selectedDeptId == dept.id,
+      onTap: () => onSelect(dept.id),
+      depth: depth,
+      children: [
+        for (final child in dept.children)
+          _buildDeptTree(child, depth + 1),
+      ],
     );
   }
 }
@@ -532,22 +547,18 @@ class _EmployeeTablePanel extends StatelessWidget {
     required this.onToggle,
   });
 
-  final List<_EmployeeRow> employees;
-  final Set<String> checked;
-  final void Function(String id, bool isChecked) onToggle;
+  final List<Employee> employees;
+  final Set<int> checked;
+  final void Function(int id, bool isChecked) onToggle;
 
   @override
   Widget build(BuildContext context) {
-    // [ErpDataTable] 기본 1300px minWidth 는 다이얼로그 2분할 본문보다 커서
-    // 가로 스크롤이 생기고 첫 열만 보이는 것처럼 보인다(직급·사원명이 화면 밖).
-    // 모달용으로 좁은 최소 폭을 쓰면 사용 가능한 너비에 4열이 맞게 분배된다.
     return ErpDataTable(
       minWidth: 480,
       tableBuilder: (context, width) {
         return Table(
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           border: kErpTableInnerGridBorder,
-          // 부서명은 flex 비율을 낮춰 열을 좁히고, 직급·사원명에 가로를 맞긴다.
           columnWidths: {
             0: const FixedColumnWidth(48),
             1: const FlexColumnWidth(1.05),
@@ -573,11 +584,11 @@ class _EmployeeTablePanel extends StatelessWidget {
                 ),
                 children: [
                   _CheckboxTableCell(
-                    isChecked: checked.contains(employees[i].id),
-                    onChanged: (v) => onToggle(employees[i].id, v ?? false),
+                    isChecked: checked.contains(employees[i].no),
+                    onChanged: (v) => onToggle(employees[i].no, v ?? false),
                   ),
                   ErpTableBodyCell(employees[i].department),
-                  ErpTableBodyCell(employees[i].title, center: true),
+                  ErpTableBodyCell(employees[i].jobTitle, center: true),
                   ErpTableBodyCell(employees[i].name, center: true),
                 ],
               ),

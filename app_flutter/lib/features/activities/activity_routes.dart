@@ -19,8 +19,10 @@ abstract final class ActivityRoutes {
   static String get statusByAssignee => '$_b/status/by-assignee';
   static String get statusByStore => '$_b/status/by-store';
   static String get drafts => '$_b/drafts';
+  static String draftDetail(int actIdx) => '$_b/drafts/$actIdx';
   static String get manage => '$_b/manage';
   static String get manageRegister => '$_b/manage/register';
+  static String manageDetail(int actIdx) => '$_b/manage/$actIdx';
   static String get instructions => '$_b/instructions';
   static String get checklist => '$_b/checklist';
   static String get approvalAll => '$_b/approval/all';
@@ -43,7 +45,50 @@ int activityApprovalInitialTabForPath(String path) {
 }
 
 /// 하위 화면 스텁 제목.
-String activityPageTitle(String path) => _activityTitles[path] ?? '활동 관리';
+String activityPageTitle(String path) {
+  if (path.startsWith('${ActivityRoutes.drafts}/')) {
+    return '임시보관 상세';
+  }
+  return _activityTitles[path] ?? '활동 관리';
+}
+
+/// 상단 배너 뒤로가기 fallback.
+///
+/// `/activities` 허브는 내부 안내 화면이라 사용자가 직접 보게 하지 않고,
+/// 3개 상위 메뉴는 대시보드로, 세부 경로는 해당 상위 메뉴로 돌려보낸다.
+String activityParentPath(String path) {
+  if (path == ActivityRoutes.hub) return '/';
+  if (path == ActivityRoutes.groupStatus ||
+      path == ActivityRoutes.groupManage ||
+      path == ActivityRoutes.groupApproval) {
+    return '/';
+  }
+  if (path == ActivityRoutes.statusByAssignee ||
+      path == ActivityRoutes.statusByStore) {
+    return ActivityRoutes.groupStatus;
+  }
+  if (path.startsWith('${ActivityRoutes.drafts}/')) {
+    return ActivityRoutes.drafts;
+  }
+  if (path == ActivityRoutes.drafts ||
+      path == ActivityRoutes.manage ||
+      path == ActivityRoutes.manageRegister ||
+      path.startsWith('${ActivityRoutes.manage}/') ||
+      path == ActivityRoutes.instructions ||
+      path == ActivityRoutes.checklist) {
+    return ActivityRoutes.groupManage;
+  }
+  if (path == ActivityRoutes.approvalAll ||
+      path == ActivityRoutes.approvalPending ||
+      path == ActivityRoutes.approvalActive ||
+      path == ActivityRoutes.approvalInstructions ||
+      path == ActivityRoutes.approvalSuggestions ||
+      path == ActivityRoutes.approvalChecklist ||
+      path == ActivityRoutes.approvalChecklistStats) {
+    return ActivityRoutes.groupApproval;
+  }
+  return ActivityRoutes.groupManage;
+}
 
 final Map<String, String> _activityTitles = {
   ActivityRoutes.groupStatus: '활동현황',
@@ -52,7 +97,7 @@ final Map<String, String> _activityTitles = {
   ActivityRoutes.statusByAssignee: '담당자별 활동 현황',
   ActivityRoutes.statusByStore: '가맹점별 활동 현황',
   ActivityRoutes.drafts: '임시보관',
-  ActivityRoutes.manage: '활동관리',
+  ActivityRoutes.manage: '활동관리상세',
   ActivityRoutes.manageRegister: '활동 관리 등록',
   ActivityRoutes.instructions: '지시사항(결재특이사항)',
   ActivityRoutes.checklist: '체크리스트',

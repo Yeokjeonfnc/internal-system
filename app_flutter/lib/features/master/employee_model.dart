@@ -23,4 +23,39 @@ class Employee {
   /// 입사년월일 `YYYY-MM-DD`
   final String hireDateYmd;
   final bool tagEnabled;
+
+  factory Employee.fromJson(Map<String, dynamic> json) {
+    return Employee(
+      no: json['userIdx'] as int? ?? 0,
+      name: json['userName'] as String? ?? '',
+      department: json['deptNm'] as String? ?? '',
+      jobTitle: json['positionNm'] as String? ?? '',
+      mobilePhone: json['userPhone'] as String? ?? '',
+      email: json['userEmail'] as String? ?? '',
+      hireDateYmd: _formatDate(json['createdAt']),
+      tagEnabled: (json['svYn'] as String?) == 'Y',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'userIdx': no,
+      'userName': name,
+      'deptNm': department,
+      'positionNm': jobTitle,
+      'userPhone': mobilePhone,
+      'userEmail': email,
+      'createdAt': hireDateYmd,
+      'svYn': tagEnabled ? 'Y' : 'N',
+    };
+  }
+
+  static String _formatDate(dynamic dateValue) {
+    if (dateValue == null) return '';
+    final str = dateValue.toString();
+    if (str.length >= 10) {
+      return str.substring(0, 10);
+    }
+    return str;
+  }
 }

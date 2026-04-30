@@ -3,12 +3,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart' as provider;
 
 import '../router/app_router.dart';
 import '../router/route_meta.dart';
 import '../../features/activities/activity_routes.dart';
 import '../theme/app_colors.dart';
 import '../theme/shell_tab_chrome.dart';
+import '../auth/auth_provider.dart';
+import '../auth/user_profile_dialog.dart';
 import 'tab_manager_provider.dart';
 
 class MainFrameLayout extends ConsumerStatefulWidget {
@@ -52,7 +55,7 @@ class _MainFrameLayoutState extends ConsumerState<MainFrameLayout> {
                   children: [
                     _ShellTabStrip(currentPath: location),
                     _ShellTopBanner(meta: meta, currentPath: location),
-                    Expanded(child: widget.child),
+                    Expanded(child: SelectionArea(child: widget.child)),
                   ],
                 ),
               ),
@@ -98,36 +101,63 @@ class _ShellTabStrip extends ConsumerWidget {
                 ),
               ),
             ),
-            Align(
-              alignment: Alignment.bottomLeft,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.fromLTRB(
-                  12,
-                  ShellTabChrome.tabStripTopPadding,
-                  12,
-                  0,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    for (var i = 0; i < tabs.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 6),
-                      _ShellTabChip(
-                        tab: tabs[i],
-                        selected: tabs[i].location == currentPath,
-                        closable: tabs[i].location != AppRoutes.dashboard,
-                        onSelect: () {
-                          if (tabs[i].location != currentPath) {
-                            context.go(tabs[i].location);
-                          }
-                        },
-                        onClose: () =>
-                            notifier.closeTab(context, tabs[i].location),
+            Positioned.fill(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: EdgeInsets.fromLTRB(
+                        12,
+                        ShellTabChrome.tabStripTopPadding,
+                        12,
+                        0,
                       ),
-                    ],
-                  ],
-                ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          for (var i = 0; i < tabs.length; i++) ...[
+                            if (i > 0) const SizedBox(width: 6),
+                            _ShellTabChip(
+                              tab: tabs[i],
+                              selected: tabs[i].location == currentPath,
+                              closable: tabs[i].location != AppRoutes.dashboard,
+                              onSelect: () {
+                                if (tabs[i].location != currentPath) {
+                                  context.go(tabs[i].location);
+                                }
+                              },
+                              onClose: () =>
+                                  notifier.closeTab(context, tabs[i].location),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (tabs.any((tab) => tab.location != AppRoutes.dashboard))
+                    Padding(
+                      padding: const EdgeInsets.only(right: 10, bottom: 6),
+                      child: Tooltip(
+                        message: '열린 탭 모두 닫기',
+                        child: IconButton(
+                          onPressed: () => notifier.closeAllTabs(context),
+                          icon: const Icon(Icons.close_fullscreen_rounded),
+                          color: Colors.white,
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.12,
+                            ),
+                            hoverColor: Colors.white.withValues(alpha: 0.18),
+                            minimumSize: const Size(34, 34),
+                            padding: EdgeInsets.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ],
@@ -446,11 +476,15 @@ class _ShellBannerLeadingButton extends StatelessWidget {
 /// 2. 없을 때는 [parentPathFor] 로 부모 경로를 조회해서 이동한다.
 void _shellNavigateBack(BuildContext context, String currentPath) {
   final router = GoRouter.of(context);
+  final fallback = parentPathFor(currentPath);
+  if (currentPath.startsWith(kActivitiesRoot) && fallback != null) {
+    context.go(fallback);
+    return;
+  }
   if (router.canPop()) {
     router.pop();
     return;
   }
-  final fallback = parentPathFor(currentPath);
   if (fallback != null) {
     context.go(fallback);
   }
@@ -847,79 +881,105 @@ class _SidebarUserProfile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const userName = '김민효';
-    const userRole = '관리자';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 10, 8, 12),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: AppTheme.accentRed.withValues(alpha: 0.35),
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: const Text(
-              '김',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                fontFamilyFallback: AppTheme.koreanFontFallback,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  userName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+    return provider.Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        if (!authProvider.isLoggedIn) {
+          return const SizedBox.shrink();
+        }
+
+        final userName = authProvider.userName;
+        final userRole = authProvider.user?['positionNm']?.toString() ?? '직원';
+        final firstChar = userName.isNotEmpty ? userName[0] : '?';
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 8, 12),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppTheme.accentRed.withValues(alpha: 0.35),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  firstChar,
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 13,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                     fontFamilyFallback: AppTheme.koreanFontFallback,
                   ),
                 ),
-                SizedBox(height: 2),
-                Text(
-                  userRole,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Color(0xFFADB5BD),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    fontFamilyFallback: AppTheme.koreanFontFallback,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      userName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        fontFamilyFallback: AppTheme.koreanFontFallback,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      userRole,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFADB5BD),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        fontFamilyFallback: AppTheme.koreanFontFallback,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: '설정',
+                onPressed: () {
+                  showUserProfileDialog(context);
+                },
+                icon: const Icon(Icons.settings, size: 18),
+                color: const Color(0xFFADB5BD),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.03),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-              ],
-            ),
-          ),
-          IconButton(
-            tooltip: '로그아웃',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('로그아웃 기능은 추후 연결됩니다.')),
-              );
-            },
-            icon: const Icon(Icons.logout_rounded, size: 18),
-            color: const Color(0xFFADB5BD),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 0.03),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
               ),
-            ),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: '로그아웃',
+                onPressed: () async {
+                  await authProvider.logout();
+                  if (context.mounted) {
+                    context.go('/login');
+                  }
+                },
+                icon: const Icon(Icons.logout_rounded, size: 18),
+                color: const Color(0xFFADB5BD),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.03),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

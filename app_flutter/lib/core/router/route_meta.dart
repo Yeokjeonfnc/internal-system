@@ -58,7 +58,7 @@ RouteMeta resolveRouteMeta(String path) {
       return const RouteMeta(title: '활동 관리', parentPath: AppRoutes.dashboard);
     }
     final title = activityPageTitle(path);
-    return RouteMeta(title: title, parentPath: ActivityRoutes.hub);
+    return RouteMeta(title: title, parentPath: activityParentPath(path));
   }
 
   return const RouteMeta(title: '역전에프앤씨');

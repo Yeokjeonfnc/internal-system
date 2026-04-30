@@ -3,12 +3,14 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart' as provider;
 
 import 'package:app_flutter/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:app_flutter/features/founders/partner_detail_view.dart';
 import 'package:app_flutter/features/founders/partner_list_view.dart';
 import 'package:app_flutter/features/master/employee_list_view.dart';
 import 'package:app_flutter/features/master/employee_register_view.dart';
+import 'package:app_flutter/features/master/master_checklist_management_view.dart';
 import 'package:app_flutter/features/properties/property_detail_view.dart';
 import 'package:app_flutter/features/properties/property_list_view.dart';
 import 'package:app_flutter/features/properties/property_register_view.dart';
@@ -26,6 +28,8 @@ import 'package:app_flutter/features/sales_area/sales_area_register_view.dart';
 import 'package:app_flutter/features/master/master_management_placeholders.dart';
 import 'package:app_flutter/features/master/department_view.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/core/auth/auth_provider.dart';
+import 'package:app_flutter/core/auth/login_view.dart';
 import '../layout/main_frame_layout.dart';
 import 'app_data_refresh.dart';
 import 'app_route_def.dart';
@@ -330,6 +334,24 @@ List<RouteBase> _shellChildRoutes() {
               const NoTransitionPage(child: ActivityRegisterView()),
         ),
         GoRoute(
+          path: 'manage/:actIdx',
+          pageBuilder: (context, state) {
+            final actIdx = int.tryParse(state.pathParameters['actIdx'] ?? '');
+            return NoTransitionPage(
+              child: ActivityRegisterView(actIdx: actIdx),
+            );
+          },
+        ),
+        GoRoute(
+          path: 'drafts/:actIdx',
+          pageBuilder: (context, state) {
+            final actIdx = int.tryParse(state.pathParameters['actIdx'] ?? '');
+            return NoTransitionPage(
+              child: ActivityRegisterView(actIdx: actIdx),
+            );
+          },
+        ),
+        GoRoute(
           path: 'drafts',
           pageBuilder: (context, state) => const NoTransitionPage(
             child: ActivityManagementView(initialTab: 0),
@@ -390,6 +412,19 @@ List<RouteBase> _shellChildRoutes() {
 
 final appRouter = GoRouter(
   redirect: (context, state) {
+    final isLoggedIn = provider.Provider.of<AuthProvider>(context, listen: false).isLoggedIn;
+    final isLoginRoute = state.uri.path == '/login';
+
+    // 로그인되지 않았고 로그인 페이지가 아니면 로그인 페이지로 리다이렉트
+    if (!isLoggedIn && !isLoginRoute) {
+      return '/login';
+    }
+
+    // 이미 로그인했는데 로그인 페이지로 가려고 하면 홈으로 리다이렉트
+    if (isLoggedIn && isLoginRoute) {
+      return '/';
+    }
+
     final path = state.uri.path;
     if ((path.startsWith('/stores/') ||
             path.startsWith('/founders/') ||
@@ -400,6 +435,13 @@ final appRouter = GoRouter(
     return null;
   },
   routes: [
+    GoRoute(
+      path: '/login',
+      name: 'login',
+      pageBuilder: (context, state) => NoTransitionPage(
+        child: const LoginView(),
+      ),
+    ),
     ShellRoute(
       builder: (context, state, child) => _RouteDataRefreshBoundary(
         routeKey: state.uri.toString(),

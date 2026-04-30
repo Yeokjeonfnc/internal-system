@@ -1,18 +1,27 @@
 // 활동 관리 등록 — 제공 화면 구조·[FormStylePalette] 톤.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
+import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/form/common_date_input_with_picker.dart'
     show CalendarPickButton, showAccentDatePicker;
+import 'package:app_flutter/core/auth/auth_provider.dart';
 
 import 'package:app_flutter/features/activities/activity_approval_line_dialog.dart';
+import 'package:app_flutter/features/activities/activity_api_service.dart';
 import 'package:app_flutter/features/activities/activity_instructions_dialog.dart';
 import 'package:app_flutter/features/activities/activity_visit_history_dialog.dart';
+import 'package:app_flutter/features/activities/checklist_api_service.dart';
+import 'package:app_flutter/features/stores/store_api_service.dart';
+import 'package:app_flutter/features/stores/store_model.dart';
 
 /// 가맹점 기본정보 읽기 전용 값 칸: 내용에 맞게 줄이되 긴 문구·숫자는 이 폭을 넘지 않게.
 const double _kStoreReadonlyMaxWidth = 280;
@@ -54,7 +63,7 @@ Widget _storeReadonlyValue(String? text) {
   final s = empty
       ? kActivityFormValueStyle.copyWith(color: FormStylePalette.textMuted)
       : kActivityFormValueStyle;
-  final display = empty ? '—' : text.trim();
+  final display = empty ? '' : text.trim();
   return Align(
     alignment: Alignment.centerLeft,
     child: ConstrainedBox(
@@ -181,17 +190,33 @@ class _ActivityFormDateField extends StatelessWidget {
 ///
 /// [ActivityManagementView] 탭 2또는 `/activities/manage/register` 경로에 동일 위젯을 쓴다.
 class ActivityRegisterView extends StatefulWidget {
-  const ActivityRegisterView({super.key});
+  const ActivityRegisterView({super.key, this.actIdx});
+
+  final int? actIdx;
 
   @override
   State<ActivityRegisterView> createState() => _ActivityRegisterViewState();
 }
 
 class _ActivityRegisterViewState extends State<ActivityRegisterView> {
-  static const _kinds = <String>['방문', '전화'];
+  static const _kinds = <String>['상담', '방문', '점검', '전화'];
 
   String _activityKind = '방문';
   late DateTime _activityDate;
+  Store? _selectedStore;
+  bool _saving = false;
+  bool _autoSaving = false;
+  bool _submitted = false;
+  int? _draftActIdx;
+  Timer? _autoSaveTimer;
+
+  final _specialNotesController = TextEditingController();
+  final _activityNotesController = TextEditingController();
+  final _suggestionsController = TextEditingController();
+  final _svNotesController = TextEditingController();
+  
+  // 체크리스트 블록에 접근하기 위한 GlobalKey
+  final _checklistKey = GlobalKey<_ChecklistBlockState>();
 
   /// 결재 절차선 — [결재라인 설정]에서 반영. `결재` 행(칸 수 [kActivityApprovalLineSlotCount]).
   List<String> _approvalLineStampSlots = const ['김민효', '', '', '', '', '', ''];
@@ -208,6 +233,91 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   void initState() {
     super.initState();
     _activityDate = _today;
+    _draftActIdx = widget.actIdx;
+    _initializeApprovalLine();
+    if (widget.actIdx != null) {
+      _loadActivity(widget.actIdx!);
+    }
+    _autoSaveTimer = Timer.periodic(
+      const Duration(minutes: 5),
+      (_) => _autoSaveDraft(),
+    );
+  }
+
+  void _initializeApprovalLine() {
+    final authProvider = context.read<AuthProvider>();
+    final user = authProvider.user;
+    
+    if (user != null) {
+      final userName = user['userNm']?.toString() ?? '';
+      final positionNm = user['positionNm']?.toString() ?? '';
+      
+      _approvalLineStampSlots = [userName, '', '', '', '', '', ''];
+      _rankLineStampSlots = [positionNm, '', '', '', '', '', ''];
+    }
+  }
+
+  Future<void> _loadActivity(int actIdx) async {
+    final activity = await ActivityApiService().getActivity(actIdx);
+    if (!mounted || activity == null) return;
+
+    Store? store;
+    final rawStoreIdx = activity['storeIdx'];
+    if (rawStoreIdx is int) {
+      store = await StoreApiService().getStoreByIndex(rawStoreIdx);
+    }
+    if (!mounted) return;
+
+    final rawNotes = activity['actNotes']?.toString() ?? '';
+    final noteParts = rawNotes.split('\n\n');
+    setState(() {
+      _selectedStore = store;
+      _activityKind = activity['actType']?.toString() ?? _activityKind;
+      _activityDate = _parseDate(activity['actDt']) ?? _activityDate;
+      _specialNotesController.text = noteParts.isNotEmpty
+          ? noteParts.first
+          : '';
+      _activityNotesController.text = noteParts.length > 1
+          ? noteParts.skip(1).join('\n\n')
+          : '';
+      _suggestionsController.text = activity['suggestions']?.toString() ?? '';
+      _svNotesController.text = activity['svNotes']?.toString() ?? '';
+    });
+
+    // 체크리스트 결과 로드
+    _loadChecklistResults(actIdx);
+  }
+
+  Future<void> _loadChecklistResults(int actIdx) async {
+    try {
+      final results = await ActivityApiService().getChecklistResults(actIdx);
+      if (!mounted) return;
+      
+      // 체크리스트 블록이 준비되면 결과 설정
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checklistKey.currentState?.setChecklistResults(results);
+      });
+    } catch (e) {
+      debugPrint('체크리스트 결과 로드 에러: $e');
+    }
+  }
+
+  DateTime? _parseDate(dynamic value) {
+    final raw = value?.toString();
+    if (raw == null || raw.isEmpty) return null;
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return null;
+    return DateTime(parsed.year, parsed.month, parsed.day);
+  }
+
+  @override
+  void dispose() {
+    _autoSaveTimer?.cancel();
+    _specialNotesController.dispose();
+    _activityNotesController.dispose();
+    _suggestionsController.dispose();
+    _svNotesController.dispose();
+    super.dispose();
   }
 
   Future<void> _pickActivityDate() async {
@@ -236,6 +346,147 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
       _approvalLineStampSlots = r.names;
       _rankLineStampSlots = r.titles;
     });
+  }
+
+  Future<void> _openStoreLookup() async {
+    final selected = await showDialog<Store>(
+      context: context,
+      builder: (dialogContext) => const _StoreLookupDialog(),
+    );
+    if (!mounted || selected == null) return;
+    final detail =
+        await StoreApiService().getStoreByIndex(selected.storeIdx) ?? selected;
+    if (!mounted) return;
+    setState(() => _selectedStore = detail);
+  }
+
+  Map<String, dynamic>? _buildPayload(String apprStatus) {
+    final store = _selectedStore;
+    if (store == null) return null;
+    
+    // 체크리스트 결과 수집
+    final checklistResults = _getChecklistResults();
+    
+    return {
+      'storeIdx': store.storeIdx,
+      'actType': _activityKind,
+      'actDt': _formatYmd(_activityDate),
+      'actNotes': [
+        _specialNotesController.text.trim(),
+        _activityNotesController.text.trim(),
+      ].where((text) => text.isNotEmpty).join('\n\n'),
+      'svId': store.svId.trim().isEmpty ? null : store.svId.trim(),
+      'apprStatus': apprStatus,
+      'suggestions': _suggestionsController.text.trim(),
+      'svNotes': _svNotesController.text.trim(),
+      if (checklistResults != null && checklistResults.isNotEmpty)
+        'checklistResults': checklistResults,
+    };
+  }
+
+  /// 체크리스트 결과를 JSON 형식으로 반환
+  List<Map<String, dynamic>>? _getChecklistResults() {
+    final checklistState = _checklistKey.currentState;
+    if (checklistState == null) return null;
+    
+    final items = checklistState._items;
+    final results = checklistState._result;
+    
+    if (items.isEmpty || results.isEmpty) return null;
+    
+    final List<Map<String, dynamic>> checklistResults = [];
+    for (var i = 0; i < items.length; i++) {
+      final answerVal = results[i];
+      // "미평가"는 제외하고 실제 평가된 항목만 저장
+      if (answerVal != '미평가') {
+        checklistResults.add({
+          'chkIdx': items[i].chkIdx,
+          'answerVal': answerVal,
+          'answerScore': answerVal == 'Y' ? items[i].baseScore : 0,
+        });
+      }
+    }
+    
+    return checklistResults.isEmpty ? null : checklistResults;
+  }
+
+  /// 체크리스트에 미평가 항목이 있는지 확인
+  bool _hasUnevaluatedChecklist() {
+    final checklistState = _checklistKey.currentState;
+    if (checklistState == null) return false;
+    
+    final items = checklistState._items;
+    final results = checklistState._result;
+    
+    // 체크리스트 항목이 있는데 미평가가 있으면 true
+    if (items.isNotEmpty && results.contains('미평가')) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  Future<void> _autoSaveDraft() async {
+    if (_submitted || _autoSaving || _saving || _selectedStore == null) return;
+    _autoSaving = true;
+    final saved = await _persistActivity('DRAFT');
+    _autoSaving = false;
+    if (saved != null) {
+      final rawActIdx = saved['actIdx'];
+      if (rawActIdx is int) {
+        _draftActIdx = rawActIdx;
+      }
+    }
+  }
+
+  Future<void> _saveActivity(String apprStatus) async {
+    if (_selectedStore == null) {
+      _snack('가맹점을 먼저 선택해 주세요.');
+      return;
+    }
+    
+    // 상신 시 체크리스트 검증
+    if (apprStatus == 'PENDING' && _hasUnevaluatedChecklist()) {
+      _snack('아직 체크되지 않은 체크리스트 항목이 있습니다.');
+      return;
+    }
+    
+    if (_saving) return;
+    setState(() => _saving = true);
+    final saved = await _persistActivity(apprStatus);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (saved == null) {
+      _snack('저장에 실패했습니다.');
+      return;
+    }
+    final rawActIdx = saved['actIdx'];
+    if (rawActIdx is int) {
+      _draftActIdx = rawActIdx;
+    }
+    if (apprStatus == 'PENDING') {
+      _submitted = true;
+      _autoSaveTimer?.cancel();
+    }
+    _snack(apprStatus == 'PENDING' ? '상신되었습니다.' : '임시보관되었습니다.');
+  }
+
+  Future<Map<String, dynamic>?> _persistActivity(String apprStatus) {
+    final payload = _buildPayload(apprStatus);
+    if (payload == null) return Future.value(null);
+    final api = ActivityApiService();
+    final actIdx = _draftActIdx;
+    if (actIdx == null) {
+      return api.createActivity(payload);
+    }
+    return api.updateActivity(actIdx, payload);
+  }
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -336,19 +587,27 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                         left: _LabeledField(
                           label: '가맹점',
                           requiredMark: true,
-                          child: _SearchLikeField(hint: '가맹점명 검색'),
+                          child: _SearchLikeField(
+                            hint: '',
+                            value: _selectedStore?.storeNm,
+                            onTap: _openStoreLookup,
+                          ),
                         ),
                         right: _LabeledField(
                           label: '브랜드',
                           requiredMark: true,
-                          child: _outlineInput(hint: '역전할머니맥주'),
+                          child: _outlineInput(
+                            hint: _selectedStore?.brandNm ?? '',
+                          ),
                         ),
                       ),
                       SizedBox(height: 12),
                       _TwoColRow(
                         left: _LabeledField(
                           label: '가맹점코드',
-                          child: _outlineInput(hint: '가맹점코드'),
+                          child: _outlineInput(
+                            hint: _selectedStore?.storeCd ?? '',
+                          ),
                         ),
                         right: const _FormColSpacer(),
                       ),
@@ -370,7 +629,9 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                             style: kActivityFormValueStyle,
                             borderRadius: BorderRadius.circular(8),
                             items: const [
+                              DropdownMenuItem(value: '상담', child: Text('상담')),
                               DropdownMenuItem(value: '방문', child: Text('방문')),
+                              DropdownMenuItem(value: '점검', child: Text('점검')),
                               DropdownMenuItem(value: '전화', child: Text('전화')),
                             ],
                             onChanged: (v) {
@@ -408,16 +669,21 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const _StoreBasicInfoPanel(),
+                _StoreBasicInfoPanel(store: _selectedStore),
                 const SizedBox(height: 20),
                 _PanelCard(
                   child: _LabeledField(
                     label: '특이사항',
-                    child: _outlineInput(hint: '특이사항을 입력하세요.', maxLines: 4),
+                    child: _outlineInput(
+                      hint: '',
+                      maxLines: 4,
+                      controller: _specialNotesController,
+                      readOnly: false,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const _ChecklistBlock(),
+                _ChecklistBlock(key: _checklistKey, store: _selectedStore),
                 const SizedBox(height: 20),
                 _PanelCard(
                   child: Column(
@@ -426,17 +692,32 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                       _LabeledField(
                         label: '주요상담내용',
                         requiredMark: true,
-                        child: _outlineInput(hint: '주요 상담 내용', maxLines: 4),
+                        child: _outlineInput(
+                          hint: '',
+                          maxLines: 5,
+                          controller: _activityNotesController,
+                          readOnly: false,
+                        ),
                       ),
                       SizedBox(height: 16),
                       _LabeledField(
                         label: '건의사항',
-                        child: _outlineInput(hint: '건의사항', maxLines: 3),
+                        child: _outlineInput(
+                          hint: '',
+                          maxLines: 5,
+                          controller: _suggestionsController,
+                          readOnly: false,
+                        ),
                       ),
                       SizedBox(height: 16),
                       _LabeledField(
                         label: '담당 수퍼바이저 의견',
-                        child: _outlineInput(hint: '의견', maxLines: 3),
+                        child: _outlineInput(
+                          hint: '',
+                          maxLines: 5,
+                          controller: _svNotesController,
+                          readOnly: false,
+                        ),
                       ),
                     ],
                   ),
@@ -446,7 +727,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     FilledButton(
-                      onPressed: () {},
+                      onPressed: () => _snack('첨부 기능은 추후 연결됩니다.'),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppTheme.statusNew,
                         foregroundColor: Colors.white,
@@ -525,7 +806,9 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                   runSpacing: 8,
                   children: [
                     FilledButton(
-                      onPressed: () {},
+                      onPressed: _saving
+                          ? null
+                          : () => _saveActivity('PENDING'),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppTheme.accentRed,
                         foregroundColor: Colors.white,
@@ -534,10 +817,10 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                           vertical: 12,
                         ),
                       ),
-                      child: const Text('상신하기'),
+                      child: Text(_saving ? '저장 중...' : '상신하기'),
                     ),
                     OutlinedButton(
-                      onPressed: () {},
+                      onPressed: _saving ? null : () => _saveActivity('DRAFT'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.accentRed,
                         side: const BorderSide(color: AppTheme.accentRed),
@@ -554,6 +837,227 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _StoreLookupDialog extends StatefulWidget {
+  const _StoreLookupDialog();
+
+  @override
+  State<_StoreLookupDialog> createState() => _StoreLookupDialogState();
+}
+
+class _StoreLookupDialogState extends State<_StoreLookupDialog> {
+  final _keywordController = TextEditingController();
+  late Future<List<Store>> _storesFuture;
+  Store? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _storesFuture = StoreApiService().getAllStores();
+    _keywordController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _keywordController.dispose();
+    super.dispose();
+  }
+
+  List<Store> _filter(List<Store> rows) {
+    final q = _keywordController.text.trim();
+    if (q.isEmpty) return rows;
+    return rows
+        .where(
+          (s) =>
+              s.storeNm.contains(q) ||
+              s.storeCd.contains(q) ||
+              s.brandNm.contains(q) ||
+              s.ownerNm.contains(q),
+        )
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(28),
+      child: ErpDialogFrame(
+        title: '가맹점 검색',
+        maxWidth: 980,
+        maxHeight: 680,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _keywordController,
+              style: kActivityFormValueStyle,
+              decoration: _inputDeco('가맹점명, 코드, 브랜드, 사업자명 검색'),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: FutureBuilder<List<Store>>(
+                future: _storesFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final rows = _filter(snapshot.data ?? const <Store>[]);
+                  if (rows.isEmpty) {
+                    return const Center(child: Text('검색 결과가 없습니다.'));
+                  }
+                  return DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: FormStylePalette.panelBorder),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        const ColoredBox(
+                          color: AppTheme.accentRed,
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 9,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: _StoreLookupHeaderCell('가맹점명'),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: _StoreLookupHeaderCell('브랜드'),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: _StoreLookupHeaderCell('가맹점코드'),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: _StoreLookupHeaderCell('사업자명'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: ListView.separated(
+                            itemCount: rows.length,
+                            separatorBuilder: (_, _) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final store = rows[index];
+                              final selected =
+                                  _selected?.storeIdx == store.storeIdx;
+                              return Material(
+                                color: selected
+                                    ? AppTheme.accentRed.withValues(alpha: 0.08)
+                                    : Colors.white,
+                                child: InkWell(
+                                  onTap: () =>
+                                      setState(() => _selected = store),
+                                  onDoubleTap: () =>
+                                      Navigator.of(context).pop(store),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          flex: 3,
+                                          child: Text(
+                                            store.storeNm,
+                                            style: kActivityFormValueStyle
+                                                .copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Text(
+                                            store.brandNm,
+                                            style: kActivityFormValueStyle,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Text(
+                                            store.storeCd,
+                                            style: kActivityFormValueStyle,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Text(
+                                            store.ownerNm,
+                                            style: kActivityFormValueStyle,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('취소'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _selected == null
+                      ? null
+                      : () => Navigator.of(context).pop(_selected),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.accentRed,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('선택'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StoreLookupHeaderCell extends StatelessWidget {
+  const _StoreLookupHeaderCell(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        fontFamilyFallback: AppTheme.koreanFontFallback,
       ),
     );
   }
@@ -597,7 +1101,9 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _StoreBasicInfoPanel extends StatelessWidget {
-  const _StoreBasicInfoPanel();
+  const _StoreBasicInfoPanel({required this.store});
+
+  final Store? store;
 
   @override
   Widget build(BuildContext context) {
@@ -639,7 +1145,9 @@ class _StoreBasicInfoPanel extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '사업자·계약·임대·면적·매출비중 등 API 연동 시 본 섹션에 반영됩니다.',
+            store == null
+                ? '가맹점 검색 후 선택하면 사업자·계약·임대·면적 정보가 자동 입력됩니다.'
+                : '선택한 가맹점의 기본정보가 자동 입력되었습니다.',
             style: GoogleFonts.notoSansKr(
               fontSize: 12,
               color: FormStylePalette.textSecondary,
@@ -653,37 +1161,15 @@ class _StoreBasicInfoPanel extends StatelessWidget {
               valignWithField: true,
               labelWidth: _kStoreLabelWidth,
               labelMaxLines: 2,
-              child: _storeReadonlyValue(''),
+              child: _storeReadonlyValue(store?.ownerNm),
             ),
             right: _LabeledField(
-              label: '가맹점 사업자와의 관계',
-              valignWithField: true,
-              labelWidth: _kStoreLabelWidth,
-              labelMaxLines: 2,
-              child: _storeReadonlyValue(' '),
-            ),
-          ),
-          const SizedBox(height: 8),
-          _TwoColRow(
-            left: _LabeledField(
               label: '가맹계약 담당자',
               valignWithField: true,
               labelWidth: _kStoreLabelWidth,
               labelMaxLines: 2,
-              child: _storeReadonlyValue(null),
+              child: _storeReadonlyValue(store?.contManager),
             ),
-            right: const _FormColSpacer(),
-          ),
-          const SizedBox(height: 8),
-          _TwoColRow(
-            left: _LabeledField(
-              label: '가맹계약 담당자',
-              valignWithField: true,
-              labelWidth: _kStoreLabelWidth,
-              labelMaxLines: 2,
-              child: _storeReadonlyValue('이영규'),
-            ),
-            right: const _FormColSpacer(),
           ),
           const SizedBox(height: 8),
           _TwoColRow(
@@ -692,7 +1178,7 @@ class _StoreBasicInfoPanel extends StatelessWidget {
               valignWithField: true,
               labelWidth: _kStoreLabelWidth,
               labelMaxLines: 2,
-              child: _storeReadonlyValue('2025-12-31'),
+              child: _storeReadonlyValue(store?.firstContDt),
             ),
             right: _LabeledField(
               label: '현재 가맹계약 기간',
@@ -703,12 +1189,12 @@ class _StoreBasicInfoPanel extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _storeReadonlyValue('2025-12-31'),
+                  _storeReadonlyValue(store?.contStartDt),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     child: Text('—', style: kActivityFormValueStyle),
                   ),
-                  _storeReadonlyValue('2027-12-30'),
+                  _storeReadonlyValue(store?.contEndDt),
                 ],
               ),
             ),
@@ -723,7 +1209,10 @@ class _StoreBasicInfoPanel extends StatelessWidget {
                   valignWithField: true,
                   labelWidth: _kStoreLabelWidthTight,
                   labelMaxLines: 2,
-                  child: _storeReadonlyWithUnit('60,000,000', '원'),
+                  child: _storeReadonlyWithUnit(
+                    _moneyText(store?.rentDeposit),
+                    '원',
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -733,7 +1222,10 @@ class _StoreBasicInfoPanel extends StatelessWidget {
                   valignWithField: true,
                   labelWidth: _kStoreLabelWidthTight,
                   labelMaxLines: 2,
-                  child: _storeReadonlyWithUnit('190,000,000', '원'),
+                  child: _storeReadonlyWithUnit(
+                    _moneyText(store?.premiumFee),
+                    '원',
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -743,7 +1235,10 @@ class _StoreBasicInfoPanel extends StatelessWidget {
                   valignWithField: true,
                   labelWidth: _kStoreLabelWidthTight,
                   labelMaxLines: 2,
-                  child: _storeReadonlyWithUnit('3,100,000', '원'),
+                  child: _storeReadonlyWithUnit(
+                    _moneyText(store?.monthlyRent),
+                    '원',
+                  ),
                 ),
               ),
             ],
@@ -759,7 +1254,7 @@ class _StoreBasicInfoPanel extends StatelessWidget {
                   valignWithField: true,
                   labelWidth: _kStoreLabelWidthTight,
                   labelMaxLines: 2,
-                  child: _storeReadonlyWithUnit('1', '층'),
+                  child: _storeReadonlyWithUnit(_intText(store?.floor), '층'),
                 ),
               ),
               const SizedBox(width: 16),
@@ -772,9 +1267,19 @@ class _StoreBasicInfoPanel extends StatelessWidget {
                   labelMaxLines: 2,
                   child: Row(
                     children: [
-                      Expanded(child: _storeReadonlyWithUnit('89.99', 'm²')),
+                      Expanded(
+                        child: _storeReadonlyWithUnit(
+                          _decimalText(store?.contArea),
+                          'm²',
+                        ),
+                      ),
                       const SizedBox(width: 8),
-                      Expanded(child: _storeReadonlyWithUnit('27.27', '평')),
+                      Expanded(
+                        child: _storeReadonlyWithUnit(
+                          _pyeongText(store?.contArea),
+                          '평',
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -789,9 +1294,19 @@ class _StoreBasicInfoPanel extends StatelessWidget {
                   labelMaxLines: 2,
                   child: Row(
                     children: [
-                      Expanded(child: _storeReadonlyWithUnit('79', 'm²')),
+                      Expanded(
+                        child: _storeReadonlyWithUnit(
+                          _decimalText(store?.realArea),
+                          'm²',
+                        ),
+                      ),
                       const SizedBox(width: 8),
-                      Expanded(child: _storeReadonlyWithUnit('23.94', '평')),
+                      Expanded(
+                        child: _storeReadonlyWithUnit(
+                          _pyeongText(store?.realArea),
+                          '평',
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -801,6 +1316,34 @@ class _StoreBasicInfoPanel extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static String _intText(int? value) {
+    if (value == null || value == 0) return '—';
+    return value.toString();
+  }
+
+  static String _moneyText(int? value) {
+    if (value == null || value == 0) return '—';
+    final raw = value.toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < raw.length; i++) {
+      if (i > 0 && (raw.length - i) % 3 == 0) buffer.write(',');
+      buffer.write(raw[i]);
+    }
+    return buffer.toString();
+  }
+
+  static String _decimalText(String? value) {
+    final parsed = double.tryParse(value ?? '');
+    if (parsed == null || parsed == 0) return '—';
+    return parsed.toStringAsFixed(parsed.truncateToDouble() == parsed ? 0 : 2);
+  }
+
+  static String _pyeongText(String? sqmText) {
+    final sqm = double.tryParse(sqmText ?? '');
+    if (sqm == null || sqm == 0) return '—';
+    return (sqm / 3.305785).toStringAsFixed(2);
   }
 }
 
@@ -888,24 +1431,43 @@ class _LabeledField extends StatelessWidget {
 }
 
 class _SearchLikeField extends StatelessWidget {
-  const _SearchLikeField({required this.hint});
+  const _SearchLikeField({required this.hint, this.value, required this.onTap});
 
   final String hint;
+  final String? value;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      readOnly: true,
-      style: kActivityFormValueStyle,
-      decoration: _inputDeco(hint).copyWith(
-        suffixIcon: const Icon(
-          Icons.search,
-          size: 20,
-          color: FormStylePalette.textSecondary,
-        ),
-        suffixIconConstraints: const BoxConstraints(
-          minWidth: 36,
-          minHeight: 36,
+    final display = value?.trim();
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: _activityFormFieldShell(
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  display == null || display.isEmpty ? hint : display,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: display == null || display.isEmpty
+                      ? kActivityFormValueStyle.copyWith(
+                          color: FormStylePalette.textMuted,
+                        )
+                      : kActivityFormValueStyle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.search,
+                size: 20,
+                color: FormStylePalette.textSecondary,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1141,24 +1703,132 @@ class _ApprovalTable extends StatelessWidget {
 }
 
 class _ChecklistBlock extends StatefulWidget {
-  const _ChecklistBlock();
+  const _ChecklistBlock({super.key, required this.store});
+
+  final Store? store;
 
   @override
   State<_ChecklistBlock> createState() => _ChecklistBlockState();
 }
 
 class _ChecklistBlockState extends State<_ChecklistBlock> {
-  static const _rows = <_ClRow>[
-    _ClRow(1, '외관 시설', '가게 주변·외관이 청결하고 정리되어 있는가?', '미평가'),
-    _ClRow(2, '외관 시설', '홀 조명·좌석·안내 표지 상태는 양호한가?', '미평가'),
-    _ClRow(3, '주방 시설', '냉장·위생·반찬 보관이 기준에 맞는가?', '미평가'),
-    _ClRow(4, '주방 시설', '입고·선입선출·유통기한 관리가 이뤄지는가?', '미평가'),
-  ];
+  List<ChecklistItem> _items = [];
+  late final List<String> _result = [];
+  bool _loading = true;
 
-  late final List<String> _result = _rows.map((e) => e.defaultResult).toList();
+  @override
+  void initState() {
+    super.initState();
+    _loadChecklists();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ChecklistBlock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.store?.brandCd != oldWidget.store?.brandCd) {
+      _loadChecklists();
+    }
+  }
+
+  Future<void> _loadChecklists() async {
+    if (widget.store == null || widget.store!.brandCd.isEmpty) {
+      setState(() {
+        _items = [];
+        _result.clear();
+        _loading = false;
+      });
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    try {
+      final items = await ChecklistApiService().getChecklistsByBrand(
+        widget.store!.brandCd,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _items = items;
+        _result.clear();
+        _result.addAll(List.filled(items.length, '미평가'));
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint('체크리스트 로드 에러: $e');
+      if (!mounted) return;
+      setState(() {
+        _items = [];
+        _result.clear();
+        _loading = false;
+      });
+    }
+  }
+
+  /// 체크리스트 결과 설정 (임시보관 상세 로드 시 사용)
+  void setChecklistResults(List<Map<String, dynamic>> results) {
+    if (_items.isEmpty) return;
+
+    // chkIdx를 키로 하는 결과 맵 생성
+    final resultMap = <int, String>{};
+    for (final result in results) {
+      final chkIdx = result['chkIdx'] as int?;
+      final answerVal = result['answerVal']?.toString() ?? '미평가';
+      if (chkIdx != null) {
+        resultMap[chkIdx] = answerVal;
+      }
+    }
+
+    // _items의 순서대로 결과 매핑
+    setState(() {
+      _result.clear();
+      for (final item in _items) {
+        _result.add(resultMap[item.chkIdx] ?? '미평가');
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const _PanelCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SectionTitle('체크리스트'),
+            SizedBox(height: 20),
+            Center(child: CircularProgressIndicator()),
+            SizedBox(height: 20),
+          ],
+        ),
+      );
+    }
+
+    if (_items.isEmpty) {
+      return const _PanelCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SectionTitle('체크리스트'),
+            SizedBox(height: 12),
+            Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Text(
+                  '가맹점을 선택하면 해당 브랜드의 체크리스트가 표시됩니다.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: FormStylePalette.textMuted,
+                    fontFamilyFallback: AppTheme.koreanFontFallback,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return _PanelCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1175,65 +1845,108 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
                 0: FixedColumnWidth(44),
                 1: FixedColumnWidth(80),
                 2: FlexColumnWidth(1.0),
-                3: FixedColumnWidth(120),
+                3: FixedColumnWidth(140),
               },
               defaultVerticalAlignment: TableCellVerticalAlignment.middle,
               border: kErpTableInnerGridBorder,
               children: [
-                TableRow(
-                  decoration: const BoxDecoration(
+                const TableRow(
+                  decoration: BoxDecoration(
                     color: FormStylePalette.tableHeaderBg,
                   ),
-                  children: const [
+                  children: [
                     _ChHdr('번호'),
                     _ChHdr('구분'),
                     _ChHdr('체크항목'),
                     _ChHdr('체크결과'),
                   ],
                 ),
-                for (var i = 0; i < _rows.length; i++)
+                for (var i = 0; i < _items.length; i++)
                   TableRow(
                     children: [
-                      _ChCell('${_rows[i].no}'),
-                      _ChCell(_rows[i].segment, left: true),
-                      _ChCell(_rows[i].q, left: true),
+                      _ChCell('${i + 1}'),
+                      _ChCell(_items[i].chkTypeNm, left: true),
+                      _ChCell(_items[i].chkContent, left: true),
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 2,
-                          vertical: 2,
+                          horizontal: 8,
+                          vertical: 4,
                         ),
-                        child: DropdownButtonHideUnderline(
-                          child: ButtonTheme(
-                            alignedDropdown: true,
-                            child: DropdownButton<String>(
-                              value: _result[i],
-                              isDense: true,
-                              isExpanded: true,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: FormStylePalette.textPrimary,
-                                fontFamilyFallback: AppTheme.koreanFontFallback,
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: '미평가',
-                                  child: Text('미평가'),
-                                ),
-                                DropdownMenuItem(
-                                  value: '양호',
-                                  child: Text('양호'),
-                                ),
-                                DropdownMenuItem(
-                                  value: '불량',
-                                  child: Text('불량'),
-                                ),
-                              ],
-                              onChanged: (v) {
-                                if (v == null) return;
-                                setState(() => _result[i] = v);
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _result[i] = _result[i] == 'Y' ? '미평가' : 'Y';
+                                });
                               },
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: Checkbox(
+                                      value: _result[i] == 'Y',
+                                      onChanged: (v) {
+                                        setState(() {
+                                          _result[i] = _result[i] == 'Y' ? '미평가' : 'Y';
+                                        });
+                                      },
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    '적합',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: FormStylePalette.textPrimary,
+                                      fontFamilyFallback: AppTheme.koreanFontFallback,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 12),
+                            InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _result[i] = _result[i] == 'N' ? '미평가' : 'N';
+                                });
+                              },
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: Checkbox(
+                                      value: _result[i] == 'N',
+                                      onChanged: (v) {
+                                        setState(() {
+                                          _result[i] = _result[i] == 'N' ? '미평가' : 'N';
+                                        });
+                                      },
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    '미적합',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: FormStylePalette.textPrimary,
+                                      fontFamilyFallback: AppTheme.koreanFontFallback,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -1245,15 +1958,6 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
       ),
     );
   }
-}
-
-class _ClRow {
-  const _ClRow(this.no, this.segment, this.q, this.defaultResult);
-
-  final int no;
-  final String segment;
-  final String q;
-  final String defaultResult;
 }
 
 class _ChHdr extends StatelessWidget {
@@ -1322,9 +2026,15 @@ InputDecoration _inputDeco(String hint) {
   );
 }
 
-Widget _outlineInput({required String hint, int maxLines = 1}) {
+Widget _outlineInput({
+  required String hint,
+  int maxLines = 1,
+  TextEditingController? controller,
+  bool readOnly = true,
+}) {
   return TextField(
-    readOnly: true,
+    controller: controller,
+    readOnly: readOnly,
     maxLines: maxLines,
     style: kActivityFormValueStyle,
     decoration: _inputDeco(hint),

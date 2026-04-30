@@ -41,6 +41,34 @@ class PropertyRegisterDraft {
   String maintFee = '';
   String notes = '';
 
+  void hydrateFromProperty(Property property) {
+    surveyDate = _propertyParseYmd(property.surveyDate);
+    registrationDate = _propertyParseYmd(property.registrationDate);
+    ownership = property.ownership;
+    status = property.status;
+    region = property.region;
+    addressScope = property.addressScope;
+    postalCode = property.postalCode;
+    address = property.address;
+    addressDetail = property.addressDetail;
+    name = property.name;
+    surveyor = property.surveyor;
+    floor = property.floor == '-' ? '' : property.floor;
+    contArea = _propertyNumberText(property.areaSqm);
+    realArea = _propertyNumberText(property.actualAreaSqm);
+    rentDeposit = property.deposit == 0
+        ? ''
+        : _formatMoneyInput(property.deposit);
+    monthlyRent = property.rent == 0 ? '' : _formatMoneyInput(property.rent);
+    premiumFee = property.keyMoney == 0
+        ? ''
+        : _formatMoneyInput(property.keyMoney);
+    maintFee = property.managementFee == 0
+        ? ''
+        : _formatMoneyInput(property.managementFee);
+    notes = property.notes;
+  }
+
   Map<String, dynamic> toPayload() {
     return {
       'propNm': name.trim(),
@@ -64,11 +92,25 @@ class PropertyRegisterDraft {
   }
 }
 
+String _propertyNumberText(num? value) {
+  if (value == null || value == 0) return '';
+  final doubleValue = value.toDouble();
+  if (doubleValue == doubleValue.roundToDouble()) {
+    return doubleValue.toInt().toString();
+  }
+  return doubleValue.toString();
+}
+
+DateTime? _propertyParseYmd(String? raw) {
+  if (raw == null || raw.isEmpty) return null;
+  return DateTime.tryParse(raw);
+}
+
 /// 개발관리 > 물건관리 > 상세 화면.
 ///
 /// 가맹점 상세와 동일하게 상단 타이틀 아래 **빨간 탭바**를 두고,
 /// [TabBarView] 안에 탭별 [PropertyInfoPanel] 콘텐츠를 둡니다.
-class PropertyDetailView extends ConsumerWidget {
+class PropertyDetailView extends ConsumerStatefulWidget {
   const PropertyDetailView({super.key, required this.propertyNo});
 
   final int propertyNo;
@@ -76,24 +118,60 @@ class PropertyDetailView extends ConsumerWidget {
   static const List<String> _tabTitles = ['기본정보', '상세조건'];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final propertyAsync = ref.watch(propertyDetailProvider(propertyNo));
+  ConsumerState<PropertyDetailView> createState() => _PropertyDetailViewState();
+}
+
+class _PropertyDetailViewState extends ConsumerState<PropertyDetailView> {
+  PropertyRegisterDraft? _draft;
+  int? _draftPropertyNo;
+  bool _isEditing = false;
+
+  @override
+  void dispose() {
+    _draft = null;
+    super.dispose();
+  }
+
+  PropertyRegisterDraft? _draftForProperty(Property? property) {
+    if (property == null) return null;
+    if (_draft == null || _draftPropertyNo != property.propIdx) {
+      _draft = PropertyRegisterDraft()..hydrateFromProperty(property);
+      _draftPropertyNo = property.propIdx;
+      _isEditing = false;
+    }
+    return _draft;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final propertyAsync = ref.watch(propertyDetailProvider(widget.propertyNo));
     final property = propertyAsync.valueOrNull;
+    final draft = _draftForProperty(property);
     final displayName = property?.name ?? '알 수 없음';
 
     return DetailScreenWithTabs(
       title: DetailScreenHeadline.leadTail(lead: displayName, tail: ' 상세 정보'),
-      tabTitles: _tabTitles,
+      tabTitles: PropertyDetailView._tabTitles,
       tabPages: [
         propertyAsync.when(
-          data: (property) =>
-              PropertyInfoPanel(property: property, fixedTabIndex: 0),
+          data: (property) => PropertyInfoPanel(
+            property: property,
+            fixedTabIndex: 0,
+            registerDraft: draft,
+            sharedEditing: _isEditing,
+            onEditModeChanged: (value) => setState(() => _isEditing = value),
+          ),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => const Center(child: Text('물건 정보를 불러오지 못했습니다.')),
         ),
         propertyAsync.when(
-          data: (property) =>
-              PropertyInfoPanel(property: property, fixedTabIndex: 1),
+          data: (property) => PropertyInfoPanel(
+            property: property,
+            fixedTabIndex: 1,
+            registerDraft: draft,
+            sharedEditing: _isEditing,
+            onEditModeChanged: (value) => setState(() => _isEditing = value),
+          ),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => const Center(child: Text('물건 정보를 불러오지 못했습니다.')),
         ),
@@ -114,6 +192,8 @@ class PropertyInfoPanel extends ConsumerStatefulWidget {
     this.fixedTabIndex,
     this.onSaved,
     this.registerDraft,
+    this.sharedEditing,
+    this.onEditModeChanged,
   });
 
   final Property? property;
@@ -126,6 +206,8 @@ class PropertyInfoPanel extends ConsumerStatefulWidget {
   final int? fixedTabIndex;
   final ValueChanged<Property>? onSaved;
   final PropertyRegisterDraft? registerDraft;
+  final bool? sharedEditing;
+  final ValueChanged<bool>? onEditModeChanged;
 
   @override
   ConsumerState<PropertyInfoPanel> createState() => _PropertyInfoPanelState();
@@ -136,9 +218,15 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
   final _detailConditionsKey = GlobalKey<_DetailConditionsTabState>();
   late bool _isEditing = widget.initiallyEditing;
 
-  void editProperty() => setState(() => _isEditing = true);
+  bool get _editing => widget.sharedEditing ?? _isEditing;
+
+  void editProperty() {
+    widget.onEditModeChanged?.call(true);
+    setState(() => _isEditing = true);
+  }
 
   void cancelPropertyEdit() {
+    widget.onEditModeChanged?.call(false);
     setState(() => _isEditing = false);
     _snack('취소되었습니다.');
   }
@@ -177,6 +265,7 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
         .then<void>((_) {});
     if (!mounted) return;
     widget.onSaved?.call(saved);
+    widget.onEditModeChanged?.call(false);
     setState(() => _isEditing = false);
     _snack('저장되었습니다.');
   }
@@ -200,13 +289,13 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
                 key: _basicInfoKey,
                 property: widget.property,
                 registerDraft: widget.registerDraft,
-                isEditing: _isEditing,
+                isEditing: _editing,
               )
             : _DetailConditionsTab(
                 key: _detailConditionsKey,
                 property: widget.property,
                 registerDraft: widget.registerDraft,
-                isEditing: _isEditing,
+                isEditing: _editing,
               ),
       );
     }
@@ -235,7 +324,7 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
                         children: [
                           _PanelHeader(
                             title: '물건정보',
-                            isEditing: _isEditing,
+                            isEditing: _editing,
                             onEnterEdit: editProperty,
                             onSave: saveProperty,
                             onCancel: cancelPropertyEdit,
@@ -251,7 +340,7 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
                           children: [
                             _PanelHeader(
                               title: '물건정보',
-                              isEditing: _isEditing,
+                              isEditing: _editing,
                               onEnterEdit: editProperty,
                               onSave: saveProperty,
                               onCancel: cancelPropertyEdit,
@@ -394,7 +483,7 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
 
   void _syncDraft() {
     final draft = widget.registerDraft;
-    if (draft == null || widget.property != null) return;
+    if (draft == null) return;
     draft
       ..surveyDate = _surveyDate
       ..registrationDate = _registrationDate
@@ -781,7 +870,7 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
 
   void _syncDraft() {
     final draft = widget.registerDraft;
-    if (draft == null || widget.property != null) return;
+    if (draft == null) return;
     draft
       ..floor = _floorController.text
       ..contArea = _contAreaController.text
@@ -1024,7 +1113,7 @@ String _sqmToPyeong(String? rawSqm) {
 
 String _formatMoneyInput(Object? value) {
   final digits = value?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '';
-  if (digits.isEmpty) return '';
+  if (digits.isEmpty) return '0';
   final buffer = StringBuffer();
   for (var i = 0; i < digits.length; i++) {
     final tail = digits.length - i;

@@ -73,3 +73,7 @@ doc/api/
 
 # Flutter app_flutter 폴더는 포함하되, 하위의 .gitignore를 따름
 # (app_flutter/.gitignore가 이미 존재)
+.idea/dataSources.xml
+.idea/vcs.xml
+.idea/dataSources.xml
+.idea/vcs.xml

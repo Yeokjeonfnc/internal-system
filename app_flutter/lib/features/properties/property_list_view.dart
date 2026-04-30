@@ -103,6 +103,7 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
       case CommonSearchFieldId.salesAreaSettingDateRange:
       case CommonSearchFieldId.employeeName:
       case CommonSearchFieldId.employeeDepartment:
+      case CommonSearchFieldId.employeePosition:
       case CommonSearchFieldId.employeeEmail:
       case CommonSearchFieldId.employeePhone:
         return;
@@ -244,6 +245,7 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
         case CommonSearchFieldId.salesAreaSettingDateRange:
         case CommonSearchFieldId.employeeName:
         case CommonSearchFieldId.employeeDepartment:
+        case CommonSearchFieldId.employeePosition:
         case CommonSearchFieldId.employeeEmail:
         case CommonSearchFieldId.employeePhone:
           break;

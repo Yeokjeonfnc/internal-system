@@ -104,6 +104,7 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
       case CommonSearchFieldId.salesAreaSettingDateRange:
       case CommonSearchFieldId.employeeName:
       case CommonSearchFieldId.employeeDepartment:
+      case CommonSearchFieldId.employeePosition:
       case CommonSearchFieldId.employeeEmail:
       case CommonSearchFieldId.employeePhone:
         return;
@@ -209,6 +210,7 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
         case CommonSearchFieldId.salesAreaSettingDateRange:
         case CommonSearchFieldId.employeeName:
         case CommonSearchFieldId.employeeDepartment:
+        case CommonSearchFieldId.employeePosition:
         case CommonSearchFieldId.employeeEmail:
         case CommonSearchFieldId.employeePhone:
           break;

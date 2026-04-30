@@ -9,6 +9,7 @@ import 'package:app_flutter/core/formatting/display_date.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_detail_action_buttons.dart';
+import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
 import 'package:app_flutter/core/widgets/common/form/common_accent_outline_button.dart';
 import 'package:app_flutter/core/widgets/common/form/common_date_input_with_picker.dart';
 import 'package:app_flutter/core/widgets/common/form/common_form_field_block.dart';
@@ -142,7 +143,7 @@ class _PhoneNumberTextInputFormatter extends TextInputFormatter {
 
 String _formatMoneyInput(Object? value) {
   final digits = value?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '';
-  if (digits.isEmpty) return '';
+  if (digits.isEmpty) return '0';
 
   final buffer = StringBuffer();
   for (var i = 0; i < digits.length; i++) {
@@ -220,9 +221,9 @@ class StoreRegisterDraft {
   final addressController = TextEditingController();
   final addressDetailController = TextEditingController();
   final notesController = TextEditingController();
-  final rentDepositController = TextEditingController();
-  final premiumFeeController = TextEditingController();
-  final monthlyRentController = TextEditingController();
+  final rentDepositController = TextEditingController(text: '0');
+  final premiumFeeController = TextEditingController(text: '0');
+  final monthlyRentController = TextEditingController(text: '0');
 
   final frFeeController = TextEditingController(text: '0');
   final eduFeeController = TextEditingController(text: '0');
@@ -247,6 +248,49 @@ class StoreRegisterDraft {
   DateTime? contractFirstContDt;
   DateTime? currentContractStart;
   DateTime? currentContractEnd;
+
+  void hydrateFromStore(Store store) {
+    storeAreaController.text = store.regionCd;
+    contactController.text = store.storeTel;
+    storeCodeController.text = store.storeCd;
+    businessNumberController.text = store.businessNumber;
+    storeNameController.text = store.storeNm;
+    ownerNameController.text = store.ownerNm;
+    floorController.text = store.floor == 0 ? '' : store.floor.toString();
+    parkingController.text = store.parkingCount == 0
+        ? ''
+        : store.parkingCount.toString();
+    contAreaController.text = store.contArea.isEmpty || store.contArea == '0'
+        ? ''
+        : store.contArea.toString();
+    realAreaController.text = store.realArea.isEmpty || store.realArea == '0'
+        ? ''
+        : store.realArea.toString();
+    zipCodeController.text = store.zipCd;
+    addressController.text = store.address;
+    addressDetailController.text = store.addressDetail;
+    notesController.text = store.notes;
+    rentDepositController.text = _formatMoneyInput(store.rentDeposit);
+    premiumFeeController.text = _formatMoneyInput(store.premiumFee);
+    monthlyRentController.text = _formatMoneyInput(store.monthlyRent);
+    frFeeController.text = _formatMoneyInput(store.frFee);
+    eduFeeController.text = _formatMoneyInput(store.eduFee);
+    insuDepositController.text = _formatMoneyInput(store.insuDeposit);
+    contDepositController.text = _formatMoneyInput(store.contDeposit);
+    contManagerController.text = store.contManager;
+    eduManagerController.text = store.eduManager;
+    supervisorController.text = store.svId;
+    type = store.storeType;
+    region = store.regionCd;
+    brand = store.brandCd;
+    status = store.storeStatus;
+    notes = store.notes;
+    firstContDt = tryParseLooseDate(store.firstContDt);
+    contractExpiryDate = tryParseLooseDate(store.contEndDt);
+    contractFirstContDt = tryParseLooseDate(store.firstContDt);
+    currentContractStart = tryParseLooseDate(store.contStartDt);
+    currentContractEnd = tryParseLooseDate(store.contEndDt);
+  }
 
   void dispose() {
     storeAreaController.dispose();
@@ -1681,6 +1725,8 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
           : property.rent.toString();
       _latitude = property.latitude;
       _longitude = property.longitude;
+      // 물건의 특이사항을 가맹점 특이사항으로 복사
+      _notesController.text = property.notes;
     });
 
     final draft = widget.registerDraft;
@@ -1704,6 +1750,8 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
           : _formatMoneyInput(property.rent);
       draft.latitude = property.latitude;
       draft.longitude = property.longitude;
+      // draft의 notes도 업데이트
+      draft.notesController.text = property.notes;
     }
 
     widget.onPropertySelected?.call(property);
@@ -2097,73 +2145,111 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
   }
 }
 
-class _PartnerLookupDialog extends StatelessWidget {
+class _PartnerLookupDialog extends StatefulWidget {
   const _PartnerLookupDialog({required this.partnersFuture});
 
   final Future<List<Partner>> partnersFuture;
 
   @override
+  State<_PartnerLookupDialog> createState() => _PartnerLookupDialogState();
+}
+
+class _PartnerLookupDialogState extends State<_PartnerLookupDialog> {
+  final _keywordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _keywordController.dispose();
+    super.dispose();
+  }
+
+  List<Partner> _filter(List<Partner> rows) {
+    final q = _keywordController.text.trim().toLowerCase();
+    if (q.isEmpty) return rows;
+    return rows.where((partner) {
+      final status = partnerStatusLabelKorean(partner.partnerStatus);
+      return partner.partnerNm.toLowerCase().contains(q) ||
+          partner.partnerTel.toLowerCase().contains(q) ||
+          status.toLowerCase().contains(q);
+    }).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('예비창업자 조회'),
-      contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-      content: SizedBox(
-        width: 680,
-        height: 480,
-        child: FutureBuilder<List<Partner>>(
-          future: partnersFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  '예비창업자 목록을 불러오지 못했습니다.',
-                  style: FormStylePalette.valueStyle,
-                ),
-              );
-            }
-
-            final partners = snapshot.data ?? const <Partner>[];
-            if (partners.isEmpty) {
-              return Center(
-                child: Text(
-                  '조회된 예비창업자가 없습니다.',
-                  style: FormStylePalette.valueStyle,
-                ),
-              );
-            }
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const _PartnerLookupHeader(),
-                const SizedBox(height: 6),
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: partners.length,
-                    separatorBuilder: (_, _) =>
-                        const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                    itemBuilder: (context, index) {
-                      return _PartnerLookupRow(
-                        displayNo: index + 1,
-                        partner: partners[index],
-                      );
-                    },
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(28),
+      child: ErpDialogFrame(
+        title: '예비창업자 조회',
+        maxWidth: 760,
+        maxHeight: 620,
+        child: SizedBox(
+          height: 500,
+          child: FutureBuilder<List<Partner>>(
+            future: widget.partnersFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    '예비창업자 목록을 불러오지 못했습니다.',
+                    style: FormStylePalette.valueStyle,
                   ),
-                ),
-              ],
-            );
-          },
+                );
+              }
+
+              final partners = _filter(snapshot.data ?? const <Partner>[]);
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _keywordController,
+                    onChanged: (_) => setState(() {}),
+                    style: FormStylePalette.valueStyle,
+                    decoration: _lookupSearchDecoration('성명, 휴대전화, 상태 검색'),
+                  ),
+                  const SizedBox(height: 12),
+                  const _PartnerLookupHeader(),
+                  const SizedBox(height: 6),
+                  Expanded(
+                    child: partners.isEmpty
+                        ? Center(
+                            child: Text(
+                              '조회된 예비창업자가 없습니다.',
+                              style: FormStylePalette.valueStyle,
+                            ),
+                          )
+                        : ListView.separated(
+                            itemCount: partners.length,
+                            separatorBuilder: (_, _) => const Divider(
+                              height: 1,
+                              color: Color(0xFFE5E7EB),
+                            ),
+                            itemBuilder: (context, index) {
+                              return _PartnerLookupRow(
+                                displayNo: index + 1,
+                                partner: partners[index],
+                              );
+                            },
+                          ),
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('닫기'),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('닫기'),
-        ),
-      ],
     );
   }
 }
@@ -2263,71 +2349,148 @@ class _PartnerLookupCell extends StatelessWidget {
   }
 }
 
-class _PropertyLookupDialog extends StatelessWidget {
+InputDecoration _lookupSearchDecoration(String hint) {
+  return InputDecoration(
+    hintText: hint,
+    hintStyle: const TextStyle(
+      color: FormStylePalette.textMuted,
+      fontSize: 13,
+      fontFamilyFallback: AppTheme.koreanFontFallback,
+    ),
+    isDense: true,
+    filled: true,
+    fillColor: FormStylePalette.inputBg,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+    prefixIcon: const Icon(
+      Icons.search_rounded,
+      size: 20,
+      color: FormStylePalette.textSecondary,
+    ),
+    prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: const BorderSide(color: FormStylePalette.panelBorder),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: const BorderSide(color: FormStylePalette.panelBorder),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: const BorderSide(color: AppTheme.accentRed, width: 1.2),
+    ),
+  );
+}
+
+class _PropertyLookupDialog extends StatefulWidget {
   const _PropertyLookupDialog({required this.propertiesFuture});
 
   final Future<List<Property>> propertiesFuture;
 
   @override
+  State<_PropertyLookupDialog> createState() => _PropertyLookupDialogState();
+}
+
+class _PropertyLookupDialogState extends State<_PropertyLookupDialog> {
+  final _keywordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _keywordController.dispose();
+    super.dispose();
+  }
+
+  List<Property> _filter(List<Property> rows) {
+    final q = _keywordController.text.trim().toLowerCase();
+    if (q.isEmpty) return rows;
+    return rows.where((property) {
+      final address = _propertyAddress(property);
+      return property.name.toLowerCase().contains(q) ||
+          address.toLowerCase().contains(q) ||
+          property.propIdx.toString().contains(q);
+    }).toList();
+  }
+
+  String _propertyAddress(Property property) {
+    final detail = property.addressDetail.trim();
+    if (detail.isEmpty) return property.address;
+    return '${property.address} $detail';
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('물건 상세정보 조회'),
-      contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-      content: SizedBox(
-        width: 760,
-        height: 500,
-        child: FutureBuilder<List<Property>>(
-          future: propertiesFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  '물건 목록을 불러오지 못했습니다.',
-                  style: FormStylePalette.valueStyle,
-                ),
-              );
-            }
-
-            final properties = snapshot.data ?? const <Property>[];
-            if (properties.isEmpty) {
-              return Center(
-                child: Text(
-                  '조회된 물건이 없습니다.',
-                  style: FormStylePalette.valueStyle,
-                ),
-              );
-            }
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const _PropertyLookupHeader(),
-                const SizedBox(height: 6),
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: properties.length,
-                    separatorBuilder: (_, _) =>
-                        const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                    itemBuilder: (context, index) {
-                      final property = properties[index];
-                      return _PropertyLookupRow(property: property);
-                    },
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(28),
+      child: ErpDialogFrame(
+        title: '물건 상세정보 조회',
+        maxWidth: 860,
+        maxHeight: 640,
+        child: SizedBox(
+          height: 520,
+          child: FutureBuilder<List<Property>>(
+            future: widget.propertiesFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    '물건 목록을 불러오지 못했습니다.',
+                    style: FormStylePalette.valueStyle,
                   ),
-                ),
-              ],
-            );
-          },
+                );
+              }
+
+              final properties = _filter(snapshot.data ?? const <Property>[]);
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _keywordController,
+                    onChanged: (_) => setState(() {}),
+                    style: FormStylePalette.valueStyle,
+                    decoration: _lookupSearchDecoration('물건명, 주소, 번호 검색'),
+                  ),
+                  const SizedBox(height: 12),
+                  const _PropertyLookupHeader(),
+                  const SizedBox(height: 6),
+                  Expanded(
+                    child: properties.isEmpty
+                        ? Center(
+                            child: Text(
+                              '조회된 물건이 없습니다.',
+                              style: FormStylePalette.valueStyle,
+                            ),
+                          )
+                        : ListView.separated(
+                            itemCount: properties.length,
+                            separatorBuilder: (_, _) => const Divider(
+                              height: 1,
+                              color: Color(0xFFE5E7EB),
+                            ),
+                            itemBuilder: (context, index) {
+                              final property = properties[index];
+                              return _PropertyLookupRow(property: property);
+                            },
+                          ),
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('닫기'),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('닫기'),
-        ),
-      ],
     );
   }
 }
@@ -3078,7 +3241,7 @@ class _HistoryTableRow extends StatelessWidget {
       child: Row(
         children: [
           _HistoryValueCell(text: entry.chgDt),
-          _HistoryValueCell(text: entry.content, flex: 3),
+          _HistoryValueCell(text: entry.content + ' 정보가 수정되었습니다.', flex: 3),
           _HistoryValueCell(text: entry.chgUserId),
         ],
       ),
@@ -3127,12 +3290,16 @@ class StoreDetailPanel extends ConsumerStatefulWidget {
     this.store,
     this.isRegisterMode = false,
     this.registerDraft,
+    this.sharedEditing,
+    this.onEditModeChanged,
   });
 
   final String title;
   final Store? store;
   final bool isRegisterMode;
   final StoreRegisterDraft? registerDraft;
+  final bool? sharedEditing;
+  final ValueChanged<bool>? onEditModeChanged;
 
   @override
   ConsumerState<StoreDetailPanel> createState() => _StoreDetailPanelState();
@@ -3145,6 +3312,8 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
   final _contractInfoKey = GlobalKey<_ContractInfoTabState>();
   late final TextEditingController _storeAreaCtrl;
   late final TextEditingController _contactCtrl;
+
+  bool get _editing => widget.sharedEditing ?? _isEditing;
 
   @override
   void initState() {
@@ -3195,10 +3364,9 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
 
   void editStore() {
     _invalidateStoreProviders();
+    widget.onEditModeChanged?.call(true);
     setState(() {
       _isEditing = true;
-      _storeAreaCtrl.text = _storeAreaFromStore();
-      _contactCtrl.text = _contactFromStore();
     });
   }
 
@@ -3209,6 +3377,7 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
     }
     _invalidateStoreProviders();
     _commonInfoKey.currentState?._syncFromStore();
+    widget.onEditModeChanged?.call(false);
     setState(() {
       _isEditing = false;
       _storeAreaCtrl.text = _storeAreaFromStore();
@@ -3218,15 +3387,18 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
   }
 
   Future<void> saveStore() async {
+    print('[saveStore] 저장 시작');
     final store = widget.store;
     final commonInfo = _commonInfoKey.currentState;
     if (commonInfo == null) {
       setState(() => _isEditing = widget.isRegisterMode);
       _snack('저장할 가맹점 정보가 없습니다.');
+      print('[saveStore] commonInfo가 null입니다.');
       return;
     }
 
     if (widget.isRegisterMode) {
+      print('[saveStore] 등록 모드 - _createStore 호출');
       await _createStore(commonInfo);
       return;
     }
@@ -3234,29 +3406,43 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
     if (store == null) {
       setState(() => _isEditing = false);
       _snack('저장할 가맹점 정보가 없습니다.');
+      print('[saveStore] store가 null입니다.');
       return;
     }
 
+    print('[saveStore] 업데이트 모드 - payload 생성 중');
     final payload = commonInfo.toUpdatePayload(
       store,
       storeTel: _contactCtrl.text.trim(),
     );
-    if (widget.title == '기본정보') {
+    final draft = widget.registerDraft;
+    if (draft != null) {
+      print('[saveStore] draft 존재 - draft payload 추가');
+      payload.addAll(_basicDraftPayload(draft));
+      payload.addAll(_contractDraftPayload(draft));
+    } else if (widget.title == '기본정보') {
       final basicInfo = _basicInfoKey.currentState;
       if (basicInfo == null) {
         _snack('기본정보 입력값을 확인할 수 없습니다.');
+        print('[saveStore] basicInfo가 null입니다.');
         return;
       }
+      print('[saveStore] 기본정보 payload 추가');
       payload.addAll(basicInfo.toUpdatePayload());
     } else if (widget.title == '계약정보') {
       final contractInfo = _contractInfoKey.currentState;
       if (contractInfo == null) {
         _snack('계약정보 입력값을 확인할 수 없습니다.');
+        print('[saveStore] contractInfo가 null입니다.');
         return;
       }
+      print('[saveStore] 계약정보 payload 추가');
       payload.addAll(contractInfo.toUpdatePayload());
     }
 
+    print(
+      '[saveStore] API 호출 - storeIdx: ${store.storeIdx}, payload: $payload',
+    );
     final updated = await ref
         .read(storeApiServiceProvider)
         .updateStore(store.storeIdx, payload);
@@ -3264,9 +3450,11 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
     if (!mounted) return;
     if (updated == null) {
       _snack('저장에 실패했습니다.');
+      print('[saveStore] API 응답이 null입니다.');
       return;
     }
 
+    print('[saveStore] 저장 성공 - provider 갱신 중');
     ref.invalidate(storeDataProvider);
     ref.invalidate(storeHistoriesProvider(store.storeIdx));
     final refreshed = await ref.refresh(
@@ -3275,48 +3463,61 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
     if (!mounted) return;
     if (refreshed == null) {
       _snack('저장 후 최신 가맹점 정보를 다시 불러오지 못했습니다.');
+      print('[saveStore] refresh 실패');
       return;
     }
+    widget.onEditModeChanged?.call(false);
     setState(() => _isEditing = false);
     _snack('저장되었습니다.');
+    print('[saveStore] 저장 완료');
   }
 
   Future<void> _createStore(_CommonStoreInfoSectionState commonInfo) async {
+    print('[_createStore] 가맹점 생성 시작');
     final payload = commonInfo.toCreatePayload(storeTel: _contactCtrl.text);
     final draft = widget.registerDraft;
     if (draft != null) {
+      print('[_createStore] draft 존재 - draft payload 추가');
       payload.addAll(_basicDraftPayload(draft));
       payload.addAll(_contractDraftPayload(draft));
     } else if (widget.title == '기본정보') {
       final basicInfo = _basicInfoKey.currentState;
       if (basicInfo == null) {
         _snack('기본정보 입력값을 확인할 수 없습니다.');
+        print('[_createStore] basicInfo가 null입니다.');
         return;
       }
+      print('[_createStore] 기본정보 payload 추가');
       payload.addAll(basicInfo.toUpdatePayload());
     } else if (widget.title == '계약정보') {
       final contractInfo = _contractInfoKey.currentState;
       if (contractInfo == null) {
         _snack('계약정보 입력값을 확인할 수 없습니다.');
+        print('[_createStore] contractInfo가 null입니다.');
         return;
       }
+      print('[_createStore] 계약정보 payload 추가');
       payload.addAll(contractInfo.toUpdatePayload());
     }
 
     if ((payload['storeNm'] as String? ?? '').isEmpty) {
       _snack('가맹점명은 필수입니다.');
+      print('[_createStore] 가맹점명이 비어있습니다.');
       return;
     }
 
+    print('[_createStore] API 호출 - payload: $payload');
     final created = await ref
         .read(storeApiServiceProvider)
         .createStore(payload);
     if (!mounted) return;
     if (created == null) {
       _snack('저장에 실패했습니다.');
+      print('[_createStore] API 응답이 null입니다.');
       return;
     }
 
+    print('[_createStore] 가맹점 생성 성공 - storeIdx: ${created.storeIdx}');
     ref.invalidate(storeDataProvider);
     _snack('저장되었습니다.');
     Navigator.of(context).maybePop();
@@ -3400,7 +3601,7 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
         return BasicInfoTab(
           key: _basicInfoKey,
           store: widget.store,
-          panelEditing: _isEditing,
+          panelEditing: _editing,
           contactController: _contactCtrl,
           registerDraft: widget.registerDraft,
           onPropertySelected: (property) =>
@@ -3410,7 +3611,7 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
         return ContractInfoTab(
           key: _contractInfoKey,
           store: widget.store,
-          panelEditing: _isEditing,
+          panelEditing: _editing,
           registerDraft: widget.registerDraft,
         );
       case '문서정보':
@@ -3447,7 +3648,7 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
                   children: [
                     _PanelHeader(
                       title: widget.title,
-                      isEditing: _isEditing,
+                      isEditing: _editing,
                       onEnterEdit: editStore,
                       onSave: saveStore,
                       onCancel: cancelStoreEdit,
@@ -3456,7 +3657,7 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
                     CommonStoreInfoSection(
                       key: _commonInfoKey,
                       store: widget.store,
-                      isEditing: _isEditing,
+                      isEditing: _editing,
                       storeAreaController: _storeAreaCtrl,
                       registerDraft: widget.registerDraft,
                     ),

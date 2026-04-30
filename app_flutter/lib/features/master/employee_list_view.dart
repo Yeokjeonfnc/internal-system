@@ -21,6 +21,7 @@ import 'package:app_flutter/features/master/employee_model.dart';
 const Set<CommonSearchFieldId> kEmployeeListSupportedSearchFields = {
   CommonSearchFieldId.employeeName,
   CommonSearchFieldId.employeeDepartment,
+  CommonSearchFieldId.employeePosition,
   CommonSearchFieldId.employeeEmail,
   CommonSearchFieldId.employeePhone,
 };
@@ -40,6 +41,9 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
 
   final Set<CommonSearchFieldId> _visibleMainSearchFields = {};
 
+  List<Employee> _employees = [];
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +51,25 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
     _nameCtrl = TextEditingController(text: s.name);
     _emailCtrl = TextEditingController(text: s.email);
     _phoneCtrl = TextEditingController(text: s.phone);
+    _loadEmployees();
+  }
+
+  Future<void> _loadEmployees() async {
+    setState(() => _isLoading = true);
+    try {
+      final employees = await ref.read(employeeRepositoryProvider).all();
+      if (mounted) {
+        setState(() {
+          _employees = employees;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('사원 목록 로드 실패: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -67,6 +90,9 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
         return;
       case CommonSearchFieldId.employeeDepartment:
         n.setDepartment('전체');
+        return;
+      case CommonSearchFieldId.employeePosition:
+        n.setPosition('전체');
         return;
       case CommonSearchFieldId.employeeEmail:
         _emailCtrl.clear();
@@ -122,6 +148,7 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
   List<SearchFilterItemData> _mainFilterItems(
     EmployeeFilter filter,
     List<String> departments,
+    List<String> positions,
     EmployeeNotifier n,
   ) {
     final items = <SearchFilterItemData>[];
@@ -144,6 +171,17 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
               value: filter.department,
               options: departments,
               onSelected: n.setDepartment,
+              forceDropdown: true,
+            ).toItem(),
+          );
+          break;
+        case CommonSearchFieldId.employeePosition:
+          items.add(
+            FilterStringOptionsSlot(
+              label: def.label,
+              value: filter.position,
+              options: positions,
+              onSelected: n.setPosition,
               forceDropdown: true,
             ).toItem(),
           );
@@ -216,12 +254,16 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     final filter = ref.watch(employeeProvider);
     final n = ref.read(employeeProvider.notifier);
-    final rows = n.getFilteredList();
-    final departments = ref
-        .watch(employeeRepositoryProvider)
-        .departmentOptions();
+    final rows = _filterEmployees(_employees, filter);
+    final repository = ref.watch(employeeRepositoryProvider);
+    final departments = repository.departmentOptions();
+    final positions = repository.positionOptions();
 
     final filterSheet = StatefulBuilder(
       builder: (context, setModal) {
@@ -232,7 +274,7 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
 
     final mainBlock = _anyMainFilter
         ? SearchFilterStackedItems(
-            items: _mainFilterItems(filter, departments, n),
+            items: _mainFilterItems(filter, departments, positions, n),
           )
         : null;
 
@@ -241,10 +283,42 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
       filterSheetBody: filterSheet,
       mainSearchFields: mainBlock,
       countText: '총 ${rows.length}명이 조회되었습니다.',
-      onRefresh: () => setState(() {}),
+      onRefresh: _loadEmployees,
       table: _EmployeeTable(rows: rows),
       onRegister: () => context.push('/master/employees/new'),
     );
+  }
+
+  List<Employee> _filterEmployees(
+    List<Employee> employees,
+    EmployeeFilter filter,
+  ) {
+    return employees.where((emp) {
+      // 이름 필터
+      if (filter.name.trim().isNotEmpty &&
+          !emp.name.contains(filter.name.trim())) {
+        return false;
+      }
+      // 부서 필터
+      if (filter.department != '전체' && emp.department != filter.department) {
+        return false;
+      }
+      // 직급 필터
+      if (filter.position != '전체' && emp.jobTitle != filter.position) {
+        return false;
+      }
+      // 이메일 필터
+      if (filter.email.trim().isNotEmpty &&
+          !emp.email.contains(filter.email.trim())) {
+        return false;
+      }
+      // 휴대전화 필터
+      if (filter.phone.trim().isNotEmpty &&
+          !emp.mobilePhone.contains(filter.phone.trim())) {
+        return false;
+      }
+      return true;
+    }).toList();
   }
 
   List<ActiveFilterChip> _chips(EmployeeFilter f, EmployeeNotifier n) {
@@ -267,6 +341,14 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
         ActiveFilterChip(
           label: '부서: ${f.department}',
           onClear: () => n.setDepartment('전체'),
+        ),
+      );
+    }
+    if (f.position != '전체') {
+      chips.add(
+        ActiveFilterChip(
+          label: '직급: ${f.position}',
+          onClear: () => n.setPosition('전체'),
         ),
       );
     }
@@ -313,13 +395,13 @@ class _EmployeeTable extends StatelessWidget {
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         border: kErpTableInnerGridBorder,
         columnWidths: const {
-          0: FixedColumnWidth(100),
-          1: FlexColumnWidth(1.0),
-          2: FixedColumnWidth(90),
-          3: FixedColumnWidth(130),
-          4: FlexColumnWidth(1.4),
-          5: FixedColumnWidth(120),
-          6: FixedColumnWidth(100),
+          0: FixedColumnWidth(200), // 이름
+          1: FlexColumnWidth(1), // 부서
+          2: FixedColumnWidth(150), // 직급
+          3: FixedColumnWidth(230), // 휴대전화
+          4: FlexColumnWidth(1.4), // 이메일 주소
+          // 5: FixedColumnWidth(120),
+          6: FixedColumnWidth(100), // 태그사용여부
         },
         children: [
           const TableRow(
@@ -330,7 +412,7 @@ class _EmployeeTable extends StatelessWidget {
               ErpTableHeaderCell('직급'),
               ErpTableHeaderCell('휴대전화'),
               ErpTableHeaderCell('이메일 주소'),
-              ErpTableHeaderCell('입사년월일'),
+              // ErpTableHeaderCell('입사년월일'),
               ErpTableHeaderCell('태그사용여부'),
             ],
           ),
@@ -342,12 +424,12 @@ class _EmployeeTable extends StatelessWidget {
                     : AppTheme.tableRowEven,
               ),
               children: [
-                ErpTableBodyCell(e.value.name),
+                ErpTableBodyCell(e.value.name, center: true),
                 ErpTableBodyCell(e.value.department, center: true),
                 ErpTableBodyCell(e.value.jobTitle, center: true),
                 ErpTableBodyCell(e.value.mobilePhone, center: true),
-                ErpTableBodyCell(e.value.email),
-                ErpTableBodyCell(e.value.hireDateYmd, center: true),
+                ErpTableBodyCell(e.value.email, center: true),
+                // ErpTableBodyCell(e.value.hireDateYmd, center: true),
                 ErpTableBodyCell(
                   e.value.tagEnabled ? '사용' : '미사용',
                   center: true,

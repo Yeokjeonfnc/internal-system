@@ -90,11 +90,3 @@ class MenuPermissionManagementView extends StatelessWidget {
       const MasterModulePlaceholderView(title: '메뉴권한 관리');
 }
 
-/// 체크리스트 관리 (마스터)
-class MasterChecklistManagementView extends StatelessWidget {
-  const MasterChecklistManagementView({super.key});
-
-  @override
-  Widget build(BuildContext context) =>
-      const MasterModulePlaceholderView(title: '체크리스트 관리');
-}
