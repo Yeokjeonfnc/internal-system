@@ -64,9 +64,7 @@ Future<KakaoPostcodeResult?> showWindowsKakaoPostcodeDialog(
               ),
               const Divider(height: 1),
               Expanded(
-                child: _KakaoPostcodeWindowsBody(
-                  dialogContext: dialogContext,
-                ),
+                child: _KakaoPostcodeWindowsBody(dialogContext: dialogContext),
               ),
             ],
           ),
@@ -174,7 +172,8 @@ class _KakaoPostcodeWindowsBodyState extends State<_KakaoPostcodeWindowsBody> {
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
-          _initError = e.message ?? 'WebView를 초기화하지 못했습니다. WebView2 런타임을 설치해 주세요.';
+          _initError =
+              e.message ?? 'WebView를 초기화하지 못했습니다. WebView2 런타임을 설치해 주세요.';
         });
       }
     } catch (e) {
@@ -210,8 +209,9 @@ class _KakaoPostcodeWindowsBodyState extends State<_KakaoPostcodeWindowsBody> {
     }
     _pollBusy = true;
     try {
-      final dynamic raw =
-          await _controller.executeScript(kKakaoPostcodeWindowsPollPendingScript);
+      final dynamic raw = await _controller.executeScript(
+        kKakaoPostcodeWindowsPollPendingScript,
+      );
       if (raw == null || !mounted || _completed) return;
 
       debugPrint('[yj_kakao_win] 폴링 페이로드 raw=$raw');

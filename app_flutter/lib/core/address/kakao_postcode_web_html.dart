@@ -19,7 +19,9 @@ Uri kakaoPostcodeEmbedPageUri() {
   final origin = html.window.location.origin;
   final baseHref =
       html.document.querySelector('base')?.getAttribute('href') ?? '/';
-  return Uri.parse(origin).resolve(baseHref).resolve('kakao_postcode_embed.html');
+  return Uri.parse(
+    origin,
+  ).resolve(baseHref).resolve('kakao_postcode_embed.html');
 }
 
 Future<KakaoPostcodeResult?> showWebKakaoPostcodeDialog(
@@ -82,7 +84,8 @@ class _KakaoPostcodeWebIframeBody extends StatefulWidget {
       _KakaoPostcodeWebIframeBodyState();
 }
 
-class _KakaoPostcodeWebIframeBodyState extends State<_KakaoPostcodeWebIframeBody> {
+class _KakaoPostcodeWebIframeBodyState
+    extends State<_KakaoPostcodeWebIframeBody> {
   late final String _viewType;
   late final String _embedSrc;
   StreamSubscription<html.MessageEvent>? _sub;
