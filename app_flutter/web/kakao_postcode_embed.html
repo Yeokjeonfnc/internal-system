@@ -1,0 +1,156 @@
+<!--
+  SYNC 필수: 내용을 바꿀 때 lib/core/address/kakao_postcode_data.dart 의
+  kKakaoPostcodeEmbedHtml 과 동일하게 맞출 것.
+  Flutter 웹에서는 iframe 을 blob/srcdoc 이 아닌 이 파일(앱과 동일 출처)로 로드해
+  카카오 스크립트의 postMessage 타깃(origin) 오류를 피한다.
+-->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #fff; }
+    #wrap { width: 100%; height: 100%; min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="wrap"></div>
+  <script>
+    function bridgeSend(obj) {
+      var str = JSON.stringify(obj);
+      try {
+        window.__yjKakaoPostcodePending = str;
+        window.__yjKakaoPostcodePendingTs = Date.now();
+      } catch (eGlob) {}
+      try {
+        console.log('[yj_kakao] bridgeSend', str);
+        console.log('[yj_kakao] chrome.webview=', !!(window.chrome && window.chrome.webview));
+        console.log('KAKAO_ADDR_RESULT:' + str);
+      } catch (logErr) {}
+
+      function tryWinWebViewPostMessage() {
+        try {
+          if (window.chrome && window.chrome.webview &&
+              typeof window.chrome.webview.postMessage === 'function') {
+            window.chrome.webview.postMessage(str);
+            return true;
+          }
+        } catch (e) {}
+        return false;
+      }
+
+      if (tryWinWebViewPostMessage()) {
+        return;
+      }
+
+      var attempts = 0;
+      var maxAttempts = 60;
+      var pollMs = 50;
+      var tid = setInterval(function() {
+        attempts++;
+        if (tryWinWebViewPostMessage() || attempts >= maxAttempts) {
+          clearInterval(tid);
+        }
+      }, pollMs);
+
+      try {
+        if (typeof KakaoPostcode !== 'undefined' && KakaoPostcode.postMessage) {
+          KakaoPostcode.postMessage(str);
+          return;
+        }
+      } catch (e1) {}
+      try {
+        if (window.parent && window.parent !== window) {
+          /** 브라우저 Flutter(DDC): 객체 postMessage 는 event.data 변환 시 TypeError 남. 문자열만 전달 */
+          window.parent.postMessage('yj_pc_v1|' + str, '*');
+        }
+      } catch (e3) {}
+    }
+    function postcodeFindRowFromTarget(t, wrapEl) {
+      if (!t || !wrapEl.contains(t)) return null;
+      if (typeof t.closest === 'function') {
+        var byClosest = t.closest('li, a, button, [role="button"], [role="link"], [onclick]');
+        if (byClosest && wrapEl.contains(byClosest)) return byClosest;
+      }
+      var cur = t;
+      for (var depth = 0; depth < 16 && cur && wrapEl.contains(cur); depth++) {
+        var tag = cur.tagName;
+        if (tag === 'LI' || tag === 'A' || tag === 'BUTTON') return cur;
+        var role = cur.getAttribute && cur.getAttribute('role');
+        if (role === 'button' || role === 'link' || role === 'option') return cur;
+        var oc = cur.getAttribute && cur.getAttribute('onclick');
+        if (oc) return cur;
+        cur = cur.parentElement;
+      }
+      return null;
+    }
+    function attachPostcodeDoubleClickSelectAssist(wrapEl) {
+      if (!wrapEl) return;
+      wrapEl.addEventListener('dblclick', function(ev) {
+        var row = postcodeFindRowFromTarget(ev.target, wrapEl);
+        if (!row) {
+          var hit = document.elementFromPoint(ev.clientX, ev.clientY);
+          row = postcodeFindRowFromTarget(hit, wrapEl);
+        }
+        if (!row || !wrapEl.contains(row) || typeof row.click !== 'function') return;
+        row.click();
+      }, true);
+    }
+    function loadPostcode() {
+      var script = document.createElement('script');
+      script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+      script.onload = function() {
+        try {
+          var wrap = document.getElementById('wrap');
+          new daum.Postcode({
+            oncomplete: function(data) {
+              bridgeSend({
+                zonecode: data.zonecode || '',
+                roadAddress: data.roadAddress || '',
+                jibunAddress: data.jibunAddress || '',
+                buildingName: data.buildingName || '',
+                userSelectedType: data.userSelectedType || ''
+              });
+            },
+            onresize: function(size) {
+              var el = document.getElementById('wrap');
+              if (el) el.style.height = size.height + 'px';
+            },
+            onclose: function(state) {
+              if (state === 'FORCE_CLOSE') bridgeSend({ closed: true });
+            },
+            width: '100%',
+            height: '100%'
+          }).embed(wrap);
+          attachPostcodeDoubleClickSelectAssist(wrap);
+        } catch (e) {
+          bridgeSend({ error: String(e) });
+        }
+      };
+      script.onerror = function() {
+        bridgeSend({ error: '우편번호 스크립트를 불러오지 못했습니다. 네트워크를 확인해 주세요.' });
+      };
+      document.head.appendChild(script);
+    }
+    function scheduleLoadPostcode() {
+      function run() {
+        try {
+          console.log('[yj_kakao] scheduleLoadPostcode 실행 readyState=' + document.readyState +
+            ' chrome.webview=' + !!(window.chrome && window.chrome.webview));
+        } catch (_) {}
+        loadPostcode();
+      }
+      if (document.readyState === 'complete') {
+        setTimeout(run, 0);
+      } else {
+        window.addEventListener('load', function onYL() {
+          window.removeEventListener('load', onYL);
+          setTimeout(run, 0);
+        });
+      }
+    }
+    scheduleLoadPostcode();
+  </script>
+</body>
+</html>

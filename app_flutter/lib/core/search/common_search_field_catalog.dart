@@ -39,7 +39,7 @@ enum CommonSearchFieldId {
   /// 계약상태 — 다중 칩 등은 화면에서 [CommonSearchPresentation.pageBuilt]로 구현
   storeStatus,
 
-  /// 담당슈퍼바이저
+  /// 담당수퍼바이저
   supervisorCd,
 
   /// 가맹점구분(가맹 / 직영)
@@ -187,7 +187,7 @@ const List<CommonSearchFieldDef> kCommonSearchCatalog = [
   ),
   CommonSearchFieldDef(
     id: CommonSearchFieldId.supervisorCd,
-    label: '담당슈퍼바이저',
+    label: '담당수퍼바이저',
     group: CommonSearchFieldGroup.storeSearch,
     presentation: CommonSearchPresentation.text,
   ),

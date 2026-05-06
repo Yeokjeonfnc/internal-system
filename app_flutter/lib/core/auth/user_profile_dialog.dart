@@ -203,8 +203,10 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
         );
 
         if (mounted) {
-          Navigator.of(context).pop();
-          _showMessage('정보가 저장되었습니다.');
+          await _showMessageAsync('정보가 저장되었습니다.');
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
         }
       } else {
         _showMessage('정보 저장에 실패했습니다.');
@@ -220,14 +222,60 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
     }
   }
 
+  Future<void> _showMessageAsync(String message) async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: Colors.white,
+        content: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.notoSansKr(
+              fontSize: 15,
+              color: FormStylePalette.textPrimary,
+            ),
+          ),
+        ),
+        actions: [
+          Center(
+            child: SizedBox(
+              width: 100,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.accentRed,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  '확인',
+                  style: GoogleFonts.notoSansKr(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showMessage(String message) {
     if (!mounted) return;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         backgroundColor: Colors.white,
         content: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),

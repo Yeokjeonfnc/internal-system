@@ -37,6 +37,8 @@ class Store {
     required this.premiumFee,
     this.businessNumber = '',
     this.notes = '',
+    this.latitude,
+    this.longitude,
   });
 
   final int no;
@@ -75,6 +77,10 @@ class Store {
   final int monthlyRent;
   final int rentDeposit;
   final int premiumFee;
+
+  /// 백엔드 `latitude` / `longitude` (문자열로 보관해 표시·편집과 동일하게 처리).
+  final String? latitude;
+  final String? longitude;
 
   // 호환성을 위한 getter
   String get region => regionNm.isNotEmpty ? regionNm : regionCd;

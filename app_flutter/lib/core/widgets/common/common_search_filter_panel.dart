@@ -245,19 +245,27 @@ class SearchFilterTextField extends StatelessWidget {
     required this.hint,
     required this.onChanged,
     this.isPhoneNumber = false,
+    this.prefixIcon,
+    this.borderRadius = 4,
   });
 
   final TextEditingController controller;
   final String hint;
   final ValueChanged<String> onChanged;
   final bool isPhoneNumber;
+  final Widget? prefixIcon;
+  final double borderRadius;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
       onChanged: isPhoneNumber ? _formatPhoneNumber : onChanged,
-      decoration: searchFilterFieldDecoration(hint: hint),
+      decoration: searchFilterFieldDecoration(
+        hint: hint,
+        prefixIcon: prefixIcon,
+        borderRadius: borderRadius,
+      ),
       style: kSearchFilterValueTextStyle,
       keyboardType: isPhoneNumber ? TextInputType.phone : TextInputType.text,
     );
@@ -292,25 +300,41 @@ class SearchFilterTextField extends StatelessWidget {
   }
 }
 
-InputDecoration searchFilterFieldDecoration({String? hint}) => InputDecoration(
-  isDense: true,
-  hintText: hint,
-  hintStyle: const TextStyle(
-    fontSize: kSearchFilterFontSize,
-    color: kSearchFilterHintColor,
-    fontFamilyFallback: AppTheme.koreanFontFallback,
-  ),
-  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-  constraints: const BoxConstraints(minHeight: 32, maxHeight: 32),
-  border: OutlineInputBorder(
-    borderRadius: BorderRadius.circular(4),
-    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-  ),
-  enabledBorder: OutlineInputBorder(
-    borderRadius: BorderRadius.circular(4),
-    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-  ),
-);
+InputDecoration searchFilterFieldDecoration({
+  String? hint,
+  Widget? prefixIcon,
+  double borderRadius = 4,
+}) =>
+    InputDecoration(
+      isDense: true,
+      hintText: hint,
+      hintStyle: const TextStyle(
+        fontSize: kSearchFilterFontSize,
+        color: kSearchFilterHintColor,
+        fontFamilyFallback: AppTheme.koreanFontFallback,
+      ),
+      prefixIcon: prefixIcon,
+      prefixIconConstraints: prefixIcon != null
+          ? const BoxConstraints(minWidth: 40, maxHeight: 36)
+          : null,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: prefixIcon != null ? 4 : 8,
+        vertical: 8,
+      ),
+      constraints: const BoxConstraints(minHeight: 36, maxHeight: 36),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
+        borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
+        borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
+        borderSide: const BorderSide(color: Color(0xFFBC1F26), width: 1.2),
+      ),
+    );
 
 class _SearchFilterRow extends StatelessWidget {
   const _SearchFilterRow({required this.data, required this.narrow});

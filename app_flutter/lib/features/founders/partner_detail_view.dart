@@ -8,8 +8,10 @@ import 'package:go_router/go_router.dart';
 import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
 import 'package:app_flutter/core/router/app_router.dart';
+import 'package:app_flutter/core/address/kakao_postcode_picker.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
+import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_detail_action_buttons.dart';
 import 'package:app_flutter/core/widgets/common/form/common_accent_outline_button.dart';
 import 'package:app_flutter/core/widgets/common/form/common_date_input_with_picker.dart';
@@ -140,14 +142,17 @@ class _PartnerInfoPanelState extends ConsumerState<_PartnerInfoPanel> {
     }
     ref.invalidate(partnerDataProvider);
     ref.invalidate(partnerDetailProvider(founder.partnerIdx));
-    _snack('저장되었습니다.');
+    await showAlertDialog(context, '저장되었습니다.');
+
+    // 저장 후 데이터 새로고침
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showAlertDialog(context, message);
   }
 
   @override
@@ -370,11 +375,14 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
     }
   }
 
-  void _openAddressSearch() {
-    // TODO: 실제 주소 검색 API 연동 시 교체 예정.
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('주소 검색은 추후 연동 예정입니다.')));
+  Future<void> _openAddressSearch() async {
+    if (!widget.isEditing) return;
+    final result = await showKakaoPostcodePicker(context);
+    if (!mounted || result == null) return;
+    setState(() {
+      _zipCodeController.text = result.zonecode;
+      _addressController.text = result.addressLine;
+    });
   }
 
   @override
@@ -633,10 +641,13 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
     }
   }
 
-  void _openAddressSearch() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('주소 검색은 추후 연동 예정입니다.')));
+  Future<void> _openAddressSearch() async {
+    final result = await showKakaoPostcodePicker(context);
+    if (!mounted || result == null) return;
+    setState(() {
+      _postalCodeController.text = result.zonecode;
+      _addressController.text = result.addressLine;
+    });
   }
 
   bool _validate() {
@@ -648,9 +659,7 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
 
     if (missing.isEmpty) return true;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${missing.join(', ')} 항목을 입력해 주세요.')),
-    );
+    showAlertDialog(context, '${missing.join(', ')} 항목을 입력해 주세요.');
     return false;
   }
 
@@ -674,15 +683,12 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
     setState(() => _saving = false);
 
     if (saved == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('등록에 실패했습니다.')));
+      await showAlertDialog(context, '등록에 실패했습니다.');
       return;
     }
     ref.invalidate(partnerDataProvider);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('등록되었습니다.')));
+    await showAlertDialog(context, '등록되었습니다.');
+    if (!mounted) return;
     context.go(AppRoutes.founders);
   }
 

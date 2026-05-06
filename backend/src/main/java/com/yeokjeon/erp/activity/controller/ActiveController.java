@@ -38,7 +38,7 @@ public class ActiveController {
             @RequestParam LocalDate startDt,
             @RequestParam LocalDate endDt,
             @RequestParam(required = false) String brandCd) {
-        log.info("담당자별 활동 현황 조회 요청: startDt={}, endDt={}, brandCd={}", startDt, endDt, brandCd);
+        log.info("담당자별 활동 현황 조회 요청: startDt={}, endDt={}, brandCd={}, userId={}", startDt, endDt, brandCd);
         return ResponseEntity.ok(ApiResponse.success(
                 activeService.getStatusByAssignee(startDt, endDt, brandCd)));
     }
@@ -46,13 +46,22 @@ public class ActiveController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<ActiveResponseDto>>> getAllActivities(
             @RequestParam(required = false) Integer storeIdx,
-            @RequestParam(required = false) String apprStatus) {
-        log.info("활동관리 목록 조회 요청");
+            @RequestParam(required = false) String apprStatus,
+            @RequestParam(required = false) String svId,
+            @RequestParam(required = false) String relUserId,
+            @RequestParam(required = false) Character chkYn,
+            @RequestParam(required = false) Boolean hasSuggestions) {
+        log.info("활동관리 목록 조회 요청: apprStatus={}, svId={}, relUserId={}, chkYn={}, hasSuggestions={}",
+                apprStatus, svId, relUserId, chkYn, hasSuggestions);
         List<ActiveResponseDto> rows;
         if (storeIdx != null) {
             rows = activeService.getActivitiesByStore(storeIdx);
+        } else if (Boolean.TRUE.equals(hasSuggestions)) {
+            rows = activeService.getApprovedActivitiesWithSuggestions();
+        } else if (chkYn != null) {
+            rows = activeService.getActivitiesByChecklistYn(chkYn);
         } else if (apprStatus != null && !apprStatus.isBlank()) {
-            rows = activeService.getActivitiesByStatus(apprStatus);
+            rows = activeService.getActivitiesByStatus(apprStatus, svId, relUserId);
         } else {
             rows = activeService.getAllActivities();
         }

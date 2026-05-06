@@ -7,8 +7,7 @@ import 'sales_area_model.dart';
 
 class SalesAreaFilter {
   const SalesAreaFilter({
-    this.salesAreaName = '',
-    this.propertyName = '',
+    this.salesAreaKeyword = '',
     this.brand = '전체',
     this.region = '전체',
     this.strategicOpeningOnly = false,
@@ -18,8 +17,8 @@ class SalesAreaFilter {
     this.rangeEnd,
   });
 
-  final String salesAreaName;
-  final String propertyName;
+  /// 영업지역명·물건명 통합 검색(부분 일치, OR).
+  final String salesAreaKeyword;
   final String brand;
   final String region;
   final bool strategicOpeningOnly;
@@ -29,8 +28,7 @@ class SalesAreaFilter {
   final DateTime? rangeEnd;
 
   SalesAreaFilter copyWith({
-    String? salesAreaName,
-    String? propertyName,
+    String? salesAreaKeyword,
     String? brand,
     String? region,
     bool? strategicOpeningOnly,
@@ -41,8 +39,7 @@ class SalesAreaFilter {
     bool clearRange = false,
   }) {
     return SalesAreaFilter(
-      salesAreaName: salesAreaName ?? this.salesAreaName,
-      propertyName: propertyName ?? this.propertyName,
+      salesAreaKeyword: salesAreaKeyword ?? this.salesAreaKeyword,
       brand: brand ?? this.brand,
       region: region ?? this.region,
       strategicOpeningOnly: strategicOpeningOnly ?? this.strategicOpeningOnly,
@@ -124,14 +121,10 @@ class SalesAreaNotifier
       return r.brand == s.brand;
     },
     (s, r) {
-      final q = s.salesAreaName.trim();
+      final q = s.salesAreaKeyword.trim().toLowerCase();
       if (q.isEmpty) return true;
-      return r.salesAreaName.contains(q);
-    },
-    (s, r) {
-      final q = s.propertyName.trim();
-      if (q.isEmpty) return true;
-      return r.propertyName.contains(q);
+      return r.salesAreaName.toLowerCase().contains(q) ||
+          r.propertyName.toLowerCase().contains(q);
     },
     (s, r) {
       if (s.rangeStart == null || s.rangeEnd == null) return true;
@@ -153,9 +146,8 @@ class SalesAreaNotifier
     );
   }
 
-  void setSalesAreaName(String v) => state = state.copyWith(salesAreaName: v);
-
-  void setPropertyName(String v) => state = state.copyWith(propertyName: v);
+  void setSalesAreaKeyword(String v) =>
+      state = state.copyWith(salesAreaKeyword: v);
 
   void setBrand(String v) => state = state.copyWith(brand: v);
 

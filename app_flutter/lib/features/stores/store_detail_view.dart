@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
+import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/features/stores/store_detail_tabs.dart';
 import 'package:app_flutter/features/stores/store_controller.dart';
 import 'package:app_flutter/features/stores/store_model.dart';
@@ -42,6 +43,9 @@ class _StoreDetailViewState extends ConsumerState<StoreDetailView> {
   StoreRegisterDraft? _detailDraft;
   int? _detailDraftStoreIdx;
   bool _isEditing = false;
+
+  /// 취소 시 모든 탭 폼을 같은 초깃값으로 되돌리기 위해 패널 state를 재생성한다.
+  int _editSessionEpoch = 0;
 
   @override
   void initState() {
@@ -90,6 +94,25 @@ class _StoreDetailViewState extends ConsumerState<StoreDetailView> {
     return _detailDraft;
   }
 
+  Future<void> _handleSharedCancelEditing() async {
+    if (!mounted || widget.storeIdx == null) return;
+    final store = ref.read(storeDetailProvider(widget.storeIdx!)).valueOrNull;
+    if (store != null) {
+      _detailDraft?.hydrateFromStore(store);
+    }
+    setState(() {
+      _isEditing = false;
+      _editSessionEpoch++;
+    });
+    await showAlertDialog(context, '취소되었습니다.');
+  }
+
+  /// 공통 상단 폼이 [StoreRegisterDraft]를 공유하므로, 드롭다운 등 변경 시 모든 탭 패널을 다시 빌드한다.
+  void _onRegisterDraftChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final storeAsync = widget.isRegisterMode
@@ -119,16 +142,25 @@ class _StoreDetailViewState extends ConsumerState<StoreDetailView> {
           title: title,
           tabTitles: StoreDetailView._tabTitles,
           tabPages: [
-            for (final title in StoreDetailView._tabTitles)
+            for (final tabTitle in StoreDetailView._tabTitles)
               StoreDetailPanel(
-                title: title,
+                key: ValueKey(
+                  '${widget.storeIdx}_${tabTitle}_$_editSessionEpoch',
+                ),
+                title: tabTitle,
                 store: store,
                 isRegisterMode: widget.isRegisterMode,
                 registerDraft: draft,
+                onRegisterDraftChanged:
+                    draft != null ? _onRegisterDraftChanged : null,
                 sharedEditing: widget.isRegisterMode ? true : _isEditing,
                 onEditModeChanged: widget.isRegisterMode
                     ? null
                     : (value) => setState(() => _isEditing = value),
+                onSharedCancelEditing:
+                    widget.isRegisterMode || widget.storeIdx == null
+                    ? null
+                    : _handleSharedCancelEditing,
               ),
           ],
         );

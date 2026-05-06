@@ -11,6 +11,7 @@ class Employee {
     required this.email,
     required this.hireDateYmd,
     required this.tagEnabled,
+    this.userId = '',
   });
 
   final int no;
@@ -19,6 +20,9 @@ class Employee {
   final String jobTitle;
   final String mobilePhone;
   final String email;
+
+  /// 로그인 ID (user_mst.user_id). 결재 저장·매칭용.
+  final String userId;
 
   /// 입사년월일 `YYYY-MM-DD`
   final String hireDateYmd;
@@ -34,12 +38,14 @@ class Employee {
       email: json['userEmail'] as String? ?? '',
       hireDateYmd: _formatDate(json['createdAt']),
       tagEnabled: (json['svYn'] as String?) == 'Y',
+      userId: json['userId']?.toString() ?? '',
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'userIdx': no,
+      'userId': userId,
       'userName': name,
       'deptNm': department,
       'positionNm': jobTitle,

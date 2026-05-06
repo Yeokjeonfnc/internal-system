@@ -10,20 +10,16 @@ import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
-import 'package:app_flutter/core/widgets/common/common_search_field_picker.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 import 'package:app_flutter/features/master/employee_controller.dart';
 import 'package:app_flutter/features/master/employee_model.dart';
 
-/// 사원관리에서 켤 수 있는 검색 항목.
+/// 사원관리 목록 본문에 항상 노출하는 검색 항목(통합 텍스트 검색은 상단 필드).
 const Set<CommonSearchFieldId> kEmployeeListSupportedSearchFields = {
-  CommonSearchFieldId.employeeName,
   CommonSearchFieldId.employeeDepartment,
   CommonSearchFieldId.employeePosition,
-  CommonSearchFieldId.employeeEmail,
-  CommonSearchFieldId.employeePhone,
 };
 
 /// 사원관리 목록.
@@ -35,11 +31,7 @@ class EmployeeListView extends ConsumerStatefulWidget {
 }
 
 class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
-  late final TextEditingController _nameCtrl;
-  late final TextEditingController _emailCtrl;
-  late final TextEditingController _phoneCtrl;
-
-  final Set<CommonSearchFieldId> _visibleMainSearchFields = {};
+  late final TextEditingController _keywordCtrl;
 
   List<Employee> _employees = [];
   bool _isLoading = true;
@@ -48,9 +40,7 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
   void initState() {
     super.initState();
     final s = ref.read(employeeProvider);
-    _nameCtrl = TextEditingController(text: s.name);
-    _emailCtrl = TextEditingController(text: s.email);
-    _phoneCtrl = TextEditingController(text: s.phone);
+    _keywordCtrl = TextEditingController(text: s.employeeKeyword);
     _loadEmployees();
   }
 
@@ -74,75 +64,8 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
-    _emailCtrl.dispose();
-    _phoneCtrl.dispose();
+    _keywordCtrl.dispose();
     super.dispose();
-  }
-
-  bool get _anyMainFilter => _visibleMainSearchFields.isNotEmpty;
-
-  void _clearField(CommonSearchFieldId id, EmployeeNotifier n) {
-    switch (id) {
-      case CommonSearchFieldId.employeeName:
-        _nameCtrl.clear();
-        n.setName('');
-        return;
-      case CommonSearchFieldId.employeeDepartment:
-        n.setDepartment('전체');
-        return;
-      case CommonSearchFieldId.employeePosition:
-        n.setPosition('전체');
-        return;
-      case CommonSearchFieldId.employeeEmail:
-        _emailCtrl.clear();
-        n.setEmail('');
-        return;
-      case CommonSearchFieldId.employeePhone:
-        _phoneCtrl.clear();
-        n.setPhone('');
-        return;
-      case CommonSearchFieldId.storeNm:
-      case CommonSearchFieldId.storeCd:
-      case CommonSearchFieldId.brandCd:
-      case CommonSearchFieldId.storeStatus:
-      case CommonSearchFieldId.supervisorCd:
-      case CommonSearchFieldId.storeType:
-      case CommonSearchFieldId.prospectName:
-      case CommonSearchFieldId.entrepreneurStatus:
-      case CommonSearchFieldId.regionCd:
-      case CommonSearchFieldId.mobilePhone:
-      case CommonSearchFieldId.registrationDate:
-      case CommonSearchFieldId.propertyName:
-      case CommonSearchFieldId.propertyOwnership:
-      case CommonSearchFieldId.propertyStatus:
-      case CommonSearchFieldId.propertyAddress:
-      case CommonSearchFieldId.partnerName:
-      case CommonSearchFieldId.founderEvaluation:
-      case CommonSearchFieldId.partnerStatus:
-      case CommonSearchFieldId.activityConsultMemo:
-      case CommonSearchFieldId.activityDateRange:
-      case CommonSearchFieldId.salesAreaName:
-      case CommonSearchFieldId.salesAreaPropertyName:
-      case CommonSearchFieldId.salesAreaBrand:
-      case CommonSearchFieldId.salesAreaRegion:
-      case CommonSearchFieldId.salesAreaStrategicOnly:
-      case CommonSearchFieldId.salesAreaIncludeNonFranchise:
-      case CommonSearchFieldId.salesAreaIncludeUnset:
-      case CommonSearchFieldId.salesAreaSettingDateRange:
-        return;
-    }
-  }
-
-  void _onToggle(CommonSearchFieldId id, bool nowVisible, EmployeeNotifier n) {
-    setState(() {
-      if (nowVisible) {
-        _visibleMainSearchFields.add(id);
-      } else {
-        _visibleMainSearchFields.remove(id);
-        _clearField(id, n);
-      }
-    });
   }
 
   List<SearchFilterItemData> _mainFilterItems(
@@ -152,17 +75,11 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
     EmployeeNotifier n,
   ) {
     final items = <SearchFilterItemData>[];
-    for (final def in commonSearchDefsOrdered(_visibleMainSearchFields)) {
+    for (final def in commonSearchDefsOrdered(kEmployeeListSupportedSearchFields)) {
       switch (def.id) {
         case CommonSearchFieldId.employeeName:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '사원명을 입력하세요.',
-              controller: _nameCtrl,
-              onChanged: n.setName,
-            ).toItem(),
-          );
+        case CommonSearchFieldId.employeeEmail:
+        case CommonSearchFieldId.employeePhone:
           break;
         case CommonSearchFieldId.employeeDepartment:
           items.add(
@@ -183,27 +100,6 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
               options: positions,
               onSelected: n.setPosition,
               forceDropdown: true,
-            ).toItem(),
-          );
-          break;
-        case CommonSearchFieldId.employeeEmail:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '이메일을 입력하세요.',
-              controller: _emailCtrl,
-              onChanged: n.setEmail,
-            ).toItem(),
-          );
-          break;
-        case CommonSearchFieldId.employeePhone:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '휴대전화 번호를 입력하세요.',
-              controller: _phoneCtrl,
-              onChanged: n.setPhone,
-              isPhoneNumber: true,
             ).toItem(),
           );
           break;
@@ -241,17 +137,6 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
     return items;
   }
 
-  Widget _filterSheet(void Function() refresh, EmployeeNotifier n) {
-    return CommonSearchFieldPicker(
-      supported: kEmployeeListSupportedSearchFields,
-      visible: _visibleMainSearchFields,
-      onToggle: (id, v) {
-        _onToggle(id, v, n);
-        refresh();
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -265,22 +150,29 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
     final departments = repository.departmentOptions();
     final positions = repository.positionOptions();
 
-    final filterSheet = StatefulBuilder(
-      builder: (context, setModal) {
-        void refresh() => setModal(() {});
-        return _filterSheet(refresh, n);
-      },
+    final mainBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SearchFilterTextField(
+          controller: _keywordCtrl,
+          hint: '사원명, 이메일, 휴대전화 검색',
+          borderRadius: 8,
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: Colors.grey.shade500,
+            size: 22,
+          ),
+          onChanged: n.setEmployeeKeyword,
+        ),
+        const SizedBox(height: 8),
+        SearchFilterStackedItems(
+          items: _mainFilterItems(filter, departments, positions, n),
+        ),
+      ],
     );
-
-    final mainBlock = _anyMainFilter
-        ? SearchFilterStackedItems(
-            items: _mainFilterItems(filter, departments, positions, n),
-          )
-        : null;
 
     return ListPageTemplate(
       activeFilters: _chips(filter, n),
-      filterSheetBody: filterSheet,
       mainSearchFields: mainBlock,
       countText: '총 ${rows.length}명이 조회되었습니다.',
       onRefresh: _loadEmployees,
@@ -294,10 +186,13 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
     EmployeeFilter filter,
   ) {
     return employees.where((emp) {
-      // 이름 필터
-      if (filter.name.trim().isNotEmpty &&
-          !emp.name.contains(filter.name.trim())) {
-        return false;
+      final q = filter.employeeKeyword.trim().toLowerCase();
+      if (q.isNotEmpty) {
+        final hit =
+            emp.name.toLowerCase().contains(q) ||
+                emp.email.toLowerCase().contains(q) ||
+                emp.mobilePhone.toLowerCase().contains(q);
+        if (!hit) return false;
       }
       // 부서 필터
       if (filter.department != '전체' && emp.department != filter.department) {
@@ -307,30 +202,20 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
       if (filter.position != '전체' && emp.jobTitle != filter.position) {
         return false;
       }
-      // 이메일 필터
-      if (filter.email.trim().isNotEmpty &&
-          !emp.email.contains(filter.email.trim())) {
-        return false;
-      }
-      // 휴대전화 필터
-      if (filter.phone.trim().isNotEmpty &&
-          !emp.mobilePhone.contains(filter.phone.trim())) {
-        return false;
-      }
       return true;
     }).toList();
   }
 
   List<ActiveFilterChip> _chips(EmployeeFilter f, EmployeeNotifier n) {
     final chips = <ActiveFilterChip>[];
-    if (f.name.trim().isNotEmpty) {
+    if (f.employeeKeyword.trim().isNotEmpty) {
       chips.add(
         ActiveFilterChip(
-          label: '사원명: ${f.name}',
+          label: '통합 검색: ${f.employeeKeyword}',
           onClear: () {
             setState(() {
-              _nameCtrl.clear();
-              n.setName('');
+              _keywordCtrl.clear();
+              n.setEmployeeKeyword('');
             });
           },
         ),
@@ -349,32 +234,6 @@ class _EmployeeListViewState extends ConsumerState<EmployeeListView> {
         ActiveFilterChip(
           label: '직급: ${f.position}',
           onClear: () => n.setPosition('전체'),
-        ),
-      );
-    }
-    if (f.email.trim().isNotEmpty) {
-      chips.add(
-        ActiveFilterChip(
-          label: '이메일: ${f.email}',
-          onClear: () {
-            setState(() {
-              _emailCtrl.clear();
-              n.setEmail('');
-            });
-          },
-        ),
-      );
-    }
-    if (f.phone.trim().isNotEmpty) {
-      chips.add(
-        ActiveFilterChip(
-          label: '휴대전화: ${f.phone}',
-          onClear: () {
-            setState(() {
-              _phoneCtrl.clear();
-              n.setPhone('');
-            });
-          },
         ),
       );
     }

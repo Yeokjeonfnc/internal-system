@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
+import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_register_button.dart';
 import 'package:app_flutter/features/master/department_model.dart';
 import 'package:app_flutter/features/master/department_repository.dart';
@@ -53,9 +54,7 @@ class _DepartmentViewState extends State<DepartmentView> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showAlertDialog(context, message);
   }
 
   int _getTotalCount() {

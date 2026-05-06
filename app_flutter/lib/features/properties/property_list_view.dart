@@ -8,7 +8,7 @@ import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
-import 'package:app_flutter/core/widgets/common/common_search_field_picker.dart';
+import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
@@ -19,13 +19,11 @@ import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
 import 'package:app_flutter/features/properties/property_controller.dart';
 import 'package:app_flutter/features/properties/property_model.dart';
 
-/// 물건 목록에서 켤 수 있는 공통 검색 항목.
+/// 물건 목록 본문에 항상 노출하는 검색 항목(통합 텍스트 검색은 상단 필드).
 const Set<CommonSearchFieldId> kPropertyListSupportedSearchFields = {
-  CommonSearchFieldId.propertyName,
   CommonSearchFieldId.propertyStatus,
   CommonSearchFieldId.propertyOwnership,
   CommonSearchFieldId.regionCd,
-  CommonSearchFieldId.propertyAddress,
 };
 
 /// 물건 목록.
@@ -37,92 +35,19 @@ class PropertyListView extends ConsumerStatefulWidget {
 }
 
 class _PropertyListViewState extends ConsumerState<PropertyListView> {
-  late final TextEditingController _nameCtrl;
-  late final TextEditingController _addrCtrl;
-
-  final Set<CommonSearchFieldId> _visibleMainSearchFields = {};
+  late final TextEditingController _keywordCtrl;
 
   @override
   void initState() {
     super.initState();
     final s = ref.read(propertyProvider);
-    _nameCtrl = TextEditingController(text: s.name);
-    _addrCtrl = TextEditingController(text: s.address);
+    _keywordCtrl = TextEditingController(text: s.propertyKeyword);
   }
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
-    _addrCtrl.dispose();
+    _keywordCtrl.dispose();
     super.dispose();
-  }
-
-  bool get _anyMainFilter => _visibleMainSearchFields.isNotEmpty;
-
-  void _clearPropertyFilterField(CommonSearchFieldId id, PropertyNotifier n) {
-    switch (id) {
-      case CommonSearchFieldId.propertyName:
-        _nameCtrl.clear();
-        n.setName('');
-        return;
-      case CommonSearchFieldId.propertyAddress:
-        _addrCtrl.clear();
-        n.setAddress('');
-        return;
-      case CommonSearchFieldId.propertyOwnership:
-        n.setOwnership(null);
-        return;
-      case CommonSearchFieldId.propertyStatus:
-        n.setStatus(null);
-        return;
-      case CommonSearchFieldId.regionCd:
-        n.setRegion('전체');
-        return;
-      case CommonSearchFieldId.storeNm:
-      case CommonSearchFieldId.storeCd:
-      case CommonSearchFieldId.brandCd:
-      case CommonSearchFieldId.storeStatus:
-      case CommonSearchFieldId.supervisorCd:
-      case CommonSearchFieldId.storeType:
-      case CommonSearchFieldId.prospectName:
-      case CommonSearchFieldId.entrepreneurStatus:
-      case CommonSearchFieldId.mobilePhone:
-      case CommonSearchFieldId.registrationDate:
-      case CommonSearchFieldId.partnerName:
-      case CommonSearchFieldId.founderEvaluation:
-      case CommonSearchFieldId.partnerStatus:
-      case CommonSearchFieldId.activityConsultMemo:
-      case CommonSearchFieldId.activityDateRange:
-      case CommonSearchFieldId.salesAreaName:
-      case CommonSearchFieldId.salesAreaPropertyName:
-      case CommonSearchFieldId.salesAreaBrand:
-      case CommonSearchFieldId.salesAreaRegion:
-      case CommonSearchFieldId.salesAreaStrategicOnly:
-      case CommonSearchFieldId.salesAreaIncludeNonFranchise:
-      case CommonSearchFieldId.salesAreaIncludeUnset:
-      case CommonSearchFieldId.salesAreaSettingDateRange:
-      case CommonSearchFieldId.employeeName:
-      case CommonSearchFieldId.employeeDepartment:
-      case CommonSearchFieldId.employeePosition:
-      case CommonSearchFieldId.employeeEmail:
-      case CommonSearchFieldId.employeePhone:
-        return;
-    }
-  }
-
-  void _onMainSearchFieldToggle(
-    CommonSearchFieldId id,
-    bool nowVisible,
-    PropertyNotifier n,
-  ) {
-    setState(() {
-      if (nowVisible) {
-        _visibleMainSearchFields.add(id);
-      } else {
-        _visibleMainSearchFields.remove(id);
-        _clearPropertyFilterField(id, n);
-      }
-    });
   }
 
   List<SearchFilterItemData> _mainFilterItems(
@@ -131,17 +56,12 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
     PropertyNotifier n,
   ) {
     final items = <SearchFilterItemData>[];
-    for (final def in commonSearchDefsOrdered(_visibleMainSearchFields)) {
+    for (final def in commonSearchDefsOrdered(
+      kPropertyListSupportedSearchFields,
+    )) {
       switch (def.id) {
         case CommonSearchFieldId.propertyName:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '물건명을 입력하세요.',
-              controller: _nameCtrl,
-              onChanged: n.setName,
-            ).toItem(),
-          );
+        case CommonSearchFieldId.propertyAddress:
           break;
         case CommonSearchFieldId.propertyOwnership:
           items.add(
@@ -210,16 +130,6 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.propertyAddress:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '주소를 입력하세요.',
-              controller: _addrCtrl,
-              onChanged: n.setAddress,
-            ).toItem(),
-          );
-          break;
         case CommonSearchFieldId.storeNm:
         case CommonSearchFieldId.storeCd:
         case CommonSearchFieldId.brandCd:
@@ -254,17 +164,6 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
     return items;
   }
 
-  Widget _filterPickerSheet(VoidCallback refreshSheet, PropertyNotifier n) {
-    return CommonSearchFieldPicker(
-      supported: kPropertyListSupportedSearchFields,
-      visible: _visibleMainSearchFields,
-      onToggle: (id, nowVisible) {
-        _onMainSearchFieldToggle(id, nowVisible, n);
-        refreshSheet();
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final propertiesAsync = ref.watch(propertyDataProvider);
@@ -275,22 +174,29 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
         ref.watch(propertyCodeOptionsProvider(20)).value ??
         const <CodeOption>[];
 
-    final filterSheet = StatefulBuilder(
-      builder: (context, setModalState) {
-        void refreshSheet() => setModalState(() {});
-        return _filterPickerSheet(refreshSheet, n);
-      },
+    final mainFields = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SearchFilterTextField(
+          controller: _keywordCtrl,
+          hint: '물건명, 주소 검색',
+          borderRadius: 8,
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: Colors.grey.shade500,
+            size: 22,
+          ),
+          onChanged: n.setPropertyKeyword,
+        ),
+        const SizedBox(height: 8),
+        SearchFilterStackedItems(
+          items: _mainFilterItems(filter, regionOptions, n),
+        ),
+      ],
     );
-
-    final mainFields = _anyMainFilter
-        ? SearchFilterStackedItems(
-            items: _mainFilterItems(filter, regionOptions, n),
-          )
-        : null;
 
     return ListPageTemplate(
       activeFilters: _activeFilterChips(filter, n),
-      filterSheetBody: filterSheet,
       mainSearchFields: mainFields,
       countText: propertiesAsync.isLoading
           ? '조회 중입니다.'
@@ -309,27 +215,14 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
     PropertyNotifier n,
   ) {
     final chips = <ActiveFilterChip>[];
-    if (f.name.trim().isNotEmpty) {
+    if (f.propertyKeyword.trim().isNotEmpty) {
       chips.add(
         ActiveFilterChip(
-          label: '물건명: ${f.name}',
+          label: '통합 검색: ${f.propertyKeyword}',
           onClear: () {
             setState(() {
-              _nameCtrl.clear();
-              n.setName('');
-            });
-          },
-        ),
-      );
-    }
-    if (f.address.trim().isNotEmpty) {
-      chips.add(
-        ActiveFilterChip(
-          label: '주소: ${f.address}',
-          onClear: () {
-            setState(() {
-              _addrCtrl.clear();
-              n.setAddress('');
+              _keywordCtrl.clear();
+              n.setPropertyKeyword('');
             });
           },
         ),
@@ -410,35 +303,35 @@ class _PropertyTable extends ConsumerWidget {
     if (deleted) {
       await ref.refresh(propertyDataProvider.future).then<void>((_) {});
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('삭제되었습니다.')));
+      await showAlertDialog(context, '삭제되었습니다.');
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('삭제에 실패했습니다.')));
+      await showAlertDialog(context, '삭제에 실패했습니다.');
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final regionOptions =
+        ref.watch(propertyCodeOptionsProvider(20)).value ??
+        const <CodeOption>[];
+
     return ErpDataTable(
+      minWidth: 2200,
       tableBuilder: (context, _) => Table(
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         border: kErpTableInnerGridBorder,
         columnWidths: const {
           0: FixedColumnWidth(110),
-          1: FlexColumnWidth(1.5),
-          2: FixedColumnWidth(80),
+          1: FlexColumnWidth(1.35),
+          2: FixedColumnWidth(92),
           3: FixedColumnWidth(110),
           4: FixedColumnWidth(100),
-          5: FlexColumnWidth(1),
-          6: FlexColumnWidth(1),
-          7: FlexColumnWidth(1),
-          // 8: FixedColumnWidth(90),
-          9: FlexColumnWidth(1),
-          10: FixedColumnWidth(120),
-          11: FixedColumnWidth(100),
+          5: FlexColumnWidth(0.8),
+          6: FlexColumnWidth(0.8),
+          7: FlexColumnWidth(0.8),
+          8: FlexColumnWidth(1.5), // 주소
+          9: FixedColumnWidth(140),
+          10: FixedColumnWidth(100),
         },
         children: [
           TableRow(
@@ -468,7 +361,10 @@ class _PropertyTable extends ConsumerWidget {
               children: [
                 ErpTableBodyCell(entry.value.surveyDate, center: true),
                 ErpTableBodyCell(entry.value.name, center: true),
-                ErpTableBodyCell(entry.value.region, center: true),
+                ErpTableBodyCell(
+                  _propertyRegionLabel(entry.value.region, regionOptions),
+                  center: true,
+                ),
                 Padding(
                   padding: const EdgeInsets.all(8),
                   child: Center(
@@ -621,6 +517,15 @@ class _PropertyPill extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 목록 테이블 지역 열 — [Property.region]이 코드면 공통코드 명칭으로 표시.
+String _propertyRegionLabel(String code, List<CodeOption> options) {
+  if (code.isEmpty) return '-';
+  for (final o in options) {
+    if (o.codeCd == code) return o.codeNm;
+  }
+  return code;
 }
 
 String _ownershipLabel(PropertyOwnership v) {

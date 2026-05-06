@@ -59,15 +59,14 @@ final partnerDetailProvider = FutureProvider.family<Partner?, int>((
 
 class PartnerFilter {
   const PartnerFilter({
-    this.partnerNm = '',
-    this.partnerTel = '',
+    this.partnerKeyword = '',
     this.pRegion = '전체',
     this.partnerStatus = '전체',
     this.evaluation,
   });
 
-  final String partnerNm;
-  final String partnerTel;
+  /// 이름·휴대전화·이메일 등 통합 검색(부분 일치, OR).
+  final String partnerKeyword;
   final String pRegion;
 
   /// [Partner.partnerStatus]와 같은 한글 라벨(`전체`·`예비창업자`·`가맹점사업자`).
@@ -75,16 +74,14 @@ class PartnerFilter {
   final EvaluationStatus? evaluation;
 
   PartnerFilter copy({
-    String? partnerNm,
-    String? partnerTel,
+    String? partnerKeyword,
     String? pRegion,
     String? partnerStatus,
     EvaluationStatus? evaluation,
     bool clearEvaluation = false,
   }) {
     return PartnerFilter(
-      partnerNm: partnerNm ?? this.partnerNm,
-      partnerTel: partnerTel ?? this.partnerTel,
+      partnerKeyword: partnerKeyword ?? this.partnerKeyword,
       pRegion: pRegion ?? this.pRegion,
       partnerStatus: partnerStatus ?? this.partnerStatus,
       evaluation: clearEvaluation ? null : evaluation ?? this.evaluation,
@@ -115,17 +112,15 @@ class PartnerNotifier extends RuleListNotifier<PartnerFilter, Partner> {
       return partnerStatusLabelKorean(r.partnerStatus) == s.partnerStatus;
     },
     (s, r) {
-      final q = s.partnerNm.trim();
-      return q.isEmpty || r.partnerNm.contains(q);
-    },
-    (s, r) {
-      final q = s.partnerTel.trim();
-      return q.isEmpty || r.partnerTel.contains(q);
+      final q = s.partnerKeyword.trim().toLowerCase();
+      if (q.isEmpty) return true;
+      return r.partnerNm.toLowerCase().contains(q) ||
+          r.partnerTel.toLowerCase().contains(q) ||
+          r.partnerEmail.toLowerCase().contains(q);
     },
   ];
 
-  void setName(String v) => state = state.copy(partnerNm: v);
-  void setPhone(String v) => state = state.copy(partnerTel: v);
+  void setPartnerKeyword(String v) => state = state.copy(partnerKeyword: v);
   void setRegion(String v) => state = state.copy(pRegion: v);
   void setPartnerStatus(String v) => state = state.copy(partnerStatus: v);
   void setEvaluation(EvaluationStatus? v) => state = v == null

@@ -18,9 +18,9 @@ class AppTheme {
   static const Color appSurface = Color(0xFFF2F2F2);
   static const Color cardBackground = Color(0xFFFFFFFF);
 
-  /// 테이블 바디의 홀수/짝수 행 배경색 (zebra striping).
+  /// 테이블·팝업 목록 바디의 줄무늬 (1행 밝음 / 2행 연한 블루그레이).
   static const Color tableRowOdd = Color(0xFFFFFFFF);
-  static const Color tableRowEven = Color(0xFFF5F7FA);
+  static const Color tableRowEven = Color(0xFFF4F7FB);
   static const Color statusNew = Color(0xFF28A745);
   static const Color statusRenewal = Color(0xFF007BFF);
   static const Color statusTransfer = Color(0xFFDC3545);

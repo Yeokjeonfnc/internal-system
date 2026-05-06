@@ -52,14 +52,28 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
     _month = now.month;
     _quarter = ((now.month - 1) ~/ 3) + 1;
     _half = now.month <= 6 ? 1 : 2;
-    
+
     final i = widget.initialTab.clamp(0, 1);
     _tabController = TabController(length: 2, vsync: this, initialIndex: i);
-    _tabController.addListener(() => setState(() {}));
+    _tabController.addListener(_onStatusTabChanged);
     _normalizePeriodFields();
     _assigneeRowsFuture = _fetchStatusRows('by-assignee');
     _storeRowsFuture = _fetchStatusRows('by-store');
     _loadBrands();
+  }
+
+  void _onStatusTabChanged() {
+    if (_tabController.indexIsChanging) {
+      setState(() {});
+      return;
+    }
+    setState(() {
+      if (_tabController.index == 0) {
+        _assigneeRowsFuture = _fetchStatusRows('by-assignee');
+      } else {
+        _storeRowsFuture = _fetchStatusRows('by-store');
+      }
+    });
   }
 
   Future<void> _loadBrands() async {
@@ -87,6 +101,7 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
 
   @override
   void dispose() {
+    _tabController.removeListener(_onStatusTabChanged);
     _tabController.dispose();
     _tableHScroll.dispose();
     _tableVScroll.dispose();
@@ -110,10 +125,16 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
         );
       case '분기':
         final startMonth = (_quarter - 1) * 3 + 1;
-        return (DateTime(_year, startMonth, 1), DateTime(_year, startMonth + 3, 0));
+        return (
+          DateTime(_year, startMonth, 1),
+          DateTime(_year, startMonth + 3, 0),
+        );
       case '반기':
         final startMonth = _half == 1 ? 1 : 7;
-        return (DateTime(_year, startMonth, 1), DateTime(_year, startMonth + 6, 0));
+        return (
+          DateTime(_year, startMonth, 1),
+          DateTime(_year, startMonth + 6, 0),
+        );
       case '년':
         return (DateTime(_year, 1, 1), DateTime(_year, 12, 31));
       default:
@@ -515,7 +536,7 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
       builder: (context, snapshot) => _statusTableBody(
         theme,
         snapshot,
-        nameHeader: '담당 슈퍼바이저',
+        nameHeader: '담당 수퍼바이저',
         totalHeader: '총 활동 가맹점 개수',
       ),
     );
@@ -758,33 +779,37 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
     );
   }
 
-  List<_StatusRow> _mapStoreStatusRows(List<Map<String, dynamic>> rows, DateTime startDt, DateTime endDt) {
+  List<_StatusRow> _mapStoreStatusRows(
+    List<Map<String, dynamic>> rows,
+    DateTime startDt,
+    DateTime endDt,
+  ) {
     final grouped = <String, _MutableStatusRow>{};
-    
+
     // 모든 가맹점을 먼저 추가
     for (final row in rows) {
       final storeNm = (row['storeNm'] ?? '').toString();
       if (storeNm.isEmpty) continue;
       grouped.putIfAbsent(storeNm, () => _MutableStatusRow(storeNm));
     }
-    
+
     // 활동 데이터가 있는 경우 count 추가 (날짜 범위 내만)
     for (final row in rows) {
       final storeNm = (row['storeNm'] ?? '').toString();
       final actDt = _parseDate(row['actDt']);
       final count = _parseInt(row['count']);
-      
+
       if (storeNm.isEmpty || actDt == null || count <= 0) continue;
-      
+
       // 날짜 범위 체크
       if (actDt.isBefore(startDt) || actDt.isAfter(endDt)) continue;
-      
+
       final target = grouped[storeNm];
       if (target != null) {
         target.add(_bucketKey(actDt), count);
       }
     }
-    
+
     return [
       for (final row in grouped.values)
         _StatusRow(
@@ -797,33 +822,37 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
     ];
   }
 
-  List<_StatusRow> _mapAssigneeStatusRows(List<Map<String, dynamic>> rows, DateTime startDt, DateTime endDt) {
+  List<_StatusRow> _mapAssigneeStatusRows(
+    List<Map<String, dynamic>> rows,
+    DateTime startDt,
+    DateTime endDt,
+  ) {
     final grouped = <String, _MutableStatusRow>{};
-    
+
     // 모든 수퍼바이저를 먼저 추가
     for (final row in rows) {
-      final userId = (row['userId'] ?? '').toString();
-      if (userId.isEmpty) continue;
-      grouped.putIfAbsent(userId, () => _MutableStatusRow(userId));
+      final userName = (row['userName'] ?? '').toString();
+      if (userName.isEmpty) continue;
+      grouped.putIfAbsent(userName, () => _MutableStatusRow(userName));
     }
-    
+
     // 활동 데이터가 있는 경우 count 추가 (날짜 범위 내만)
     for (final row in rows) {
-      final userId = (row['userId'] ?? '').toString();
+      final userName = (row['userName'] ?? '').toString();
       final actDt = _parseDate(row['actDt']);
       final count = _parseInt(row['count']);
-      
-      if (userId.isEmpty || actDt == null || count <= 0) continue;
-      
+
+      if (userName.isEmpty || actDt == null || count <= 0) continue;
+
       // 날짜 범위 체크
       if (actDt.isBefore(startDt) || actDt.isAfter(endDt)) continue;
-      
-      final target = grouped[userId];
+
+      final target = grouped[userName];
       if (target != null) {
         target.add(_bucketKey(actDt), count);
       }
     }
-    
+
     return [
       for (final row in grouped.values)
         _StatusRow(
@@ -876,7 +905,7 @@ class _ActivityPeriodFilterSlot extends FilterSlotConfig {
   final ValueChanged<int?> onHalf;
 
   static const _kinds = ['월', '분기', '반기', '년'];
-  
+
   /// 현재 연도 ± 1년 범위
   static List<int> get _years {
     final now = DateTime.now().year;

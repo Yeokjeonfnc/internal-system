@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
-import 'activity_approval_management_view.dart';
 import 'activity_management_view.dart';
 import 'activity_routes.dart';
 import 'activity_status_detail_view.dart';
@@ -39,8 +38,7 @@ class ActivityHubView extends StatelessWidget {
     }
 
     if (s == 'approval') {
-      ///「활동관리」와 같이 5탭 본문만 전환.
-      return const ActivityApprovalManagementView(initialTab: 0);
+      return const _ActivityApprovalRouteRedirect();
     }
 
     /// `/activities` — 세 구역을 한 스크롤에 붙이지 않고, 상위 메뉴만 안내.
@@ -72,7 +70,7 @@ class ActivityHubView extends StatelessWidget {
               ),
               _MenuTile(
                 label: '활동관리결재',
-                onTap: () => context.go(ActivityRoutes.groupApproval),
+                onTap: () => context.go(ActivityRoutes.approvalAll),
               ),
             ],
           ),
@@ -135,6 +133,35 @@ class _MenuTile extends StatelessWidget {
       ),
       trailing: const Icon(Icons.chevron_right_rounded, size: 22),
       onTap: onTap,
+    );
+  }
+}
+
+/// `/activities/group/approval` 진입 시 표준 결재 경로(`/activities/approval/all`)로 보낸다.
+class _ActivityApprovalRouteRedirect extends StatefulWidget {
+  const _ActivityApprovalRouteRedirect();
+
+  @override
+  State<_ActivityApprovalRouteRedirect> createState() =>
+      _ActivityApprovalRouteRedirectState();
+}
+
+class _ActivityApprovalRouteRedirectState
+    extends State<_ActivityApprovalRouteRedirect> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.go(ActivityRoutes.approvalAll);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: AppTheme.appSurface,
+      child: Center(child: CircularProgressIndicator()),
     );
   }
 }

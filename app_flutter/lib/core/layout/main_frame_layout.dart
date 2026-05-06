@@ -12,6 +12,7 @@ import '../theme/app_colors.dart';
 import '../theme/shell_tab_chrome.dart';
 import '../auth/auth_provider.dart';
 import '../auth/user_profile_dialog.dart';
+import '../widgets/common/common_notification_sheet.dart';
 import 'tab_manager_provider.dart';
 
 class MainFrameLayout extends ConsumerStatefulWidget {
@@ -587,7 +588,7 @@ class _SidebarNavigation extends StatelessWidget {
                       '${ActivityRoutes.groupApproval}/',
                     ) ||
                     currentPath.startsWith('$kActivitiesRoot/approval/'),
-                onTap: () => context.go(ActivityRoutes.groupApproval),
+                onTap: () => context.go(ActivityRoutes.approvalAll),
               ),
             ],
           ),
@@ -944,6 +945,8 @@ class _SidebarUserProfile extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 4),
+              const NotificationBellIconButton(),
               IconButton(
                 tooltip: '설정',
                 onPressed: () {

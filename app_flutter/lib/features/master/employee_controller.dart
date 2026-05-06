@@ -60,32 +60,25 @@ final employeeRepositoryProvider = Provider<EmployeeRepository>(
 
 class EmployeeFilter {
   const EmployeeFilter({
-    this.name = '',
+    this.employeeKeyword = '',
     this.department = '전체',
     this.position = '전체',
-    this.email = '',
-    this.phone = '',
   });
 
-  final String name;
+  /// 사원명·이메일·휴대전화 통합 검색(부분 일치, OR).
+  final String employeeKeyword;
   final String department;
   final String position;
-  final String email;
-  final String phone;
 
   EmployeeFilter copyWith({
-    String? name,
+    String? employeeKeyword,
     String? department,
     String? position,
-    String? email,
-    String? phone,
   }) {
     return EmployeeFilter(
-      name: name ?? this.name,
+      employeeKeyword: employeeKeyword ?? this.employeeKeyword,
       department: department ?? this.department,
       position: position ?? this.position,
-      email: email ?? this.email,
-      phone: phone ?? this.phone,
     );
   }
 }
@@ -98,9 +91,7 @@ class EmployeeNotifier extends Notifier<EmployeeFilter> {
   @override
   EmployeeFilter build() => const EmployeeFilter();
 
-  void setName(String v) => state = state.copyWith(name: v);
+  void setEmployeeKeyword(String v) => state = state.copyWith(employeeKeyword: v);
   void setDepartment(String v) => state = state.copyWith(department: v);
   void setPosition(String v) => state = state.copyWith(position: v);
-  void setEmail(String v) => state = state.copyWith(email: v);
-  void setPhone(String v) => state = state.copyWith(phone: v);
 }

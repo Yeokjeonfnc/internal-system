@@ -9,8 +9,10 @@ import 'package:provider/provider.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
+import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
+import 'package:app_flutter/core/widgets/common/erp_popup_list_stripes.dart';
 import 'package:app_flutter/core/widgets/common/form/common_date_input_with_picker.dart'
     show CalendarPickButton, showAccentDatePicker;
 import 'package:app_flutter/core/auth/auth_provider.dart';
@@ -20,6 +22,9 @@ import 'package:app_flutter/features/activities/activity_api_service.dart';
 import 'package:app_flutter/features/activities/activity_instructions_dialog.dart';
 import 'package:app_flutter/features/activities/activity_visit_history_dialog.dart';
 import 'package:app_flutter/features/activities/checklist_api_service.dart';
+import 'package:app_flutter/core/notifications/notification_api_service.dart';
+import 'package:app_flutter/features/master/employee_model.dart';
+import 'package:app_flutter/features/master/user_api_service.dart';
 import 'package:app_flutter/features/stores/store_api_service.dart';
 import 'package:app_flutter/features/stores/store_model.dart';
 
@@ -188,7 +193,7 @@ class _ActivityFormDateField extends StatelessWidget {
 
 /// 활동을 신규 등록하는 화면(상신·임시보관·결재라인).
 ///
-/// [ActivityManagementView] 탭 2또는 `/activities/manage/register` 경로에 동일 위젯을 쓴다.
+/// [ActivityManagementView]의 「활동관리 등록」 탭 또는 `/activities/manage/register` 등에 동일 위젯을 쓴다.
 class ActivityRegisterView extends StatefulWidget {
   const ActivityRegisterView({super.key, this.actIdx});
 
@@ -207,26 +212,78 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   bool _saving = false;
   bool _autoSaving = false;
   bool _submitted = false;
+  bool _approving = false;
   int? _draftActIdx;
   Timer? _autoSaveTimer;
+
+  /// 상세 로드 후 서버 [apprStatus]. 신규 등록만 열면 null.
+  String? _loadedApprStatus;
+
+  String _loadedCreatDtLabel = '';
+  String _loadedApprDtLabel = '';
+  Set<String> _apprAckUserIds = {};
+  Map<String, String> _apprAckDateByUserId = {};
+
+  // 기안 정보
+  String _deptNm = ''; // 기안부서
+  String _drafterNm = ''; // 기안자
 
   final _specialNotesController = TextEditingController();
   final _activityNotesController = TextEditingController();
   final _suggestionsController = TextEditingController();
   final _svNotesController = TextEditingController();
-  
+
   // 체크리스트 블록에 접근하기 위한 GlobalKey
   final _checklistKey = GlobalKey<_ChecklistBlockState>();
 
   /// 결재 절차선 — [결재라인 설정]에서 반영. `결재` 행(칸 수 [kActivityApprovalLineSlotCount]).
-  List<String> _approvalLineStampSlots = const ['김민효', '', '', '', '', '', ''];
+  List<String> _approvalLineStampSlots = const ['', '', '', '', '', '', ''];
+
+  /// 결재 슬롯별 `user_mst.user_id` (이름과 동일 인덱스).
+  List<String> _approvalLineUserIds =
+      List<String>.filled(kActivityApprovalLineSlotCount, '');
 
   /// [직급(직책)]. [_approvalLineStampSlots]과 같은 인덱스.
-  List<String> _rankLineStampSlots = const ['사원', '', '', '', '', '', ''];
+  List<String> _rankLineStampSlots = const ['', '', '', '', '', '', ''];
 
   DateTime get _today {
     final n = DateTime.now();
     return DateTime(n.year, n.month, n.day);
+  }
+
+  /// 결재대기·결재완료 문서 — 임시저장/상신 숨김·결재하기 노출.
+  bool get _isApprovalWorkflowView {
+    final s = _loadedApprStatus?.trim().toUpperCase();
+    return s == 'PENDING' || s == 'APPROVED';
+  }
+
+  /// 결재하기 버튼은 결재대기에서만 표시 (완료 후 재클릭 방지).
+  bool get _canSubmitApproval {
+    final s = _loadedApprStatus?.trim().toUpperCase();
+    return s == 'PENDING';
+  }
+
+  String _todayYyyyMmDdString() {
+    final n = DateTime.now();
+    final m = n.month.toString().padLeft(2, '0');
+    final d = n.day.toString().padLeft(2, '0');
+    return '${n.year}-$m-$d';
+  }
+
+  static String _yyyyMmDd(dynamic v) {
+    final s = v?.toString() ?? '';
+    if (s.isEmpty) return '';
+    return s.split('T').first;
+  }
+
+  String get _docWrittenAtDisplay =>
+      _loadedCreatDtLabel.isNotEmpty ? _loadedCreatDtLabel : _todayYyyyMmDdString();
+
+  /// 작성자 슬롯 결재일자 칸 — 결재일시 우선, 없으면 작성일자, 신규는 오늘
+  String get _writerSealDateDisplay {
+    if (_loadedApprDtLabel.isNotEmpty) return _loadedApprDtLabel;
+    if (_loadedCreatDtLabel.isNotEmpty) return _loadedCreatDtLabel;
+    return _todayYyyyMmDdString();
   }
 
   @override
@@ -238,6 +295,8 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     if (widget.actIdx != null) {
       _loadActivity(widget.actIdx!);
     }
+    // 자동 저장: 5분마다 DRAFT로 서버 반영(가맹점 선택·일반 등록/임시보관 흐름에서만).
+    // 결재대기·결재완료 상세 모드, 저장/상신 처리 중, 가맹점 미선택 시에는 실행하지 않는다.
     _autoSaveTimer = Timer.periodic(
       const Duration(minutes: 5),
       (_) => _autoSaveDraft(),
@@ -247,13 +306,26 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   void _initializeApprovalLine() {
     final authProvider = context.read<AuthProvider>();
     final user = authProvider.user;
-    
+
     if (user != null) {
       final userName = user['userNm']?.toString() ?? '';
       final positionNm = user['positionNm']?.toString() ?? '';
-      
-      _approvalLineStampSlots = [userName, '', '', '', '', '', ''];
-      _rankLineStampSlots = [positionNm, '', '', '', '', '', ''];
+      final deptNm = user['deptNm']?.toString() ?? '';
+
+      setState(() {
+        _deptNm = deptNm; // 기안부서 설정
+        _drafterNm = userName; // 기안자 설정
+        _approvalLineStampSlots = [userName, '', '', '', '', '', ''];
+        _rankLineStampSlots = [positionNm, '', '', '', '', '', ''];
+        _approvalLineUserIds = List<String>.filled(
+          kActivityApprovalLineSlotCount,
+          '',
+        );
+        final uid = authProvider.userId.trim();
+        if (uid.isNotEmpty) {
+          _approvalLineUserIds[0] = uid;
+        }
+      });
     }
   }
 
@@ -268,21 +340,47 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     }
     if (!mounted) return;
 
-    final rawNotes = activity['actNotes']?.toString() ?? '';
-    final noteParts = rawNotes.split('\n\n');
+    final ackIds = <String>{};
+    final ackDates = <String, String>{};
+    final rawAckIds = activity['apprAckUserIds'];
+    if (rawAckIds is List) {
+      for (final e in rawAckIds) {
+        final s = e?.toString().trim();
+        if (s != null && s.isNotEmpty) ackIds.add(s);
+      }
+    }
+    final rawAckMap = activity['apprAckDateByUserId'];
+    if (rawAckMap is Map) {
+      for (final e in rawAckMap.entries) {
+        final k = e.key.toString();
+        if (k.isEmpty) continue;
+        ackDates[k] = e.value?.toString() ?? '';
+      }
+    }
+
+    final svIdFromApi = activity['svId']?.toString().trim() ?? '';
+
     setState(() {
       _selectedStore = store;
       _activityKind = activity['actType']?.toString() ?? _activityKind;
       _activityDate = _parseDate(activity['actDt']) ?? _activityDate;
-      _specialNotesController.text = noteParts.isNotEmpty
-          ? noteParts.first
-          : '';
-      _activityNotesController.text = noteParts.length > 1
-          ? noteParts.skip(1).join('\n\n')
-          : '';
+      _specialNotesController.text = activity['memoTxt']?.toString() ?? '';
+      _activityNotesController.text = activity['actNotes']?.toString() ?? '';
       _suggestionsController.text = activity['suggestions']?.toString() ?? '';
       _svNotesController.text = activity['svNotes']?.toString() ?? '';
+      _loadedApprStatus = activity['apprStatus']?.toString().trim();
+      _loadedCreatDtLabel = _yyyyMmDd(activity['creatDt']);
+      _loadedApprDtLabel = _yyyyMmDd(activity['apprDt']);
+      _apprAckUserIds = ackIds;
+      _apprAckDateByUserId = ackDates;
+      // 기안부서·기안자: active_mst.sv_id 기준 user_mst·dept_mst (API svNm / svDeptNm)
+      if (svIdFromApi.isNotEmpty) {
+        _deptNm = activity['svDeptNm']?.toString().trim() ?? '';
+        _drafterNm = activity['svNm']?.toString().trim() ?? '';
+      }
     });
+
+    await _restoreApprovalLineFromActivity(activity);
 
     // 체크리스트 결과 로드
     _loadChecklistResults(actIdx);
@@ -292,7 +390,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     try {
       final results = await ActivityApiService().getChecklistResults(actIdx);
       if (!mounted) return;
-      
+
       // 체크리스트 블록이 준비되면 결과 설정
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _checklistKey.currentState?.setChecklistResults(results);
@@ -320,6 +418,111 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     super.dispose();
   }
 
+  Future<void> _restoreApprovalLineFromActivity(
+    Map<String, dynamic> activity,
+  ) async {
+    final ids = <String>[];
+    final fromApi = activity['apprUserIds'];
+    if (fromApi is List) {
+      for (final e in fromApi) {
+        final s = e?.toString().trim() ?? '';
+        if (s.isNotEmpty) ids.add(s);
+      }
+    } else {
+      final raw = activity['apprId']?.toString();
+      if (raw != null && raw.isNotEmpty) {
+        ids.addAll(
+          raw.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty),
+        );
+      }
+    }
+
+    final svId = activity['svId']?.toString().trim() ?? '';
+    final authProvider = context.read<AuthProvider>();
+    final authId = authProvider.userId.trim();
+
+    try {
+      final users = await UserApiService().getUsers();
+      final byId = <String, Employee>{};
+      for (final u in users) {
+        if (u.userId.isNotEmpty) byId[u.userId] = u;
+      }
+      if (!mounted) return;
+      setState(() {
+        _approvalLineUserIds = List<String>.filled(
+          kActivityApprovalLineSlotCount,
+          '',
+        );
+        _approvalLineStampSlots = List<String>.filled(
+          kActivityApprovalLineSlotCount,
+          '',
+        );
+        _rankLineStampSlots = List<String>.filled(
+          kActivityApprovalLineSlotCount,
+          '',
+        );
+
+        final writerId = svId.isNotEmpty ? svId : authId;
+        _approvalLineUserIds[0] = writerId;
+        final wEmp = byId[writerId];
+        _approvalLineStampSlots[0] =
+            wEmp?.name.isNotEmpty == true ? wEmp!.name : _drafterNm;
+        _rankLineStampSlots[0] = wEmp?.jobTitle ?? '';
+
+        var slot = 1;
+        for (final uid in ids) {
+          if (slot >= kActivityApprovalLineSlotCount) break;
+          if (uid == writerId) continue;
+          _approvalLineUserIds[slot] = uid;
+          final emp = byId[uid];
+          _approvalLineStampSlots[slot] =
+              emp?.name.isNotEmpty == true ? emp!.name : uid;
+          _rankLineStampSlots[slot] = emp?.jobTitle ?? '';
+          slot++;
+        }
+      });
+    } catch (e) {
+      debugPrint('결재선 복원 실패: $e');
+    }
+  }
+
+  List<String> _approverUserIdsExcludingSelf() {
+    final self = context.read<AuthProvider>().userId.trim();
+    final out = <String>[];
+    for (var i = 0; i < kActivityApprovalLineSlotCount; i++) {
+      final id = _approvalLineUserIds[i].trim();
+      final nm = _approvalLineStampSlots[i].trim();
+      if (nm.isEmpty || id.isEmpty) continue;
+      if (id == self) continue;
+      if (!out.contains(id)) out.add(id);
+    }
+    return out;
+  }
+
+  Future<void> _onApproveActivity() async {
+    final actIdx = _draftActIdx ?? widget.actIdx;
+    final uid = context.read<AuthProvider>().userId.trim();
+    if (actIdx == null || uid.isEmpty) {
+      _snack('로그인 정보 또는 활동 번호가 없습니다.');
+      return;
+    }
+    setState(() => _approving = true);
+    final ok = await NotificationApiService().acknowledgeActivityApproval(
+      actIdx: actIdx,
+      userId: uid,
+    );
+    if (!mounted) return;
+    setState(() => _approving = false);
+    if (ok) {
+      await _loadActivity(actIdx);
+    }
+    if (!mounted) return;
+    await showAlertDialog(
+      context,
+      ok ? '결재 처리되었습니다.' : '결재 처리에 실패했습니다.',
+    );
+  }
+
   Future<void> _pickActivityDate() async {
     final d = await showAccentDatePicker(
       context: context,
@@ -340,11 +543,13 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
       context,
       initialNames: _approvalLineStampSlots,
       initialTitles: _rankLineStampSlots,
+      initialUserIds: _approvalLineUserIds,
     );
     if (!mounted || r == null) return;
     setState(() {
       _approvalLineStampSlots = r.names;
       _rankLineStampSlots = r.titles;
+      _approvalLineUserIds = List<String>.from(r.userIds);
     });
   }
 
@@ -363,22 +568,26 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   Map<String, dynamic>? _buildPayload(String apprStatus) {
     final store = _selectedStore;
     if (store == null) return null;
-    
+
+    // 로그인 유저 ID 가져오기
+    final authProvider = context.read<AuthProvider>();
+    final userId = authProvider.userId;
+
     // 체크리스트 결과 수집
     final checklistResults = _getChecklistResults();
-    
+    final approvers = _approverUserIdsExcludingSelf();
+
     return {
       'storeIdx': store.storeIdx,
       'actType': _activityKind,
       'actDt': _formatYmd(_activityDate),
-      'actNotes': [
-        _specialNotesController.text.trim(),
-        _activityNotesController.text.trim(),
-      ].where((text) => text.isNotEmpty).join('\n\n'),
-      'svId': store.svId.trim().isEmpty ? null : store.svId.trim(),
+      'memoTxt': _specialNotesController.text.trim(),
+      'actNotes': _activityNotesController.text.trim(),
+      'svId': userId.isEmpty ? null : userId, // 로그인 유저 ID로 설정
       'apprStatus': apprStatus,
       'suggestions': _suggestionsController.text.trim(),
       'svNotes': _svNotesController.text.trim(),
+      if (approvers.isNotEmpty) 'apprUserIds': approvers,
       if (checklistResults != null && checklistResults.isNotEmpty)
         'checklistResults': checklistResults,
     };
@@ -388,17 +597,17 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   List<Map<String, dynamic>>? _getChecklistResults() {
     final checklistState = _checklistKey.currentState;
     if (checklistState == null) return null;
-    
+
     final items = checklistState._items;
     final results = checklistState._result;
-    
+
     if (items.isEmpty || results.isEmpty) return null;
-    
+
     final List<Map<String, dynamic>> checklistResults = [];
     for (var i = 0; i < items.length; i++) {
       final answerVal = results[i];
-      // "미평가"는 제외하고 실제 평가된 항목만 저장
-      if (answerVal != '미평가') {
+      // "미평가"는 제외하고 실제 평가된 항목만 저장 (미평가는 빈 문자열이 아님)
+      if (answerVal.isNotEmpty && answerVal != '미평가') {
         checklistResults.add({
           'chkIdx': items[i].chkIdx,
           'answerVal': answerVal,
@@ -406,7 +615,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
         });
       }
     }
-    
+
     return checklistResults.isEmpty ? null : checklistResults;
   }
 
@@ -414,19 +623,20 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   bool _hasUnevaluatedChecklist() {
     final checklistState = _checklistKey.currentState;
     if (checklistState == null) return false;
-    
+
     final items = checklistState._items;
     final results = checklistState._result;
-    
+
     // 체크리스트 항목이 있는데 미평가가 있으면 true
     if (items.isNotEmpty && results.contains('미평가')) {
       return true;
     }
-    
+
     return false;
   }
 
   Future<void> _autoSaveDraft() async {
+    if (_isApprovalWorkflowView) return;
     if (_submitted || _autoSaving || _saving || _selectedStore == null) return;
     _autoSaving = true;
     final saved = await _persistActivity('DRAFT');
@@ -444,13 +654,20 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
       _snack('가맹점을 먼저 선택해 주세요.');
       return;
     }
-    
-    // 상신 시 체크리스트 검증
-    if (apprStatus == 'PENDING' && _hasUnevaluatedChecklist()) {
-      _snack('아직 체크되지 않은 체크리스트 항목이 있습니다.');
-      return;
+
+    // 상신 시 결재자(본인 제외) 및 체크리스트 검증
+    if (apprStatus == 'PENDING') {
+      final approvers = _approverUserIdsExcludingSelf();
+      if (approvers.isEmpty) {
+        _snack('결재자를 한 명 이상(본인 제외) 지정해 주세요.');
+        return;
+      }
+      if (_hasUnevaluatedChecklist()) {
+        _snack('아직 체크되지 않은 체크리스트 항목이 있습니다.');
+        return;
+      }
     }
-    
+
     if (_saving) return;
     setState(() => _saving = true);
     final saved = await _persistActivity(apprStatus);
@@ -468,7 +685,31 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
       _submitted = true;
       _autoSaveTimer?.cancel();
     }
-    _snack(apprStatus == 'PENDING' ? '상신되었습니다.' : '임시보관되었습니다.');
+
+    // 저장 성공 메시지 표시 후 뒤로가기
+    await showAlertDialog(
+      context,
+      apprStatus == 'PENDING' ? '상신되었습니다.' : '임시보관되었습니다.',
+    );
+
+    // 저장 후 화면 초기화 (새로운 활동 등록 준비)
+    if (mounted && apprStatus == 'PENDING') {
+      // 상신의 경우 폼 초기화
+      setState(() {
+        _selectedStore = null;
+        _activityDate = _today;
+        _activityKind = '방문';
+        _activityNotesController.clear();
+        _suggestionsController.clear();
+        _specialNotesController.clear();
+        _svNotesController.clear();
+        _draftActIdx = null;
+        _submitted = false;
+      });
+      // 체크리스트 초기화
+      _checklistKey.currentState?.setChecklistResults([]);
+      _initializeApprovalLine();
+    }
   }
 
   Future<Map<String, dynamic>?> _persistActivity(String apprStatus) {
@@ -484,9 +725,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showAlertDialog(context, message);
   }
 
   @override
@@ -525,6 +764,16 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                             rankStampSlots: _rankLineStampSlots
                                 .take(kActivityApprovalLineSlotCount)
                                 .toList(),
+                            approvalUserIds: List<String>.from(
+                              _approvalLineUserIds
+                                  .take(kActivityApprovalLineSlotCount),
+                            ),
+                            apprAckUserIds: _apprAckUserIds,
+                            apprAckDateByUserId: _apprAckDateByUserId,
+                            documentWrittenAt: _docWrittenAtDisplay,
+                            writerSealDate: _writerSealDateDisplay,
+                            deptNm: _deptNm,
+                            drafterNm: _drafterNm,
                           ),
                         ),
                       ),
@@ -569,7 +818,8 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                           ),
                           const SizedBox(width: 12),
                           FilledButton(
-                            onPressed: _openApprovalLineDialog,
+                            onPressed:
+                                _isApprovalWorkflowView ? null : _openApprovalLineDialog,
                             style: FilledButton.styleFrom(
                               backgroundColor: AppTheme.accentRed,
                               foregroundColor: Colors.white,
@@ -580,6 +830,22 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                             ),
                             child: const Text('결재라인'),
                           ),
+                          if (_canSubmitApproval) ...[
+                            const SizedBox(width: 10),
+                            FilledButton(
+                              onPressed:
+                                  _approving ? null : () => _onApproveActivity(),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF047857),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                              ),
+                              child: Text(_approving ? '처리 중...' : '결재하기'),
+                            ),
+                          ],
                         ],
                       ),
                       SizedBox(height: 12),
@@ -694,7 +960,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                         requiredMark: true,
                         child: _outlineInput(
                           hint: '',
-                          maxLines: 5,
+                          maxLines: 7,
                           controller: _activityNotesController,
                           readOnly: false,
                         ),
@@ -704,7 +970,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                         label: '건의사항',
                         child: _outlineInput(
                           hint: '',
-                          maxLines: 5,
+                          maxLines: 7,
                           controller: _suggestionsController,
                           readOnly: false,
                         ),
@@ -714,7 +980,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                         label: '담당 수퍼바이저 의견',
                         child: _outlineInput(
                           hint: '',
-                          maxLines: 5,
+                          maxLines: 7,
                           controller: _svNotesController,
                           readOnly: false,
                         ),
@@ -801,38 +1067,39 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 8,
-                  children: [
-                    FilledButton(
-                      onPressed: _saving
-                          ? null
-                          : () => _saveActivity('PENDING'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppTheme.accentRed,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
+                if (!_isApprovalWorkflowView)
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton(
+                        onPressed: _saving
+                            ? null
+                            : () => _saveActivity('PENDING'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppTheme.accentRed,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
                         ),
+                        child: Text(_saving ? '저장 중...' : '상신하기'),
                       ),
-                      child: Text(_saving ? '저장 중...' : '상신하기'),
-                    ),
-                    OutlinedButton(
-                      onPressed: _saving ? null : () => _saveActivity('DRAFT'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.accentRed,
-                        side: const BorderSide(color: AppTheme.accentRed),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
+                      OutlinedButton(
+                        onPressed: _saving ? null : () => _saveActivity('DRAFT'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.accentRed,
+                          side: const BorderSide(color: AppTheme.accentRed),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
                         ),
+                        child: const Text('임시보관'),
                       ),
-                      child: const Text('임시보관'),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -956,9 +1223,10 @@ class _StoreLookupDialogState extends State<_StoreLookupDialog> {
                               final selected =
                                   _selected?.storeIdx == store.storeIdx;
                               return Material(
-                                color: selected
-                                    ? AppTheme.accentRed.withValues(alpha: 0.08)
-                                    : Colors.white,
+                                color: erpPopupListRowBackgroundSelectable(
+                                  index,
+                                  selected: selected,
+                                ),
                                 child: InkWell(
                                   onTap: () =>
                                       setState(() => _selected = store),
@@ -1479,39 +1747,68 @@ class _ApprovalTable extends StatelessWidget {
   const _ApprovalTable({
     required this.approvalStampSlots,
     required this.rankStampSlots,
+    required this.approvalUserIds,
+    required this.apprAckUserIds,
+    required this.apprAckDateByUserId,
+    required this.documentWrittenAt,
+    required this.writerSealDate,
+    required this.deptNm,
+    required this.drafterNm,
   });
 
   final List<String> approvalStampSlots;
   final List<String> rankStampSlots;
+  final List<String> approvalUserIds;
+  final Set<String> apprAckUserIds;
+  final Map<String, String> apprAckDateByUserId;
+  final String documentWrittenAt;
+  final String writerSealDate;
+  final String deptNm;
+  final String drafterNm;
 
   static const double _labelW = 95;
   static const double _rowSingleH = 40;
-
-  /// 기안부서 한 줄(문서·스크린샷에서 세로로 더 촘촘하게 보이도록).
   static const double _rowDeptH = 30;
-  static const double _rowStampH = 40;
+  static const double _rowRankGridH = 40;
+  static const double _rowSealGridH = 56;
+  static const double _rowDateGridH = 34;
   static int get _slotCount => kActivityApprovalLineSlotCount;
   static const double _textSize = 13.0;
+  static const double _sealDiameter = 52;
 
-  List<String> get _paddedApproval {
+  List<String> _padList(List<String> src) {
     final a = <String>[];
     for (var i = 0; i < _slotCount; i++) {
-      a.add(i < approvalStampSlots.length ? approvalStampSlots[i] : '');
+      a.add(i < src.length ? src[i] : '');
     }
     return a;
   }
 
-  List<String> get _paddedRank {
-    final a = <String>[];
-    for (var i = 0; i < _slotCount; i++) {
-      a.add(i < rankStampSlots.length ? rankStampSlots[i] : '');
-    }
-    return a;
+  List<String> get _paddedApprovalNames => _padList(approvalStampSlots);
+  List<String> get _paddedRank => _padList(rankStampSlots);
+  List<String> get _paddedUserIds => _padList(approvalUserIds);
+
+  bool _slotSealed(int i) {
+    final name = _paddedApprovalNames[i].trim();
+    if (name.isEmpty) return false;
+    if (i == 0) return true;
+    final uid = _paddedUserIds[i].trim();
+    if (uid.isEmpty) return false;
+    return apprAckUserIds.contains(uid);
+  }
+
+  String _slotDateLabel(int i) {
+    if (i == 0) return writerSealDate;
+    final uid = _paddedUserIds[i].trim();
+    if (uid.isEmpty) return '';
+    return apprAckDateByUserId[uid]?.trim() ?? '';
   }
 
   @override
   Widget build(BuildContext context) {
     const edge = FormStylePalette.approvalTableBorder;
+    final ranks = _paddedRank;
+    final names = _paddedApprovalNames;
     return ClipRRect(
       borderRadius: BorderRadius.circular(5),
       child: Container(
@@ -1523,20 +1820,118 @@ class _ApprovalTable extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _singleRow('작성일자', '2026-04-22', showTop: true, edge: edge),
+            _singleRow(
+              '작성일자',
+              documentWrittenAt,
+              showTop: true,
+              edge: edge,
+            ),
             _singleRow(
               '기안부서',
-              'IT팀',
+              deptNm,
               showTop: false,
               edge: edge,
               height: _rowDeptH,
               valueCompact: true,
             ),
-            _singleRow('기안자', '김민효', showTop: false, edge: edge),
-            _gridRow('직급(직책)', _paddedRank, edge: edge),
-            _gridRow('결재', _paddedApproval, edge: edge),
+            _singleRow('기안자', drafterNm, showTop: false, edge: edge),
+            _rankGridRow(ranks, edge),
+            _sealGridRow(names, edge),
+            _dateGridRow(edge),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _rankGridRow(List<String> ranks, Color edge) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: edge, width: 1)),
+      ),
+      height: _rowRankGridH,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _labelCol('직급(직책)'),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < _slotCount; i++)
+                  Expanded(
+                    child: _textGridCell(
+                      i < ranks.length ? ranks[i] : '',
+                      edge,
+                      isLast: i == _slotCount - 1,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sealGridRow(List<String> names, Color edge) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: edge, width: 1)),
+      ),
+      height: _rowSealGridH,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _labelCol('결재'),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < _slotCount; i++)
+                  Expanded(
+                    child: _sealCell(
+                      i < names.length ? names[i] : '',
+                      sealed: _slotSealed(i),
+                      edge: edge,
+                      isLast: i == _slotCount - 1,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dateGridRow(Color edge) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: edge, width: 1)),
+      ),
+      height: _rowDateGridH,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _labelCol('결재일자'),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < _slotCount; i++)
+                  Expanded(
+                    child: _dateCell(
+                      _slotDateLabel(i),
+                      showText: _slotSealed(i),
+                      edge: edge,
+                      isLast: i == _slotCount - 1,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1566,40 +1961,6 @@ class _ApprovalTable extends StatelessWidget {
               value,
               textHeight: valueCompact ? 1.2 : 2,
               compact: valueCompact,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static Widget _gridRow(
-    String label,
-    List<String> slots, {
-    required Color edge,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: edge, width: 1)),
-      ),
-      height: _rowStampH,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _labelCol(label),
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < _slotCount; i++)
-                  Expanded(
-                    child: _stampSlot(
-                      i < slots.length ? slots[i] : '',
-                      edge,
-                      isLast: i == _slotCount - 1,
-                    ),
-                  ),
-              ],
             ),
           ),
         ],
@@ -1671,32 +2032,125 @@ class _ApprovalTable extends StatelessWidget {
     );
   }
 
-  static Widget _stampSlot(String t, Color edge, {required bool isLast}) {
+  Widget _textGridCell(String t, Color edge, {required bool isLast}) {
     return ColoredBox(
       color: FormStylePalette.approvalTableDataBg,
       child: Container(
         alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 1),
         decoration: BoxDecoration(
           border: Border(
             right: isLast ? BorderSide.none : BorderSide(color: edge, width: 1),
           ),
         ),
-        child: t.isEmpty
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        child: Text(
+          t.trim(),
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: FormStylePalette.textPrimary,
+            fontSize: _textSize,
+            fontWeight: FontWeight.w600,
+            height: 1.1,
+            fontFamilyFallback: AppTheme.koreanFontFallback,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sealCell(
+    String nameRaw, {
+    required bool sealed,
+    required Color edge,
+    required bool isLast,
+  }) {
+    final name = nameRaw.trim();
+    return ColoredBox(
+      color: FormStylePalette.approvalTableDataBg,
+      child: Container(
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border(
+            right: isLast ? BorderSide.none : BorderSide(color: edge, width: 1),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: name.isEmpty
             ? const SizedBox.shrink()
-            : Text(
-                t,
+            : sealed
+                ? Container(
+                    width: _sealDiameter,
+                    height: _sealDiameter,
+                    decoration: const BoxDecoration(
+                      color: AppTheme.accentRed,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      name,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        height: 1.05,
+                        fontFamilyFallback: AppTheme.koreanFontFallback,
+                      ),
+                    ),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      name,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: FormStylePalette.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        height: 1.05,
+                        fontFamilyFallback: AppTheme.koreanFontFallback,
+                      ),
+                    ),
+                  ),
+      ),
+    );
+  }
+
+  Widget _dateCell(
+    String dateRaw, {
+    required bool showText,
+    required Color edge,
+    required bool isLast,
+  }) {
+    final date = dateRaw.trim();
+    return ColoredBox(
+      color: FormStylePalette.approvalTableDataBg,
+      child: Container(
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border(
+            right: isLast ? BorderSide.none : BorderSide(color: edge, width: 1),
+          ),
+        ),
+        child: showText && date.isNotEmpty
+            ? Text(
+                date,
                 textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: FormStylePalette.textPrimary,
-                  fontSize: _textSize,
-                  fontWeight: FontWeight.w600,
-                  height: 1.1,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
                   fontFamilyFallback: AppTheme.koreanFontFallback,
                 ),
-              ),
+              )
+            : const SizedBox.shrink(),
       ),
     );
   }
@@ -1716,6 +2170,9 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
   late final List<String> _result = [];
   bool _loading = true;
 
+  /// 상세 로드 시 API 결과가 마스터 행보다 먼저 오면 여기 보관 후 `_loadChecklists` 완료 시 반영
+  List<Map<String, dynamic>>? _pendingChecklistResults;
+
   @override
   void initState() {
     super.initState();
@@ -1726,6 +2183,7 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
   void didUpdateWidget(covariant _ChecklistBlock oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.store?.brandCd != oldWidget.store?.brandCd) {
+      _pendingChecklistResults = null;
       _loadChecklists();
     }
   }
@@ -1735,6 +2193,7 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
       setState(() {
         _items = [];
         _result.clear();
+        _pendingChecklistResults = null;
         _loading = false;
       });
       return;
@@ -1750,9 +2209,8 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
 
       setState(() {
         _items = items;
-        _result.clear();
-        _result.addAll(List.filled(items.length, '미평가'));
         _loading = false;
+        _syncResultFromPending();
       });
     } catch (e) {
       debugPrint('체크리스트 로드 에러: $e');
@@ -1765,25 +2223,58 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
     }
   }
 
-  /// 체크리스트 결과 설정 (임시보관 상세 로드 시 사용)
-  void setChecklistResults(List<Map<String, dynamic>> results) {
+  int? _parseChkIdx(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw.toString());
+  }
+
+  /// 체크박스는 Y/N 만 비교하므로 서버·JSON 변형을 통일
+  String _normalizeAnswerVal(String? raw) {
+    final s = raw?.trim() ?? '';
+    if (s.isEmpty || s == '미평가') return '미평가';
+    final upper = s.toUpperCase();
+    if (upper == 'Y' || s == '1' || s == '적합') return 'Y';
+    if (upper == 'N' || s == '0' || s == '미적합') return 'N';
+    return s;
+  }
+
+  void _syncResultFromPending() {
+    _result.clear();
     if (_items.isEmpty) return;
 
-    // chkIdx를 키로 하는 결과 맵 생성
-    final resultMap = <int, String>{};
-    for (final result in results) {
-      final chkIdx = result['chkIdx'] as int?;
-      final answerVal = result['answerVal']?.toString() ?? '미평가';
-      if (chkIdx != null) {
-        resultMap[chkIdx] = answerVal;
-      }
+    final pending = _pendingChecklistResults;
+    if (pending == null || pending.isEmpty) {
+      _result.addAll(List.filled(_items.length, '미평가'));
+      return;
     }
 
-    // _items의 순서대로 결과 매핑
+    final resultMap = <int, String>{};
+    for (final row in pending) {
+      final chkIdx = _parseChkIdx(row['chkIdx']);
+      if (chkIdx == null) continue;
+      resultMap[chkIdx] = _normalizeAnswerVal(row['answerVal']?.toString());
+    }
+
+    for (final item in _items) {
+      _result.add(resultMap[item.chkIdx] ?? '미평가');
+    }
+  }
+
+  /// 체크리스트 결과 설정 (임시보관 상세 로드 시 사용)
+  void setChecklistResults(List<Map<String, dynamic>> results) {
+    _pendingChecklistResults = List<Map<String, dynamic>>.from(results);
+    if (!mounted || _items.isEmpty) return;
+    setState(_syncResultFromPending);
+  }
+
+  /// 모든 항목을 적합(Y)으로 선택합니다.
+  void _checkAllSuitable() {
+    if (_items.isEmpty || _result.length != _items.length) return;
     setState(() {
-      _result.clear();
-      for (final item in _items) {
-        _result.add(resultMap[item.chkIdx] ?? '미평가');
+      for (var i = 0; i < _result.length; i++) {
+        _result[i] = 'Y';
       }
     });
   }
@@ -1835,6 +2326,27 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
         children: [
           const _SectionTitle('체크리스트'),
           const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _checkAllSuitable,
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.accentRed,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                '적합 모두 체크',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  fontFamilyFallback: AppTheme.koreanFontFallback,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
           DecoratedBox(
             decoration: BoxDecoration(
               border: Border.all(color: FormStylePalette.panelBorder),
@@ -1891,10 +2403,13 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
                                       value: _result[i] == 'Y',
                                       onChanged: (v) {
                                         setState(() {
-                                          _result[i] = _result[i] == 'Y' ? '미평가' : 'Y';
+                                          _result[i] = _result[i] == 'Y'
+                                              ? '미평가'
+                                              : 'Y';
                                         });
                                       },
-                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
                                       visualDensity: VisualDensity.compact,
                                     ),
                                   ),
@@ -1904,7 +2419,8 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: FormStylePalette.textPrimary,
-                                      fontFamilyFallback: AppTheme.koreanFontFallback,
+                                      fontFamilyFallback:
+                                          AppTheme.koreanFontFallback,
                                     ),
                                   ),
                                 ],
@@ -1927,10 +2443,13 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
                                       value: _result[i] == 'N',
                                       onChanged: (v) {
                                         setState(() {
-                                          _result[i] = _result[i] == 'N' ? '미평가' : 'N';
+                                          _result[i] = _result[i] == 'N'
+                                              ? '미평가'
+                                              : 'N';
                                         });
                                       },
-                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
                                       visualDensity: VisualDensity.compact,
                                     ),
                                   ),
@@ -1940,7 +2459,8 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: FormStylePalette.textPrimary,
-                                      fontFamilyFallback: AppTheme.koreanFontFallback,
+                                      fontFamilyFallback:
+                                          AppTheme.koreanFontFallback,
                                     ),
                                   ),
                                 ],

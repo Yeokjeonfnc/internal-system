@@ -10,7 +10,6 @@ import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
-import 'package:app_flutter/core/widgets/common/common_search_field_picker.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
@@ -18,10 +17,8 @@ import 'package:app_flutter/features/activities/activity_list_date_field.dart';
 import 'sales_area_controller.dart';
 import 'sales_area_model.dart';
 
-/// 영업지역 관리 — 본문에 켤 수 있는 검색 항목(가맹점·창업자 목록과 동일 패턴).
+/// 영업지역 관리 — 본문에 항상 노출하는 검색 항목(통합 텍스트 검색은 상단 필드).
 const Set<CommonSearchFieldId> kSalesAreaListSupportedSearchFields = {
-  CommonSearchFieldId.salesAreaName,
-  CommonSearchFieldId.salesAreaPropertyName,
   CommonSearchFieldId.salesAreaBrand,
   CommonSearchFieldId.salesAreaRegion,
   CommonSearchFieldId.salesAreaSettingDateRange,
@@ -36,92 +33,19 @@ class SalesAreaListView extends ConsumerStatefulWidget {
 }
 
 class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
-  late final TextEditingController _areaNameCtrl;
-  late final TextEditingController _propertyNameCtrl;
-  final Set<CommonSearchFieldId> _visibleMainSearchFields = {};
+  late final TextEditingController _keywordCtrl;
 
   @override
   void initState() {
     super.initState();
     final f = ref.read(salesAreaProvider);
-    _areaNameCtrl = TextEditingController(text: f.salesAreaName);
-    _propertyNameCtrl = TextEditingController(text: f.propertyName);
+    _keywordCtrl = TextEditingController(text: f.salesAreaKeyword);
   }
 
   @override
   void dispose() {
-    _areaNameCtrl.dispose();
-    _propertyNameCtrl.dispose();
+    _keywordCtrl.dispose();
     super.dispose();
-  }
-
-  bool get _anyMainFilter => _visibleMainSearchFields.isNotEmpty;
-
-  void _clearSalesAreaFilterField(CommonSearchFieldId id, SalesAreaNotifier n) {
-    switch (id) {
-      case CommonSearchFieldId.salesAreaName:
-        _areaNameCtrl.clear();
-        n.setSalesAreaName('');
-        return;
-      case CommonSearchFieldId.salesAreaPropertyName:
-        _propertyNameCtrl.clear();
-        n.setPropertyName('');
-        return;
-      case CommonSearchFieldId.salesAreaBrand:
-        n.setBrand('전체');
-        return;
-      case CommonSearchFieldId.salesAreaRegion:
-        n.setRegion('전체');
-        return;
-      case CommonSearchFieldId.salesAreaStrategicOnly:
-      case CommonSearchFieldId.salesAreaIncludeNonFranchise:
-      case CommonSearchFieldId.salesAreaIncludeUnset:
-        return;
-      case CommonSearchFieldId.salesAreaSettingDateRange:
-        n.clearSettingDateRangeToDefault();
-        return;
-      case CommonSearchFieldId.storeNm:
-      case CommonSearchFieldId.storeCd:
-      case CommonSearchFieldId.brandCd:
-      case CommonSearchFieldId.storeStatus:
-      case CommonSearchFieldId.supervisorCd:
-      case CommonSearchFieldId.storeType:
-      case CommonSearchFieldId.prospectName:
-      case CommonSearchFieldId.entrepreneurStatus:
-      case CommonSearchFieldId.regionCd:
-      case CommonSearchFieldId.mobilePhone:
-      case CommonSearchFieldId.registrationDate:
-      case CommonSearchFieldId.propertyName:
-      case CommonSearchFieldId.propertyOwnership:
-      case CommonSearchFieldId.propertyStatus:
-      case CommonSearchFieldId.propertyAddress:
-      case CommonSearchFieldId.partnerName:
-      case CommonSearchFieldId.founderEvaluation:
-      case CommonSearchFieldId.partnerStatus:
-      case CommonSearchFieldId.activityConsultMemo:
-      case CommonSearchFieldId.activityDateRange:
-      case CommonSearchFieldId.employeeName:
-      case CommonSearchFieldId.employeeDepartment:
-      case CommonSearchFieldId.employeePosition:
-      case CommonSearchFieldId.employeeEmail:
-      case CommonSearchFieldId.employeePhone:
-        return;
-    }
-  }
-
-  void _onMainSearchFieldToggle(
-    CommonSearchFieldId id,
-    bool nowVisible,
-    SalesAreaNotifier n,
-  ) {
-    setState(() {
-      if (nowVisible) {
-        _visibleMainSearchFields.add(id);
-      } else {
-        _visibleMainSearchFields.remove(id);
-        _clearSalesAreaFilterField(id, n);
-      }
-    });
   }
 
   List<SearchFilterItemData> _mainFilterItems(
@@ -131,27 +55,10 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
     SalesAreaNotifier n,
   ) {
     final items = <SearchFilterItemData>[];
-    for (final def in commonSearchDefsOrdered(_visibleMainSearchFields)) {
+    for (final def in commonSearchDefsOrdered(kSalesAreaListSupportedSearchFields)) {
       switch (def.id) {
         case CommonSearchFieldId.salesAreaName:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '영업지역명을 입력하세요.',
-              controller: _areaNameCtrl,
-              onChanged: n.setSalesAreaName,
-            ).toItem(),
-          );
-          break;
         case CommonSearchFieldId.salesAreaPropertyName:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '물건명을 입력하세요.',
-              controller: _propertyNameCtrl,
-              onChanged: n.setPropertyName,
-            ).toItem(),
-          );
           break;
         case CommonSearchFieldId.salesAreaBrand:
           items.add(
@@ -222,17 +129,6 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
     return items;
   }
 
-  Widget _filterPickerSheet(VoidCallback refreshSheet, SalesAreaNotifier n) {
-    return CommonSearchFieldPicker(
-      supported: kSalesAreaListSupportedSearchFields,
-      visible: _visibleMainSearchFields,
-      onToggle: (id, nowVisible) {
-        _onMainSearchFieldToggle(id, nowVisible, n);
-        refreshSheet();
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final filter = ref.watch(salesAreaProvider);
@@ -241,18 +137,9 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
     final brands = ref.watch(salesAreaRepositoryProvider).brandOptions();
     final regions = ref.watch(salesAreaRepositoryProvider).regionOptions();
 
-    final filterSheet = StatefulBuilder(
-      builder: (context, setModalState) {
-        void refreshSheet() => setModalState(() {});
-        return _filterPickerSheet(refreshSheet, n);
-      },
+    final mainFilterBlock = SearchFilterStackedItems(
+      items: _mainFilterItems(filter, brands, regions, n),
     );
-
-    final mainFilterBlock = _anyMainFilter
-        ? SearchFilterStackedItems(
-            items: _mainFilterItems(filter, brands, regions, n),
-          )
-        : null;
 
     final counts = n.areaSummaryCounts;
 
@@ -261,10 +148,20 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
       children: [
         _SalesAreaQuickToggles(filter: filter, notifier: n),
         const SizedBox(height: 12),
-        if (mainFilterBlock != null) ...[
-          mainFilterBlock,
-          const SizedBox(height: 12),
-        ],
+        SearchFilterTextField(
+          controller: _keywordCtrl,
+          hint: '영업지역명, 물건명 검색',
+          borderRadius: 8,
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: Colors.grey.shade500,
+            size: 22,
+          ),
+          onChanged: n.setSalesAreaKeyword,
+        ),
+        const SizedBox(height: 8),
+        mainFilterBlock,
+        const SizedBox(height: 12),
         _SalesAreaSummaryBar(
           total: counts.total,
           configured: counts.configured,
@@ -275,7 +172,6 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
 
     return ListPageTemplate(
       activeFilters: _activeChips(filter, n),
-      filterSheetBody: filterSheet,
       mainSearchFields: topBody,
       countText: '총 ${rows.length}건이 조회되었습니다.',
       onRefresh: () => setState(() {}),
@@ -293,27 +189,14 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
 
   List<ActiveFilterChip> _activeChips(SalesAreaFilter f, SalesAreaNotifier n) {
     final chips = <ActiveFilterChip>[];
-    if (f.salesAreaName.trim().isNotEmpty) {
+    if (f.salesAreaKeyword.trim().isNotEmpty) {
       chips.add(
         ActiveFilterChip(
-          label: '영업지역명: ${f.salesAreaName}',
+          label: '통합 검색: ${f.salesAreaKeyword}',
           onClear: () {
             setState(() {
-              _areaNameCtrl.clear();
-              n.setSalesAreaName('');
-            });
-          },
-        ),
-      );
-    }
-    if (f.propertyName.trim().isNotEmpty) {
-      chips.add(
-        ActiveFilterChip(
-          label: '물건명: ${f.propertyName}',
-          onClear: () {
-            setState(() {
-              _propertyNameCtrl.clear();
-              n.setPropertyName('');
+              _keywordCtrl.clear();
+              n.setSalesAreaKeyword('');
             });
           },
         ),

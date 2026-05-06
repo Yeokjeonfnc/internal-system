@@ -1,4 +1,4 @@
-// 활동관리 — 가맹점 목록과 동일 [ListPageTemplate] + 공통 검색 칩·필터 시트.
+// 활동관리 — 가맹점 목록과 동일 [ListPageTemplate] + 공통 검색 칩·본문 검색.
 
 import 'package:flutter/material.dart';
 
@@ -9,22 +9,21 @@ import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
-import 'package:app_flutter/core/widgets/common/common_search_field_picker.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
+import 'package:app_flutter/core/widgets/common/common_detail_button.dart';
+import 'activity_api_service.dart';
+import 'activity_checklist_detail_dialog.dart';
 import 'activity_date_presets.dart';
 import 'activity_drafts_table.dart';
+import 'activity_list_keyword_utils.dart';
 import 'activity_list_date_field.dart';
 import 'activity_register_view.dart';
 
-/// 활동관리 화면에서 켤 수 있는 공통 검색 항목.
+/// 활동관리 화면 본문에 항상 노출하는 검색 항목.
 const Set<CommonSearchFieldId> kActivityManagementSupportedSearchFields = {
-  CommonSearchFieldId.storeCd,
   CommonSearchFieldId.brandCd,
-  CommonSearchFieldId.storeNm,
-  CommonSearchFieldId.supervisorCd,
-  CommonSearchFieldId.activityConsultMemo,
   CommonSearchFieldId.activityDateRange,
 };
 
@@ -43,17 +42,15 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
   static const _brands = ['전체', '역전할머니맥주', '지미존스'];
 
   late final TabController _tabController;
-  final _codeCtrl = TextEditingController();
-  final _nameCtrl = TextEditingController();
-  final _supCtrl = TextEditingController();
-  final _memoCtrl = TextEditingController();
+  final _keywordCtrl = TextEditingController();
   String _brand = '전체';
 
-  final Set<CommonSearchFieldId> _visibleMainSearchFields = {};
-
-  /// 활동일자 구간(칩·API 연동용). [activityDateRange] 항목이 켜져 있을 때 사용.
+  /// 활동일자 구간(칩·표시용).
   late DateTime _activityRangeStart;
   late DateTime _activityRangeEnd;
+
+  /// 읽기 전용 탭(0·2·3) 재진입 시 테이블 위젯 재생성으로 API 재조회.
+  late final List<int> _readTabReloadEpoch;
 
   (DateTime, DateTime) _defaultActivityDateRange() {
     return kActivityPresetDateRange('최근1개월');
@@ -67,9 +64,26 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
       vsync: this,
       initialIndex: widget.initialTab.clamp(0, 3),
     );
+    _tabController.addListener(_onManageTabChanged);
     final r = _defaultActivityDateRange();
     _activityRangeStart = r.$1;
     _activityRangeEnd = r.$2;
+    _readTabReloadEpoch = List<int>.filled(4, 0);
+  }
+
+  void _onManageTabChanged() {
+    if (_tabController.indexIsChanging) return;
+    final i = _tabController.index;
+    if (i == 1) return;
+    setState(() => _readTabReloadEpoch[i]++);
+  }
+
+  /// [ListPageTemplate] 새로고침 — 현재 탭 테이블 위젯을 재생성해 API를 다시 호출한다.
+  void _reloadCurrentManagementListTab() {
+    if (!mounted) return;
+    final i = _tabController.index;
+    if (i == 1) return;
+    setState(() => _readTabReloadEpoch[i]++);
   }
 
   @override
@@ -82,30 +96,21 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
 
   @override
   void dispose() {
+    _tabController.removeListener(_onManageTabChanged);
     _tabController.dispose();
-    _codeCtrl.dispose();
-    _nameCtrl.dispose();
-    _supCtrl.dispose();
-    _memoCtrl.dispose();
+    _keywordCtrl.dispose();
     super.dispose();
   }
 
   void _clearActivityFilterField(CommonSearchFieldId id) {
     switch (id) {
       case CommonSearchFieldId.storeCd:
-        _codeCtrl.clear();
-        return;
       case CommonSearchFieldId.storeNm:
-        _nameCtrl.clear();
+      case CommonSearchFieldId.supervisorCd:
+      case CommonSearchFieldId.activityConsultMemo:
         return;
       case CommonSearchFieldId.brandCd:
         _brand = '전체';
-        return;
-      case CommonSearchFieldId.supervisorCd:
-        _supCtrl.clear();
-        return;
-      case CommonSearchFieldId.activityConsultMemo:
-        _memoCtrl.clear();
         return;
       case CommonSearchFieldId.activityDateRange:
         final d = _defaultActivityDateRange();
@@ -117,11 +122,8 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
     }
   }
 
-  void _removeMainSearchField(CommonSearchFieldId id) {
-    setState(() {
-      _visibleMainSearchFields.remove(id);
-      _clearActivityFilterField(id);
-    });
+  void _clearActivityFilterChip(CommonSearchFieldId id) {
+    setState(() => _clearActivityFilterField(id));
   }
 
   String _formatYmd(DateTime d) {
@@ -130,40 +132,14 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
         '${d.day.toString().padLeft(2, '0')}';
   }
 
-  void _onMainSearchFieldToggle(CommonSearchFieldId id, bool nowVisible) {
-    setState(() {
-      if (nowVisible) {
-        _visibleMainSearchFields.add(id);
-      } else {
-        _visibleMainSearchFields.remove(id);
-        _clearActivityFilterField(id);
-      }
-    });
-  }
-
   List<SearchFilterItemData> _mainFilterItems() {
     final items = <SearchFilterItemData>[];
-    for (final def in commonSearchDefsOrdered(_visibleMainSearchFields)) {
+    for (final def in commonSearchDefsOrdered(kActivityManagementSupportedSearchFields)) {
       switch (def.id) {
         case CommonSearchFieldId.storeNm:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '가맹점명을 입력하세요.',
-              controller: _nameCtrl,
-              onChanged: (_) => setState(() {}),
-            ).toItem(),
-          );
-          break;
         case CommonSearchFieldId.storeCd:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '가맹점코드를 입력하세요.',
-              controller: _codeCtrl,
-              onChanged: (_) => setState(() {}),
-            ).toItem(),
-          );
+        case CommonSearchFieldId.supervisorCd:
+        case CommonSearchFieldId.activityConsultMemo:
           break;
         case CommonSearchFieldId.brandCd:
           items.add(
@@ -172,26 +148,6 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
               value: _brand,
               options: _brands,
               onSelected: (v) => setState(() => _brand = v),
-            ).toItem(),
-          );
-          break;
-        case CommonSearchFieldId.supervisorCd:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '담당 수퍼바이저',
-              controller: _supCtrl,
-              onChanged: (_) => setState(() {}),
-            ).toItem(),
-          );
-          break;
-        case CommonSearchFieldId.activityConsultMemo:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '상담내용·의견 키워드',
-              controller: _memoCtrl,
-              onChanged: (_) => setState(() {}),
             ).toItem(),
           );
           break;
@@ -219,65 +175,25 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
     return items;
   }
 
-  Widget _filterPickerSheet(VoidCallback refreshSheet) {
-    return CommonSearchFieldPicker(
-      supported: kActivityManagementSupportedSearchFields,
-      visible: _visibleMainSearchFields,
-      onToggle: (id, nowVisible) {
-        _onMainSearchFieldToggle(id, nowVisible);
-        refreshSheet();
-      },
-    );
-  }
-
-  /// [필터]에서 켜 둔 본문 검색 항목마다 칩 1개(값이 없으면 `(미입력)`·브랜드는 현재 값).
-  /// 예전엔 [activityDateRange]만 필드 켜짐으로「구간 검색」이 붙고 나머지는 입력 후에만
-  /// 떴기 때문에, 활동일자만 유독 보이는 것처럼 느껴질 수 있었다.
+  /// 적용 중인 검색·필터 칩(통합 검색·브랜드·활동일자).
   List<ActiveFilterChip> _activeFilterChips() {
     final chips = <ActiveFilterChip>[];
-    for (final def in commonSearchDefsOrdered(_visibleMainSearchFields)) {
+    final kw = _keywordCtrl.text.trim();
+    if (kw.isNotEmpty) {
+      chips.add(
+        ActiveFilterChip(
+          label: '통합 검색: $kw',
+          onClear: () => setState(() => _keywordCtrl.clear()),
+        ),
+      );
+    }
+    for (final def in commonSearchDefsOrdered(kActivityManagementSupportedSearchFields)) {
       switch (def.id) {
-        case CommonSearchFieldId.storeCd:
-          final c = _codeCtrl.text.trim();
-          chips.add(
-            ActiveFilterChip(
-              label: '${def.label}: ${c.isEmpty ? '(미입력)' : c}',
-              onClear: () => _removeMainSearchField(def.id),
-            ),
-          );
-          break;
-        case CommonSearchFieldId.storeNm:
-          final n = _nameCtrl.text.trim();
-          chips.add(
-            ActiveFilterChip(
-              label: '${def.label}: ${n.isEmpty ? '(미입력)' : n}',
-              onClear: () => _removeMainSearchField(def.id),
-            ),
-          );
-          break;
         case CommonSearchFieldId.brandCd:
           chips.add(
             ActiveFilterChip(
               label: '${def.label}: $_brand',
-              onClear: () => _removeMainSearchField(def.id),
-            ),
-          );
-          break;
-        case CommonSearchFieldId.supervisorCd:
-          final s = _supCtrl.text.trim();
-          chips.add(
-            ActiveFilterChip(
-              label: '${def.label}: ${s.isEmpty ? '(미입력)' : s}',
-              onClear: () => _removeMainSearchField(def.id),
-            ),
-          );
-          break;
-        case CommonSearchFieldId.activityConsultMemo:
-          final m = _memoCtrl.text.trim();
-          chips.add(
-            ActiveFilterChip(
-              label: '${def.label}: ${m.isEmpty ? '(미입력)' : m}',
-              onClear: () => _removeMainSearchField(def.id),
+              onClear: () => _clearActivityFilterChip(def.id),
             ),
           );
           break;
@@ -286,7 +202,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
             ActiveFilterChip(
               label:
                   '${def.label}: ${_formatYmd(_activityRangeStart)} ~ ${_formatYmd(_activityRangeEnd)}',
-              onClear: () => _removeMainSearchField(def.id),
+              onClear: () => _clearActivityFilterChip(def.id),
             ),
           );
           break;
@@ -325,32 +241,38 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
 
   /// 임시보관 / 지시사항 / 체크리스트 — [ListPageTemplate] + 개별 테이블.
   Widget _managementListPage(
-    Widget filterSheet,
-    Widget? mainFields,
+    Widget mainFields,
     Widget table,
   ) {
     return ListPageTemplate(
       activeFilters: _activeFilterChips(),
-      filterSheetBody: filterSheet,
       mainSearchFields: mainFields,
       countText: '총 0건이 조회되었습니다.',
-      onRefresh: () => setState(() {}),
+      onRefresh: _reloadCurrentManagementListTab,
       table: table,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final filterSheet = StatefulBuilder(
-      builder: (context, setModalState) {
-        void refreshSheet() => setModalState(() {});
-        return _filterPickerSheet(refreshSheet);
-      },
+    final mainFields = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SearchFilterTextField(
+          controller: _keywordCtrl,
+          hint: '가맹점명, 가맹점코드, 수퍼바이저, 상담내용 검색',
+          borderRadius: 8,
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: Colors.grey.shade500,
+            size: 22,
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 8),
+        SearchFilterStackedItems(items: _mainFilterItems()),
+      ],
     );
-
-    final mainFields = _visibleMainSearchFields.isNotEmpty
-        ? SearchFilterStackedItems(items: _mainFilterItems())
-        : null;
 
     /// 가맹점 목록 등 다른 관리 화면과 동일한 [MediaQuery.textScaler]를 쓴다.
     /// (이전에 본문만 1.1배 했을 때 [ErpTableHeaderCell]/[ErpTableBodyCell]이
@@ -366,20 +288,25 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
               controller: _tabController,
               children: [
                 _managementListPage(
-                  filterSheet,
                   mainFields,
-                  const ActivityDraftsTable(),
+                  ActivityDraftsTable(
+                    key: ValueKey<int>(_readTabReloadEpoch[0]),
+                    rowKeywordFilter: _keywordCtrl.text.trim(),
+                  ),
                 ),
                 const ActivityRegisterView(),
                 _managementListPage(
-                  filterSheet,
                   mainFields,
-                  const _ActivityInstructionsTable(),
+                  _ActivityInstructionsTable(
+                    key: ValueKey<int>(_readTabReloadEpoch[2]),
+                  ),
                 ),
                 _managementListPage(
-                  filterSheet,
                   mainFields,
-                  const _ActivityChecklistTable(),
+                  ActivityChecklistTable(
+                    key: ValueKey<int>(_readTabReloadEpoch[3]),
+                    rowKeywordFilter: _keywordCtrl.text.trim(),
+                  ),
                 ),
               ],
             ),
@@ -391,7 +318,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
 }
 
 class _ActivityInstructionsTable extends StatelessWidget {
-  const _ActivityInstructionsTable();
+  const _ActivityInstructionsTable({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -445,58 +372,136 @@ class _ActivityInstructionsTable extends StatelessWidget {
   }
 }
 
-class _ActivityChecklistTable extends StatelessWidget {
-  const _ActivityChecklistTable();
+/// 체크리스트 탭 테이블 (활동관리 & 활동관리결재 공유)
+class ActivityChecklistTable extends StatefulWidget {
+  const ActivityChecklistTable({super.key, this.rowKeywordFilter = ''});
+
+  /// 가맹점명·코드·수퍼바이저·상담내용 등 통합 키워드 (부모에서 전달).
+  final String rowKeywordFilter;
+
+  @override
+  State<ActivityChecklistTable> createState() => ActivityChecklistTableState();
+}
+
+class ActivityChecklistTableState extends State<ActivityChecklistTable> {
+  late Future<List<Map<String, dynamic>>> _activitiesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  void _refresh() {
+    _activitiesFuture = ActivityApiService().getChecklistActivities();
+  }
+
+  String _text(dynamic value) {
+    if (value == null) return '—';
+    return value.toString();
+  }
+
+  String _dateText(dynamic value) {
+    if (value == null) return '—';
+    final str = value.toString();
+    if (str.length >= 10) return str.substring(0, 10);
+    return str;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ErpDataTable(
-      minWidth: AppDimensions.tableMinWidthDefault + 240,
-      tableBuilder: (context, w) {
-        return Table(
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          border: kErpTableInnerGridBorder,
-          columnWidths: const {
-            0: FlexColumnWidth(0.45),
-            1: FlexColumnWidth(0.5),
-            2: FlexColumnWidth(0.4),
-            3: FlexColumnWidth(0.5),
-            4: FlexColumnWidth(0.75),
-            5: FlexColumnWidth(0.5),
-            6: FlexColumnWidth(0.5),
-            7: FlexColumnWidth(0.45),
-            8: FlexColumnWidth(0.4),
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _activitiesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final raw = snapshot.data ?? const <Map<String, dynamic>>[];
+        final kw = widget.rowKeywordFilter.trim();
+        final rows = kw.isEmpty
+            ? raw
+            : raw
+                  .where((e) => activityRowMatchesKeyword(e, kw))
+                  .toList();
+
+        if (rows.isEmpty) {
+          return Center(
+            child: Text(
+              raw.isEmpty ? '조회된 활동이 없습니다.' : '검색 조건에 맞는 활동이 없습니다.',
+            ),
+          );
+        }
+
+        return ErpDataTable(
+          minWidth: AppDimensions.tableMinWidthDefault + 240,
+          tableBuilder: (context, w) {
+            return Table(
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              border: kErpTableInnerGridBorder,
+              columnWidths: const {
+                0: FlexColumnWidth(0.3),
+                1: FlexColumnWidth(0.4),
+                2: FlexColumnWidth(0.4),
+                3: FlexColumnWidth(0.5),
+                4: FlexColumnWidth(0.8),
+                5: FlexColumnWidth(0.4),
+                6: FlexColumnWidth(0.4),
+                7: FlexColumnWidth(0.3),
+                8: FlexColumnWidth(0.4),
+              },
+              children: [
+                const TableRow(
+                  decoration: BoxDecoration(color: AppTheme.accentRed),
+                  children: [
+                    ErpTableHeaderCell('활동구분'),
+                    ErpTableHeaderCell('활동일자'),
+                    ErpTableHeaderCell('브랜드'),
+                    ErpTableHeaderCell('가맹점명'),
+                    ErpTableHeaderCell('주요상담내용'),
+                    ErpTableHeaderCell('담당 수퍼바이저'),
+                    ErpTableHeaderCell('등록일'),
+                    ErpTableHeaderCell('체크리스트'),
+                    ErpTableHeaderCell('상세'),
+                  ],
+                ),
+                for (final row in rows)
+                  TableRow(
+                    decoration: const BoxDecoration(
+                      color: AppTheme.tableRowOdd,
+                    ),
+                    children: [
+                      ErpTableBodyCell(_text(row['actType']), center: true),
+                      ErpTableBodyCell(_dateText(row['actDt']), center: true),
+                      ErpTableBodyCell(
+                        _text(row['brandNm'] ?? row['brandCd']),
+                        center: true,
+                      ),
+                      ErpTableBodyCell(_text(row['storeNm']), center: true),
+                      ErpTableBodyCell(_text(row['actNotes'])),
+                      ErpTableBodyCell(_text(row['svNm']), center: true),
+                      ErpTableBodyCell(_dateText(row['creatDt']), center: true),
+                      ErpTableBodyCell(_text(row['chkYn']), center: true),
+                      Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Center(
+                          child: DetailButton(
+                            onPressed: () {
+                              final actIdx = row['actIdx'];
+                              if (actIdx != null) {
+                                showActivityChecklistDetailDialog(
+                                  context,
+                                  actIdx as int,
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            );
           },
-          children: const [
-            TableRow(
-              decoration: BoxDecoration(color: AppTheme.accentRed),
-              children: [
-                ErpTableHeaderCell('활동구분'),
-                ErpTableHeaderCell('활동일자'),
-                ErpTableHeaderCell('브랜드'),
-                ErpTableHeaderCell('가맹점명'),
-                ErpTableHeaderCell('주요상담내용'),
-                ErpTableHeaderCell('담당 수퍼바이저'),
-                ErpTableHeaderCell('등록일'),
-                ErpTableHeaderCell('체크리스트'),
-                ErpTableHeaderCell('상세'),
-              ],
-            ),
-            TableRow(
-              decoration: BoxDecoration(color: AppTheme.tableRowOdd),
-              children: [
-                ErpTableBodyCell('방문', center: true),
-                ErpTableBodyCell('2024-04-21', center: true),
-                ErpTableBodyCell('할맥', center: true),
-                ErpTableBodyCell('사당역점', center: true),
-                ErpTableBodyCell('기본 점검'),
-                ErpTableBodyCell('박담', center: true),
-                ErpTableBodyCell('2024-04-21', center: true),
-                ErpTableBodyCell('완료', center: true),
-                ErpTableBodyCell('상세', center: true),
-              ],
-            ),
-          ],
         );
       },
     );

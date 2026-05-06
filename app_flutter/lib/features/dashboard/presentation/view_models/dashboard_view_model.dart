@@ -53,11 +53,4 @@ class DashboardViewModel {
       ),
     ),
   ];
-
-  List<String> get groupedTasks => const [
-    '가맹점 계약 만료 예정 4건 확인',
-    '영업지역 재배정 요청 2건 승인',
-    '출입 관리 모바일 정책 점검',
-    '활동 일지 미작성 지점 팔로업',
-  ];
 }

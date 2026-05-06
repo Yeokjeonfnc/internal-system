@@ -32,6 +32,10 @@ abstract final class ActivityRoutes {
   static String get approvalSuggestions => '$_b/approval/suggestions';
   static String get approvalChecklist => '$_b/approval/checklist';
   static String get approvalChecklistStats => '$_b/approval/checklist-stats';
+
+  /// 활동관리결재 목록에서 연 상세 — 뒤로가기 시 [approvalAll] 로 귀결되도록 [manageDetail] 과 분리.
+  static String approvalActivityDetail(int actIdx) =>
+      '$_b/approval/activity/$actIdx';
 }
 
 /// [ActivityApprovalManagementView] — 경로 → 탭(0=전체 … 4=체크리스트, 미일치 0).
@@ -48,6 +52,9 @@ int activityApprovalInitialTabForPath(String path) {
 String activityPageTitle(String path) {
   if (path.startsWith('${ActivityRoutes.drafts}/')) {
     return '임시보관 상세';
+  }
+  if (path.startsWith('$kActivitiesRoot/approval/activity/')) {
+    return '결재 상세 내용';
   }
   return _activityTitles[path] ?? '활동 관리';
 }
@@ -78,14 +85,19 @@ String activityParentPath(String path) {
       path == ActivityRoutes.checklist) {
     return ActivityRoutes.groupManage;
   }
-  if (path == ActivityRoutes.approvalAll ||
-      path == ActivityRoutes.approvalPending ||
+  if (path == ActivityRoutes.approvalAll) {
+    return '/';
+  }
+  if (path == ActivityRoutes.approvalPending ||
       path == ActivityRoutes.approvalActive ||
       path == ActivityRoutes.approvalInstructions ||
       path == ActivityRoutes.approvalSuggestions ||
       path == ActivityRoutes.approvalChecklist ||
       path == ActivityRoutes.approvalChecklistStats) {
-    return ActivityRoutes.groupApproval;
+    return ActivityRoutes.approvalAll;
+  }
+  if (path.startsWith('$kActivitiesRoot/approval/activity/')) {
+    return ActivityRoutes.approvalAll;
   }
   return ActivityRoutes.groupManage;
 }
@@ -103,7 +115,7 @@ final Map<String, String> _activityTitles = {
   ActivityRoutes.checklist: '체크리스트',
   ActivityRoutes.approvalAll: '전체활동관리',
   ActivityRoutes.approvalPending: '결재대기',
-  ActivityRoutes.approvalActive: '결재진행',
+  ActivityRoutes.approvalActive: '결재완료',
   ActivityRoutes.approvalInstructions: '지시사항(결재특이사항)',
   ActivityRoutes.approvalSuggestions: '건의사항',
   ActivityRoutes.approvalChecklist: '체크리스트',

@@ -6,8 +6,10 @@ import 'package:flutter/services.dart';
 
 import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
+import 'package:app_flutter/core/address/kakao_postcode_picker.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
+import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_detail_action_buttons.dart';
 import 'package:app_flutter/core/widgets/common/form/common_accent_outline_button.dart';
 import 'package:app_flutter/core/widgets/common/form/common_date_input_with_picker.dart';
@@ -17,6 +19,9 @@ import 'package:app_flutter/core/widgets/common/form/common_labeled_form_row.dar
 import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
 import 'package:app_flutter/features/properties/property_model.dart';
 import 'package:app_flutter/features/properties/property_controller.dart';
+import 'package:app_flutter/features/master/employee_controller.dart';
+import 'package:app_flutter/features/master/employee_lookup_dialog.dart';
+import 'package:app_flutter/features/master/employee_model.dart';
 
 class PropertyRegisterDraft {
   PropertyRegisterDraft() : registrationDate = DateTime.now();
@@ -35,10 +40,10 @@ class PropertyRegisterDraft {
   String floor = '';
   String contArea = '';
   String realArea = '';
-  String rentDeposit = '';
-  String monthlyRent = '';
-  String premiumFee = '';
-  String maintFee = '';
+  String rentDeposit = '0';
+  String monthlyRent = '0';
+  String premiumFee = '0';
+  String maintFee = '0';
   String notes = '';
 
   void hydrateFromProperty(Property property) {
@@ -57,14 +62,14 @@ class PropertyRegisterDraft {
     contArea = _propertyNumberText(property.areaSqm);
     realArea = _propertyNumberText(property.actualAreaSqm);
     rentDeposit = property.deposit == 0
-        ? ''
+        ? '0'
         : _formatMoneyInput(property.deposit);
-    monthlyRent = property.rent == 0 ? '' : _formatMoneyInput(property.rent);
+    monthlyRent = property.rent == 0 ? '0' : _formatMoneyInput(property.rent);
     premiumFee = property.keyMoney == 0
-        ? ''
+        ? '0'
         : _formatMoneyInput(property.keyMoney);
     maintFee = property.managementFee == 0
-        ? ''
+        ? '0'
         : _formatMoneyInput(property.managementFee);
     notes = property.notes;
   }
@@ -109,7 +114,7 @@ DateTime? _propertyParseYmd(String? raw) {
 /// 개발관리 > 물건관리 > 상세 화면.
 ///
 /// 가맹점 상세와 동일하게 상단 타이틀 아래 **빨간 탭바**를 두고,
-/// [TabBarView] 안에 탭별 [PropertyInfoPanel] 콘텐츠를 둡니다.
+/// [DetailScreenWithTabs] 안에 탭별 [PropertyInfoPanel] 콘텐츠를 둡니다.
 class PropertyDetailView extends ConsumerStatefulWidget {
   const PropertyDetailView({super.key, required this.propertyNo});
 
@@ -125,6 +130,9 @@ class _PropertyDetailViewState extends ConsumerState<PropertyDetailView> {
   PropertyRegisterDraft? _draft;
   int? _draftPropertyNo;
   bool _isEditing = false;
+
+  /// 취소 시 두 탭 폼을 서버(또는 마지막 로드) 값으로 되돌린다.
+  int _formSessionEpoch = 0;
 
   @override
   void dispose() {
@@ -142,6 +150,20 @@ class _PropertyDetailViewState extends ConsumerState<PropertyDetailView> {
     return _draft;
   }
 
+  Future<void> _handleSharedCancelEditing() async {
+    final property = ref
+        .read(propertyDetailProvider(widget.propertyNo))
+        .valueOrNull;
+    if (property != null) {
+      _draft?.hydrateFromProperty(property);
+    }
+    setState(() {
+      _isEditing = false;
+      _formSessionEpoch++;
+    });
+    await showAlertDialog(context, '취소되었습니다.');
+  }
+
   @override
   Widget build(BuildContext context) {
     final propertyAsync = ref.watch(propertyDetailProvider(widget.propertyNo));
@@ -155,22 +177,28 @@ class _PropertyDetailViewState extends ConsumerState<PropertyDetailView> {
       tabPages: [
         propertyAsync.when(
           data: (property) => PropertyInfoPanel(
+            key: ValueKey('prop_panel_0_$_formSessionEpoch'),
             property: property,
             fixedTabIndex: 0,
             registerDraft: draft,
             sharedEditing: _isEditing,
             onEditModeChanged: (value) => setState(() => _isEditing = value),
+            onSharedCancelEditing: _handleSharedCancelEditing,
+            onSaved: (_) => setState(() => _formSessionEpoch++),
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => const Center(child: Text('물건 정보를 불러오지 못했습니다.')),
         ),
         propertyAsync.when(
           data: (property) => PropertyInfoPanel(
+            key: ValueKey('prop_panel_1_$_formSessionEpoch'),
             property: property,
             fixedTabIndex: 1,
             registerDraft: draft,
             sharedEditing: _isEditing,
             onEditModeChanged: (value) => setState(() => _isEditing = value),
+            onSharedCancelEditing: _handleSharedCancelEditing,
+            onSaved: (_) => setState(() => _formSessionEpoch++),
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => const Center(child: Text('물건 정보를 불러오지 못했습니다.')),
@@ -182,8 +210,8 @@ class _PropertyDetailViewState extends ConsumerState<PropertyDetailView> {
 
 /// 기본정보/상세조건 탭을 포함한 물건 정보 패널. 상세/등록 화면에서 공용으로 사용한다.
 ///
-/// - [fixedTabIndex] 가 `null` 이면 패널 **내부**에 탭바+탭뷰(등록 화면 등).
-/// - `0` / `1` 이면 해당 탭만 표시(상세는 부모 [TabBarView] 와 조합).
+/// - `fixedTabIndex` 가 `null` 이면 패널 **내부**에 탭바와 [IndexedStack] 본문(탭 전환 시 입력값 유지).
+/// - `0` / `1` 이면 해당 탭만 표시(상세는 부모 [DetailScreenWithTabs] 와 조합).
 class PropertyInfoPanel extends ConsumerStatefulWidget {
   const PropertyInfoPanel({
     super.key,
@@ -194,6 +222,7 @@ class PropertyInfoPanel extends ConsumerStatefulWidget {
     this.registerDraft,
     this.sharedEditing,
     this.onEditModeChanged,
+    this.onSharedCancelEditing,
   });
 
   final Property? property;
@@ -208,6 +237,9 @@ class PropertyInfoPanel extends ConsumerStatefulWidget {
   final PropertyRegisterDraft? registerDraft;
   final bool? sharedEditing;
   final ValueChanged<bool>? onEditModeChanged;
+
+  /// 여러 메인 탭에 패널이 나뉜 경우, 취소 시 부모가 드래프트 초기화·폼 재빌드를 한 번에 처리한다.
+  final VoidCallback? onSharedCancelEditing;
 
   @override
   ConsumerState<PropertyInfoPanel> createState() => _PropertyInfoPanelState();
@@ -226,18 +258,27 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
   }
 
   void cancelPropertyEdit() {
+    if (widget.onSharedCancelEditing != null) {
+      widget.onSharedCancelEditing!();
+      return;
+    }
     widget.onEditModeChanged?.call(false);
     setState(() => _isEditing = false);
     _snack('취소되었습니다.');
   }
 
   Future<void> saveProperty() async {
-    final payload = <String, dynamic>{...?widget.registerDraft?.toPayload()};
-    if (widget.fixedTabIndex == 0 || widget.fixedTabIndex == null) {
-      payload.addAll(_basicInfoKey.currentState?.toPayload() ?? {});
-    }
-    if (widget.fixedTabIndex == 1 || widget.fixedTabIndex == null) {
-      payload.addAll(_detailConditionsKey.currentState?.toPayload() ?? {});
+    final Map<String, dynamic> payload;
+    if (widget.registerDraft != null) {
+      payload = Map<String, dynamic>.from(widget.registerDraft!.toPayload());
+    } else {
+      payload = {};
+      if (widget.fixedTabIndex == 0 || widget.fixedTabIndex == null) {
+        payload.addAll(_basicInfoKey.currentState?.toPayload() ?? {});
+      }
+      if (widget.fixedTabIndex == 1 || widget.fixedTabIndex == null) {
+        payload.addAll(_detailConditionsKey.currentState?.toPayload() ?? {});
+      }
     }
     if (widget.property != null &&
         (payload['propNm'] as String? ?? '').trim().isEmpty) {
@@ -259,6 +300,9 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
       _snack('저장에 실패했습니다.');
       return;
     }
+    if (widget.registerDraft != null) {
+      widget.registerDraft!.hydrateFromProperty(saved);
+    }
     await ref.refresh(propertyDataProvider.future).then<void>((_) {});
     await ref
         .refresh(propertyDetailProvider(saved.propIdx).future)
@@ -267,14 +311,17 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
     widget.onSaved?.call(saved);
     widget.onEditModeChanged?.call(false);
     setState(() => _isEditing = false);
-    _snack('저장되었습니다.');
+    await showAlertDialog(context, '저장되었습니다.');
+
+    // 저장 후 데이터 새로고침
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showAlertDialog(context, message);
   }
 
   @override
@@ -350,8 +397,21 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
                             const SizedBox(height: 16),
                             SizedBox(
                               height: 640,
-                              child: TabBarView(
-                                children: [tabBody(0), tabBody(1)],
+                              child: Builder(
+                                builder: (context) {
+                                  final controller = DefaultTabController.of(
+                                    context,
+                                  );
+                                  return AnimatedBuilder(
+                                    animation: controller,
+                                    builder: (context, _) {
+                                      return IndexedStack(
+                                        index: controller.index,
+                                        children: [tabBody(0), tabBody(1)],
+                                      );
+                                    },
+                                  );
+                                },
                               ),
                             ),
                           ],
@@ -525,6 +585,34 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
     super.dispose();
   }
 
+  Future<void> _openKakaoPostcode() async {
+    if (!widget.isEditing) return;
+    final result = await showKakaoPostcodePicker(context);
+    if (!mounted || result == null) return;
+    setState(() {
+      _postalCodeController.text = result.zonecode;
+      _addressController.text = result.addressLine;
+      _addressScope = AddressScope.domestic;
+      _syncDraft();
+    });
+  }
+
+  Future<void> _openSurveyorEmployeeLookup() async {
+    if (!widget.isEditing) return;
+    final repo = ref.read(employeeRepositoryProvider);
+    final selected = await showDialog<Employee>(
+      context: context,
+      builder: (dialogContext) =>
+          EmployeeLookupDialog(employeesFuture: repo.all()),
+    );
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      _surveyorController.text = selected.name.trim();
+      _syncDraft();
+    });
+  }
+
   Future<void> _pickSurveyDate() async {
     final picked = await showAccentDatePicker(
       context: context,
@@ -540,9 +628,7 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showAlertDialog(context, message);
   }
 
   @override
@@ -579,10 +665,32 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
         FormRowTwo(
           left: FormFieldBlock(
             label: '조사자',
-            child: _DetailTextInput(
-              controller: _surveyorController,
-              hint: '조사자를 입력하세요.',
-              enabled: widget.isEditing,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: _DetailTextInput(
+                    controller: _surveyorController,
+                    hint: '조사자를 입력하세요.',
+                    enabled: widget.isEditing,
+                  ),
+                ),
+                if (widget.isEditing) ...[
+                  const SizedBox(width: 8),
+                  IconButton.outlined(
+                    onPressed: _openSurveyorEmployeeLookup,
+                    icon: const Icon(Icons.search, size: 18),
+                    tooltip: '조사자 조회',
+                    style: IconButton.styleFrom(
+                      foregroundColor: FormStylePalette.accent,
+                      side: const BorderSide(color: FormStylePalette.accent),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           right: const FormFieldBlock(label: ' ', child: SizedBox.shrink()),
@@ -644,9 +752,7 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
                   const SizedBox(width: 8),
                   AccentOutlinedButton(
                     label: '주소검색',
-                    onPressed: widget.isEditing
-                        ? () => _snack('주소 검색은 추후 연동 예정입니다.')
-                        : () {},
+                    onPressed: widget.isEditing ? _openKakaoPostcode : () {},
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
@@ -826,32 +932,32 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
       text: p == null ? draft?.realArea ?? '' : _numberText(p.actualAreaSqm),
     );
     _rentDepositController = TextEditingController(
-      text: p == null
-          ? draft?.rentDeposit ?? ''
-          : p.deposit == 0
-          ? ''
-          : _formatMoneyInput(p.deposit),
+      text: _detailMoneyFieldInitialText(
+        property: p,
+        draftMoneyStr: draft?.rentDeposit,
+        amountFromProperty: (x) => x.deposit,
+      ),
     );
     _monthlyRentController = TextEditingController(
-      text: p == null
-          ? draft?.monthlyRent ?? ''
-          : p.rent == 0
-          ? ''
-          : _formatMoneyInput(p.rent),
+      text: _detailMoneyFieldInitialText(
+        property: p,
+        draftMoneyStr: draft?.monthlyRent,
+        amountFromProperty: (x) => x.rent,
+      ),
     );
     _premiumFeeController = TextEditingController(
-      text: p == null
-          ? draft?.premiumFee ?? ''
-          : p.keyMoney == 0
-          ? ''
-          : _formatMoneyInput(p.keyMoney),
+      text: _detailMoneyFieldInitialText(
+        property: p,
+        draftMoneyStr: draft?.premiumFee,
+        amountFromProperty: (x) => x.keyMoney,
+      ),
     );
     _maintFeeController = TextEditingController(
-      text: p == null
-          ? draft?.maintFee ?? ''
-          : p.managementFee == 0
-          ? ''
-          : _formatMoneyInput(p.managementFee),
+      text: _detailMoneyFieldInitialText(
+        property: p,
+        draftMoneyStr: draft?.maintFee,
+        amountFromProperty: (x) => x.managementFee,
+      ),
     );
     _floorController.addListener(_syncDraft);
     _contAreaController.addListener(_syncDraftAndRefreshArea);
@@ -954,7 +1060,7 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
             label: '임대차 보증금',
             child: _DetailTextInput(
               controller: _rentDepositController,
-              hint: '임대차 보증금',
+              hint: '',
               keyboardType: TextInputType.number,
               inputFormatters: [_ThousandsSeparatorInputFormatter()],
               enabled: widget.isEditing,
@@ -964,7 +1070,7 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
             label: '임차료',
             child: _DetailTextInput(
               controller: _monthlyRentController,
-              hint: '월 임차료',
+              hint: '',
               keyboardType: TextInputType.number,
               inputFormatters: [_ThousandsSeparatorInputFormatter()],
               enabled: widget.isEditing,
@@ -977,7 +1083,7 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
             label: '권리금',
             child: _DetailTextInput(
               controller: _premiumFeeController,
-              hint: '권리금',
+              hint: '',
               keyboardType: TextInputType.number,
               inputFormatters: [_ThousandsSeparatorInputFormatter()],
               enabled: widget.isEditing,
@@ -987,7 +1093,7 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
             label: '관리비',
             child: _DetailTextInput(
               controller: _maintFeeController,
-              hint: '월 관리비',
+              hint: '',
               keyboardType: TextInputType.number,
               inputFormatters: [_ThousandsSeparatorInputFormatter()],
               enabled: widget.isEditing,
@@ -1109,6 +1215,20 @@ String _sqmToPyeong(String? rawSqm) {
   final sqm = double.tryParse(normalized ?? '');
   if (sqm == null) return '-';
   return (sqm / 3.305785).toStringAsFixed(1);
+}
+
+/// 상세조건 금액 칸: 미입력·DB 0은 화면에 `0` 표시. 빈 문자열은 [_intFromMoneyText]에서 0으로 전송됨.
+String _detailMoneyFieldInitialText({
+  required Property? property,
+  required String? draftMoneyStr,
+  required int Function(Property p) amountFromProperty,
+}) {
+  if (property != null) {
+    final n = amountFromProperty(property);
+    return n == 0 ? '0' : _formatMoneyInput(n);
+  }
+  final raw = (draftMoneyStr ?? '').trim();
+  return raw.isEmpty ? '0' : raw;
 }
 
 String _formatMoneyInput(Object? value) {

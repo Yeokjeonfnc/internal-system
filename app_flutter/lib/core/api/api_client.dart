@@ -76,6 +76,21 @@ class ApiClient {
     );
   }
 
+  /// PATCH 요청
+  Future<Response> patch(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) async {
+    return await dio.patch(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
+  }
+
   /// DELETE 요청
   Future<Response> delete(
     String path, {

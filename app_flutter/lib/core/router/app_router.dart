@@ -376,6 +376,15 @@ List<RouteBase> _shellChildRoutes() {
           ),
         ),
         GoRoute(
+          path: 'approval/activity/:actIdx',
+          pageBuilder: (context, state) {
+            final actIdx = int.tryParse(state.pathParameters['actIdx'] ?? '');
+            return NoTransitionPage(
+              child: ActivityRegisterView(actIdx: actIdx),
+            );
+          },
+        ),
+        GoRoute(
           path: 'approval/all',
           pageBuilder: _activityApprovalManagementPage,
         ),

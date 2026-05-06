@@ -16,4 +16,6 @@ public interface ActiveRepository extends JpaRepository<Active, Integer> {
     List<Active> findByApprStatusOrderByCreatDtDescActIdxDesc(String apprStatus);
 
     List<Active> findByStoreIdxOrderByActDtDescActIdxDesc(Integer storeIdx);
+
+    List<Active> findByChkYnOrderByCreatDtDescActIdxDesc(Character chkYn);
 }

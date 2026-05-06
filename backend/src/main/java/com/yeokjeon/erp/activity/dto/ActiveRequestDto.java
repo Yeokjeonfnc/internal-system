@@ -7,6 +7,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 @Getter
@@ -31,6 +32,9 @@ public class ActiveRequestDto {
     private String svNotes;
     private Integer rChkId;
     private Character chkYn;
+    private String memoTxt;
+    /** 상신 시 결재자 user_id (본인 제외). 여러 명일 경우 목록으로 전달 후 서버에서 CSV 저장 */
+    private List<String> apprUserIds;
     private List<ChecklistResultDto> checklistResults;
 
     public Active toEntity() {
@@ -40,12 +44,34 @@ public class ActiveRequestDto {
                 .actDt(actDt)
                 .actNotes(actNotes)
                 .svId(svId)
+                .apprId(joinApprUserIds(apprUserIds))
                 .apprStatus(apprStatus)
+                .memoTxt(memoTxt)
                 .apprDt(apprDt)
                 .suggestions(suggestions)
                 .svNotes(svNotes)
                 .rChkId(rChkId)
                 .chkYn(chkYn)
                 .build();
+    }
+
+    public static String joinApprUserIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return null;
+        }
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        for (String raw : ids) {
+            if (raw == null) {
+                continue;
+            }
+            String t = raw.trim();
+            if (!t.isEmpty()) {
+                set.add(t);
+            }
+        }
+        if (set.isEmpty()) {
+            return null;
+        }
+        return String.join(",", set);
     }
 }

@@ -22,9 +22,13 @@ class PropertyRegisterView extends StatefulWidget {
 class _PropertyRegisterViewState extends State<PropertyRegisterView> {
   final _draft = PropertyRegisterDraft();
   Property? _createdProperty;
+  int _formSessionEpoch = 0;
 
   void _handleSaved(Property property) {
-    setState(() => _createdProperty = property);
+    setState(() {
+      _createdProperty = property;
+      _formSessionEpoch++;
+    });
   }
 
   @override
@@ -35,6 +39,7 @@ class _PropertyRegisterViewState extends State<PropertyRegisterView> {
       tabTitles: PropertyRegisterView._tabTitles,
       tabPages: [
         PropertyInfoPanel(
+          key: ValueKey('prop_reg_0_$_formSessionEpoch'),
           property: _createdProperty,
           initiallyEditing: true,
           fixedTabIndex: 0,
@@ -42,6 +47,7 @@ class _PropertyRegisterViewState extends State<PropertyRegisterView> {
           registerDraft: _draft,
         ),
         PropertyInfoPanel(
+          key: ValueKey('prop_reg_1_$_formSessionEpoch'),
           property: _createdProperty,
           initiallyEditing: true,
           fixedTabIndex: 1,

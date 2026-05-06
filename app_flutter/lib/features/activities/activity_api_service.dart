@@ -10,6 +10,7 @@ class ActivityApiService {
     required String startDt,
     required String endDt,
     String? brandCd,
+    String? userId,
   }) async {
     try {
       final queryParameters = <String, dynamic>{
@@ -18,6 +19,9 @@ class ActivityApiService {
       };
       if (brandCd != null && brandCd.isNotEmpty) {
         queryParameters['brandCd'] = brandCd;
+      }
+      if (userId != null && userId.isNotEmpty) {
+        queryParameters['userId'] = userId;
       }
       final response = await _client.get(
         '/activities/status/$type',
@@ -34,11 +38,42 @@ class ActivityApiService {
     return [];
   }
 
-  Future<List<Map<String, dynamic>>> getActivities({String? apprStatus}) async {
+  Future<List<Map<String, dynamic>>> getChecklistActivities() async {
+    try {
+      final response = await _client.get(
+        '/activities',
+        queryParameters: {'chkYn': 'Y'},
+      );
+      if (response.statusCode == 200 && response.data != null) {
+        final body = response.data as Map<String, dynamic>;
+        final rows = body['data'] as List<dynamic>? ?? const [];
+        return rows.cast<Map<String, dynamic>>();
+      }
+    } catch (e) {
+      debugPrint('Error fetching checklist activities: $e');
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getActivities({
+    String? apprStatus,
+    String? svId,
+    String? relUserId,
+    bool hasSuggestions = false,
+  }) async {
     try {
       final queryParameters = <String, dynamic>{};
       if (apprStatus != null && apprStatus.isNotEmpty) {
         queryParameters['apprStatus'] = apprStatus;
+      }
+      if (svId != null && svId.isNotEmpty) {
+        queryParameters['svId'] = svId;
+      }
+      if (relUserId != null && relUserId.isNotEmpty) {
+        queryParameters['relUserId'] = relUserId;
+      }
+      if (hasSuggestions) {
+        queryParameters['hasSuggestions'] = true;
       }
       final response = await _client.get(
         '/activities',
@@ -111,7 +146,9 @@ class ActivityApiService {
 
   Future<List<Map<String, dynamic>>> getChecklistResults(int actIdx) async {
     try {
-      final response = await _client.get('/activities/$actIdx/checklist-results');
+      final response = await _client.get(
+        '/activities/$actIdx/checklist-results',
+      );
       if (response.statusCode == 200 && response.data != null) {
         final body = response.data as Map<String, dynamic>;
         final rows = body['data'] as List<dynamic>? ?? const [];

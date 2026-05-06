@@ -39,8 +39,15 @@ public class Active {
     @Column(name = "act_notes", columnDefinition = "TEXT")
     private String actNotes;
 
+    @Column(name = "memo_txt", columnDefinition = "TEXT")
+    private String memoTxt;
+
     @Column(name = "sv_id", length = 50)
     private String svId;
+
+    /** 결재 대상자 user_id 목록(쉼표 구분). 본인(작성자) 제외한 결재자만 저장한다. */
+    @Column(name = "appr_id", length = 500)
+    private String apprId;
 
     @Column(name = "appr_status", length = 20)
     private String apprStatus;

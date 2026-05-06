@@ -15,6 +15,7 @@ public class ActivityStatusRowDto {
 
     private String storeNm;
     private String userId;
+    private String userName;
     private LocalDate actDt;
     private Long count;
 }

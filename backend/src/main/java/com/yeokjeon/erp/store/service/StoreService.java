@@ -262,7 +262,7 @@ public class StoreService {
             store.setStoreType(dto.getStoreType());
         }
         if (dto.getSvId() != null && !dto.getSvId().equals(store.getSvId())) {
-            changes.add(new FieldChange("svId", "슈퍼바이저", store.getSvId(), dto.getSvId()));
+            changes.add(new FieldChange("svId", "수퍼바이저", store.getSvId(), dto.getSvId()));
             store.setSvId(dto.getSvId());
         }
         if (dto.getAdressDetail() != null && !dto.getAdressDetail().equals(store.getAdressDetail())) {

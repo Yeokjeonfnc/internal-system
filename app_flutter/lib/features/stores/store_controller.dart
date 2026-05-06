@@ -97,36 +97,34 @@ final documentRepositoryProvider = Provider<DocumentRepository>(
 
 class StoreFilter {
   const StoreFilter({
-    this.storeNm = '',
-    this.storeCd = '',
+    this.storeKeyword = '',
     this.brandCd = '전체',
-    this.regionCd = '전체',
+    this.regionNms = const <String>{},
     this.storeStatus = const <String>{},
   });
 
-  final String storeNm;
-  final String storeCd;
+  /// 가맹점명·가맹점코드 통합 검색어 (부분 일치, OR).
+  final String storeKeyword;
   final String brandCd;
 
-  /// [Store.storeArea]와 매칭. `전체`면 조건 없음.
-  final String regionCd;
+  /// [Store.region]과 매칭. 비어 있으면 지역 조건 없음(전체).
+  final Set<String> regionNms;
 
   /// 비어 있으면 계약상태 조건 없음(전체). 1개 이상이면 해당 상태들만 OR 매칭.
   final Set<String> storeStatus;
 
   StoreFilter copy({
-    String? storeNm,
-    String? storeCd,
+    String? storeKeyword,
     String? brandCd,
-    String? regionCd,
+    Set<String>? regionNms,
     Set<String>? storeStatus,
     bool clearStatuses = false,
+    bool clearRegions = false,
   }) {
     return StoreFilter(
-      storeNm: storeNm ?? this.storeNm,
-      storeCd: storeCd ?? this.storeCd,
+      storeKeyword: storeKeyword ?? this.storeKeyword,
       brandCd: brandCd ?? this.brandCd,
-      regionCd: regionCd ?? this.regionCd,
+      regionNms: clearRegions ? <String>{} : regionNms ?? this.regionNms,
       storeStatus: clearStatuses ? <String>{} : storeStatus ?? this.storeStatus,
     );
   }
@@ -169,21 +167,30 @@ class StoreNotifier extends RuleListNotifier<StoreFilter, Store> {
   List<ListFilterRule<StoreFilter, Store>> get rules => [
     (s, r) => s.storeStatus.isEmpty || s.storeStatus.contains(r.storeStatusNm),
     (s, r) => s.brandCd == '전체' || r.brandNm == s.brandCd,
-    (s, r) => s.regionCd == '전체' || r.region == s.regionCd,
+    (s, r) => s.regionNms.isEmpty || s.regionNms.contains(r.region),
     (s, r) {
-      final q = s.storeNm.trim();
-      return q.isEmpty || r.storeNm.contains(q);
-    },
-    (s, r) {
-      final q = s.storeCd.trim().toLowerCase();
-      return q.isEmpty || r.storeCd.toLowerCase().contains(q);
+      final q = s.storeKeyword.trim();
+      if (q.isEmpty) return true;
+      final ql = q.toLowerCase();
+      return r.storeNm.toLowerCase().contains(ql) ||
+          r.storeCd.toLowerCase().contains(ql);
     },
   ];
 
-  void setName(String v) => state = state.copy(storeNm: v);
-  void setCode(String v) => state = state.copy(storeCd: v);
+  void setStoreKeyword(String v) => state = state.copy(storeKeyword: v);
   void setBrand(String v) => state = state.copy(brandCd: v);
-  void setRegion(String v) => state = state.copy(regionCd: v);
+
+  void toggleRegion(String name) {
+    final next = Set<String>.from(state.regionNms);
+    if (next.contains(name)) {
+      next.remove(name);
+    } else {
+      next.add(name);
+    }
+    state = state.copy(regionNms: next);
+  }
+
+  void clearRegions() => state = state.copy(clearRegions: true);
 
   void toggleContractStatus(String s) {
     final next = Set<String>.from(state.storeStatus);

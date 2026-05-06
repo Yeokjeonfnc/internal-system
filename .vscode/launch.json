@@ -5,6 +5,13 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "type": "java",
+            "name": "YeokjeonErpApplication",
+            "request": "launch",
+            "mainClass": "com.yeokjeon.erp.YeokjeonErpApplication",
+            "projectName": "erp-backend"
+        },
+        {
             "name": "app_flutter",
             "cwd": "app_flutter",
             "request": "launch",

@@ -183,6 +183,8 @@ class StoreApiService {
       monthlyRent: json['monthlyRent'] ?? 0,
       rentDeposit: json['rentDeposit'] ?? 0,
       premiumFee: json['premiumFee'] ?? 0,
+      latitude: json['latitude']?.toString(),
+      longitude: json['longitude']?.toString(),
     );
   }
 

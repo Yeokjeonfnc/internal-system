@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
+import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_detail_action_buttons.dart';
 import 'package:app_flutter/core/widgets/common/form/common_date_input_with_picker.dart';
 import 'package:app_flutter/core/widgets/common/form/common_labeled_form_row.dart';
@@ -73,11 +74,10 @@ class _EmployeeRegisterViewState extends ConsumerState<EmployeeRegisterView> {
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('사원이 등록되었습니다.')));
+    await showAlertDialog(context, '사원이 등록되었습니다.');
+    if (!mounted) return;
     Navigator.of(context).pop();
   }
 

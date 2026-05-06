@@ -6,8 +6,8 @@ import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
-import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
+import 'package:app_flutter/core/widgets/common/form/common_labeled_search_field.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 import 'package:app_flutter/features/master/department_model.dart';
 import 'package:app_flutter/features/master/department_repository.dart';
@@ -18,10 +18,16 @@ import 'package:app_flutter/features/master/user_api_service.dart';
 const int kActivityApprovalLineSlotCount = 7;
 
 class ActivityApprovalLineResult {
-  const ActivityApprovalLineResult({required this.titles, required this.names});
+  const ActivityApprovalLineResult({
+    required this.titles,
+    required this.names,
+    required this.userIds,
+  });
 
   final List<String> titles;
   final List<String> names;
+  /// 각 슬롯의 user_mst.user_id (빈 슬롯은 '')
+  final List<String> userIds;
 }
 
 /// [결재라인] — 직급+이름 슬롯을 채운다.
@@ -29,6 +35,7 @@ Future<ActivityApprovalLineResult?> showActivityApprovalLineDialog(
   BuildContext context, {
   List<String> initialNames = const [],
   List<String> initialTitles = const [],
+  List<String> initialUserIds = const [],
 }) {
   return showDialog<ActivityApprovalLineResult?>(
     context: context,
@@ -40,6 +47,7 @@ Future<ActivityApprovalLineResult?> showActivityApprovalLineDialog(
         child: _ApprovalLineDialog(
           initialNames: _padToSlots(initialNames),
           initialTitles: _padToSlots(initialTitles),
+          initialUserIds: _padToSlots(initialUserIds),
         ),
       );
     },
@@ -57,10 +65,12 @@ class _ApprovalLineDialog extends StatefulWidget {
   const _ApprovalLineDialog({
     required this.initialNames,
     required this.initialTitles,
+    required this.initialUserIds,
   });
 
   final List<String> initialNames;
   final List<String> initialTitles;
+  final List<String> initialUserIds;
 
   @override
   State<_ApprovalLineDialog> createState() => _ApprovalLineDialogState();
@@ -75,6 +85,7 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
   final Set<int> _rowChecked = {};
   late List<String> _lineNames;
   late List<String> _lineTitles;
+  late List<String> _lineUserIds;
 
   List<Department> _departments = [];
   List<Employee> _allEmployees = [];
@@ -86,6 +97,7 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
     super.initState();
     _lineNames = List<String>.from(widget.initialNames);
     _lineTitles = List<String>.from(widget.initialTitles);
+    _lineUserIds = List<String>.from(widget.initialUserIds);
     _loadData();
   }
 
@@ -172,6 +184,7 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
                 email: '',
                 hireDateYmd: '',
                 tagEnabled: false,
+                userId: '',
               ),
       );
       if (emp.no == id) toAdd.add(emp);
@@ -183,6 +196,7 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
         if (i >= 0) {
           _lineNames[i] = emp.name;
           _lineTitles[i] = emp.jobTitle;
+          _lineUserIds[i] = emp.userId;
         }
       }
       _rowChecked.clear();
@@ -193,6 +207,7 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
     setState(() {
       _lineNames = List<String>.filled(kActivityApprovalLineSlotCount, '');
       _lineTitles = List<String>.filled(kActivityApprovalLineSlotCount, '');
+      _lineUserIds = List<String>.filled(kActivityApprovalLineSlotCount, '');
       _rowChecked.clear();
     });
   }
@@ -202,27 +217,7 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
       ActivityApprovalLineResult(
         names: _padToSlots(_lineNames),
         titles: _padToSlots(_lineTitles),
-      ),
-    );
-  }
-
-  InputDecoration _searchDeco() {
-    return InputDecoration(
-      isDense: true,
-      filled: true,
-      fillColor: FormStylePalette.inputBg,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: FormStylePalette.panelBorder),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: FormStylePalette.panelBorder),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: AppTheme.accentRed, width: 1.2),
+        userIds: _padToSlots(_lineUserIds),
       ),
     );
   }
@@ -247,49 +242,11 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(
-                    width: 120,
-                    child: Text(
-                      '사원 검색',
-                      style: TextStyle(
-                        fontSize: kSearchFilterFontSize,
-                        fontWeight: FontWeight.w600,
-                        color: FormStylePalette.textPrimary,
-                        fontFamilyFallback: AppTheme.koreanFontFallback,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (_) => setState(() {}),
-                      style: const TextStyle(
-                        fontSize: kSearchFilterFontSize,
-                        color: FormStylePalette.textPrimary,
-                        fontFamilyFallback: AppTheme.koreanFontFallback,
-                      ),
-                      decoration: _searchDeco().copyWith(
-                        hintText: '이름, 부서, 직급 검색',
-                        hintStyle: const TextStyle(
-                          fontSize: kSearchFilterFontSize,
-                          color: FormStylePalette.textMuted,
-                        ),
-                        suffixIcon: const Icon(
-                          Icons.search,
-                          size: 20,
-                          color: FormStylePalette.textSecondary,
-                        ),
-                        suffixIconConstraints: const BoxConstraints(
-                          minWidth: 40,
-                          minHeight: 40,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              child: LabeledSearchFieldRow(
+                label: '사원 검색',
+                controller: _searchController,
+                hintText: '이름, 부서, 직급 검색',
+                onChanged: (_) => setState(() {}),
               ),
             ),
             if (_isLoading)

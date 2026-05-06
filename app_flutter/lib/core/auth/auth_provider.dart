@@ -28,7 +28,7 @@ class AuthProvider extends ChangeNotifier {
       _savedUserId = prefs.getString('savedUserId');
       _savedPassword = prefs.getString('savedPassword');
     }
-    
+
     // 자동 로그인 체크
     final userJson = prefs.getString('user');
     if (userJson != null) {
@@ -37,7 +37,8 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> login(Map<String, dynamic> userData, {
+  Future<void> login(
+    Map<String, dynamic> userData, {
     required bool rememberPassword,
     required String userId,
     required String password,
@@ -48,7 +49,7 @@ class AuthProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user', json.encode(userData));
     await prefs.setBool('rememberPassword', rememberPassword);
-    
+
     if (rememberPassword) {
       await prefs.setString('savedUserId', userId);
       await prefs.setString('savedPassword', password);
@@ -66,10 +67,10 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     _user = null;
-    
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user');
-    
+
     notifyListeners();
   }
 }

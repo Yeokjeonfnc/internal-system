@@ -6,6 +6,7 @@ import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
+import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_register_button.dart';
@@ -86,7 +87,8 @@ class _MasterChecklistManagementViewState
       initialChkType: _chkType,
     );
     if (!mounted || saved != true) return;
-    _snack('등록되었습니다.');
+    await showAlertDialog(context, '등록되었습니다.');
+    if (!mounted) return;
     _refresh();
   }
 
@@ -100,14 +102,9 @@ class _MasterChecklistManagementViewState
       item: item,
     );
     if (!mounted || saved != true) return;
-    _snack('수정되었습니다.');
+    await showAlertDialog(context, '수정되었습니다.');
+    if (!mounted) return;
     _refresh();
-  }
-
-  void _snack(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   List<ActiveFilterChip> _activeFilters() {
@@ -528,9 +525,7 @@ class _ChecklistCreateDialogState extends State<_ChecklistCreateDialog> {
   }
 
   void _snack(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showAlertDialog(context, message);
   }
 
   InputDecoration _inputDeco({String? hint}) {

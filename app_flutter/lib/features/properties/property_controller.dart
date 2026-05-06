@@ -60,22 +60,20 @@ final propertyDetailProvider = FutureProvider.family<Property?, int>((
 
 class PropertyFilter {
   const PropertyFilter({
-    this.name = '',
-    this.address = '',
+    this.propertyKeyword = '',
     this.region = '전체',
     this.ownership,
     this.status,
   });
 
-  final String name;
-  final String address;
+  /// 물건명·주소 통합 검색(부분 일치, OR).
+  final String propertyKeyword;
   final String region;
   final PropertyOwnership? ownership;
   final PropertyStatus? status;
 
   PropertyFilter copy({
-    String? name,
-    String? address,
+    String? propertyKeyword,
     String? region,
     PropertyOwnership? ownership,
     PropertyStatus? status,
@@ -83,8 +81,7 @@ class PropertyFilter {
     bool clearStatus = false,
   }) {
     return PropertyFilter(
-      name: name ?? this.name,
-      address: address ?? this.address,
+      propertyKeyword: propertyKeyword ?? this.propertyKeyword,
       region: region ?? this.region,
       ownership: clearOwnership ? null : ownership ?? this.ownership,
       status: clearStatus ? null : status ?? this.status,
@@ -112,17 +109,14 @@ class PropertyNotifier extends RuleListNotifier<PropertyFilter, Property> {
     (s, r) => s.status == null || r.status == s.status,
     (s, r) => s.region == '전체' || r.region == s.region,
     (s, r) {
-      final q = s.name.trim();
-      return q.isEmpty || r.name.contains(q);
-    },
-    (s, r) {
-      final q = s.address.trim();
-      return q.isEmpty || r.address.contains(q);
+      final q = s.propertyKeyword.trim().toLowerCase();
+      if (q.isEmpty) return true;
+      return r.name.toLowerCase().contains(q) ||
+          r.address.toLowerCase().contains(q);
     },
   ];
 
-  void setName(String v) => state = state.copy(name: v);
-  void setAddress(String v) => state = state.copy(address: v);
+  void setPropertyKeyword(String v) => state = state.copy(propertyKeyword: v);
   void setRegion(String v) => state = state.copy(region: v);
   void setOwnership(PropertyOwnership? v) => state = v == null
       ? state.copy(clearOwnership: true)

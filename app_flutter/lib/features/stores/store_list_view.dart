@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
-import 'package:app_flutter/core/widgets/common/common_search_field_picker.dart';
+import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
@@ -17,11 +17,10 @@ import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart'
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
 import 'package:app_flutter/features/stores/store_model.dart';
 import 'package:app_flutter/features/stores/store_controller.dart';
+import 'package:app_flutter/features/stores/store_region_search_multi_select.dart';
 
-/// 가맹점 목록에서 켤 수 있는 공통 검색 항목(다른 화면은 다른 [Set]을 두면 됨).
+/// 가맹점 목록 본문에 항상 노출하는 필터(브랜드·계약상태·지역). 통합 검색은 상단 필드로 제공.
 const Set<CommonSearchFieldId> kStoreListSupportedSearchFields = {
-  CommonSearchFieldId.storeNm,
-  CommonSearchFieldId.storeCd,
   CommonSearchFieldId.brandCd,
   CommonSearchFieldId.storeStatus,
   CommonSearchFieldId.regionCd,
@@ -36,198 +35,66 @@ class StoreListView extends ConsumerStatefulWidget {
 }
 
 class _StoreListViewState extends ConsumerState<StoreListView> {
-  late final TextEditingController _nameCtrl;
-  late final TextEditingController _codeCtrl;
-
-  /// 본문 카드에 노출할 공통 검색 항목(필터 시트에서 토글).
-  final Set<CommonSearchFieldId> _visibleMainSearchFields = {};
+  late final TextEditingController _keywordCtrl;
 
   @override
   void initState() {
     super.initState();
     final s = ref.read(storeProvider);
-    _nameCtrl = TextEditingController(text: s.storeNm);
-    _codeCtrl = TextEditingController(text: s.storeCd);
+    _keywordCtrl = TextEditingController(text: s.storeKeyword);
     Future.microtask(() => ref.read(storeProvider.notifier).refresh());
   }
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
-    _codeCtrl.dispose();
+    _keywordCtrl.dispose();
     super.dispose();
   }
 
-  bool get _anyMainFilter => _visibleMainSearchFields.isNotEmpty;
-
-  void _clearStoreFilterField(CommonSearchFieldId id, StoreNotifier n) {
-    switch (id) {
-      case CommonSearchFieldId.storeNm:
-        _nameCtrl.clear();
-        n.setName('');
-        return;
-      case CommonSearchFieldId.storeCd:
-        _codeCtrl.clear();
-        n.setCode('');
-        return;
-      case CommonSearchFieldId.brandCd:
-        n.setBrand('전체');
-        return;
-      case CommonSearchFieldId.storeStatus:
-        n.clearContractStatuses();
-        return;
-      case CommonSearchFieldId.regionCd:
-        n.setRegion('전체');
-        return;
-      case CommonSearchFieldId.supervisorCd:
-      case CommonSearchFieldId.storeType:
-      case CommonSearchFieldId.prospectName:
-      case CommonSearchFieldId.entrepreneurStatus:
-      case CommonSearchFieldId.mobilePhone:
-      case CommonSearchFieldId.registrationDate:
-      case CommonSearchFieldId.propertyName:
-      case CommonSearchFieldId.propertyOwnership:
-      case CommonSearchFieldId.propertyStatus:
-      case CommonSearchFieldId.propertyAddress:
-      case CommonSearchFieldId.partnerName:
-      case CommonSearchFieldId.founderEvaluation:
-      case CommonSearchFieldId.partnerStatus:
-      case CommonSearchFieldId.activityConsultMemo:
-      case CommonSearchFieldId.activityDateRange:
-      case CommonSearchFieldId.salesAreaName:
-      case CommonSearchFieldId.salesAreaPropertyName:
-      case CommonSearchFieldId.salesAreaBrand:
-      case CommonSearchFieldId.salesAreaRegion:
-      case CommonSearchFieldId.salesAreaStrategicOnly:
-      case CommonSearchFieldId.salesAreaIncludeNonFranchise:
-      case CommonSearchFieldId.salesAreaIncludeUnset:
-      case CommonSearchFieldId.salesAreaSettingDateRange:
-      case CommonSearchFieldId.employeeName:
-      case CommonSearchFieldId.employeeDepartment:
-      case CommonSearchFieldId.employeePosition:
-      case CommonSearchFieldId.employeeEmail:
-      case CommonSearchFieldId.employeePhone:
-        return;
-    }
-  }
-
-  void _onMainSearchFieldToggle(
-    CommonSearchFieldId id,
-    bool nowVisible,
-    StoreNotifier n,
-  ) {
-    setState(() {
-      if (nowVisible) {
-        _visibleMainSearchFields.add(id);
-      } else {
-        _visibleMainSearchFields.remove(id);
-        _clearStoreFilterField(id, n);
-      }
-    });
-  }
-
   List<SearchFilterItemData> _mainFilterItems(
+    BuildContext context,
     StoreFilter filter,
     List<String> brands,
     List<String> regions,
     StoreNotifier n,
   ) {
     final items = <SearchFilterItemData>[];
-    for (final def in commonSearchDefsOrdered(_visibleMainSearchFields)) {
-      switch (def.id) {
-        case CommonSearchFieldId.storeNm:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '가맹점명을 입력하세요.',
-              controller: _nameCtrl,
-              onChanged: n.setName,
-            ).toItem(),
-          );
-          break;
-        case CommonSearchFieldId.storeCd:
-          items.add(
-            FilterTextSlot(
-              label: def.label,
-              hint: '가맹점코드 입력하세요.',
-              controller: _codeCtrl,
-              onChanged: n.setCode,
-            ).toItem(),
-          );
-          break;
-        case CommonSearchFieldId.brandCd:
-          items.add(
-            FilterStringOptionsSlot(
-              label: def.label,
-              value: filter.brandCd,
-              options: brands,
-              onSelected: n.setBrand,
-            ).toItem(),
-          );
-          break;
-        case CommonSearchFieldId.storeStatus:
-          items.add(
-            _StoreContractStatusMultiSlot(
-              filter: filter,
-              notifier: n,
-              availableStatuses: const ['신규계약', '재계약', '양수도'],
-            ).toItem(),
-          );
-          break;
-        case CommonSearchFieldId.regionCd:
-          items.add(
-            FilterStringOptionsSlot(
-              label: def.label,
-              value: filter.regionCd,
-              options: regions,
-              onSelected: n.setRegion,
-              forceDropdown: true,
-            ).toItem(),
-          );
-          break;
-        case CommonSearchFieldId.supervisorCd:
-        case CommonSearchFieldId.storeType:
-        case CommonSearchFieldId.prospectName:
-        case CommonSearchFieldId.entrepreneurStatus:
-        case CommonSearchFieldId.mobilePhone:
-        case CommonSearchFieldId.registrationDate:
-        case CommonSearchFieldId.propertyName:
-        case CommonSearchFieldId.propertyOwnership:
-        case CommonSearchFieldId.propertyStatus:
-        case CommonSearchFieldId.propertyAddress:
-        case CommonSearchFieldId.partnerName:
-        case CommonSearchFieldId.founderEvaluation:
-        case CommonSearchFieldId.partnerStatus:
-        case CommonSearchFieldId.activityConsultMemo:
-        case CommonSearchFieldId.activityDateRange:
-        case CommonSearchFieldId.salesAreaName:
-        case CommonSearchFieldId.salesAreaPropertyName:
-        case CommonSearchFieldId.salesAreaBrand:
-        case CommonSearchFieldId.salesAreaRegion:
-        case CommonSearchFieldId.salesAreaStrategicOnly:
-        case CommonSearchFieldId.salesAreaIncludeNonFranchise:
-        case CommonSearchFieldId.salesAreaIncludeUnset:
-        case CommonSearchFieldId.salesAreaSettingDateRange:
-        case CommonSearchFieldId.employeeName:
-        case CommonSearchFieldId.employeeDepartment:
-        case CommonSearchFieldId.employeePosition:
-        case CommonSearchFieldId.employeeEmail:
-        case CommonSearchFieldId.employeePhone:
-          break;
+    final regionOpts = regions.where((e) => e != '전체').toList();
+
+    for (final def in commonSearchDefsOrdered(kStoreListSupportedSearchFields)) {
+      if (def.id == CommonSearchFieldId.brandCd) {
+        items.add(
+          FilterStringOptionsSlot(
+            label: def.label,
+            value: filter.brandCd,
+            options: brands,
+            onSelected: n.setBrand,
+          ).toItem(),
+        );
+      } else if (def.id == CommonSearchFieldId.storeStatus) {
+        items.add(
+          _StoreContractStatusMultiSlot(
+            filter: filter,
+            notifier: n,
+            availableStatuses: const ['신규계약', '재계약', '양수도'],
+          ).toItem(),
+        );
+      } else if (def.id == CommonSearchFieldId.regionCd) {
+        items.add(
+          SearchFilterItemData(
+            label: def.label,
+            child: StoreRegionSearchMultiSelectField(
+              summaryText: storeRegionFilterSummary(filter.regionNms),
+              onTap: () => showStoreRegionPickDialog(
+                context: context,
+                regionOptions: regionOpts,
+              ),
+            ),
+          ),
+        );
       }
     }
     return items;
-  }
-
-  Widget _filterPickerSheet(VoidCallback refreshSheet, StoreNotifier n) {
-    return CommonSearchFieldPicker(
-      supported: kStoreListSupportedSearchFields,
-      visible: _visibleMainSearchFields,
-      onToggle: (id, nowVisible) {
-        _onMainSearchFieldToggle(id, nowVisible, n);
-        refreshSheet();
-      },
-    );
   }
 
   @override
@@ -247,28 +114,41 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
                 // 로드된 데이터로 필터링
                 final rows = n.getFilteredList();
 
-                final filterSheet = StatefulBuilder(
-                  builder: (context, setModalState) {
-                    void refreshSheet() => setModalState(() {});
-                    return _filterPickerSheet(refreshSheet, n);
-                  },
+                final mainFields = Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SearchFilterTextField(
+                      controller: _keywordCtrl,
+                      hint: '가맹점명, 가맹점코드 검색',
+                      borderRadius: 8,
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: Colors.grey.shade500,
+                        size: 22,
+                      ),
+                      onChanged: n.setStoreKeyword,
+                    ),
+                    const SizedBox(height: 8),
+                    SearchFilterStackedItems(
+                      items: _mainFilterItems(
+                        context,
+                        filter,
+                        brands,
+                        regions,
+                        n,
+                      ),
+                    ),
+                  ],
                 );
-
-                final mainFields = _anyMainFilter
-                    ? SearchFilterStackedItems(
-                        items: _mainFilterItems(filter, brands, regions, n),
-                      )
-                    : null;
 
                 return ListPageTemplate(
                   activeFilters: _activeFilterChips(filter, n),
-                  filterSheetBody: filterSheet,
-                  mainSearchFields: mainFields,
                   countText: '총 ${rows.length}개의 가맹점이 조회되었습니다.',
                   onRegister: () =>
                       context.goNamed(AppRouteNames.storeRegister),
                   onRefresh: () => n.refresh(),
                   table: _StoreTable(rows: rows),
+                  mainSearchFields: mainFields,
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -336,27 +216,14 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
 
   List<ActiveFilterChip> _activeFilterChips(StoreFilter f, StoreNotifier n) {
     final chips = <ActiveFilterChip>[];
-    if (f.storeNm.trim().isNotEmpty) {
+    if (f.storeKeyword.trim().isNotEmpty) {
       chips.add(
         ActiveFilterChip(
-          label: '가맹점명: ${f.storeNm}',
+          label: '통합 검색: ${f.storeKeyword}',
           onClear: () {
             setState(() {
-              _nameCtrl.clear();
-              n.setName('');
-            });
-          },
-        ),
-      );
-    }
-    if (f.storeCd.trim().isNotEmpty) {
-      chips.add(
-        ActiveFilterChip(
-          label: '가맹점코드: ${f.storeCd}',
-          onClear: () {
-            setState(() {
-              _codeCtrl.clear();
-              n.setCode('');
+              _keywordCtrl.clear();
+              n.setStoreKeyword('');
             });
           },
         ),
@@ -370,11 +237,15 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
         ),
       );
     }
-    if (f.regionCd != '전체') {
+    if (f.regionNms.isNotEmpty) {
+      final sorted = f.regionNms.toList()..sort();
+      final label = sorted.length <= 3
+          ? sorted.join(', ')
+          : '${sorted.take(3).join(', ')} 외 ${sorted.length - 3}건';
       chips.add(
         ActiveFilterChip(
-          label: '지역: ${f.regionCd}',
-          onClear: () => n.setRegion('전체'),
+          label: '지역: $label',
+          onClear: n.clearRegions,
         ),
       );
     }
@@ -513,13 +384,9 @@ class _StoreTable extends ConsumerWidget {
 
     if (deleted) {
       ref.invalidate(storeDataProvider);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('삭제되었습니다.')));
+      await showAlertDialog(context, '삭제되었습니다.');
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('삭제에 실패했습니다.')));
+      await showAlertDialog(context, '삭제에 실패했습니다.');
     }
   }
 

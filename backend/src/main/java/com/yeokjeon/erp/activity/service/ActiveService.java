@@ -8,6 +8,7 @@ import com.yeokjeon.erp.activity.repository.ActiveRepository;
 import com.yeokjeon.erp.exception.ResourceNotFoundException;
 import com.yeokjeon.erp.store.entity.Store;
 import com.yeokjeon.erp.store.repository.StoreRepository;
+import com.yeokjeon.erp.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,6 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -28,10 +32,12 @@ public class ActiveService {
 
     private static final String STATUS_DRAFT = "DRAFT";
     private static final String STATUS_APPROVED = "APPROVED";
+    private static final String STATUS_PENDING = "PENDING";
 
     private final ActiveRepository activeRepository;
     private final StoreRepository storeRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final NotificationService notificationService;
 
     public List<ActivityStatusRowDto> getStatusByStore(LocalDate startDt, LocalDate endDt, String brandCd) {
         String normalizedBrandCd = normalizeBrand(brandCd);
@@ -71,10 +77,10 @@ public class ActiveService {
         String normalizedBrandCd = normalizeBrand(brandCd);
         
         StringBuilder sql = new StringBuilder("""
-                select um.user_id as sv_id, am.act_dt, count(distinct am.store_idx) as cnt
+                select um.user_name, um.user_id as sv_id, am.act_dt, count(distinct am.store_idx) as cnt
                 from user_mst um
                          left outer join active_mst am 
-                            on um.user_id = coalesce(am.sv_id, (select sv_id from store_mst where store_idx = am.store_idx))
+                            on um.user_id = am.sv_id
                             and (am.appr_status = 'PENDING' or am.appr_status = 'APPROVED')
                 where um.sv_yn = 'Y'
                 """);
@@ -93,7 +99,7 @@ public class ActiveService {
         }
         
         sql.append("""
-                group by um.user_id, am.act_dt
+                group by um.user_id, am.act_dt, um.user_name
                 order by um.user_id, am.act_dt
                 """);
         
@@ -101,6 +107,7 @@ public class ActiveService {
                 sql.toString(),
                 (rs, rowNum) -> ActivityStatusRowDto.builder()
                         .userId(rs.getString("sv_id"))
+                        .userName(rs.getString("user_name"))
                         .actDt(rs.getObject("act_dt", LocalDate.class))
                         .count(rs.getLong("cnt"))
                         .build(),
@@ -110,33 +117,104 @@ public class ActiveService {
     public List<ActiveResponseDto> getAllActivities() {
         List<Active> rows = activeRepository.findAllActivities();
         Map<Integer, Store> stores = storesByIdx(rows);
+        Map<String, String> userNames = loadUserNames(rows);
+        
         return rows.stream()
-                .map(active -> toDto(active, stores.get(active.getStoreIdx())))
+                .map(active -> toDto(active, stores.get(active.getStoreIdx()),
+                        userNames.get(active.getSvId()), null))
                 .collect(Collectors.toList());
     }
 
-    public List<ActiveResponseDto> getActivitiesByStatus(String apprStatus) {
+    public List<ActiveResponseDto> getActivitiesByStatus(String apprStatus, String svId, String relUserId) {
         List<Active> rows = activeRepository.findByApprStatusOrderByCreatDtDescActIdxDesc(apprStatus);
+
+        // 임시보관(DRAFT)일 경우 로그인 유저의 것만 필터링
+        if ("DRAFT".equals(apprStatus) && svId != null && !svId.isBlank()) {
+            rows = rows.stream()
+                    .filter(active -> svId.equals(active.getSvId()))
+                    .collect(Collectors.toList());
+        }
+
+        // 결재대기·결재완료: 작성자(sv_id) 또는 결재선(appr_id CSV)에 로그인 유저가 포함된 건만
+        if (relUserId != null && !relUserId.isBlank()
+                && (STATUS_PENDING.equals(apprStatus) || STATUS_APPROVED.equals(apprStatus))) {
+            final String uid = relUserId.trim();
+            rows = rows.stream()
+                    .filter(active -> uid.equals(active.getSvId()) || apprIdContainsUser(active.getApprId(), uid))
+                    .collect(Collectors.toList());
+        }
+
         Map<Integer, Store> stores = storesByIdx(rows);
+        Map<String, String> userNames = loadUserNames(rows);
+
         return rows.stream()
-                .map(active -> toDto(active, stores.get(active.getStoreIdx())))
+                .map(active -> toDto(active, stores.get(active.getStoreIdx()),
+                        userNames.get(active.getSvId()), null))
                 .collect(Collectors.toList());
+    }
+
+    private static boolean apprIdContainsUser(String apprIdCsv, String userId) {
+        if (apprIdCsv == null || apprIdCsv.isBlank()) {
+            return false;
+        }
+        return Arrays.stream(apprIdCsv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .anyMatch(userId::equals);
     }
 
     public ActiveResponseDto getActivity(Integer actIdx) {
         Active active = activeRepository.findById(actIdx)
                 .orElseThrow(() -> new ResourceNotFoundException("활동관리", "actIdx", actIdx));
         Store store = storeRepository.findByStoreIdx(active.getStoreIdx()).orElse(null);
-        return toDto(active, store);
+        ActiveResponseDto dto = toDto(active, store);
+        enrichApprAckMetadata(dto, actIdx);
+        return dto;
+    }
+
+    private void enrichApprAckMetadata(ActiveResponseDto dto, Integer actIdx) {
+        Map<String, String> dates = notificationService.approvalAckDateMapForActivity(actIdx);
+        dto.setApprAckDateByUserId(new LinkedHashMap<>(dates));
+        dto.setApprAckUserIds(new ArrayList<>(dates.keySet()));
     }
 
     public List<ActiveResponseDto> getActivitiesByStore(Integer storeIdx) {
         storeRepository.findByStoreIdx(storeIdx)
                 .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeIdx", storeIdx));
         Store store = storeRepository.findByStoreIdx(storeIdx).orElse(null);
-        return activeRepository.findByStoreIdxOrderByActDtDescActIdxDesc(storeIdx)
-                .stream()
-                .map(active -> toDto(active, store))
+        List<Active> rows = activeRepository.findByStoreIdxOrderByActDtDescActIdxDesc(storeIdx);
+        Map<String, String> userNames = loadUserNames(rows);
+        
+        return rows.stream()
+                .map(active -> toDto(active, store, userNames.get(active.getSvId()), null))
+                .collect(Collectors.toList());
+    }
+
+    public List<ActiveResponseDto> getActivitiesByChecklistYn(Character chkYn) {
+        List<Active> rows = activeRepository.findByChkYnOrderByCreatDtDescActIdxDesc(chkYn);
+        Map<Integer, Store> stores = storesByIdx(rows);
+        Map<String, String> userNames = loadUserNames(rows);
+        
+        return rows.stream()
+                .map(active -> toDto(active, stores.get(active.getStoreIdx()),
+                        userNames.get(active.getSvId()), null))
+                .collect(Collectors.toList());
+    }
+
+    /** 결재완료이면서 건의사항(suggestions)이 비어 있지 않은 활동만 */
+    public List<ActiveResponseDto> getApprovedActivitiesWithSuggestions() {
+        List<Active> rows = activeRepository.findByApprStatusOrderByCreatDtDescActIdxDesc(STATUS_APPROVED);
+        rows = rows.stream()
+                .filter(active -> active.getSuggestions() != null
+                        && !active.getSuggestions().isBlank())
+                .collect(Collectors.toList());
+
+        Map<Integer, Store> stores = storesByIdx(rows);
+        Map<String, String> userNames = loadUserNames(rows);
+
+        return rows.stream()
+                .map(active -> toDto(active, stores.get(active.getStoreIdx()),
+                        userNames.get(active.getSvId()), null))
                 .collect(Collectors.toList());
     }
 
@@ -157,7 +235,9 @@ public class ActiveService {
             saved.setChkYn('Y');
             saved = activeRepository.save(saved);
         }
-        
+
+        maybeNotifyPendingApprovers(saved, dto.getApprUserIds(), null);
+
         log.info("활동관리 생성 완료: {}", saved.getActIdx());
         return toDto(saved, store);
     }
@@ -167,16 +247,22 @@ public class ActiveService {
         Active active = activeRepository.findById(actIdx)
                 .orElseThrow(() -> new ResourceNotFoundException("활동관리", "actIdx", actIdx));
 
+        final String previousApprStatus = active.getApprStatus();
+
         active.setStoreIdx(dto.getStoreIdx());
         active.setActType(dto.getActType());
         active.setActDt(dto.getActDt());
         active.setActNotes(dto.getActNotes());
+        active.setMemoTxt(dto.getMemoTxt());
         active.setSvId(dto.getSvId());
         active.setApprStatus(dto.getApprStatus());
         active.setApprDt(dto.getApprDt());
         active.setSuggestions(dto.getSuggestions());
         active.setSvNotes(dto.getSvNotes());
-        
+        if (dto.getApprUserIds() != null) {
+            active.setApprId(ActiveRequestDto.joinApprUserIds(dto.getApprUserIds()));
+        }
+
         // 체크리스트 결과 업데이트
         if (dto.getChecklistResults() != null && !dto.getChecklistResults().isEmpty()) {
             // 기존 체크리스트 결과 삭제
@@ -193,6 +279,7 @@ public class ActiveService {
         Store store = storeRepository.findByStoreIdx(active.getStoreIdx())
                 .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeIdx", active.getStoreIdx()));
         Active saved = activeRepository.save(active);
+        maybeNotifyPendingApprovers(saved, dto.getApprUserIds(), previousApprStatus);
         log.info("활동관리 수정 완료: {}", saved.getActIdx());
         return toDto(saved, store);
     }
@@ -201,6 +288,10 @@ public class ActiveService {
     public void deleteActivity(Integer actIdx) {
         Active active = activeRepository.findById(actIdx)
                 .orElseThrow(() -> new ResourceNotFoundException("활동관리", "actIdx", actIdx));
+        
+        // 체크리스트 결과 삭제
+        deleteChecklistResults(actIdx);
+        
         activeRepository.delete(active);
         log.info("활동관리 삭제 완료: {}", actIdx);
     }
@@ -235,6 +326,18 @@ public class ActiveService {
     }
 
     private ActiveResponseDto toDto(Active active, Store store) {
+        String svNm = null;
+        String svDeptNm = null;
+        if (active.getSvId() != null && !active.getSvId().isBlank()) {
+            String[] wd = loadWriterNameAndDept(active.getSvId());
+            svNm = wd[0];
+            svDeptNm = wd[1];
+        }
+        return toDto(active, store, svNm, svDeptNm);
+    }
+
+    private ActiveResponseDto toDto(Active active, Store store, String svNm, String svDeptNm) {
+
         return ActiveResponseDto.builder()
                 .actIdx(active.getActIdx())
                 .storeIdx(active.getStoreIdx())
@@ -245,8 +348,14 @@ public class ActiveService {
                 .actType(active.getActType())
                 .actDt(active.getActDt())
                 .creatDt(active.getCreatDt())
+                .memoTxt(active.getMemoTxt())
                 .actNotes(active.getActNotes())
                 .svId(active.getSvId())
+                .svNm(svNm)  // 활동관리작성자
+                .svDeptNm(svDeptNm)
+                .apprId(active.getApprId())
+                .apprUserIds(splitApprUserIdsCsv(active.getApprId()))
+                .sSvNm(store == null ? null : loadUserName(store.getSvId()))  // 가맹점 담당 수퍼바이저 이름
                 .apprStatus(active.getApprStatus())
                 .apprDt(active.getApprDt())
                 .suggestions(active.getSuggestions())
@@ -254,6 +363,39 @@ public class ActiveService {
                 .rChkId(active.getRChkId())
                 .chkYn(active.getChkYn())
                 .build();
+    }
+
+    private List<String> splitApprUserIdsCsv(String apprId) {
+        if (apprId == null || apprId.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(apprId.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .distinct()
+                .toList();
+    }
+
+    /** 최초 상신(PENDING) 전환 시에만 결재자에게 알림을 남긴다 */
+    private void maybeNotifyPendingApprovers(Active saved, java.util.List<String> apprUserIdsFromDto,
+                                             String previousApprStatus) {
+        if (saved.getApprStatus() == null
+                || !STATUS_PENDING.equalsIgnoreCase(saved.getApprStatus().trim())) {
+            return;
+        }
+        boolean wasAlreadyPending = previousApprStatus != null
+                && STATUS_PENDING.equalsIgnoreCase(previousApprStatus.trim());
+        if (wasAlreadyPending) {
+            return;
+        }
+        java.util.List<String> ids = apprUserIdsFromDto;
+        if (ids == null || ids.isEmpty()) {
+            ids = splitApprUserIdsCsv(saved.getApprId());
+        }
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        notificationService.notifyActivityApprovers(saved.getActIdx(), ids);
     }
 
     private String toCodeName(String code, String name) {
@@ -292,6 +434,72 @@ public class ActiveService {
     }
 
     /**
+     * 사용자 이름 일괄 조회
+     */
+    private Map<String, String> loadUserNames(List<Active> activities) {
+        List<String> userIds = activities.stream()
+                .map(Active::getSvId)
+                .filter(svId -> svId != null && !svId.isBlank())
+                .distinct()
+                .collect(Collectors.toList());
+        
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+        
+        String placeholders = userIds.stream().map(id -> "?").collect(Collectors.joining(","));
+        String sql = "SELECT user_id, user_name FROM user_mst WHERE user_id IN (" + placeholders + ")";
+        
+        Map<String, String> result = new java.util.HashMap<>();
+        jdbcTemplate.query(sql, rs -> {
+            result.put(rs.getString("user_id"), rs.getString("user_name"));
+        }, userIds.toArray());
+        
+        return result;
+    }
+
+    /** 작성자(sv_id)의 이름·부서명 — 상세 결재 정보 표시용 */
+    private String[] loadWriterNameAndDept(String svId) {
+        String[] empty = new String[]{null, null};
+        if (svId == null || svId.isBlank()) {
+            return empty;
+        }
+        String uid = svId.trim();
+        try {
+            return jdbcTemplate.queryForObject(
+                    """
+                            SELECT um.user_name AS user_name, dm.dept_nm AS dept_nm
+                            FROM user_mst um
+                                     LEFT JOIN dept_mst dm ON um.dept_idx = dm.dept_idx
+                            WHERE um.user_id = ?
+                            """,
+                    (rs, rowNum) -> new String[]{rs.getString("user_name"), rs.getString("dept_nm")},
+                    uid
+            );
+        } catch (Exception e) {
+            log.warn("작성자 이름·부서 조회 실패: svId={}", uid, e);
+            return new String[]{loadUserName(uid), null};
+        }
+    }
+
+    /**
+     * 단일 사용자 이름 조회
+     */
+    private String loadUserName(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        
+        String sql = "SELECT user_name FROM user_mst WHERE user_id = ?";
+        try {
+            return jdbcTemplate.queryForObject(sql, String.class, userId);
+        } catch (Exception e) {
+            log.warn("사용자 이름 조회 실패: userId={}", userId);
+            return null;
+        }
+    }
+
+    /**
      * 활동별 체크리스트 결과 조회
      */
     public List<Map<String, Object>> getChecklistResults(Integer actIdx) {
@@ -305,7 +513,7 @@ public class ActiveService {
                     CM.base_score,
                     CM.display_order,
                     COALESCE(CRD.answer_val, '미평가') AS answer_val,
-                    COALESCE(CRD.answer_score, 0) AS answer_score
+                    COALESCE(CRD.answer_score, 0) AS answer_score 
                 FROM chk_mst CM
                 LEFT OUTER JOIN chk_result_dtl CRD 
                     ON CM.chk_idx = CRD.chk_idx 
@@ -313,7 +521,12 @@ public class ActiveService {
                 INNER JOIN code_mst COD 
                     ON CM.chk_type = COD.code_cd 
                     AND COD.grp_cd = '50'
+                INNER JOIN active_mst ACT 
+                    ON ACT.act_idx = ?
+                INNER JOIN store_mst SM 
+                    ON SM.store_idx = ACT.store_idx
                 WHERE CM.use_yn = 'Y'
+                    AND CM.brand_cd = SM.brand_cd
                 ORDER BY CM.display_order, CM.chk_idx
                 """;
         
@@ -329,6 +542,6 @@ public class ActiveService {
             result.put("answerVal", rs.getString("answer_val"));
             result.put("answerScore", rs.getInt("answer_score"));
             return result;
-        }, actIdx);
+        }, actIdx, actIdx);
     }
 }

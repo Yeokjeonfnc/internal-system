@@ -105,7 +105,7 @@ class DetailMainTabBar extends StatelessWidget {
   }
 }
 
-/// [DefaultTabController] + 배경 + 제목 + [DetailMainTabBar] + [TabBarView].
+/// [DefaultTabController] + 배경 + 제목 + [DetailMainTabBar] + 본문([IndexedStack], 탭별 state 유지).
 class DetailScreenWithTabs extends StatefulWidget {
   const DetailScreenWithTabs({
     super.key,
