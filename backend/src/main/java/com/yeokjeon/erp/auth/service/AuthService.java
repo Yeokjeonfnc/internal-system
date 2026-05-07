@@ -1,13 +1,18 @@
 package com.yeokjeon.erp.auth.service;
 
-import com.yeokjeon.erp.auth.dto.LoginRequestDto;
-import com.yeokjeon.erp.auth.dto.LoginResponseDto;
-import com.yeokjeon.erp.auth.dto.UserProfileUpdateDto;
+import com.yeokjeon.erp.common.RequestMapUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -16,7 +21,9 @@ public class AuthService {
 
     private final JdbcTemplate jdbcTemplate;
 
-    public LoginResponseDto login(LoginRequestDto dto) {
+    public Map<String, Object> login(Map<String, Object> body) {
+        String userId = RequestMapUtil.reqStr(body, "userId");
+        String userPassword = RequestMapUtil.reqStr(body, "userPassword");
         String sql = """
                 SELECT 
                     um.user_id,
@@ -37,78 +44,73 @@ public class AuthService {
                 """;
 
         try {
-            return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> 
-                LoginResponseDto.builder()
-                    .userId(rs.getString("user_id"))
-                    .userNm(rs.getString("user_name"))
-                    .email(rs.getString("user_email"))
-                    .deptIdx(rs.getObject("dept_idx", Integer.class))
-                    .userPhone(rs.getString("user_phone"))
-                    .deptNm(rs.getString("dept_nm"))
-                    .positionCd(rs.getString("position_cd"))
-                    .positionNm(rs.getString("position_nm"))
-                    .svYn(rs.getString("sv_yn") != null ? rs.getString("sv_yn").charAt(0) : null)
-                    .tagYn(rs.getString("tag_yn") != null ? rs.getString("tag_yn").charAt(0) : null)
-                    .joinDt(rs.getObject("join_dt", java.time.LocalDate.class))
-                    .build(),
-                dto.getUserId(), 
-                dto.getUserPassword()
+            return jdbcTemplate.queryForObject(sql, this::profileRowFromRs,
+                    userId,
+                    userPassword
             );
         } catch (Exception e) {
-            log.error("로그인 실패: userId={}, error={}", dto.getUserId(), e.getMessage());
+            log.error("로그인 실패: userId={}, error={}", userId, e.getMessage());
             return null;
         }
     }
 
     @Transactional
-    public LoginResponseDto updateUserProfile(String userId, UserProfileUpdateDto dto) {
+    public Map<String, Object> updateUserProfile(String userId, Map<String, Object> body) {
         StringBuilder sql = new StringBuilder("UPDATE user_mst SET updated_at = CURRENT_TIMESTAMP");
-        java.util.List<Object> params = new java.util.ArrayList<>();
+        List<Object> params = new ArrayList<>();
 
-        if (dto.getUserName() != null && !dto.getUserName().isBlank()) {
+        String userName = RequestMapUtil.optStr(body, "userName");
+        if (userName != null && !userName.isBlank()) {
             sql.append(", user_name = ?");
-            params.add(dto.getUserName());
+            params.add(userName);
         }
-        if (dto.getUserPassword() != null && !dto.getUserPassword().isBlank()) {
+        String userPassword = RequestMapUtil.optStr(body, "userPassword");
+        if (userPassword != null && !userPassword.isBlank()) {
             sql.append(", user_password = ?");
-            params.add(dto.getUserPassword());
+            params.add(userPassword);
         }
-        if (dto.getDeptIdx() != null) {
+        if (body.containsKey("deptIdx")) {
             sql.append(", dept_idx = ?");
-            params.add(dto.getDeptIdx());
+            params.add(RequestMapUtil.optInt(body, "deptIdx"));
         }
-        if (dto.getUserPhone() != null) {
+        if (body.containsKey("userPhone")) {
             sql.append(", user_phone = ?");
-            params.add(dto.getUserPhone().trim().isEmpty() ? null : dto.getUserPhone());
+            String phone = RequestMapUtil.optStr(body, "userPhone");
+            params.add(phone != null && phone.trim().isEmpty() ? null : phone);
         }
-        if (dto.getSvYn() != null) {
+        if (body.containsKey("joinDt")) {
+            sql.append(", join_dt = ?");
+            params.add(RequestMapUtil.optLocalDate(body, "joinDt"));
+        }
+        if (body.containsKey("svYn")) {
             sql.append(", sv_yn = ?");
-            params.add(dto.getSvYn());
+            params.add(RequestMapUtil.optChar(body, "svYn"));
         }
-        if (dto.getPositionCd() != null) {
+        if (body.containsKey("positionCd")) {
             sql.append(", position_cd = ?");
-            params.add(dto.getPositionCd().trim().isEmpty() ? null : dto.getPositionCd());
+            String pc = RequestMapUtil.optStr(body, "positionCd");
+            params.add(pc != null && pc.trim().isEmpty() ? null : pc);
         }
-        if (dto.getTagYn() != null) {
+        if (body.containsKey("tagYn")) {
             sql.append(", tag_yn = ?");
-            params.add(dto.getTagYn());
+            params.add(RequestMapUtil.optChar(body, "tagYn"));
         }
 
         sql.append(" WHERE user_id = ?");
         params.add(userId);
 
         int updated = jdbcTemplate.update(sql.toString(), params.toArray());
-        
+
         if (updated > 0) {
             log.info("사용자 정보 수정 완료: userId={}", userId);
             return getUserProfile(userId);
         }
-        
+
         log.error("사용자 정보 수정 실패: userId={}", userId);
         return null;
     }
 
-    public LoginResponseDto getUserProfile(String userId) {
+    public Map<String, Object> getUserProfile(String userId) {
         String sql = """
                 SELECT 
                     um.user_id,
@@ -129,25 +131,28 @@ public class AuthService {
                 """;
 
         try {
-            return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> 
-                LoginResponseDto.builder()
-                    .userId(rs.getString("user_id"))
-                    .userNm(rs.getString("user_name"))
-                    .email(rs.getString("user_email"))
-                    .deptIdx(rs.getObject("dept_idx", Integer.class))
-                    .userPhone(rs.getString("user_phone"))
-                    .deptNm(rs.getString("dept_nm"))
-                    .positionCd(rs.getString("position_cd"))
-                    .positionNm(rs.getString("position_nm"))
-                    .svYn(rs.getString("sv_yn") != null ? rs.getString("sv_yn").charAt(0) : null)
-                    .tagYn(rs.getString("tag_yn") != null ? rs.getString("tag_yn").charAt(0) : null)
-                    .joinDt(rs.getObject("join_dt", java.time.LocalDate.class))
-                    .build(),
-                userId
-            );
+            return jdbcTemplate.queryForObject(sql, this::profileRowFromRs, userId);
         } catch (Exception e) {
             log.error("사용자 정보 조회 실패: userId={}, error={}", userId, e.getMessage());
             return null;
         }
+    }
+
+    private Map<String, Object> profileRowFromRs(ResultSet rs, int rowNum) throws SQLException {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("userId", rs.getString("user_id"));
+        m.put("userNm", rs.getString("user_name"));
+        m.put("email", rs.getString("user_email"));
+        m.put("deptIdx", rs.getObject("dept_idx", Integer.class));
+        m.put("userPhone", rs.getString("user_phone"));
+        m.put("deptNm", rs.getString("dept_nm"));
+        m.put("positionCd", rs.getString("position_cd"));
+        m.put("positionNm", rs.getString("position_nm"));
+        String sv = rs.getString("sv_yn");
+        m.put("svYn", sv != null && !sv.isEmpty() ? sv.charAt(0) : null);
+        String tag = rs.getString("tag_yn");
+        m.put("tagYn", tag != null && !tag.isEmpty() ? tag.charAt(0) : null);
+        m.put("joinDt", rs.getObject("join_dt", java.time.LocalDate.class));
+        return m;
     }
 }

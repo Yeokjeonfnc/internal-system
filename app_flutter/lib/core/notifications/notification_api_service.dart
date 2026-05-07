@@ -1,42 +1,38 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:app_flutter/core/api/api_client.dart';
+import 'package:app_flutter/core/api/base_repository.dart';
+import 'package:app_flutter/core/notifications/notif_model.dart';
 
 /// 활동 결재 등 [notif_mst] 알림 API.
-class NotificationApiService {
-  final ApiClient _client = ApiClient();
-
-  Future<List<Map<String, dynamic>>> list(String userId) async {
-    if (userId.isEmpty) return [];
+class NotificationApiService extends BaseRepository {
+  Future<List<NotifRow>> list(String userId) async {
+    if (userId.isEmpty) return const [];
     try {
-      final response = await _client.get(
+      return await getDataList(
         '/notifications',
         queryParameters: {'userId': userId},
+        fromJson: NotifRow.fromJson,
       );
-      if (response.statusCode == 200 && response.data != null) {
-        final body = response.data as Map<String, dynamic>;
-        final rows = body['data'] as List<dynamic>? ?? const [];
-        return rows.cast<Map<String, dynamic>>();
-      }
     } catch (e) {
       debugPrint('알림 목록 로드 실패: $e');
     }
-    return [];
+    return const [];
   }
 
   Future<int> unreadCount(String userId) async {
     if (userId.isEmpty) return 0;
     try {
-      final response = await _client.get(
+      final r = await client.get(
         '/notifications/unread-count',
         queryParameters: {'userId': userId},
       );
-      if (response.statusCode == 200 && response.data != null) {
-        final body = response.data as Map<String, dynamic>;
-        final raw = body['data'];
+      if (r.statusCode != 200 || r.data == null) return 0;
+      final n = readEnvelopeData(r.data, (raw) {
         if (raw is int) return raw;
         if (raw is num) return raw.toInt();
-      }
+        return int.tryParse(raw.toString()) ?? 0;
+      });
+      return n ?? 0;
     } catch (e) {
       debugPrint('알림 미읽음 수 조회 실패: $e');
     }
@@ -46,7 +42,7 @@ class NotificationApiService {
   Future<void> markRead(int notifIdx, String userId) async {
     if (userId.isEmpty) return;
     try {
-      await _client.patch(
+      await client.patch(
         '/notifications/$notifIdx/read',
         queryParameters: {'userId': userId},
       );
@@ -62,20 +58,14 @@ class NotificationApiService {
   }) async {
     if (userId.isEmpty) return false;
     try {
-      final response = await _client.patch(
+      final response = await client.patch(
         '/notifications/activity-approval',
         queryParameters: {'userId': userId, 'actIdx': actIdx},
       );
       if (response.statusCode != 200 || response.data == null) {
         return false;
       }
-      final raw = response.data;
-      if (raw is! Map) {
-        return false;
-      }
-      final body = Map<String, dynamic>.from(raw);
-      final ok = body['success'];
-      return ok == true;
+      return envelopeSuccess(response.data);
     } catch (e) {
       debugPrint('결재 확인 반영 실패: $e');
       return false;

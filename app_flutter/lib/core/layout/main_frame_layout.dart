@@ -7,7 +7,7 @@ import 'package:provider/provider.dart' as provider;
 
 import '../router/app_router.dart';
 import '../router/route_meta.dart';
-import '../../features/activities/activity_routes.dart';
+import 'package:app_flutter/pages/act001/act001_routes.dart';
 import '../theme/app_colors.dart';
 import '../theme/shell_tab_chrome.dart';
 import '../auth/auth_provider.dart';
@@ -556,7 +556,7 @@ class _SidebarNavigation extends StatelessWidget {
           ),
           _SidebarExpandableMenuItem(
             icon: Icons.edit_note,
-            title: '활동 관리',
+            title: '활동관리',
             initiallyExpanded:
                 currentPath == AppRoutes.activities ||
                 currentPath.startsWith('${AppRoutes.activities}/'),

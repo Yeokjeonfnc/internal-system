@@ -5,28 +5,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart' as provider;
 
-import 'package:app_flutter/features/dashboard/presentation/screens/dashboard_screen.dart';
-import 'package:app_flutter/features/founders/partner_detail_view.dart';
-import 'package:app_flutter/features/founders/partner_list_view.dart';
-import 'package:app_flutter/features/master/employee_list_view.dart';
-import 'package:app_flutter/features/master/employee_register_view.dart';
-import 'package:app_flutter/features/master/master_checklist_management_view.dart';
-import 'package:app_flutter/features/properties/property_detail_view.dart';
-import 'package:app_flutter/features/properties/property_list_view.dart';
-import 'package:app_flutter/features/properties/property_register_view.dart';
-import 'package:app_flutter/features/stores/store_detail_view.dart';
-import 'package:app_flutter/features/stores/store_list_view.dart';
-import 'package:app_flutter/features/stores/store_register_view.dart';
-import 'package:app_flutter/features/activities/activity_approval_management_view.dart';
-import 'package:app_flutter/features/activities/activity_hub_view.dart';
-import 'package:app_flutter/features/activities/activity_management_view.dart';
-import 'package:app_flutter/features/activities/activity_register_view.dart';
-import 'package:app_flutter/features/activities/activity_routes.dart';
-import 'package:app_flutter/features/activities/activity_status_detail_view.dart';
-import 'package:app_flutter/features/sales_area/sales_area_list_view.dart';
-import 'package:app_flutter/features/sales_area/sales_area_register_view.dart';
-import 'package:app_flutter/features/master/master_management_placeholders.dart';
-import 'package:app_flutter/features/master/department_view.dart';
+import 'package:app_flutter/pages/act001/act001_view_approval.dart';
+import 'package:app_flutter/pages/act001/act001_view_hub.dart';
+import 'package:app_flutter/pages/act001/act001_view_manage.dart';
+import 'package:app_flutter/pages/act001/act001_view_register.dart';
+import 'package:app_flutter/pages/act001/act001_routes.dart';
+import 'package:app_flutter/pages/act001/act001_view_status.dart';
+import 'package:app_flutter/pages/mst002/mst002_view.dart';
+import 'package:app_flutter/pages/dsh001/dsh001_screen.dart';
+import 'package:app_flutter/pages/mst001/mst001_view.dart';
+import 'package:app_flutter/pages/mst001/mst001_view_register.dart';
+import 'package:app_flutter/pages/mst004/mst004_view.dart';
+import 'package:app_flutter/pages/mst003/mst003_view.dart';
+import 'package:app_flutter/pages/dev002/dev002_view_detail.dart';
+import 'package:app_flutter/pages/dev002/dev002_view.dart';
+import 'package:app_flutter/pages/dev002/dev002_view_register.dart';
+import 'package:app_flutter/pages/dev001/dev001_view_detail.dart';
+import 'package:app_flutter/pages/dev001/dev001_view.dart';
+import 'package:app_flutter/pages/dev003/dev003_view.dart';
+import 'package:app_flutter/pages/dev003/dev003_view_register.dart';
+import 'package:app_flutter/pages/str001/str001_view_detail.dart';
+import 'package:app_flutter/pages/str001/str001_view.dart';
+import 'package:app_flutter/pages/str001/str001_view_register.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/auth/login_view.dart';
@@ -53,12 +53,6 @@ class AppRoutes {
   static const String masterDepartments = '/master/departments';
   static const String masterMenuPermissions = '/master/menu-permissions';
   static const String masterChecklists = '/master/checklists';
-}
-
-Page<dynamic> _activityStubPage(BuildContext context, GoRouterState state) {
-  return NoTransitionPage(
-    child: ActivityStubView(title: activityPageTitle(state.uri.path)),
-  );
 }
 
 Page<dynamic> _activityApprovalManagementPage(
@@ -396,7 +390,6 @@ List<RouteBase> _shellChildRoutes() {
           path: 'approval/active',
           pageBuilder: _activityApprovalManagementPage,
         ),
-        GoRoute(path: 'approval/instructions', pageBuilder: _activityStubPage),
         GoRoute(
           path: 'approval/suggestions',
           pageBuilder: _activityApprovalManagementPage,
@@ -404,10 +397,6 @@ List<RouteBase> _shellChildRoutes() {
         GoRoute(
           path: 'approval/checklist',
           pageBuilder: _activityApprovalManagementPage,
-        ),
-        GoRoute(
-          path: 'approval/checklist-stats',
-          pageBuilder: _activityStubPage,
         ),
       ],
     ),
@@ -421,7 +410,10 @@ List<RouteBase> _shellChildRoutes() {
 
 final appRouter = GoRouter(
   redirect: (context, state) {
-    final isLoggedIn = provider.Provider.of<AuthProvider>(context, listen: false).isLoggedIn;
+    final isLoggedIn = provider.Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).isLoggedIn;
     final isLoginRoute = state.uri.path == '/login';
 
     // 로그인되지 않았고 로그인 페이지가 아니면 로그인 페이지로 리다이렉트
@@ -447,9 +439,8 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/login',
       name: 'login',
-      pageBuilder: (context, state) => NoTransitionPage(
-        child: const LoginView(),
-      ),
+      pageBuilder: (context, state) =>
+          NoTransitionPage(child: const LoginView()),
     ),
     ShellRoute(
       builder: (context, state, child) => _RouteDataRefreshBoundary(

@@ -1,15 +1,14 @@
 import 'package:flutter/foundation.dart';
-import 'package:app_flutter/core/api/api_client.dart';
 
-class AuthApiService {
-  final ApiClient _client = ApiClient();
+import 'package:app_flutter/core/api/base_repository.dart';
 
+class AuthApiService extends BaseRepository {
   Future<Map<String, dynamic>?> login({
     required String userId,
     required String userPassword,
   }) async {
     try {
-      final response = await _client.post(
+      final response = await client.post(
         '/auth/login',
         data: {
           'userId': userId,
@@ -18,8 +17,10 @@ class AuthApiService {
       );
 
       if (response.statusCode == 200 && response.data != null) {
-        final body = response.data as Map<String, dynamic>;
-        return body['data'] as Map<String, dynamic>?;
+        return parseDataOrNull(
+          response.data,
+          (m) => m,
+        );
       }
     } catch (e) {
       debugPrint('로그인 에러: $e');
@@ -29,11 +30,13 @@ class AuthApiService {
 
   Future<Map<String, dynamic>?> getUserProfile(String userId) async {
     try {
-      final response = await _client.get('/auth/profile?userId=$userId');
+      final response = await client.get(
+        '/auth/profile',
+        queryParameters: {'userId': userId},
+      );
 
       if (response.statusCode == 200 && response.data != null) {
-        final body = response.data as Map<String, dynamic>;
-        return body['data'] as Map<String, dynamic>?;
+        return parseDataOrNull(response.data, (m) => m);
       }
     } catch (e) {
       debugPrint('사용자 정보 조회 에러: $e');
@@ -61,14 +64,14 @@ class AuthApiService {
       if (svYn != null) data['svYn'] = svYn;
       if (tagYn != null) data['tagYn'] = tagYn;
 
-      final response = await _client.put(
-        '/auth/profile?userId=$userId',
+      final response = await client.put(
+        '/auth/profile',
+        queryParameters: {'userId': userId},
         data: data,
       );
 
       if (response.statusCode == 200 && response.data != null) {
-        final body = response.data as Map<String, dynamic>;
-        return body['data'] as Map<String, dynamic>?;
+        return parseDataOrNull(response.data, (m) => m);
       }
     } catch (e) {
       debugPrint('사용자 정보 수정 에러: $e');

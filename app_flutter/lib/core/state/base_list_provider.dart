@@ -29,3 +29,20 @@ abstract class RuleListNotifier<F, T> extends ListFilterNotifier<F, T> {
     return true;
   }
 }
+
+/// 비동기 목록 소스 + [RuleListNotifier] 공통.
+///
+/// - [listAsync]: `ref.watch(…DataProvider)` 를 그대로 반환.
+/// - [rules]: 화면별 `*_provider.dart` 에서만 선언한 규칙 리스트를 넘긴다.
+abstract class BaseListNotifier<F, T> extends RuleListNotifier<F, T> {
+  AsyncValue<List<T>> get listAsync;
+
+  List<ListFilterRule<F, T>> get ruleList;
+
+  @override
+  List<T> get source =>
+      listAsync.maybeWhen(data: (rows) => rows, orElse: () => const []);
+
+  @override
+  List<ListFilterRule<F, T>> get rules => ruleList;
+}

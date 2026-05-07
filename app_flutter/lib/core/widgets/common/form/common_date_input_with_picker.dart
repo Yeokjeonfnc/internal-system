@@ -159,12 +159,16 @@ class _DateTextInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
+    if (!newValue.composing.isCollapsed) {
+      return newValue;
+    }
     final rawDigits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
     final digits = rawDigits.length > 8 ? rawDigits.substring(0, 8) : rawDigits;
     final formatted = _formatDateInputDigits(digits);
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
+      composing: TextRange.empty,
     );
   }
 }

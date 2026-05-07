@@ -8,19 +8,15 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart' as provider;
 
 import 'package:app_flutter/core/auth/auth_provider.dart';
+import 'package:app_flutter/core/notifications/notif_model.dart';
 import 'package:app_flutter/core/notifications/notification_api_service.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/widgets/common/erp_popup_list_stripes.dart';
-import 'package:app_flutter/features/activities/activity_routes.dart';
+import 'package:app_flutter/pages/act001/act001_routes.dart';
 
 /// [notif_mst.notif_typ] — 활동 결재 알림.
 const String _kNotifTypeActivityApproval = 'ACTIVITY_APPROVAL';
 
-int? _parseActIdx(Map<String, dynamic> row) {
-  final raw = row['actIdx'] ?? row['act_idx'];
-  if (raw is int) return raw;
-  return int.tryParse(raw?.toString() ?? '');
-}
 /// 로그인 유저 알림 목록을 화면 중앙 다이얼로그로 연다.
 Future<void> showNotificationInboxSheet(BuildContext context) async {
   final auth = provider.Provider.of<AuthProvider>(context, listen: false);
@@ -44,13 +40,13 @@ Future<void> showNotificationInboxSheet(BuildContext context) async {
         child: SizedBox(
           width: maxW,
           height: maxH,
-          child: FutureBuilder<List<Map<String, dynamic>>>(
+          child: FutureBuilder<List<NotifRow>>(
             future: NotificationApiService().list(uid),
             builder: (context, snapshot) {
               if (snapshot.connectionState != ConnectionState.done) {
                 return const Center(child: CircularProgressIndicator());
               }
-              final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+              final rows = snapshot.data ?? const <NotifRow>[];
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -91,23 +87,17 @@ Future<void> showNotificationInboxSheet(BuildContext context) async {
                             itemCount: rows.length,
                             itemBuilder: (context, i) {
                               final row = rows[i];
-                              final rawIdx = row['notifIdx'];
-                              final idx = rawIdx is int
-                                  ? rawIdx
-                                  : int.tryParse(rawIdx?.toString() ?? '');
-                              final msg = row['msgTxt']?.toString() ?? '';
-                              final typ =
-                                  row['notifTyp']?.toString().trim() ?? '';
-                              final actIdx = _parseActIdx(row);
+                              final idx = row.notifIdx;
+                              final msg = row.msgTxt;
+                              final typ = row.notifTyp.trim();
+                              final actIdx = row.actIdx;
                               final openApprovalDetail =
                                   typ == _kNotifTypeActivityApproval &&
                                   actIdx != null;
-                              final read =
-                                  row['readYn']?.toString().toUpperCase() ==
-                                  'Y';
-                              final ts =
-                                  row['creatDt']?.toString().split('.').first ??
-                                  '';
+                              final read = row.readYn.toUpperCase() == 'Y';
+                              final ts = row.creatDt.isEmpty
+                                  ? ''
+                                  : row.creatDt.split('.').first;
                               return Material(
                                 color: read
                                     ? erpPopupListRowBackground(i)
