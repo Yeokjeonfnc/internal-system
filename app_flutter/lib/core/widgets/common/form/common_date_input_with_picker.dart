@@ -91,6 +91,10 @@ class _DateInputWithPickerState extends State<DateInputWithPicker> {
                   style: FormStylePalette.valueStyle,
                   decoration: InputDecoration(
                     hintText: 'yyyy-MM-dd',
+                    hintStyle: TextStyle(
+                      color: FormStylePalette.textMuted,
+                      fontSize: 13,
+                    ),
                     errorText: _invalidInput ? 'yyyy-MM-dd 형식으로 입력하세요.' : null,
                     filled: true,
                     fillColor: FormStylePalette.inputBg,

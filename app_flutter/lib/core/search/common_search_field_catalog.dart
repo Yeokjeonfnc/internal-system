@@ -22,7 +22,7 @@ enum CommonSearchFieldGroup {
   salesAreaSearch,
 
   /// 마스터 — 사원관리
-  masterEmployeeSearch,
+  masterUserSearch,
 }
 
 /// 공통 검색 필드 식별자(화면·필터 상태와 매핑).
@@ -114,19 +114,19 @@ enum CommonSearchFieldId {
 
   // --- 사원관리(마스터)
   /// 사원명
-  employeeName,
+  userName,
 
   /// 부서
-  employeeDepartment,
+  userDepartment,
 
   /// 이메일 주소
-  employeeEmail,
+  userEmail,
 
   /// 휴대전화(사원관리)
-  employeePhone,
+  userPhone,
 
   /// 직급(사원관리)
-  employeePosition,
+  userPosition,
 }
 
 /// UI 표현 방식(브랜드형 칩 vs 드롭다운 vs 텍스트 등).
@@ -312,33 +312,33 @@ const List<CommonSearchFieldDef> kCommonSearchCatalog = [
     presentation: CommonSearchPresentation.pageBuilt,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.employeeName,
+    id: CommonSearchFieldId.userName,
     label: '사원명',
-    group: CommonSearchFieldGroup.masterEmployeeSearch,
+    group: CommonSearchFieldGroup.masterUserSearch,
     presentation: CommonSearchPresentation.text,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.employeeDepartment,
+    id: CommonSearchFieldId.userDepartment,
     label: '부서',
-    group: CommonSearchFieldGroup.masterEmployeeSearch,
+    group: CommonSearchFieldGroup.masterUserSearch,
     presentation: CommonSearchPresentation.alwaysDropdown,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.employeeEmail,
+    id: CommonSearchFieldId.userEmail,
     label: '이메일 주소',
-    group: CommonSearchFieldGroup.masterEmployeeSearch,
+    group: CommonSearchFieldGroup.masterUserSearch,
     presentation: CommonSearchPresentation.text,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.employeePhone,
+    id: CommonSearchFieldId.userPhone,
     label: '휴대전화',
-    group: CommonSearchFieldGroup.masterEmployeeSearch,
+    group: CommonSearchFieldGroup.masterUserSearch,
     presentation: CommonSearchPresentation.text,
   ),
   CommonSearchFieldDef(
-    id: CommonSearchFieldId.employeePosition,
+    id: CommonSearchFieldId.userPosition,
     label: '직급',
-    group: CommonSearchFieldGroup.masterEmployeeSearch,
+    group: CommonSearchFieldGroup.masterUserSearch,
     presentation: CommonSearchPresentation.alwaysDropdown,
   ),
 ];
@@ -350,7 +350,7 @@ String commonSearchGroupTitle(CommonSearchFieldGroup g) => switch (g) {
   CommonSearchFieldGroup.regionContact => '지역·연락처 검색',
   CommonSearchFieldGroup.activitySearch => '활동관리 검색',
   CommonSearchFieldGroup.salesAreaSearch => '영업지역 검색',
-  CommonSearchFieldGroup.masterEmployeeSearch => '사원 관리',
+  CommonSearchFieldGroup.masterUserSearch => '사원 관리',
 };
 
 /// [ids]에 포함된 항목만, [kCommonSearchCatalog] 순서로 반환한다.

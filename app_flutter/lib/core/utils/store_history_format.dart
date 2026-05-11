@@ -6,7 +6,7 @@ String storeHistoryChgContentEncode(Object? raw) {
   return jsonEncode(raw);
 }
 
-/// `chgDt` / `createdAt` 등 ISO 문자열을 표시용으로 정규화.
+/// `chgDt` 등 ISO 문자열을 표시용으로 정규화.
 String storeHistoryChgDtFormat(String raw) {
   if (raw.isEmpty) return '';
   final parsed = DateTime.tryParse(raw);

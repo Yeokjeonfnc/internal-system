@@ -12,7 +12,7 @@ import 'package:app_flutter/core/notifications/notif_model.dart';
 import 'package:app_flutter/core/notifications/notification_api_service.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/widgets/common/erp_popup_list_stripes.dart';
-import 'package:app_flutter/pages/act001/act001_routes.dart';
+import 'package:app_flutter/pages/active/activity_routes.dart';
 
 /// [notif_mst.notif_typ] — 활동 결재 알림.
 const String _kNotifTypeActivityApproval = 'ACTIVITY_APPROVAL';
@@ -95,9 +95,9 @@ Future<void> showNotificationInboxSheet(BuildContext context) async {
                                   typ == _kNotifTypeActivityApproval &&
                                   actIdx != null;
                               final read = row.readYn.toUpperCase() == 'Y';
-                              final ts = row.creatDt.isEmpty
+                              final ts = row.createDt.isEmpty
                                   ? ''
-                                  : row.creatDt.split('.').first;
+                                  : row.createDt.split('.').first;
                               return Material(
                                 color: read
                                     ? erpPopupListRowBackground(i)
@@ -117,8 +117,7 @@ Future<void> showNotificationInboxSheet(BuildContext context) async {
                                             final targetIdx = actIdx;
                                             Future.microtask(() {
                                               router.go(
-                                                ActivityRoutes
-                                                    .approvalActivityDetail(
+                                                ActivityRoutes.approvalActivityDetail(
                                                   targetIdx,
                                                 ),
                                               );
@@ -180,7 +179,8 @@ class NotificationBellIconButton extends StatefulWidget {
       _NotificationBellIconButtonState();
 }
 
-class _NotificationBellIconButtonState extends State<NotificationBellIconButton> {
+class _NotificationBellIconButtonState
+    extends State<NotificationBellIconButton> {
   int _unread = 0;
 
   @override
@@ -228,9 +228,7 @@ class _NotificationBellIconButtonState extends State<NotificationBellIconButton>
       color: const Color(0xFFADB5BD),
       style: IconButton.styleFrom(
         backgroundColor: Colors.white.withValues(alpha: 0.03),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }

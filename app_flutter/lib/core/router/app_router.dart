@@ -5,28 +5,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart' as provider;
 
-import 'package:app_flutter/pages/act001/act001_view_approval.dart';
-import 'package:app_flutter/pages/act001/act001_view_hub.dart';
-import 'package:app_flutter/pages/act001/act001_view_manage.dart';
-import 'package:app_flutter/pages/act001/act001_view_register.dart';
-import 'package:app_flutter/pages/act001/act001_routes.dart';
-import 'package:app_flutter/pages/act001/act001_view_status.dart';
-import 'package:app_flutter/pages/mst002/mst002_view.dart';
-import 'package:app_flutter/pages/dsh001/dsh001_screen.dart';
-import 'package:app_flutter/pages/mst001/mst001_view.dart';
-import 'package:app_flutter/pages/mst001/mst001_view_register.dart';
-import 'package:app_flutter/pages/mst004/mst004_view.dart';
-import 'package:app_flutter/pages/mst003/mst003_view.dart';
-import 'package:app_flutter/pages/dev002/dev002_view_detail.dart';
-import 'package:app_flutter/pages/dev002/dev002_view.dart';
-import 'package:app_flutter/pages/dev002/dev002_view_register.dart';
-import 'package:app_flutter/pages/dev001/dev001_view_detail.dart';
-import 'package:app_flutter/pages/dev001/dev001_view.dart';
-import 'package:app_flutter/pages/dev003/dev003_view.dart';
-import 'package:app_flutter/pages/dev003/dev003_view_register.dart';
-import 'package:app_flutter/pages/str001/str001_view_detail.dart';
-import 'package:app_flutter/pages/str001/str001_view.dart';
-import 'package:app_flutter/pages/str001/str001_view_register.dart';
+import 'package:app_flutter/pages/active/activity_hub_view.dart';
+import 'package:app_flutter/pages/active/act002/act002_view_register.dart';
+import 'package:app_flutter/pages/active/activity_routes.dart';
+import 'package:app_flutter/pages/active/act001/act001_view_status.dart';
+import 'package:app_flutter/pages/active/act002/act002_view.dart';
+import 'package:app_flutter/pages/active/act003/act003_view.dart';
+import 'package:app_flutter/pages/master/mst002/mst002_view.dart';
+import 'package:app_flutter/pages/dashboard/dsh001/dsh001_screen.dart';
+import 'package:app_flutter/pages/master/mst001/mst001_view.dart';
+import 'package:app_flutter/pages/master/mst001/mst001_view_register.dart';
+import 'package:app_flutter/pages/master/mst001/mst001_view_detail.dart';
+import 'package:app_flutter/pages/master/mst004/mst004_view.dart';
+import 'package:app_flutter/pages/master/mst003/mst003_view.dart';
+import 'package:app_flutter/pages/development/dev002/dev002_view_detail.dart';
+import 'package:app_flutter/pages/development/dev002/dev002_view.dart';
+import 'package:app_flutter/pages/development/dev002/dev002_view_register.dart';
+import 'package:app_flutter/pages/development/dev001/dev001_view_detail.dart';
+import 'package:app_flutter/pages/development/dev001/dev001_view.dart';
+import 'package:app_flutter/pages/development/dev003/dev003_view.dart';
+import 'package:app_flutter/pages/development/dev003/dev003_view_register.dart';
+import 'package:app_flutter/pages/franchise/str001/str001_view_detail_tabs.dart';
+import 'package:app_flutter/pages/franchise/str001/str001_view.dart';
+import 'package:app_flutter/pages/franchise/str001/str001_view_register.dart';
+import 'package:app_flutter/core/active_mst/active_mst_api_paths.dart';
+import 'package:app_flutter/core/property_mst/property_mst_write_payload.dart';
+import 'package:app_flutter/core/store_mst/store_mst_write_payload.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/auth/login_view.dart';
@@ -36,23 +40,27 @@ import 'app_route_def.dart';
 
 class AppRoutes {
   static const String dashboard = '/';
-  static const String stores = '/stores';
-  static const String storeRegister = '/stores/new';
-  static const String storeDetail = '/stores/:storeIdx';
+  static const String stores = StoreMstApiPaths.root;
+  static const String storeRegister = '${StoreMstApiPaths.root}/new';
+  static const String storeDetail = '${StoreMstApiPaths.root}/:storeIdx';
   static const String founders = '/founders';
-  static const String founderRegister = '/founders/new';
-  static const String founderDetail = '/founders/:partnerIdx';
-  static const String properties = '/properties';
-  static const String propertyRegister = '/properties/new';
-  static const String propertyDetail = '/properties/:propertyNo';
-  static const String activities = '/activities';
+  static const String founderRegister = '$founders/new';
+  static const String founderDetail = '$founders/:partnerIdx';
+  static const String properties = PropertyMstApiPaths.root;
+  static const String propertyRegister = '${PropertyMstApiPaths.root}/new';
+  static const String propertyDetail = '${PropertyMstApiPaths.root}/:propertyNo';
+  static const String activities = ActiveMstApiPaths.root;
   static const String salesAreas = '/sales-areas';
 
-  static const String masterEmployees = '/master/employees';
-  static const String masterEmployeesRegister = '/master/employees/new';
-  static const String masterDepartments = '/master/departments';
-  static const String masterMenuPermissions = '/master/menu-permissions';
-  static const String masterChecklists = '/master/checklists';
+  /// SPA 전용 — REST `/users` 등과 경로가 다름.
+  static const String master = '/master';
+
+  static const String masterUsers = '$master/users';
+  static const String masterUsersRegister = '$master/users/new';
+  static const String masterUserDetail = '$master/users/:userIdx';
+  static const String masterDepartments = '$master/departments';
+  static const String masterMenuPermissions = '$master/menu-permissions';
+  static const String masterChecklists = '$master/checklists';
 }
 
 Page<dynamic> _activityApprovalManagementPage(
@@ -60,8 +68,8 @@ Page<dynamic> _activityApprovalManagementPage(
   GoRouterState state,
 ) {
   return NoTransitionPage(
-    child: ActivityApprovalManagementView(
-      initialTab: activityApprovalInitialTabForPath(state.uri.path),
+    child: Act003View(
+      initialTab: approvalTabIndex(state.uri.path),
     ),
   );
 }
@@ -82,8 +90,9 @@ class AppRouteNames {
   static const String activities = 'activities';
   static const String salesAreas = 'salesAreas';
   static const String salesAreaRegister = 'salesAreaRegister';
-  static const String masterEmployees = 'masterEmployees';
-  static const String masterEmployeesRegister = 'masterEmployeesRegister';
+  static const String masterUsers = 'masterUsers';
+  static const String masterUsersRegister = 'masterUsersRegister';
+  static const String masterUserDetail = 'masterUserDetail';
   static const String masterDepartments = 'masterDepartments';
   static const String masterMenuPermissions = 'masterMenuPermissions';
   static const String masterChecklists = 'masterChecklists';
@@ -186,20 +195,31 @@ final List<AppRouteDef> appRouteDefs = <AppRouteDef>[
     },
   ),
   AppRouteDef(
-    name: AppRouteNames.masterEmployees,
-    path: AppRoutes.masterEmployees,
-    title: '사원관리',
+    name: AppRouteNames.masterUsers,
+    path: AppRoutes.masterUsers,
+    title: '사원 관리',
     parentPath: AppRoutes.dashboard,
     pageBuilder: (context, state) =>
-        const NoTransitionPage(child: EmployeeListView()),
+        const NoTransitionPage(child: UserListView()),
   ),
   AppRouteDef(
-    name: AppRouteNames.masterEmployeesRegister,
-    path: AppRoutes.masterEmployeesRegister,
-    title: '사원등록',
-    parentPath: AppRoutes.masterEmployees,
+    name: AppRouteNames.masterUsersRegister,
+    path: AppRoutes.masterUsersRegister,
+    title: '사원 등록',
+    parentPath: AppRoutes.masterUsers,
     pageBuilder: (context, state) =>
-        const NoTransitionPage(child: EmployeeRegisterView()),
+        const NoTransitionPage(child: UserRegisterView()),
+  ),
+  AppRouteDef(
+    name: AppRouteNames.masterUserDetail,
+    path: AppRoutes.masterUserDetail,
+    title: '사원 상세',
+    parentPath: AppRoutes.masterUsers,
+    pageBuilder: (context, state) {
+      final raw = state.pathParameters['userIdx'] ?? '';
+      final userIdx = int.tryParse(raw) ?? -1;
+      return NoTransitionPage(child: UserDetailView(userIdx: userIdx));
+    },
   ),
   AppRouteDef(
     name: AppRouteNames.masterDepartments,
@@ -348,25 +368,25 @@ List<RouteBase> _shellChildRoutes() {
         GoRoute(
           path: 'drafts',
           pageBuilder: (context, state) => const NoTransitionPage(
-            child: ActivityManagementView(initialTab: 0),
+            child: Act002View(initialTab: 0),
           ),
         ),
         GoRoute(
           path: 'manage',
           pageBuilder: (context, state) => const NoTransitionPage(
-            child: ActivityManagementView(initialTab: 1),
+            child: Act002View(initialTab: 1),
           ),
         ),
         GoRoute(
           path: 'instructions',
           pageBuilder: (context, state) => const NoTransitionPage(
-            child: ActivityManagementView(initialTab: 2),
+            child: Act002View(initialTab: 2),
           ),
         ),
         GoRoute(
           path: 'checklist',
           pageBuilder: (context, state) => const NoTransitionPage(
-            child: ActivityManagementView(initialTab: 3),
+            child: Act002View(initialTab: 2),
           ),
         ),
         GoRoute(
@@ -427,9 +447,9 @@ final appRouter = GoRouter(
     }
 
     final path = state.uri.path;
-    if ((path.startsWith('/stores/') ||
-            path.startsWith('/founders/') ||
-            path.startsWith('/properties/')) &&
+    if ((path.startsWith('${StoreMstApiPaths.root}/') ||
+            path.startsWith('${AppRoutes.founders}/') ||
+            path.startsWith('${PropertyMstApiPaths.root}/')) &&
         state.uri.hasQuery) {
       return Uri(path: path).toString();
     }

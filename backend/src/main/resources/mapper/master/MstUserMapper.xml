@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.master.mapper.MstUserMapper">
+
+    <resultMap id="mstUserListJdbcRow" type="com.yeokjeon.erp.master.dto.MstUserListJdbcRow">
+        <constructor>
+            <arg column="user_idx" javaType="java.lang.Integer"/>
+            <arg column="user_name" javaType="java.lang.String"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="dept_idx" javaType="java.lang.Integer"/>
+            <arg column="dept_nm" javaType="java.lang.String"/>
+            <arg column="user_phone" javaType="java.lang.String"/>
+            <arg column="user_email" javaType="java.lang.String"/>
+            <arg column="sv_yn" javaType="java.lang.String"/>
+            <arg column="position_cd" javaType="java.lang.String"/>
+            <arg column="position_nm" javaType="java.lang.String"/>
+            <arg column="tag_yn" javaType="java.lang.String"/>
+            <arg column="join_dt" javaType="java.time.LocalDate"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="userEnrichedSelect">
+        SELECT u.user_idx,
+               u.user_name,
+               u.user_id,
+               u.dept_idx,
+               d.dept_nm,
+               u.user_phone,
+               u.user_email,
+               CAST(u.sv_yn AS VARCHAR) AS sv_yn,
+               u.position_cd,
+               pos.code_nm AS position_nm,
+               CAST(u.tag_yn AS VARCHAR) AS tag_yn,
+               u.join_dt,
+               u.created_at,
+               u.updated_at
+        FROM user_mst u
+                 LEFT JOIN dept_mst d ON d.dept_idx = u.dept_idx
+                 LEFT JOIN code_mst pos ON pos.grp_cd = '60' AND pos.code_cd = u.position_cd
+    </sql>
+
+    <select id="selectUsersEnriched" resultMap="mstUserListJdbcRow">
+        <include refid="userEnrichedSelect"/>
+        <where>
+            <if test="deptIdx != null">
+                u.dept_idx = #{deptIdx}
+            </if>
+        </where>
+        ORDER BY u.user_idx DESC
+    </select>
+
+    <select id="selectUserEnrichedById" resultMap="mstUserListJdbcRow">
+        <include refid="userEnrichedSelect"/>
+        WHERE u.user_idx = #{userIdx}
+    </select>
+</mapper>

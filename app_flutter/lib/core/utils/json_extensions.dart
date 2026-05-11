@@ -25,13 +25,14 @@ extension JsonDynamicParsing on Object? {
 }
 
 extension JsonMapParsing on Map<String, dynamic> {
-  int jsonInt(String key, [int fallback = 0]) => this[key].asJsonInt(fallback);
+  int jsonInt(String key, [int fallback = 0]) =>
+      (this[key] as Object?).asJsonInt(fallback);
 
   double jsonDouble(String key, [double fallback = 0]) =>
-      this[key].asJsonDouble(fallback);
+      (this[key] as Object?).asJsonDouble(fallback);
 
   String jsonString(String key, [String fallback = '']) =>
-      this[key].asJsonString(fallback);
+      (this[key] as Object?).asJsonString(fallback);
 }
 
 /// ISO / `YYYY-MM-DD` 문자열을 `YYYY-MM-DD` 로만 잘라 반환.

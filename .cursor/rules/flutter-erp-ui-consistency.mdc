@@ -31,7 +31,7 @@ alwaysApply: true
 ## 3) “어떤 검색 항목을 켤지” 메타
 
 - **공통 정의·그룹**: `core/search/common_search_field_catalog.dart` (`CommonSearchFieldId`, `CommonSearchFieldDef`).
-- **필터 시트(항목 켜기/끄기)**: `CommonSearchFieldPicker` + 화면별 `Set<CommonSearchFieldId> supported` (예: `store_list_view` 의 `kStoreListSupportedSearchFields`).
+- **필터 시트(항목 켜기/끄기)**: `CommonSearchFieldPicker` + 화면별 `Set<CommonSearchFieldId> supported` (예: `str001_view` 의 `kStoreListSupportedSearchFields`).
 
 ## 4) 사이드 시트(2열) 필터
 
@@ -59,4 +59,4 @@ alwaysApply: true
 - `dart analyze` (또는 `flutter analyze`) 해당 feature 경로.
 - **오버플로/배율**: 목록/상세가 가맹점 목록과 **텍스트 크기**가 어긋나면 `textScaler` 국소 조작이 아니라 **공통 토큰·위젯**을 먼저 맞출 것.
 
-**참고 구현(복북 대상)**: `features/stores/store_list_view.dart`, `features/activities/activity_management_view.dart`, `core/widgets/common/common_search_filter_panel.dart`, `core/theme/app_dimensions.dart`
+**참고 구현(복북 대상)**: `pages/franchise/str001/str001_view.dart`, `pages/active/act002/act002_view_manage.dart`, `core/widgets/common/common_search_filter_panel.dart`, `core/theme/app_dimensions.dart`

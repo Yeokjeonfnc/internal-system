@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.franchise.mapper.StoreHistoryMapper">
+
+    <select id="selectHistoriesByStoreIdx" resultType="com.yeokjeon.erp.franchise.dto.StoreHistoryJdbcRow">
+        SELECT his_idx         AS hisIdx,
+               store_idx       AS storeIdx,
+               chg_type        AS chgType,
+               CAST(chg_dt AS TIMESTAMP) AS chgDt,
+               chg_user_id     AS chgUserId,
+               store_nm        AS storeNm,
+               chg_content::text AS chgContentRaw
+        FROM store_history
+        WHERE store_idx = #{storeIdx}
+        ORDER BY chg_dt DESC, his_idx DESC
+    </select>
+
+    <insert id="insertHistorySimple">
+        INSERT INTO store_history (store_idx, chg_type, chg_user_id, store_nm, chg_content)
+        VALUES (#{storeIdx}, #{chgType}, #{chgUserId}, #{storeNm},
+                jsonb_build_array(jsonb_build_object(
+                        'column_nm', 'store',
+                        'column_desc', '가맹점',
+                        'before_value', null,
+                        'after_value', #{summaryContent}
+                )))
+    </insert>
+
+    <insert id="insertHistoryUpdateJson">
+        INSERT INTO store_history (store_idx, chg_type, chg_user_id, store_nm, chg_content)
+        VALUES (#{storeIdx}, 'UPDATE', 'system', #{storeNm}, CAST(#{jsonBody} AS JSONB))
+    </insert>
+
+    <update id="dropStoreHistoryFkIfExists">
+        ALTER TABLE store_history DROP CONSTRAINT IF EXISTS fk_his_store_idx
+    </update>
+</mapper>

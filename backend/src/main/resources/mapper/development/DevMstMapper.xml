@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.development.mapper.DevMstMapper">
+
+    <resultMap id="partnerMstDto" type="com.yeokjeon.erp.development.dto.PartnerMstDto">
+        <constructor>
+            <arg column="partner_idx" javaType="java.lang.Integer"/>
+            <arg column="partner_nm" javaType="java.lang.String"/>
+            <arg column="partner_status" javaType="java.lang.String"/>
+            <arg column="partner_tel" javaType="java.lang.String"/>
+            <arg column="partner_email" javaType="java.lang.String"/>
+            <arg column="gender" javaType="java.lang.String"/>
+            <arg column="create_dt" javaType="java.time.LocalDateTime"/>
+            <arg column="update_dt" javaType="java.time.LocalDateTime"/>
+            <arg column="partner_birth" javaType="java.time.LocalDate"/>
+            <arg column="p_zip_cd" javaType="java.lang.String"/>
+            <arg column="p_address" javaType="java.lang.String"/>
+            <arg column="p_address_detail" javaType="java.lang.String"/>
+            <arg column="p_region" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="propertyMstDto" type="com.yeokjeon.erp.development.dto.PropertyMstDto">
+        <constructor>
+            <arg column="prop_idx" javaType="java.lang.Integer"/>
+            <arg column="prop_nm" javaType="java.lang.String"/>
+            <arg column="zip_cd" javaType="java.lang.String"/>
+            <arg column="address" javaType="java.lang.String"/>
+            <arg column="address_detail" javaType="java.lang.String"/>
+            <arg column="latitude" javaType="java.math.BigDecimal"/>
+            <arg column="longitude" javaType="java.math.BigDecimal"/>
+            <arg column="region" javaType="java.lang.String"/>
+            <arg column="prop_status" javaType="java.lang.String"/>
+            <arg column="prop_type" javaType="java.lang.String"/>
+            <arg column="floor" javaType="java.lang.Integer"/>
+            <arg column="cont_area" javaType="java.math.BigDecimal"/>
+            <arg column="real_area" javaType="java.math.BigDecimal"/>
+            <arg column="rent_deposit" javaType="java.lang.Long"/>
+            <arg column="monthly_rent" javaType="java.lang.Long"/>
+            <arg column="premium_fee" javaType="java.lang.Long"/>
+            <arg column="maint_fee" javaType="java.lang.Long"/>
+            <arg column="prop_notes" javaType="java.lang.String"/>
+            <arg column="survey_dt" javaType="java.time.LocalDate"/>
+            <arg column="create_dt" javaType="java.time.LocalDateTime"/>
+            <arg column="update_dt" javaType="java.time.LocalDateTime"/>
+            <arg column="surveyor" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <select id="selectPartnersOrdered" resultMap="partnerMstDto">
+        SELECT partner_idx,
+               partner_nm,
+               partner_status,
+               partner_tel,
+               partner_email,
+               gender,
+               CAST(create_dt AS TIMESTAMP) AS create_dt,
+               CAST(update_dt AS TIMESTAMP) AS update_dt,
+               partner_birth,
+               p_zip_cd,
+               p_address,
+               p_address_detail,
+               p_region
+        FROM partner_mst
+        ORDER BY partner_idx DESC
+    </select>
+
+    <select id="selectPropertiesOrdered" resultMap="propertyMstDto">
+        SELECT prop_idx,
+               prop_nm,
+               zip_cd,
+               address,
+               address_detail,
+               latitude,
+               longitude,
+               region,
+               prop_status,
+               prop_type,
+               floor,
+               cont_area,
+               real_area,
+               rent_deposit,
+               monthly_rent,
+               premium_fee,
+               maint_fee,
+               prop_notes,
+               survey_dt,
+               CAST(create_dt AS TIMESTAMP) AS create_dt,
+               CAST(update_dt AS TIMESTAMP) AS update_dt,
+               surveyor
+        FROM property_mst
+        ORDER BY prop_idx DESC
+    </select>
+</mapper>

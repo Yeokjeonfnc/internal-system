@@ -2,12 +2,12 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:app_flutter/pages/dsh001/dsh001_view_model.dart';
-import 'package:app_flutter/pages/mst001/mst001_controller.dart';
-import 'package:app_flutter/pages/dev002/dev002_controller.dart';
-import 'package:app_flutter/pages/dev001/dev001_controller.dart';
-import 'package:app_flutter/pages/dev003/dev003_controller.dart';
-import 'package:app_flutter/pages/str001/str001_controller.dart';
+import 'package:app_flutter/pages/dashboard/dsh001/dsh001_view_model.dart';
+import 'package:app_flutter/pages/master/mst001/mst001_controller.dart';
+import 'package:app_flutter/pages/development/dev002/dev002_controller.dart';
+import 'package:app_flutter/pages/development/dev001/dev001_controller.dart';
+import 'package:app_flutter/pages/development/dev003/dev003_controller.dart';
+import 'package:app_flutter/pages/franchise/str001/str001_controller.dart';
 
 void refreshAllScreenData(WidgetRef ref) {
   ref.invalidate(dashboardViewModelProvider);
@@ -25,8 +25,8 @@ void refreshAllScreenData(WidgetRef ref) {
   ref.invalidate(propertyDataProvider);
   ref.invalidate(propertyCodeOptionsProvider(20));
   ref.invalidate(propertyProvider);
-  ref.invalidate(employeeDataProvider);
-  ref.invalidate(employeeProvider);
+  ref.invalidate(userDataProvider);
+  ref.invalidate(userProvider);
   ref.invalidate(dev003DataProvider);
   ref.invalidate(salesAreaProvider);
 }

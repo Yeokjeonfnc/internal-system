@@ -92,21 +92,19 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
       if (!mounted) return;
 
       if (user != null) {
-        debugPrint('사용자 정보: $user');
-        debugPrint('joinDt 값: ${user['joinDt']}');
-
         setState(() {
-          _nameController.text = user['userNm']?.toString() ?? '';
-          _email = user['email']?.toString() ?? '';
-          _deptController.text = user['deptNm']?.toString() ?? '';
+          _nameController.text = user.userNm;
+          _email = user.email;
+          _deptController.text = user.deptNm;
           _phoneController.text = _formatPhoneNumber(
-            user['userPhone']?.toString(),
+            user.userPhone.isEmpty ? null : user.userPhone,
           );
-          _joinDate = user['joinDt']?.toString() ?? '미입력';
-          _positionCd = user['positionCd']?.toString();
-          _positionNm = user['positionNm']?.toString() ?? '사원';
-          _svYn = user['svYn']?.toString() == 'Y';
-          _tagYn = user['tagYn']?.toString() == 'Y';
+          _joinDate =
+              user.joinDtRaw.isEmpty ? '미입력' : user.joinDtRaw.split('T').first;
+          _positionCd = user.positionCd.isEmpty ? null : user.positionCd;
+          _positionNm = user.positionNm.isEmpty ? '사원' : user.positionNm;
+          _svYn = user.svYn == 'Y';
+          _tagYn = user.tagYn == 'Y';
         });
       }
     } catch (e) {

@@ -1,14 +1,16 @@
 package com.yeokjeon.erp.auth.controller;
 
+import com.yeokjeon.erp.auth.dto.AuthLoginRequestDto;
+import com.yeokjeon.erp.auth.dto.AuthProfileDto;
+import com.yeokjeon.erp.auth.dto.AuthProfileUpdateRequestDto;
 import com.yeokjeon.erp.auth.service.AuthService;
 import com.yeokjeon.erp.common.ApiResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 @Slf4j
 @RestController
@@ -19,11 +21,11 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> login(
-            @RequestBody Map<String, Object> body) {
-        log.info("로그인 요청: userId={}", body != null ? body.get("userId") : null);
+    public ResponseEntity<ApiResponse<AuthProfileDto>> login(
+            @Valid @RequestBody AuthLoginRequestDto body) {
+        log.info("로그인 요청: userId={}", body.userId());
 
-        Map<String, Object> result = authService.login(body);
+        AuthProfileDto result = authService.login(body);
 
         if (result == null) {
             return ResponseEntity
@@ -31,16 +33,16 @@ public class AuthController {
                     .body(ApiResponse.error("아이디 또는 비밀번호가 일치하지 않습니다."));
         }
 
-        log.info("로그인 성공: userId={}, userNm={}", result.get("userId"), result.get("userNm"));
+        log.info("로그인 성공: userId={}, userNm={}", result.userId(), result.userNm());
         return ResponseEntity.ok(ApiResponse.success("로그인 되었습니다.", result));
     }
 
     @GetMapping("/profile")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getProfile(
+    public ResponseEntity<ApiResponse<AuthProfileDto>> getProfile(
             @RequestParam String userId) {
         log.info("사용자 정보 조회 요청: userId={}", userId);
 
-        Map<String, Object> result = authService.getUserProfile(userId);
+        AuthProfileDto result = authService.getUserProfile(userId);
 
         if (result == null) {
             return ResponseEntity
@@ -52,12 +54,12 @@ public class AuthController {
     }
 
     @PutMapping("/profile")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> updateProfile(
+    public ResponseEntity<ApiResponse<AuthProfileDto>> updateProfile(
             @RequestParam String userId,
-            @RequestBody Map<String, Object> body) {
+            @RequestBody AuthProfileUpdateRequestDto body) {
         log.info("사용자 정보 수정 요청: userId={}", userId);
 
-        Map<String, Object> result = authService.updateUserProfile(userId, body);
+        AuthProfileDto result = authService.updateUserProfile(userId, body);
 
         if (result == null) {
             return ResponseEntity

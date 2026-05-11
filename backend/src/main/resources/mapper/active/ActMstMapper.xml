@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.active.mapper.ActMstMapper">
+
+    <resultMap id="activityStatusPivotRow" type="com.yeokjeon.erp.active.dto.ActivityStatusPivotRowDto">
+        <constructor>
+            <arg column="store_nm" javaType="java.lang.String"/>
+            <arg column="user_name" javaType="java.lang.String"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="act_dt" javaType="java.time.LocalDate"/>
+            <arg column="cnt" javaType="java.lang.Long"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="chkMstResponse" type="com.yeokjeon.erp.active.dto.ChkMstResponseDto">
+        <constructor>
+            <arg column="chk_idx" javaType="java.lang.Integer"/>
+            <arg column="brand_cd" javaType="java.lang.String"/>
+            <arg column="chk_type" javaType="java.lang.String"/>
+            <arg column="chk_type_nm" javaType="java.lang.String"/>
+            <arg column="chk_content" javaType="java.lang.String"/>
+            <arg column="base_score" javaType="java.lang.Integer"/>
+            <arg column="use_yn" javaType="java.lang.Character" jdbcType="CHAR"/>
+            <arg column="display_order" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="chkResultRow" type="com.yeokjeon.erp.active.dto.ChkResultRowDto">
+        <constructor>
+            <arg column="chk_idx" javaType="java.lang.Integer"/>
+            <arg column="brand_cd" javaType="java.lang.String"/>
+            <arg column="chk_type" javaType="java.lang.String"/>
+            <arg column="chk_type_nm" javaType="java.lang.String"/>
+            <arg column="chk_content" javaType="java.lang.String"/>
+            <arg column="base_score" javaType="java.lang.Integer"/>
+            <arg column="display_order" javaType="java.lang.Integer"/>
+            <arg column="answer_val" javaType="java.lang.String"/>
+            <arg column="answer_score" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="userIdNameRow" type="com.yeokjeon.erp.active.dto.UserIdNameRow">
+        <constructor>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="user_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="userWriterDeptRow" type="com.yeokjeon.erp.active.dto.UserWriterDeptRow">
+        <constructor>
+            <arg column="user_name" javaType="java.lang.String"/>
+            <arg column="dept_nm" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="actNotifAckDateRow" type="com.yeokjeon.erp.active.dto.ActNotifAckDateRow">
+        <constructor>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="create_day" javaType="java.time.LocalDate"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="notifMstDto" type="com.yeokjeon.erp.active.dto.NotifMstDto">
+        <constructor>
+            <arg column="notif_idx" javaType="java.lang.Long"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="msg_txt" javaType="java.lang.String"/>
+            <arg column="notif_typ" javaType="java.lang.String"/>
+            <arg column="act_idx" javaType="java.lang.Integer"/>
+            <arg column="appr_yn" javaType="java.lang.String"/>
+            <arg column="read_yn" javaType="java.lang.String"/>
+            <arg column="create_dt" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="activeRowColumns">
+        act_idx,
+        store_idx,
+        act_type,
+        act_dt,
+        CAST(create_dt AS TIMESTAMP) AS create_dt,
+        act_notes,
+        memo_txt,
+        sv_id,
+        appr_id,
+        appr_status,
+        CAST(appr_dt AS TIMESTAMP) AS appr_dt,
+        suggestions,
+        sv_notes,
+        appr_notes,
+        r_chk_id,
+        chk_yn
+    </sql>
+
+    <select id="selectStatusByStore" resultMap="activityStatusPivotRow">
+        SELECT sm.store_nm AS store_nm,
+               '' AS user_name,
+               CAST(NULL AS VARCHAR(100)) AS user_id,
+               am.act_dt AS act_dt,
+               COUNT(am.act_idx) AS cnt
+        FROM store_mst sm
+                 LEFT OUTER JOIN active_mst am
+                                 ON sm.store_idx = am.store_idx
+                                     AND (am.appr_status = 'PENDING' OR am.appr_status = 'APPROVED')
+                                     AND am.act_dt BETWEEN #{startDt} AND #{endDt}
+        WHERE 1 = 1
+        <if test="brandCd != null and brandCd != ''">
+            AND sm.brand_cd = #{brandCd}
+        </if>
+        GROUP BY sm.store_nm, am.act_dt
+        ORDER BY sm.store_nm, am.act_dt
+    </select>
+
+    <select id="selectStatusBySv" resultMap="activityStatusPivotRow">
+        SELECT '' AS store_nm,
+               um.user_name AS user_name,
+               um.user_id AS user_id,
+               am.act_dt AS act_dt,
+               COUNT(DISTINCT am.store_idx) AS cnt
+        FROM user_mst um
+                 LEFT OUTER JOIN active_mst am
+                                 ON um.user_id = am.sv_id
+                                     AND (am.appr_status = 'PENDING' OR am.appr_status = 'APPROVED')
+                                     AND am.act_dt BETWEEN #{startDt} AND #{endDt}
+        WHERE um.sv_yn = 'Y'
+        <if test="brandCd != null and brandCd != ''">
+            AND EXISTS (SELECT 1
+                        FROM store_mst sm
+                        WHERE sm.sv_id = um.user_id
+                          AND sm.brand_cd = #{brandCd})
+        </if>
+        GROUP BY um.user_id, am.act_dt, um.user_name
+        ORDER BY um.user_id, am.act_dt
+    </select>
+
+    <insert id="insertChkResultDtl">
+        INSERT INTO chk_result_dtl (act_idx, chk_idx, answer_val, answer_score)
+        VALUES (#{actIdx}, #{chkIdx}, #{answerVal}, #{answerScore})
+    </insert>
+
+    <delete id="deleteChkResultDtlByActIdx">
+        DELETE FROM chk_result_dtl WHERE act_idx = #{actIdx}
+    </delete>
+
+    <select id="selectUserNamesByIds" resultMap="userIdNameRow">
+        SELECT user_id, user_name FROM user_mst
+        WHERE user_id IN
+        <foreach collection="userIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <select id="selectWriterAndDept" resultMap="userWriterDeptRow">
+        SELECT um.user_name AS user_name, dm.dept_nm AS dept_nm
+        FROM user_mst um
+                 LEFT JOIN dept_mst dm ON um.dept_idx = dm.dept_idx
+        WHERE um.user_id = #{userId}
+    </select>
+
+    <select id="selectUserName" resultType="java.lang.String">
+        SELECT user_name FROM user_mst WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectChkResultsForActivity" resultMap="chkResultRow">
+        SELECT CM.chk_idx AS chk_idx,
+               CM.brand_cd AS brand_cd,
+               CM.chk_type AS chk_type,
+               COD.code_nm AS chk_type_nm,
+               CM.chk_content AS chk_content,
+               COALESCE(CM.base_score, 0) AS base_score,
+               CM.display_order AS display_order,
+               COALESCE(CRD.answer_val, '미평가') AS answer_val,
+               COALESCE(CRD.answer_score, 0) AS answer_score
+        FROM chk_mst CM
+                 LEFT OUTER JOIN chk_result_dtl CRD
+                                 ON CM.chk_idx = CRD.chk_idx AND CRD.act_idx = #{actIdx}
+                 INNER JOIN code_mst COD ON CM.chk_type = COD.code_cd AND COD.grp_cd = '50'
+                 INNER JOIN active_mst ACT ON ACT.act_idx = #{actIdx}
+                 INNER JOIN store_mst SM ON SM.store_idx = ACT.store_idx
+        WHERE CM.brand_cd = SM.brand_cd
+        ORDER BY CM.display_order, CM.chk_idx
+    </select>
+
+    <insert id="insertChkMst" useGeneratedKeys="true" keyProperty="chkIdx" keyColumn="chk_idx">
+        INSERT INTO chk_mst (brand_cd,
+                             chk_type,
+                             chk_content,
+                             base_score,
+                             use_yn,
+                             display_order)
+        VALUES (#{brandCd},
+                #{chkType},
+                #{chkContent},
+                #{baseScore},
+                'Y',
+                COALESCE((SELECT MAX(display_order) + 1 FROM chk_mst), 1))
+    </insert>
+
+    <update id="updateChkMst">
+        UPDATE chk_mst
+        SET brand_cd    = #{brandCd},
+            chk_type    = #{chkType},
+            chk_content = #{chkContent},
+            base_score  = #{baseScore},
+            use_yn      = #{useYn, jdbcType=CHAR},
+            update_dt   = CURRENT_TIMESTAMP
+        WHERE chk_idx = #{chkIdx}
+    </update>
+
+    <select id="selectChkMstList" resultMap="chkMstResponse">
+        SELECT c.chk_idx,
+               c.brand_cd,
+               c.chk_type,
+               COALESCE(cm.code_nm, c.chk_type) AS chk_type_nm,
+               c.chk_content,
+               c.base_score,
+               c.use_yn,
+               c.display_order
+        FROM chk_mst c
+                 LEFT JOIN code_mst cm ON cm.grp_cd = '50' AND cm.code_cd = c.chk_type
+        WHERE 1 = 1 
+        <if test="brandCd != null and brandCd != ''">
+            AND c.brand_cd = #{brandCd}
+        </if>
+        <if test="chkType != null and chkType != ''">
+            AND c.chk_type = #{chkType}
+        </if>
+        ORDER BY c.chk_type
+    </select>
+
+    <select id="selectChkMstOne" resultMap="chkMstResponse">
+        SELECT c.chk_idx,
+               c.brand_cd,
+               c.chk_type,
+               COALESCE(cm.code_nm, c.chk_type) AS chk_type_nm,
+               c.chk_content,
+               c.base_score,
+               c.use_yn,
+               c.display_order
+        FROM chk_mst c
+                 LEFT JOIN code_mst cm ON cm.grp_cd = '50' AND cm.code_cd = c.chk_type
+        WHERE c.chk_idx = #{chkIdx}
+    </select>
+
+    <select id="selectAllActivities" resultType="com.yeokjeon.erp.active.entity.ActActive">
+        SELECT
+        <include refid="activeRowColumns"/>
+        FROM active_mst
+        WHERE appr_status != 'DRAFT'
+        ORDER BY create_dt DESC, act_idx DESC
+    </select>
+
+    <select id="selectActivitiesByApprStatus" resultType="com.yeokjeon.erp.active.entity.ActActive">
+        SELECT
+        <include refid="activeRowColumns"/>
+        FROM active_mst
+        WHERE appr_status = #{apprStatus}
+        ORDER BY create_dt DESC, act_idx DESC
+    </select>
+
+    <select id="selectActivitiesByStoreIdx" resultType="com.yeokjeon.erp.active.entity.ActActive">
+        SELECT
+        <include refid="activeRowColumns"/>
+        FROM active_mst
+        WHERE store_idx = #{storeIdx}
+        ORDER BY act_dt DESC, act_idx DESC
+    </select>
+
+    <select id="selectActivitiesByChkYn" resultType="com.yeokjeon.erp.active.entity.ActActive">
+        SELECT
+        <include refid="activeRowColumns"/>
+        FROM active_mst
+        WHERE chk_yn = #{chkYn, jdbcType=CHAR}
+        ORDER BY create_dt DESC, act_idx DESC
+    </select>
+
+    <select id="selectActivitiesBySvForApprNotes" resultType="com.yeokjeon.erp.active.entity.ActActive">
+        SELECT
+        <include refid="activeRowColumns"/>
+        FROM active_mst
+        WHERE sv_id = #{svId}
+          AND appr_notes IS NOT NULL
+        ORDER BY create_dt DESC, act_idx DESC
+    </select>
+
+    <select id="selectNotifsForUser" resultMap="notifMstDto">
+        SELECT notif_idx,
+               user_id,
+               msg_txt,
+               notif_typ,
+               act_idx,
+               appr_yn,
+               CAST(read_yn AS VARCHAR) AS read_yn,
+               CAST(create_dt AS TIMESTAMP) AS create_dt
+        FROM notif_mst
+        WHERE user_id = #{userId}
+        ORDER BY create_dt DESC, notif_idx DESC
+    </select>
+
+    <select id="countUnreadNotifsForUser" resultType="long">
+        SELECT COUNT(*)
+        FROM notif_mst
+        WHERE user_id = #{userId}
+          AND read_yn = 'N'
+    </select>
+
+    <!-- PostgreSQL: timestamptz → 서울 달력일. H2 등은 databaseId 미일치 시 아래 fallback 사용. -->
+    <select id="selectApprovalAckDateRows" resultMap="actNotifAckDateRow" databaseId="postgresql">
+        SELECT user_id,
+               CAST((create_dt AT TIME ZONE 'Asia/Seoul') AS DATE) AS create_day
+        FROM notif_mst
+        WHERE act_idx = #{actIdx}
+          AND notif_typ = #{notifTyp}
+        <if test="onlyApprY">
+            AND appr_yn = 'Y'
+        </if>
+        ORDER BY notif_idx ASC
+    </select>
+
+    <select id="selectApprovalAckDateRows" resultMap="actNotifAckDateRow">
+        SELECT user_id,
+               CAST(create_dt AS DATE) AS create_day
+        FROM notif_mst
+        WHERE act_idx = #{actIdx}
+          AND notif_typ = #{notifTyp}
+        <if test="onlyApprY">
+            AND appr_yn = 'Y'
+        </if>
+        ORDER BY notif_idx ASC
+    </select>
+
+    <update id="updateApprYnForUserActivityNotifs">
+        UPDATE notif_mst
+        SET appr_yn = #{apprYn}
+        WHERE user_id = #{userId}
+          AND act_idx = #{actIdx}
+          AND notif_typ = #{notifTyp}
+    </update>
+</mapper>

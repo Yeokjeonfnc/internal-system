@@ -14,18 +14,14 @@
   - Use `ShellRoute` from GoRouter to keep the `Sidebar` widget mounted while switching main content.
   - The Sidebar must always remain on the left, and only the right-hand area should navigate between screens.
 - **App shell (공통 레이아웃)**:
-  - 사이드바·상단 배너 등 **앱 전역 셸**은 `features/`가 아니라 `lib/core/layout/` 에 둔다. (예: `erp_shell_layout.dart`)
+  - 사이드바·상단 배너 등 **앱 전역 셸**은 `lib/core/layout/` 에 둔다. (예: `main_frame_layout.dart`, `tab_manager_provider.dart`)
   - **상세 화면 골격**(제목 줄·빨간 메인 탭바·탭뷰 / 탭 없는 스크롤 본문)은 `lib/core/layout/detail_screen_scaffold.dart` 의 `DetailScreenHeadline`, `DetailMainTabBar`, `DetailScreenWithTabs`, `DetailScreenScrollBody` 를 쓴다. 가맹점·물건·창업자 상세에 각각 복붙하지 않는다.
-  - 새 화면을 `feature`로 추가할 때 셸 코드를 복사하지 말고, 라우트만 `app_router.dart`의 `appRouteDefs`에 등록한다.
-- **엔티티별 Flat Feature (이 프로젝트 표준)**:
-  - 도메인 단위로 `lib/features/<엔티티>/` 를 **한 층(flat)** 에 둔다. `features/development/...` 처럼 기능을 한 번 더 감싸지 않는다.
-  - 예: `stores`, `founders`, `properties` 는 서로 형제 폴더다.
-  - 각 feature 내부는 **한 폴더에 파일만** 두고 깊이를 두지 않는다:
-    - `<엔티티>_model.dart` — 해당 엔티티의 모델·enum
-    - `<엔티티>_view.dart`, `<엔티티>_detail_view.dart`, `<엔티티>_register_view.dart` 등 화면
-    - `<엔티티>_repository.dart` — 데이터 소스(현재는 mock, 추후 API)
-    - `<엔티티>_provider.dart` — 목록 화면의 필터·검색 상태 (`RuleListNotifier` + `NotifierProvider`)
-  - **대시보드·쉘**처럼 “한 엔티티 CRUD”가 아닌 영역만 예외적으로 기존처럼 `presentation/` 을 유지해도 된다.
+  - 새 화면을 추가할 때 셸 코드를 복사하지 말고, 라우트만 `app_router.dart`의 `appRouteDefs`에 등록한다.
+- **업무 화면(이 프로젝트 표준 — `lib/pages`)**:
+  - 사이드바 **메뉴 그룹 → 하위 메뉴 코드** 폴더: `lib/pages/franchise/str001/`, `lib/pages/development/dev001|dev002|dev003/`, `lib/pages/master/mst001|…/`, `lib/pages/dashboard/dsh001/`, `lib/pages/active/act001|…/` 등. 파일 세트는 보통 `*_view.dart`, `*_api.dart`, `*_model.dart`, `*_provider.dart` / `*_controller.dart`.
+  - **활동** 메뉴(`act001`~`act003`)는 `lib/pages/active/act001/`, `.../act002/`, `.../act003/` 에 둔다. 활동 관련 모달은 **`lib/pages/active/dialogs/`** 에만 둔다(`act002_dialog_*.dart` 등). `act00x/dialogs/` 는 두지 않는다.
+  - `act001`·`act002`·`act003` 아래 **하위 폴더를 두지 않는다**(탭명 폴더·빈 디렉터리 금지). 본문이 커지면 **같은 `act00x/` 폴더에 별도 `*_view.dart`** 로 분리한다(예: `act002_note_tab_view.dart`).
+  - **사용처 없는 한 줄 래퍼 `*_view.dart`는 두지 않는다** — `go_router`에서 곧바로 본 화면을 연다.
 
 ## 3) Brand Theming & UI (Based on Image Analysis)
 - **Color System**:
@@ -64,11 +60,11 @@
 - **Mock·고정 옵션**:
   - 샘플 리스트·시드 데이터는 `lib/core/data/mock/` (`mock_stores.dart` 등).
   - 여러 화면에서 쓰는 **고정 드롭다운 옵션**(지역 목록 등)은 `lib/core/data/mock_options.dart` 에 모은다.
-  - feature 쪽 `*_model.dart` 는 도메인 타입만 두고, mock 상수는 feature 폴더에 흩뿌리지 않는다.
+  - `pages/<메뉴>/` 의 `*_model.dart` 는 도메인 타입만 두고, mock 상수는 페이지 폴더에 흩뿌리지 않는다.
 - **공통 위젯**:
-  - 여러 feature에서 쓰는 **목록·검색·폼 블록**은 `lib/core/widgets/common/` 에만 둔다. 파일명은 `common_*.dart` 로 통일하고, 폼 조각은 `common/form/`, ERP 테이블은 `common/data_table/` 하위로 나눈다.
+  - 여러 화면에서 쓰는 **목록·검색·폼 블록**은 `lib/core/widgets/common/` 에만 둔다. 파일명은 `common_*.dart` 로 통일하고, 폼 조각은 `common/form/`, ERP 테이블은 `common/data_table/` 하위로 나눈다.
 - **cross-import**:
-  - `core` ↔ `features` 또는 feature 간 참조는 **`package:app_flutter/...`** 형태로 통일한다. (깊은 `../../../` 상대경로 남발 금지)
+  - `core` ↔ `pages` 또는 메뉴 폴더 간 참조는 **`package:app_flutter/...`** 형태로 통일한다. (깊은 `../../../` 상대경로 남발 금지)
 - **Repository 네이밍 (짧게)**:
   - 전체: `all()`
   - 단건 조회: `find(code)` / `find(no)` (문맥상 타입이 드러나게)
@@ -106,18 +102,17 @@
 - **Safe Edit Rule**:
   - Prefer structured edits (editor/patch tools) over shell-based file overwrite for UI text files.
 
-## 11) Route / Feature Consistency
-- **Single Feature Naming**:
-  - If a feature name is changed (e.g., `merchants` -> `stores`), update all related items in one pass:
+## 11) Route / 메뉴 일관성
+- **이름·경로 일괄 갱신**:
+  - 메뉴명·폴더·라우트를 바꿀 때(예: URL 접두·`AppRoutes` 상수) 한 번에 다음을 맞춘다:
     - folder paths
     - route paths/constants (`AppRoutes`, `AppRouteNames`, `appRouteDefs`)
     - class names, provider names, model names
     - imports and UI labels
 - **URL 단순화**:
   - 엔티티 URL은 가능하면 **짧은 경로**를 쓴다. (예: `/founders`, `/properties` — 불필요한 `/development/` 접두사 없음)
-- **No Legacy Residue**:
-  - After refactor, ensure old feature keywords do not remain in codebase.
-  - Remove empty legacy folders to avoid confusion in IDE explorer.
+- **잔여물 제거**:
+  - 리팩터 후 옛 경로·빈 폴더·미사용 바렐(`export`만 있는 파일)을 남기지 않는다.
 
 ## 12) Reusable UI Components
 - **Search Filter Standardization** (세부·수치·금지 사항):
@@ -135,7 +130,7 @@
   - **규칙만 나열**: `RuleListNotifier<F, T>` — `List<ListFilterRule<F,T>> get rules` 만 구현하면 `matches` 가 자동으로 AND 연산된다.
 - **새 목록 메뉴 추가 시**:
   1. `core/data/mock/` 에 목업 추가 (또는 기존 mock 확장)
-  2. feature 루트에 `*_repository.dart` (`all()`, `by…()`, 옵션 메서드)
+  2. `pages/<메뉴코드>/` 에 `*_api.dart`·`*_model.dart` 등 데이터 접근 계층 배치
   3. `*_provider.dart` 에 `RuleListNotifier` + `rules` 정의
   4. `*_view.dart` 에서 `CommonFilterBar` + 테이블만 구성
   5. `app_router.dart` 의 `appRouteDefs` 에 라우트·메타 한 줄 추가

@@ -1,26 +1,26 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
+import 'package:app_flutter/core/auth/auth_profile.dart';
+import 'package:app_flutter/core/auth/auth_write_payload.dart';
 
 class AuthApiService extends BaseRepository {
-  Future<Map<String, dynamic>?> login({
+  Future<AuthProfile?> login({
     required String userId,
     required String userPassword,
   }) async {
     try {
+      final body = AuthLoginPayload(
+        userId: userId,
+        userPassword: userPassword,
+      );
       final response = await client.post(
-        '/auth/login',
-        data: {
-          'userId': userId,
-          'userPassword': userPassword,
-        },
+        AuthApiPaths.login,
+        data: body.toRequestBody(),
       );
 
       if (response.statusCode == 200 && response.data != null) {
-        return parseDataOrNull(
-          response.data,
-          (m) => m,
-        );
+        return parseDataOrNull(response.data, AuthProfile.fromJson);
       }
     } catch (e) {
       debugPrint('로그인 에러: $e');
@@ -28,15 +28,15 @@ class AuthApiService extends BaseRepository {
     return null;
   }
 
-  Future<Map<String, dynamic>?> getUserProfile(String userId) async {
+  Future<AuthProfile?> getUserProfile(String userId) async {
     try {
       final response = await client.get(
-        '/auth/profile',
-        queryParameters: {'userId': userId},
+        AuthApiPaths.profile,
+        queryParameters: {AuthLoginPayload.jsonKeyUserId: userId},
       );
 
       if (response.statusCode == 200 && response.data != null) {
-        return parseDataOrNull(response.data, (m) => m);
+        return parseDataOrNull(response.data, AuthProfile.fromJson);
       }
     } catch (e) {
       debugPrint('사용자 정보 조회 에러: $e');
@@ -44,7 +44,7 @@ class AuthApiService extends BaseRepository {
     return null;
   }
 
-  Future<Map<String, dynamic>?> updateUserProfile({
+  Future<AuthProfile?> updateUserProfile({
     required String userId,
     String? userName,
     String? userPassword,
@@ -54,24 +54,23 @@ class AuthApiService extends BaseRepository {
     String? tagYn,
   }) async {
     try {
-      final data = <String, dynamic>{};
-      if (userName != null) data['userName'] = userName;
-      if (userPassword != null && userPassword.isNotEmpty) {
-        data['userPassword'] = userPassword;
-      }
-      if (userPhone != null) data['userPhone'] = userPhone;
-      if (positionCd != null) data['positionCd'] = positionCd;
-      if (svYn != null) data['svYn'] = svYn;
-      if (tagYn != null) data['tagYn'] = tagYn;
+      final body = AuthProfileUpdatePayload(
+        userName: userName,
+        userPassword: userPassword,
+        userPhone: userPhone,
+        positionCd: positionCd,
+        svYn: svYn,
+        tagYn: tagYn,
+      );
 
       final response = await client.put(
-        '/auth/profile',
-        queryParameters: {'userId': userId},
-        data: data,
+        AuthApiPaths.profile,
+        queryParameters: {AuthLoginPayload.jsonKeyUserId: userId},
+        data: body.toRequestBody(),
       );
 
       if (response.statusCode == 200 && response.data != null) {
-        return parseDataOrNull(response.data, (m) => m);
+        return parseDataOrNull(response.data, AuthProfile.fromJson);
       }
     } catch (e) {
       debugPrint('사용자 정보 수정 에러: $e');

@@ -1,5 +1,6 @@
 import 'package:json_annotation/json_annotation.dart';
 
+import 'package:app_flutter/core/notifications/notif_mst_api_json_keys.dart';
 import 'package:app_flutter/core/utils/json_extensions.dart';
 
 part 'notif_model.g.dart';
@@ -15,35 +16,36 @@ class NotifRow {
     this.actIdx,
     this.apprYn = '',
     this.readYn = '',
-    this.creatDt = '',
+    this.createDt = '',
   });
 
-  @JsonKey(fromJson: asJsonIntOpt)
+  @JsonKey(name: NotifMstApiJsonKeys.notifIdx, fromJson: asJsonIntOpt)
   final int? notifIdx;
 
-  @JsonKey(fromJson: _str)
+  @JsonKey(name: NotifMstApiJsonKeys.userId, fromJson: _str)
   final String userId;
 
-  @JsonKey(fromJson: _str)
+  @JsonKey(name: NotifMstApiJsonKeys.msgTxt, fromJson: _str)
   final String msgTxt;
 
-  @JsonKey(fromJson: _str)
+  @JsonKey(name: NotifMstApiJsonKeys.notifTyp, fromJson: _str)
   final String notifTyp;
 
-  @JsonKey(fromJson: asJsonIntOpt)
+  @JsonKey(name: NotifMstApiJsonKeys.actIdx, fromJson: asJsonIntOpt)
   final int? actIdx;
 
-  @JsonKey(fromJson: _str)
+  @JsonKey(name: NotifMstApiJsonKeys.apprYn, fromJson: _str)
   final String apprYn;
 
-  @JsonKey(fromJson: _str)
+  @JsonKey(name: NotifMstApiJsonKeys.readYn, fromJson: _str)
   final String readYn;
 
   /// API [ZonedDateTime] 직렬화 문자열.
-  @JsonKey(fromJson: _str)
-  final String creatDt;
+  @JsonKey(name: NotifMstApiJsonKeys.createDt, fromJson: _str)
+  final String createDt;
 
-  factory NotifRow.fromJson(Map<String, dynamic> json) => _$NotifRowFromJson(json);
+  factory NotifRow.fromJson(Map<String, dynamic> json) =>
+      _$NotifRowFromJson(json);
 
   Map<String, dynamic> toJson() => _$NotifRowToJson(this);
 }

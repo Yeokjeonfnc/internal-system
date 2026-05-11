@@ -9,8 +9,8 @@ class CommonCodeApiService extends BaseRepository {
   Future<List<CodeOption>> getCodes(int grpCd) async {
     try {
       return await getDataList(
-        '/codes',
-        queryParameters: {'grpCd': grpCd},
+        CodeMstApiPaths.root,
+        queryParameters: {CodeMstQueryParamKeys.grpCd: grpCd},
         fromJson: CodeOption.fromJson,
       );
     } catch (e) {

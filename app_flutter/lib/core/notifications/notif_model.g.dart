@@ -14,7 +14,7 @@ NotifRow _$NotifRowFromJson(Map<String, dynamic> json) => NotifRow(
   actIdx: asJsonIntOpt(json['actIdx']),
   apprYn: json['apprYn'] == null ? '' : _str(json['apprYn']),
   readYn: json['readYn'] == null ? '' : _str(json['readYn']),
-  creatDt: json['creatDt'] == null ? '' : _str(json['creatDt']),
+  createDt: json['createDt'] == null ? '' : _str(json['createDt']),
 );
 
 Map<String, dynamic> _$NotifRowToJson(NotifRow instance) => <String, dynamic>{
@@ -25,5 +25,5 @@ Map<String, dynamic> _$NotifRowToJson(NotifRow instance) => <String, dynamic>{
   'actIdx': instance.actIdx,
   'apprYn': instance.apprYn,
   'readYn': instance.readYn,
-  'creatDt': instance.creatDt,
+  'createDt': instance.createDt,
 };

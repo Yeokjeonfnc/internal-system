@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.auth.mapper.AuthProfileMapper">
+
+    <sql id="profileSelect">
+        SELECT um.user_id      AS userId,
+               um.user_name   AS userNm,
+               um.user_email  AS email,
+               um.dept_idx     AS deptIdx,
+               um.user_phone  AS userPhone,
+               dm.dept_nm     AS deptNm,
+               um.position_cd  AS positionCd,
+               cm.code_nm     AS positionNm,
+               CAST(um.sv_yn AS VARCHAR) AS svYn,
+               CAST(um.tag_yn AS VARCHAR) AS tagYn,
+               um.join_dt     AS joinDt
+        FROM user_mst um
+                 LEFT OUTER JOIN dept_mst dm ON um.dept_idx = dm.dept_idx
+                 LEFT OUTER JOIN code_mst cm ON um.position_cd = cm.code_cd AND cm.grp_cd = '60'
+    </sql>
+
+    <select id="selectByUserIdAndPassword" resultType="com.yeokjeon.erp.auth.dto.AuthProfileDto">
+        <include refid="profileSelect"/>
+        WHERE um.user_id = #{userId}
+          AND um.user_password = #{userPassword}
+    </select>
+
+    <select id="selectByUserId" resultType="com.yeokjeon.erp.auth.dto.AuthProfileDto">
+        <include refid="profileSelect"/>
+        WHERE um.user_id = #{userId}
+    </select>
+
+    <!-- AuthProfileUpdateRequestDto: presence 플래그·null/공백 처리는 기존 JdbcTemplate 분기와 동일 -->
+    <update id="updateProfile">
+        UPDATE user_mst
+        <set>
+            updated_at = CURRENT_TIMESTAMP,
+            <if test="body.userName != null and body.userName != ''">
+                user_name = #{body.userName},
+            </if>
+            <if test="body.userPassword != null and body.userPassword != ''">
+                user_password = #{body.userPassword},
+            </if>
+            <if test="body.isDeptIdxPresent()">
+                dept_idx = #{body.deptIdx},
+            </if>
+            <if test="body.isUserPhonePresent()">
+                user_phone = NULLIF(TRIM(#{body.userPhone}), ''),
+            </if>
+            <if test="body.isJoinDtPresent()">
+                join_dt = #{body.joinDt},
+            </if>
+            <if test="body.isSvYnPresent()">
+                sv_yn =
+                <choose>
+                    <when test="body.svYn == null or body.svYn == ''">NULL</when>
+                    <otherwise>SUBSTRING(TRIM(#{body.svYn}), 1, 1)</otherwise>
+                </choose>,
+            </if>
+            <if test="body.isPositionCdPresent()">
+                position_cd = NULLIF(TRIM(#{body.positionCd}), ''),
+            </if>
+            <if test="body.isTagYnPresent()">
+                tag_yn =
+                <choose>
+                    <when test="body.tagYn == null or body.tagYn == ''">NULL</when>
+                    <otherwise>SUBSTRING(TRIM(#{body.tagYn}), 1, 1)</otherwise>
+                </choose>,
+            </if>
+        </set>
+        WHERE user_id = #{userId}
+    </update>
+</mapper>

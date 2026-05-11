@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.franchise.mapper.StoreMstMapper">
+
+    <resultMap id="storeMstDto" type="com.yeokjeon.erp.franchise.dto.StoreMstDto">
+        <constructor>
+            <arg column="store_idx" javaType="java.lang.Integer"/>
+            <arg column="store_cd" javaType="java.lang.String"/>
+            <arg column="store_nm" javaType="java.lang.String"/>
+            <arg column="owner_nm" javaType="java.lang.String"/>
+            <arg column="region_cd" javaType="java.lang.String"/>
+            <arg column="region_nm" javaType="java.lang.String"/>
+            <arg column="store_tel" javaType="java.lang.String"/>
+            <arg column="address" javaType="java.lang.String"/>
+            <arg column="latitude" javaType="java.math.BigDecimal"/>
+            <arg column="longitude" javaType="java.math.BigDecimal"/>
+            <arg column="store_status" javaType="java.lang.String"/>
+            <arg column="store_status_nm" javaType="java.lang.String"/>
+            <arg column="cont_end_dt" javaType="java.time.LocalDate"/>
+            <arg column="auto_renewal_yn" javaType="java.lang.Boolean"/>
+            <arg column="store_type" javaType="java.lang.String"/>
+            <arg column="store_type_nm" javaType="java.lang.String"/>
+            <arg column="sv_id" javaType="java.lang.String"/>
+            <arg column="sv_nm" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+            <arg column="adress_detail" javaType="java.lang.String"/>
+            <arg column="zip_cd" javaType="java.lang.String"/>
+            <arg column="brand_cd" javaType="java.lang.String"/>
+            <arg column="brand_nm" javaType="java.lang.String"/>
+            <arg column="cont_start_dt" javaType="java.time.LocalDate"/>
+            <arg column="business_number" javaType="java.lang.String"/>
+            <arg column="first_cont_dt" javaType="java.time.LocalDate"/>
+            <arg column="fr_fee" javaType="java.math.BigDecimal"/>
+            <arg column="edu_fee" javaType="java.math.BigDecimal"/>
+            <arg column="insu_deposit" javaType="java.math.BigDecimal"/>
+            <arg column="cont_deposit" javaType="java.math.BigDecimal"/>
+            <arg column="cont_manager" javaType="java.lang.String"/>
+            <arg column="cont_manager_nm" javaType="java.lang.String"/>
+            <arg column="edu_manager" javaType="java.lang.String"/>
+            <arg column="edu_manager_nm" javaType="java.lang.String"/>
+            <arg column="cont_area" javaType="java.math.BigDecimal"/>
+            <arg column="real_area" javaType="java.math.BigDecimal"/>
+            <arg column="floor" javaType="java.lang.Integer"/>
+            <arg column="parking_count" javaType="java.lang.Integer"/>
+            <arg column="premium_fee" javaType="java.lang.Integer"/>
+            <arg column="monthly_rent" javaType="java.lang.Integer"/>
+            <arg column="rent_deposit" javaType="java.lang.Integer"/>
+            <arg column="notes" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="storeMstDtoColumnList">
+        sm.store_idx,
+        sm.store_cd,
+        sm.store_nm,
+        sm.owner_nm,
+        sm.region_cd,
+        COALESCE(reg.code_nm, CAST(sm.region_cd AS VARCHAR)) AS region_nm,
+        sm.store_tel,
+        sm.address,
+        sm.latitude,
+        sm.longitude,
+        sm.store_status,
+        COALESCE(st.code_nm, CAST(sm.store_status AS VARCHAR)) AS store_status_nm,
+        sm.cont_end_dt,
+        sm.auto_renewal_yn,
+        sm.store_type,
+        COALESCE(typ.code_nm, CAST(sm.store_type AS VARCHAR)) AS store_type_nm,
+        sm.sv_id,
+        usv.user_name AS sv_nm,
+        CAST(sm.created_at AS TIMESTAMP) AS created_at,
+        CAST(sm.updated_at AS TIMESTAMP) AS updated_at,
+        sm.adress_detail,
+        sm.zip_cd,
+        sm.brand_cd,
+        COALESCE(br.code_nm, CAST(sm.brand_cd AS VARCHAR)) AS brand_nm,
+        sm.cont_start_dt,
+        sm.business_number,
+        sm.first_cont_dt,
+        sm.fr_fee,
+        sm.edu_fee,
+        sm.insu_deposit,
+        sm.cont_deposit,
+        sm.cont_manager,
+        ucs.user_name AS cont_manager_nm,
+        sm.edu_manager,
+        ues.user_name AS edu_manager_nm,
+        sm.cont_area,
+        sm.real_area,
+        sm.floor,
+        sm.parking_count,
+        sm.premium_fee,
+        sm.monthly_rent,
+        sm.rent_deposit,
+        sm.notes
+    </sql>
+
+    <sql id="storeMstFromJoins">
+        FROM store_mst sm
+                 LEFT JOIN code_mst reg ON reg.grp_cd = '20' AND reg.code_cd = sm.region_cd
+                 LEFT JOIN code_mst st ON st.grp_cd = '10' AND st.code_cd = sm.store_status
+                 LEFT JOIN code_mst typ ON typ.grp_cd = '30' AND typ.code_cd = sm.store_type
+                 LEFT JOIN code_mst br ON br.grp_cd = '40' AND br.code_cd = CAST(sm.brand_cd AS VARCHAR)
+                 LEFT JOIN user_mst ucs ON ucs.user_id = sm.cont_manager
+                 LEFT JOIN user_mst ues ON ues.user_id = sm.edu_manager
+                 LEFT JOIN user_mst usv ON usv.user_id = sm.sv_id
+    </sql>
+
+    <select id="selectStoreListOrdered" resultMap="storeMstDto">
+        SELECT
+        <include refid="storeMstDtoColumnList"/>
+        <include refid="storeMstFromJoins"/>
+        ORDER BY sm.store_idx DESC
+    </select>
+
+    <select id="selectStoresByStoreNmLike" resultMap="storeMstDto">
+        SELECT
+        <include refid="storeMstDtoColumnList"/>
+        <include refid="storeMstFromJoins"/>
+        WHERE sm.store_nm LIKE #{pattern}
+        ORDER BY sm.store_idx DESC
+    </select>
+
+    <select id="countStoreNmDuplicate" resultType="int">
+        SELECT CAST(COUNT(*) AS INTEGER)
+        FROM store_mst sm
+        WHERE LOWER(TRIM(COALESCE(sm.store_nm, ''))) = LOWER(TRIM(#{nm}))
+    </select>
+
+    <select id="countStoreNmDuplicateExclude" resultType="int">
+        SELECT CAST(COUNT(*) AS INTEGER)
+        FROM store_mst sm
+        WHERE LOWER(TRIM(COALESCE(sm.store_nm, ''))) = LOWER(TRIM(#{nm}))
+          AND sm.store_idx &lt;&gt; #{excludeIdx}
+    </select>
+
+    <select id="countAddressDuplicate" resultType="int">
+        SELECT CAST(COUNT(*) AS INTEGER)
+        FROM store_mst sm
+        WHERE LOWER(TRIM(COALESCE(sm.address, ''))) = LOWER(TRIM(#{addr}))
+          AND COALESCE(TRIM(sm.zip_cd), '') = COALESCE(TRIM(#{zip}), '')
+    </select>
+
+    <select id="countAddressDuplicateExclude" resultType="int">
+        SELECT CAST(COUNT(*) AS INTEGER)
+        FROM store_mst sm
+        WHERE LOWER(TRIM(COALESCE(sm.address, ''))) = LOWER(TRIM(#{addr}))
+          AND COALESCE(TRIM(sm.zip_cd), '') = COALESCE(TRIM(#{zip}), '')
+          AND sm.store_idx &lt;&gt; #{excludeIdx}
+    </select>
+</mapper>

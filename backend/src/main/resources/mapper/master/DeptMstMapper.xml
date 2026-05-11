@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.master.mapper.DeptMstMapper">
+
+    <select id="countInformationSchemaColumns" resultType="int">
+        SELECT CAST(COUNT(*) AS INTEGER)
+        FROM information_schema.columns
+        WHERE LOWER(table_schema) = 'public'
+          AND table_name = #{tableName}
+          AND column_name = #{columnName}
+    </select>
+
+    <select id="selectDeptFlat" resultType="com.yeokjeon.erp.master.dto.DeptFlatRow">
+        SELECT d.dept_idx        AS deptIdx,
+               d.upper_dept_idx  AS upperDeptIdx,
+               d.dept_nm         AS deptNm,
+               d.dept_level      AS deptLevel,
+               <choose>
+                   <when test="hasSortOrder">d.sort_order</when>
+                   <otherwise>CAST(NULL AS INTEGER)</otherwise>
+               </choose>
+               AS sortOrder
+        FROM dept_mst d
+        <choose>
+            <when test="hasSortOrder">
+                ORDER BY COALESCE(d.upper_dept_idx, 0), d.dept_level NULLS FIRST, d.sort_order NULLS LAST, d.dept_idx
+            </when>
+            <otherwise>
+                ORDER BY COALESCE(d.upper_dept_idx, 0), d.dept_level NULLS FIRST, d.dept_idx
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="selectDeptUserCounts" resultType="com.yeokjeon.erp.master.dto.DeptUserCountRow">
+        SELECT d.dept_idx AS deptIdx,
+               (
+                   SELECT COUNT(*)
+                   FROM user_mst u
+                   WHERE u.dept_idx IN (
+                       WITH RECURSIVE sub_depts AS (
+                           SELECT dept_idx
+                           FROM dept_mst
+                           WHERE dept_idx = d.dept_idx
+                           UNION
+                           SELECT m.dept_idx
+                           FROM dept_mst m
+                                    JOIN sub_depts s ON m.upper_dept_idx = s.dept_idx
+                       )
+                       SELECT dept_idx
+                       FROM sub_depts
+                   )
+               ) AS userCount
+        FROM dept_mst d
+    </select>
+
+    <!-- 식별자는 서비스에서 화이트리스트로만 채움 → ${} -->
+    <select id="selectManagerNames" resultType="com.yeokjeon.erp.master.dto.DeptManagerRow">
+        SELECT dept_idx AS deptIdx,
+               MIN(${nameColumn}) AS managerNm
+        FROM ${tableName}
+        WHERE dept_idx IS NOT NULL
+          AND UPPER(COALESCE(${managerColumn}::text, 'N')) IN ('Y', 'TRUE', '1')
+        GROUP BY dept_idx
+    </select>
+
+    <update id="updateDeptSortAndUpper">
+        UPDATE dept_mst
+        SET upper_dept_idx = #{upperDeptIdx},
+            sort_order     = #{sortOrder}
+        WHERE dept_idx = #{deptIdx}
+    </update>
+
+    <update id="updateDeptUpperOnly">
+        UPDATE dept_mst
+        SET upper_dept_idx = #{upperDeptIdx}
+        WHERE dept_idx = #{deptIdx}
+    </update>
+</mapper>

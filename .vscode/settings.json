@@ -2,5 +2,6 @@
   "files.encoding": "utf8",
   "files.autoGuessEncoding": false,
   "java.compile.nullAnalysis.mode": "automatic",
-  "java.configuration.updateBuildConfiguration": "automatic"
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "cmake.ignoreCMakeListsMissing": true
 }

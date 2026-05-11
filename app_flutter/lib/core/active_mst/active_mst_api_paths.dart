@@ -1,0 +1,12 @@
+/// 백엔드 `ActController` 활동 베이스와 go_router 활동 루트가 동일한 문자열(`/activities`).
+abstract final class ActiveMstApiPaths {
+  static const String root = '/activities';
+
+  /// `GET` 목록 — 레거시는 [root] 단일 쿼리; 신규는 아래 `list/*`.
+  static const String listAll = '$root/list/all';
+  static const String listByStore = '$root/list/by-store';
+  static const String listByApprNote = '$root/list/by-appr-note';
+  static const String listBySuggestions = '$root/list/by-suggestions';
+  static const String listByCheck = '$root/list/by-check';
+  static const String listByStatus = '$root/list/by-status';
+}

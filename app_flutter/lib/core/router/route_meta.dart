@@ -1,6 +1,6 @@
 // 라우트별 상단 배너 제목·부모 경로 메타.
 
-import 'package:app_flutter/pages/act001/act001_routes.dart';
+import 'package:app_flutter/pages/active/activity_routes.dart';
 
 import 'app_router.dart';
 
@@ -57,8 +57,8 @@ RouteMeta resolveRouteMeta(String path) {
     if (path == ActivityRoutes.hub) {
       return const RouteMeta(title: '활동관리', parentPath: AppRoutes.dashboard);
     }
-    final title = activityPageTitle(path);
-    return RouteMeta(title: title, parentPath: activityParentPath(path));
+    final title = actTitle(path);
+    return RouteMeta(title: title, parentPath: actParent(path));
   }
 
   return const RouteMeta(title: '역전에프앤씨');

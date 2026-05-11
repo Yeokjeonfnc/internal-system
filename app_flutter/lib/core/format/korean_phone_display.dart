@@ -11,6 +11,19 @@ String formatKoreanPhoneDisplay(String? phone) {
 
   if (text.isEmpty) return '';
 
+  // 서울 지역번호(02)는 2-3/4-4 또는 2-4-4 형태를 우선 적용한다.
+  if (text.startsWith('02')) {
+    if (text.length <= 2) return text;
+    if (text.length <= 5) {
+      return '${text.substring(0, 2)}-${text.substring(2)}';
+    }
+    if (text.length <= 9) {
+      return '${text.substring(0, 2)}-${text.substring(2, text.length - 4)}-${text.substring(text.length - 4)}';
+    }
+    final clipped = text.substring(0, 10);
+    return '${clipped.substring(0, 2)}-${clipped.substring(2, 6)}-${clipped.substring(6)}';
+  }
+
   if (text.length <= 3) {
     return text;
   }

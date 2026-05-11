@@ -86,6 +86,19 @@ abstract class BaseRepository {
     }
   }
 
+  /// [ApiResponse.message] — 비어 있으면 null.
+  String? envelopeMessage(dynamic responseBody) {
+    try {
+      final root = _asMap(responseBody);
+      final m = root['message'];
+      if (m == null) return null;
+      final s = m.toString().trim();
+      return s.isEmpty ? null : s;
+    } catch (_) {
+      return null;
+    }
+  }
+
   bool isHttpSuccess(int? statusCode) =>
       statusCode == 200 || statusCode == 201 || statusCode == 204;
 

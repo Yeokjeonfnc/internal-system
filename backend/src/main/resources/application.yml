@@ -37,6 +37,11 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
 server:
   port: 3001
   servlet:
@@ -53,6 +58,12 @@ external:
 logging:
   level:
     com.yeokjeon: DEBUG
+    com.yeokjeon.erp.common.mapper: DEBUG
+    com.yeokjeon.erp.auth.mapper: DEBUG
+    com.yeokjeon.erp.master.mapper: DEBUG
+    com.yeokjeon.erp.franchise.mapper: DEBUG
+    com.yeokjeon.erp.active.mapper: DEBUG
+    com.yeokjeon.erp.development.mapper: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
   pattern:

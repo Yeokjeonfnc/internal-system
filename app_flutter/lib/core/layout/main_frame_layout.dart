@@ -7,7 +7,7 @@ import 'package:provider/provider.dart' as provider;
 
 import '../router/app_router.dart';
 import '../router/route_meta.dart';
-import 'package:app_flutter/pages/act001/act001_routes.dart';
+import 'package:app_flutter/pages/active/activity_routes.dart';
 import '../theme/app_colors.dart';
 import '../theme/shell_tab_chrome.dart';
 import '../auth/auth_provider.dart';
@@ -595,14 +595,14 @@ class _SidebarNavigation extends StatelessWidget {
           _SidebarExpandableMenuItem(
             icon: Icons.people_alt,
             title: '마스터 관리',
-            initiallyExpanded: currentPath.startsWith('/master/'),
+            initiallyExpanded: currentPath.startsWith('${AppRoutes.master}/'),
             children: [
               _SidebarSubMenuItem(
                 title: '사원관리',
                 selected:
-                    currentPath == AppRoutes.masterEmployees ||
-                    currentPath.startsWith('${AppRoutes.masterEmployees}/'),
-                onTap: () => context.go(AppRoutes.masterEmployees),
+                    currentPath == AppRoutes.masterUsers ||
+                    currentPath.startsWith('${AppRoutes.masterUsers}/'),
+                onTap: () => context.go(AppRoutes.masterUsers),
               ),
               _SidebarSubMenuItem(
                 title: '부서관리',
@@ -889,7 +889,9 @@ class _SidebarUserProfile extends StatelessWidget {
         }
 
         final userName = authProvider.userName;
-        final userRole = authProvider.user?['positionNm']?.toString() ?? '직원';
+        final userRole = authProvider.positionNm.isEmpty
+            ? '직원'
+            : authProvider.positionNm;
         final firstChar = userName.isNotEmpty ? userName[0] : '?';
 
         return Padding(

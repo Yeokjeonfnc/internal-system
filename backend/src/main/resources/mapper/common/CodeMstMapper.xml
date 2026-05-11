@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.common.mapper.CodeMstMapper">
+
+    <select id="selectByGrpCd" resultType="com.yeokjeon.erp.common.dto.CodeMstDto">
+        SELECT code_cd AS codeCd,
+               code_nm AS codeNm
+        FROM code_mst
+        WHERE grp_cd = #{grpCd}
+          AND  use_yn = 'Y'
+        ORDER BY code_cd
+    </select>
+</mapper>
