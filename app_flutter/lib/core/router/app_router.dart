@@ -48,7 +48,8 @@ class AppRoutes {
   static const String founderDetail = '$founders/:partnerIdx';
   static const String properties = PropertyMstApiPaths.root;
   static const String propertyRegister = '${PropertyMstApiPaths.root}/new';
-  static const String propertyDetail = '${PropertyMstApiPaths.root}/:propertyNo';
+  static const String propertyDetail =
+      '${PropertyMstApiPaths.root}/:propertyNo';
   static const String activities = ActiveMstApiPaths.root;
   static const String salesAreas = '/sales-areas';
 
@@ -68,9 +69,7 @@ Page<dynamic> _activityApprovalManagementPage(
   GoRouterState state,
 ) {
   return NoTransitionPage(
-    child: Act003View(
-      initialTab: approvalTabIndex(state.uri.path),
-    ),
+    child: Act003View(initialTab: approvalTabIndex(state.uri.path)),
   );
 }
 
@@ -367,27 +366,23 @@ List<RouteBase> _shellChildRoutes() {
         ),
         GoRoute(
           path: 'drafts',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: Act002View(initialTab: 0),
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: Act002View(initialTab: 0)),
         ),
         GoRoute(
           path: 'manage',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: Act002View(initialTab: 1),
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: Act002View(initialTab: 1)),
         ),
         GoRoute(
           path: 'instructions',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: Act002View(initialTab: 2),
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: Act002View(initialTab: 2)),
         ),
         GoRoute(
           path: 'checklist',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: Act002View(initialTab: 2),
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: Act002View(initialTab: 2)),
         ),
         GoRoute(
           path: 'approval/activity/:actIdx',

@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -188,6 +189,8 @@ public class StrService {
                 .monthlyRent(body.monthlyRent())
                 .rentDeposit(body.rentDeposit())
                 .notes(body.notes())
+                .propIdx(body.propIdx())
+                .partnerIdx(body.partnerIdx())
                 .build();
                 
         Store savedStore = storeRepository.saveAndFlush(store);
@@ -197,10 +200,11 @@ public class StrService {
 
         Integer partnerIdx = body.partnerIdx();
         if (partnerIdx != null && partnerIdx > 0) {
-            PartnerMstWriteRequestDto partnerPatch = new PartnerMstWriteRequestDto();
-            partnerPatch.setPartnerStatus(DevService.PARTNER_STATUS_FRANCHISEE);
-            devService.updatePartner(partnerIdx, partnerPatch);
+            devService.updatePartnerStatus(partnerIdx);
             log.info("예비창업자 {} 상태를 가맹점사업자로 반영", partnerIdx);
+            devService.updatePropertyStatus(body.propIdx());
+            log.info("물건 {} 상태를 가맹점으로 반영", body.propIdx());
+            
         }
 
         log.info("가맹점 생성 완료: {}", savedStore.getStoreIdx());
@@ -433,6 +437,20 @@ public class StrService {
                     store.getRentDeposit() != null ? store.getRentDeposit().toString() : null,
                     rentDeposit.toString()));
             store.setRentDeposit(rentDeposit);
+        }
+        Integer propIdx = body.propIdx();
+        if (propIdx != null && !Objects.equals(propIdx, store.getPropIdx())) {
+            changes.add(new FieldChange("propIdx", "물건",
+                    store.getPropIdx() != null ? store.getPropIdx().toString() : null,
+                    propIdx.toString()));
+            store.setPropIdx(propIdx);
+        }
+        Integer partnerIdx = body.partnerIdx();
+        if (propIdx != null && !Objects.equals(propIdx, store.getPartnerIdx())) {
+            changes.add(new FieldChange("partnerIdx", "창업자",
+                    store.getPartnerIdx() != null ? store.getPartnerIdx().toString() : null,
+                    propIdx.toString()));
+            store.setPartnerIdx(propIdx);
         }
 
         // 저장 직전 최종 값 기준 중복 검사(현재 행 제외)

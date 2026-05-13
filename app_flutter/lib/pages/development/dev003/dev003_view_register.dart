@@ -19,7 +19,7 @@ class SalesAreaRegisterView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final row = ref.watch(salesAreaRepositoryProvider).rowById(rowId);
+    final listAsync = ref.watch(dev003DataProvider);
 
     return ColoredBox(
       color: AppTheme.appSurface,
@@ -36,9 +36,56 @@ class SalesAreaRegisterView extends ConsumerWidget {
               AppDimensions.listScreenHPadding,
               AppDimensions.listScreenBottomPadding,
             ),
-            child: row == null
-                ? _NotFoundMessage(rowId: rowId)
-                : _RegisterBody(row: row),
+            child: listAsync.when(
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+              error: (e, _) => _LoadErrorMessage(message: '$e'),
+              data: (rows) {
+                SalesAreaRow? row;
+                for (final r in rows) {
+                  if (r.id == rowId) {
+                    row = r;
+                    break;
+                  }
+                }
+                if (row == null) {
+                  return _NotFoundMessage(rowId: rowId);
+                }
+                return _RegisterBody(row: row);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadErrorMessage extends StatelessWidget {
+  const _LoadErrorMessage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
+        border: Border.all(color: const Color(0xFFE2E5EB)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          '목록을 불러오지 못했습니다.\n$message',
+          style: const TextStyle(
+            fontSize: 15,
+            color: kSearchFilterTextColor,
+            fontFamilyFallback: AppTheme.koreanFontFallback,
           ),
         ),
       ),

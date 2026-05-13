@@ -48,6 +48,8 @@
             <arg column="monthly_rent" javaType="java.lang.Integer"/>
             <arg column="rent_deposit" javaType="java.lang.Integer"/>
             <arg column="notes" javaType="java.lang.String"/>
+            <arg column="prop_idx" javaType="java.lang.Integer"/>
+            <arg column="partner_idx" javaType="java.lang.Integer"/>
         </constructor>
     </resultMap>
 
@@ -94,7 +96,9 @@
         sm.premium_fee,
         sm.monthly_rent,
         sm.rent_deposit,
-        sm.notes
+        sm.notes,
+        sm.prop_idx,
+        sm.partner_idx
     </sql>
 
     <sql id="storeMstFromJoins">

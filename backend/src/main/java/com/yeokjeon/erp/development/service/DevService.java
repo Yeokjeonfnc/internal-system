@@ -4,6 +4,7 @@ import com.yeokjeon.erp.development.dto.PartnerMstDto;
 import com.yeokjeon.erp.development.dto.PartnerMstWriteRequestDto;
 import com.yeokjeon.erp.development.dto.PropertyMstDto;
 import com.yeokjeon.erp.development.dto.PropertyMstWriteRequestDto;
+import com.yeokjeon.erp.development.dto.SalesAreaDto;
 import com.yeokjeon.erp.development.entity.Partner;
 import com.yeokjeon.erp.development.entity.Property;
 import com.yeokjeon.erp.development.mapper.DevMstMapper;
@@ -70,6 +71,36 @@ public class DevService {
         return PartnerMstDto.fromEntity(saved);
     }
 
+    /**
+     * 예비창업자 상태만 SQL로 갱신 — 가맹점 생성 시 [PARTNER_STATUS_FRANCHISEE] 반영 등.
+     *
+     * @return 갱신된 행 수(0이면 해당 partner_idx 없음)
+     */
+    @Transactional
+    public int updatePartnerStatus(Integer partnerIdx) {
+        if (partnerIdx == null || partnerIdx <= 0) {
+            return 0;
+        }
+        int n = devMstMapper.updatePartnerStatus(partnerIdx);
+        if (n == 0) {
+            throw new ResourceNotFoundException("예비창업자", "partnerIdx", partnerIdx);
+        }
+        log.info("예비창업자 partner_status 갱신: partnerIdx={}", partnerIdx);
+        return n;
+    }
+
+    public int updatePropertyStatus(Integer propIdx) {
+        if (propIdx == null || propIdx <= 0) {
+            return 0;
+        }
+        int n = devMstMapper.updatePropertyStatus(propIdx);
+        if (n == 0) {
+            throw new ResourceNotFoundException("물건", "propIdx", propIdx);
+        }
+        log.info("물건 prop_status 갱신: propIdx={}", propIdx);
+        return n;
+    }
+
     @Transactional
     public PartnerMstDto updatePartner(Integer partnerIdx, PartnerMstWriteRequestDto body) {
         Partner partner = partnerRepository.findById(partnerIdx)
@@ -113,6 +144,24 @@ public class DevService {
 
     public List<PropertyMstDto> listProperties() {
         return devMstMapper.selectPropertiesOrdered();
+    }
+
+    /**
+     * 영업지역 관리(DEV003) — 가맹점·물건·코드마스터 기준 목록.
+     *
+     * @see DevMstMapper#selectSalesAreasForList()
+     */
+    public List<SalesAreaDto> listSalesAreas() {
+        try {
+            List<SalesAreaDto> rows = devMstMapper.selectSalesAreasForList();
+            log.info("영업지역 목록(sale_zone_mst 연동): {}건", rows.size());
+            return rows;
+        } catch (Exception ex) {
+            log.warn("영업지역 sale_zone_mst 조회 실패 — 가맹점 기준 fallback: {}", ex.toString());
+            List<SalesAreaDto> rows = devMstMapper.selectSalesAreasStoresOnly();
+            log.info("영업지역 목록(store_mst fallback): {}건", rows.size());
+            return rows;
+        }
     }
 
     public PropertyMstDto oneProperty(Integer propIdx) {

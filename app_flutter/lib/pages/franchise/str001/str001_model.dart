@@ -16,6 +16,13 @@ String? _coordStringFromJson(Object? v) {
 
 int _intAny(Object? e) => e.asJsonInt();
 
+int? _intOrNull(Object? e) {
+  if (e == null) return null;
+  if (e is int) return e;
+  if (e is num) return e.toInt();
+  return int.tryParse(e.toString());
+}
+
 /// 가맹점 목록·상세 공통 모델.
 @JsonSerializable()
 class Store {
@@ -60,6 +67,8 @@ class Store {
     required this.premiumFee,
     this.businessNumber = '',
     this.notes = '',
+    this.propIdx,
+    this.partnerIdx,
     this.latitude,
     this.longitude,
   });
@@ -164,6 +173,12 @@ class Store {
 
   @JsonKey(fromJson: _intAny)
   final int premiumFee;
+
+  @JsonKey(name: 'propIdx', fromJson: _intOrNull, includeIfNull: false)
+  final int? propIdx;
+
+  @JsonKey(name: 'partnerIdx', fromJson: _intOrNull, includeIfNull: false)
+  final int? partnerIdx;
 
   @JsonKey(fromJson: _coordStringFromJson)
   final String? latitude;

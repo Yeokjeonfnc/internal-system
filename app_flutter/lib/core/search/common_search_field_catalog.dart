@@ -91,15 +91,6 @@ enum CommonSearchFieldId {
   /// 영업지역명
   salesAreaName,
 
-  /// 물건명(영업지역 화면)
-  salesAreaPropertyName,
-
-  /// 브랜드(영업지역 화면)
-  salesAreaBrand,
-
-  /// 지역(영업지역 화면)
-  salesAreaRegion,
-
   /// 전략출점지역 보기
   salesAreaStrategicOnly,
 
@@ -268,24 +259,6 @@ const List<CommonSearchFieldDef> kCommonSearchCatalog = [
     label: '영업지역명',
     group: CommonSearchFieldGroup.salesAreaSearch,
     presentation: CommonSearchPresentation.text,
-  ),
-  CommonSearchFieldDef(
-    id: CommonSearchFieldId.salesAreaPropertyName,
-    label: '물건명',
-    group: CommonSearchFieldGroup.salesAreaSearch,
-    presentation: CommonSearchPresentation.text,
-  ),
-  CommonSearchFieldDef(
-    id: CommonSearchFieldId.salesAreaBrand,
-    label: '브랜드',
-    group: CommonSearchFieldGroup.salesAreaSearch,
-    presentation: CommonSearchPresentation.adaptiveChipsOrDropdown,
-  ),
-  CommonSearchFieldDef(
-    id: CommonSearchFieldId.salesAreaRegion,
-    label: '지역',
-    group: CommonSearchFieldGroup.salesAreaSearch,
-    presentation: CommonSearchPresentation.alwaysDropdown,
   ),
   CommonSearchFieldDef(
     id: CommonSearchFieldId.salesAreaStrategicOnly,

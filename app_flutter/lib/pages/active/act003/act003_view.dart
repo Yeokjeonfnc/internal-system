@@ -296,7 +296,7 @@ class _Act003ViewState extends State<Act003View>
       children: [
         SearchFilterTextField(
           controller: _keywordCtrl,
-          hint: '가맹점명, 가맹점코드, 수퍼바이저, 상담내용 검색',
+          hint: '키워드 검색',
           borderRadius: 8,
           prefixIcon: Icon(
             Icons.search_rounded,

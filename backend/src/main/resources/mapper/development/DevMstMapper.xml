@@ -21,6 +21,26 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="salesAreaDto" type="com.yeokjeon.erp.development.dto.SalesAreaDto">
+        <constructor>
+            <arg column="zone_idx" javaType="java.lang.Integer"/>
+            <arg column="store_idx" javaType="java.lang.Integer"/>
+            <arg column="setting_date_ymd" javaType="java.lang.String"/>
+            <arg column="store_nm" javaType="java.lang.String"/>
+            <arg column="franchise_label" javaType="java.lang.String"/>
+            <arg column="brand_cd" javaType="java.lang.String"/>
+            <arg column="brand_nm" javaType="java.lang.String"/>
+            <arg column="region_cd" javaType="java.lang.String"/>
+            <arg column="region_nm" javaType="java.lang.String"/>
+            <arg column="prop_nm" javaType="java.lang.String"/>
+            <arg column="area_setting_label" javaType="java.lang.String"/>
+            <arg column="sales_area_nm" javaType="java.lang.String"/>
+            <arg column="is_area_configured" javaType="java.lang.Boolean"/>
+            <arg column="is_strategic_opening" javaType="java.lang.Boolean"/>
+            <arg column="is_franchise" javaType="java.lang.Boolean"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="propertyMstDto" type="com.yeokjeon.erp.development.dto.PropertyMstDto">
         <constructor>
             <arg column="prop_idx" javaType="java.lang.Integer"/>
@@ -64,6 +84,71 @@
                p_region
         FROM partner_mst
         ORDER BY partner_idx DESC
+    </select>
+
+    <!-- DEV003: sale_zone_mst 기준 FULL OUTER JOIN store_mst (가맹점만/구역만 행 포함) -->
+    <select id="selectSalesAreasForList" resultMap="salesAreaDto">
+        SELECT szm.zone_idx,
+               sm.store_idx,
+               ((szm.created_at AT TIME ZONE 'Asia/Seoul')::date)                                           AS setting_date_ymd,
+               COALESCE(sm.store_nm, '')                                                                    AS store_nm,
+               (SELECT cm.code_nm 
+                FROM code_mst cm
+                WHERE cm.grp_cd = '30'
+                  AND cm.code_cd = sm.store_type)                                                           AS franchise_label,
+               CAST(COALESCE(sm.brand_cd, szm.brand_cd) AS VARCHAR)                                         AS brand_cd,
+               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = '40'
+                  AND cm.code_cd = CAST(COALESCE(sm.brand_cd, szm.brand_cd) AS VARCHAR))                    AS brand_nm,
+               sm.region_cd,
+               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = '20' AND cm.code_cd = sm.region_cd)   AS region_nm,
+               pm.prop_nm,
+               CASE
+                   WHEN sm.store_idx IS NOT NULL AND szm.zone_idx IS NOT NULL THEN '설정'
+                   WHEN sm.store_idx IS NOT NULL AND szm.zone_idx IS NULL THEN '미설정'
+                   WHEN sm.store_idx IS NULL AND szm.zone_idx IS NOT NULL THEN '전략출점'
+                   ELSE '기타'
+                   END                                                                                     AS area_setting_label,
+               COALESCE(szm.zone_nm, '')                                                                   AS sales_area_nm,
+               (sm.store_idx IS NOT NULL AND szm.zone_idx IS NOT NULL)                                     AS is_area_configured,
+               (sm.store_idx IS NULL AND szm.zone_idx IS NOT NULL)                                         AS is_strategic_opening,
+               (sm.store_idx IS NOT NULL AND COALESCE(sm.store_type, '') = 'FR') AS is_franchise
+        FROM sale_zone_mst szm
+                 FULL OUTER JOIN store_mst sm ON szm.zone_idx = sm.zone_idx
+                 LEFT OUTER JOIN property_mst pm ON sm.prop_idx = pm.prop_idx
+        ORDER BY szm.zone_idx NULLS LAST, sm.store_idx NULLS LAST
+    </select>
+
+    <!-- sale_zone_mst 없거나 전체조인 실패 시 — store_mst만 (zone_idx 컬럼 불필요). -->
+    <select id="selectSalesAreasStoresOnly" resultMap="salesAreaDto">
+        SELECT CAST(NULL AS INTEGER)                                  AS zone_idx,
+               sm.store_idx,
+               TO_CHAR(
+                       COALESCE(sm.cont_start_dt, (sm.updated_at AT TIME ZONE 'Asia/Seoul')::date),
+                       'YYYY-MM-DD')                                  AS setting_date_ymd,
+               sm.store_nm,
+               (SELECT cm.code_nm
+                FROM code_mst cm
+                WHERE cm.grp_cd = '30'
+                  AND cm.code_cd = sm.store_type)                       AS franchise_label,
+               CAST(sm.brand_cd AS VARCHAR)                             AS brand_cd,
+               (SELECT cm.code_nm
+                FROM code_mst cm
+                WHERE cm.grp_cd = '40'
+                  AND cm.code_cd = CAST(sm.brand_cd AS VARCHAR))       AS brand_nm,
+               sm.region_cd,
+               (SELECT cm.code_nm
+                FROM code_mst cm
+                WHERE cm.grp_cd = '20'
+                  AND cm.code_cd = sm.region_cd)                       AS region_nm,
+               pm.prop_nm,
+               '미설정'                                                 AS area_setting_label,
+               ''                                                       AS sales_area_nm,
+               FALSE                                                    AS is_area_configured,
+               FALSE                                                    AS is_strategic_opening,
+               (COALESCE(sm.store_type, '') = 'FR')                      AS is_franchise
+        FROM store_mst sm
+                 LEFT OUTER JOIN property_mst pm ON sm.prop_idx = pm.prop_idx
+        ORDER BY sm.store_idx DESC
     </select>
 
     <select id="selectPropertiesOrdered" resultMap="propertyMstDto">
@@ -110,4 +195,18 @@
         FROM property_mst
         WHERE prop_nm = #{propNm} AND address = #{address} AND prop_idx != #{propIdx}
     </select>
+
+    <update id="updatePartnerStatus">
+        UPDATE partner_mst
+        SET partner_status = '가맹점사업자',
+            update_dt      = CURRENT_TIMESTAMP
+        WHERE partner_idx = #{partnerIdx}
+    </update>
+
+    <update id="updatePropertyStatus">
+        UPDATE property_mst
+        SET prop_status = 'CONTRACTED',
+            update_dt   = CURRENT_TIMESTAMP
+        WHERE prop_idx = #{propIdx}
+    </update>
 </mapper>

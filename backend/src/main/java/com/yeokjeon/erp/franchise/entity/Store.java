@@ -158,4 +158,12 @@ public class Store {
 
     @Column(name = "rent_deposit") // 권리금
     private Integer rentDeposit;
+
+    /** 물건 마스터 FK — `property_mst.prop_idx` */
+    @Column(name = "prop_idx")
+    private Integer propIdx;
+
+    /** 창업자 마스터 FK — `partner_mst.partner_idx` */
+    @Column(name = "partner_idx")
+    private Integer partnerIdx;
 }

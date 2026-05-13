@@ -16,6 +16,24 @@ DateTime? dev003ParseYmd(String s) {
 
 DateTime dev003DateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
+/// API로 받은 [raw]에 목록 필터 규칙을 적용한다.
+List<SalesAreaRow> dev003ApplyClientFilters(
+  SalesAreaFilter f,
+  List<SalesAreaRow> raw,
+) {
+  return raw
+      .where((row) => kDev003ListRules.every((rule) => rule(f, row)))
+      .toList(growable: false);
+}
+
+({int total, int configured, int unset}) dev003AreaSummary(List<SalesAreaRow> rows) {
+  return (
+    total: rows.length,
+    configured: rows.where((r) => r.isAreaConfigured).length,
+    unset: rows.where((r) => !r.isAreaConfigured).length,
+  );
+}
+
 final List<ListFilterRule<SalesAreaFilter, SalesAreaRow>> kDev003ListRules =
     <ListFilterRule<SalesAreaFilter, SalesAreaRow>>[
       (s, r) {
@@ -31,25 +49,24 @@ final List<ListFilterRule<SalesAreaFilter, SalesAreaRow>> kDev003ListRules =
         return r.isAreaConfigured;
       },
       (s, r) {
-        if (s.region == '전체') return true;
-        return r.region == s.region;
+        if (s.regionCd == '전체') return true;
+        return r.region == s.regionCd;
       },
       (s, r) {
-        if (s.brand == '전체') return true;
-        return r.brand == s.brand;
+        if (s.brandCd == '전체') return true;
+        return r.brand == s.brandCd;
       },
       (s, r) {
-        final q = s.salesAreaKeyword.trim().toLowerCase();
+        final q = s.keyword.trim().toLowerCase();
         if (q.isEmpty) return true;
         return r.salesAreaName.toLowerCase().contains(q) ||
             r.propertyName.toLowerCase().contains(q);
       },
       (s, r) {
-        if (s.rangeStart == null || s.rangeEnd == null) return true;
         final p = dev003ParseYmd(r.settingDateYmd);
         if (p == null) return true;
-        final a = dev003DateOnly(s.rangeStart!);
-        final b = dev003DateOnly(s.rangeEnd!);
+        final a = dev003DateOnly(s.rangeStart);
+        final b = dev003DateOnly(s.rangeEnd);
         return !p.isBefore(a) && !p.isAfter(b);
       },
     ];

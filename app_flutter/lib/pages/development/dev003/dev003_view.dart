@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
@@ -14,14 +15,17 @@ import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart'
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 import 'package:app_flutter/core/widgets/common/erp_list_date_range_field.dart';
+import 'package:app_flutter/core/date/erp_list_date_presets.dart'
+    show erpPresetDateRange;
 import 'package:app_flutter/pages/development/dev003/dev003_controller.dart';
 import 'package:app_flutter/pages/development/dev003/dev003_filter.dart';
 import 'package:app_flutter/pages/development/dev003/dev003_model.dart';
+import 'package:app_flutter/pages/development/dev003/dev003_provider.dart';
 
 /// 영업지역 관리 — 본문에 항상 노출하는 검색 항목(통합 텍스트 검색은 상단 필드).
 const Set<CommonSearchFieldId> kSalesAreaListSupportedSearchFields = {
-  CommonSearchFieldId.salesAreaBrand,
-  CommonSearchFieldId.salesAreaRegion,
+  CommonSearchFieldId.brandCd,
+  CommonSearchFieldId.regionCd,
   CommonSearchFieldId.salesAreaSettingDateRange,
 };
 
@@ -35,12 +39,46 @@ class SalesAreaListView extends ConsumerStatefulWidget {
 
 class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
   late final TextEditingController _keywordCtrl;
+  List<CodeOption> _brandOptions = const [];
+  List<CodeOption> _regionOptions = const [];
+
+  (DateTime, DateTime) _defRange() {
+    return erpPresetDateRange('전체');
+  }
 
   @override
   void initState() {
     super.initState();
     final f = ref.read(salesAreaProvider);
-    _keywordCtrl = TextEditingController(text: f.salesAreaKeyword);
+    _keywordCtrl = TextEditingController(text: f.keyword);
+    _loadBrands();
+    _loadRegions();
+  }
+
+  Future<void> _loadBrands() async {
+    final brands = await CommonCodeApiService().getCodes(40);
+    if (!mounted) return;
+    setState(() => _brandOptions = brands);
+  }
+
+  List<String> _brandChipLabels() {
+    return ['전체', ..._brandOptions.map((e) => e.codeNm)];
+  }
+
+  Future<void> _loadRegions() async {
+    final regions = await CommonCodeApiService().getCodes(20);
+    if (!mounted) return;
+    setState(() => _regionOptions = regions);
+  }
+
+  List<String> _regionChipLabels() {
+    return ['전체', ..._regionOptions.map((e) => e.codeNm)];
+  }
+
+  String _formatYmd(DateTime d) {
+    return '${d.year.toString().padLeft(4, '0')}-'
+        '${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -49,39 +87,55 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
     super.dispose();
   }
 
+  void _resetFilter(SalesAreaNotifier n, CommonSearchFieldId id) {
+    switch (id) {
+      case CommonSearchFieldId.regionCd:
+        n.setRegionCd('전체');
+        return;
+      case CommonSearchFieldId.brandCd:
+        n.setBrandCd('전체');
+        return;
+      case CommonSearchFieldId.salesAreaSettingDateRange:
+        final d = _defRange();
+        n.setDateRange(d.$1, d.$2);
+        return;
+      default:
+        return;
+    }
+  }
+
+  void _clearChip(SalesAreaNotifier n, CommonSearchFieldId id) {
+    setState(() => _resetFilter(n, id));
+  }
+
   List<SearchFilterItemData> _mainFilterItems(
     SalesAreaFilter filter,
+    SalesAreaNotifier n,
     List<String> brands,
     List<String> regions,
-    SalesAreaNotifier n,
   ) {
     final items = <SearchFilterItemData>[];
     for (final def in commonSearchDefsOrdered(
       kSalesAreaListSupportedSearchFields,
     )) {
       switch (def.id) {
-        case CommonSearchFieldId.salesAreaName:
-        case CommonSearchFieldId.salesAreaPropertyName:
-          break;
-        case CommonSearchFieldId.salesAreaBrand:
+        case CommonSearchFieldId.brandCd:
           items.add(
             FilterStringOptionsSlot(
               label: def.label,
-              value: filter.brand,
+              value: filter.brandCd,
               options: brands,
-              onSelected: n.setBrand,
-              forceDropdown: true,
+              onSelected: (v) => setState(() => n.setBrandCd(v)),
             ).toItem(),
           );
           break;
-        case CommonSearchFieldId.salesAreaRegion:
+        case CommonSearchFieldId.regionCd:
           items.add(
             FilterStringOptionsSlot(
               label: def.label,
-              value: filter.region,
+              value: filter.regionCd,
               options: regions,
-              onSelected: n.setRegion,
-              forceDropdown: true,
+              onSelected: (v) => setState(() => n.setRegionCd(v)),
             ).toItem(),
           );
           break;
@@ -90,251 +144,153 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
             SearchFilterItemData(
               label: def.label,
               child: ErpListDateRangeField(
-                start: filter.rangeStart ?? DateTime.now(),
-                end: filter.rangeEnd ?? DateTime.now(),
-                onRangeChanged: n.setDateRange,
+                initialPresetLabel: '전체',
+                start: filter.rangeStart,
+                end: filter.rangeEnd,
+                onRangeChanged: (a, b) {
+                  setState(() => n.setDateRange(a, b));
+                },
               ),
             ),
           );
           break;
-        case CommonSearchFieldId.salesAreaStrategicOnly:
-        case CommonSearchFieldId.salesAreaIncludeNonFranchise:
-        case CommonSearchFieldId.salesAreaIncludeUnset:
-          break;
-        case CommonSearchFieldId.storeNm:
-        case CommonSearchFieldId.storeCd:
-        case CommonSearchFieldId.brandCd:
-        case CommonSearchFieldId.storeStatus:
-        case CommonSearchFieldId.supervisorCd:
-        case CommonSearchFieldId.storeType:
-        case CommonSearchFieldId.prospectName:
-        case CommonSearchFieldId.entrepreneurStatus:
-        case CommonSearchFieldId.regionCd:
-        case CommonSearchFieldId.mobilePhone:
-        case CommonSearchFieldId.registrationDate:
-        case CommonSearchFieldId.propertyName:
-        case CommonSearchFieldId.propertyOwnership:
-        case CommonSearchFieldId.propertyStatus:
-        case CommonSearchFieldId.propertyAddress:
-        case CommonSearchFieldId.partnerName:
-        case CommonSearchFieldId.founderEvaluation:
-        case CommonSearchFieldId.partnerStatus:
-        case CommonSearchFieldId.activityConsultMemo:
-        case CommonSearchFieldId.activityDateRange:
-        case CommonSearchFieldId.userName:
-        case CommonSearchFieldId.userDepartment:
-        case CommonSearchFieldId.userPosition:
-        case CommonSearchFieldId.userEmail:
-        case CommonSearchFieldId.userPhone:
+        default:
           break;
       }
     }
     return items;
   }
 
+  List<ActiveFilterChip> _chips(SalesAreaFilter f, SalesAreaNotifier n) {
+    final chips = <ActiveFilterChip>[];
+    final kw = _keywordCtrl.text.trim();
+    if (kw.isNotEmpty) {
+      chips.add(
+        ActiveFilterChip(
+          label: '통합 검색: $kw',
+          onClear: () {
+            setState(() {
+              _keywordCtrl.clear();
+              n.setKeyword('');
+            });
+          },
+        ),
+      );
+    }
+    for (final def in commonSearchDefsOrdered(
+      kSalesAreaListSupportedSearchFields,
+    )) {
+      switch (def.id) {
+        case CommonSearchFieldId.brandCd:
+          if (f.brandCd != '전체') {
+            chips.add(
+              ActiveFilterChip(
+                label: '${def.label}: ${f.brandCd}',
+                onClear: () => _clearChip(n, def.id),
+              ),
+            );
+          }
+          break;
+        case CommonSearchFieldId.regionCd:
+          if (f.regionCd != '전체') {
+            chips.add(
+              ActiveFilterChip(
+                label: '${def.label}: ${f.regionCd}',
+                onClear: () => _clearChip(n, def.id),
+              ),
+            );
+          }
+          break;
+        case CommonSearchFieldId.salesAreaSettingDateRange:
+          chips.add(
+            ActiveFilterChip(
+              label:
+                  '${def.label}: ${_formatYmd(f.rangeStart)} ~ ${_formatYmd(f.rangeEnd)}',
+              onClear: () => _clearChip(n, def.id),
+            ),
+          );
+          break;
+        default:
+          break;
+      }
+    }
+    return chips;
+  }
+
   @override
   Widget build(BuildContext context) {
     final filter = ref.watch(salesAreaProvider);
     final n = ref.read(salesAreaProvider.notifier);
-    final rows = n.getFilteredList();
-    final brands = ref.watch(salesAreaRepositoryProvider).brandOptions();
-    final regions = ref.watch(salesAreaRepositoryProvider).regionOptions();
+    final listAsync = ref.watch(dev003DataProvider);
+    final rawRows = listAsync.valueOrNull ?? const <SalesAreaRow>[];
+    final rows = dev003ApplyClientFilters(filter, rawRows);
 
-    final mainFilterBlock = SearchFilterStackedItems(
-      items: _mainFilterItems(filter, brands, regions, n),
-    );
-
-    final counts = n.areaSummaryCounts;
-
-    final topBody = Column(
+    final mainFields = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _SalesAreaQuickToggles(filter: filter, notifier: n),
-        const SizedBox(height: 12),
         SearchFilterTextField(
           controller: _keywordCtrl,
-          hint: '영업지역명, 물건명 검색',
+          hint: '키워드 검색',
           borderRadius: 8,
           prefixIcon: Icon(
             Icons.search_rounded,
             color: Colors.grey.shade500,
             size: 22,
           ),
-          onChanged: n.setSalesAreaKeyword,
+          onChanged: (_) => setState(() => n.setKeyword(_keywordCtrl.text)),
         ),
         const SizedBox(height: 8),
-        mainFilterBlock,
-        const SizedBox(height: 12),
-        _SalesAreaSummaryBar(
-          total: counts.total,
-          configured: counts.configured,
-          unset: counts.unset,
+        SearchFilterStackedItems(
+          items: _mainFilterItems(
+            filter,
+            n,
+            _brandChipLabels(),
+            _regionChipLabels(),
+          ),
         ),
       ],
     );
-
+    final counts = dev003AreaSummary(rows);
     return ListPageTemplate(
-      activeFilters: _activeChips(filter, n),
-      mainSearchFields: topBody,
-      countText: '총 ${rows.length}건이 조회되었습니다.',
-      onRefresh: () => setState(() {}),
-      table: _SalesAreaTable(
-        rows: rows,
-        onRowDoubleTap: (row) {
-          context.pushNamed(
-            AppRouteNames.salesAreaRegister,
-            pathParameters: {'rowId': '${row.id}'},
-          );
-        },
+      activeFilters: _chips(filter, n),
+      mainSearchFields: mainFields,
+      belowMainSearch: _SalesAreaSummaryBar(
+        total: counts.total,
+        configured: counts.configured,
+        unset: counts.unset,
       ),
-    );
-  }
-
-  List<ActiveFilterChip> _activeChips(SalesAreaFilter f, SalesAreaNotifier n) {
-    final chips = <ActiveFilterChip>[];
-    if (f.salesAreaKeyword.trim().isNotEmpty) {
-      chips.add(
-        ActiveFilterChip(
-          label: '통합 검색: ${f.salesAreaKeyword}',
-          onClear: () {
-            setState(() {
-              _keywordCtrl.clear();
-              n.setSalesAreaKeyword('');
-            });
-          },
-        ),
-      );
-    }
-    if (f.brand != '전체') {
-      chips.add(
-        ActiveFilterChip(
-          label: '브랜드: ${f.brand}',
-          onClear: () => n.setBrand('전체'),
-        ),
-      );
-    }
-    if (f.region != '전체') {
-      chips.add(
-        ActiveFilterChip(
-          label: '지역: ${f.region}',
-          onClear: () => n.setRegion('전체'),
-        ),
-      );
-    }
-    if (f.strategicOpeningOnly) {
-      chips.add(
-        ActiveFilterChip(
-          label: '전략출점지역만',
-          onClear: () => n.setStrategicOpeningOnly(false),
-        ),
-      );
-    }
-    if (f.includeNonFranchise) {
-      chips.add(
-        ActiveFilterChip(
-          label: '비가맹 물건 포함',
-          onClear: () => n.setIncludeNonFranchise(false),
-        ),
-      );
-    }
-    if (f.includeUnsetArea) {
-      chips.add(
-        ActiveFilterChip(
-          label: '영업지역 미설정 포함',
-          onClear: () => n.setIncludeUnsetArea(false),
-        ),
-      );
-    }
-    return chips;
-  }
-}
-
-/// 본문 상단에 고정: 전략출점 / 비가맹 / 미설정 — 검색조건 시트에 넣지 않는다.
-class _SalesAreaQuickToggles extends StatelessWidget {
-  const _SalesAreaQuickToggles({required this.filter, required this.notifier});
-
-  final SalesAreaFilter filter;
-  final SalesAreaNotifier notifier;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: _toggleCell(
-            label: '전략출점지역 보기',
-            value: filter.strategicOpeningOnly,
-            onChanged: notifier.setStrategicOpeningOnly,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _toggleCell(
-            label: '비가맹 물건 포함',
-            value: filter.includeNonFranchise,
-            onChanged: notifier.setIncludeNonFranchise,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _toggleCell(
-            label: '영업지역 미설정 포함',
-            value: filter.includeUnsetArea,
-            onChanged: notifier.setIncludeUnsetArea,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _toggleCell({
-    required String label,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+      countText: listAsync.when(
+        data: (_) => '총 ${rows.length}건이 조회되었습니다.',
+        loading: () => '목록을 불러오는 중…',
+        error: (_, _) => '목록을 불러오지 못했습니다.',
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: kSearchFilterTextColor,
-                  fontFamilyFallback: AppTheme.koreanFontFallback,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            SizedBox(
-              width: 40,
-              height: 40,
-              child: Checkbox(
-                value: value,
-                activeColor: AppTheme.accentRed,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-                onChanged: (v) => onChanged(v ?? false),
-              ),
-            ),
-          ],
+      onRefresh: () {
+        ref.invalidate(dev003DataProvider);
+        setState(() {});
+      },
+      table: listAsync.when(
+        loading: () => const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: CircularProgressIndicator(),
+          ),
+        ),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text('오류: $e', style: const TextStyle(fontSize: 14)),
+          ),
+        ),
+        data: (_) => _SalesAreaTable(
+          rows: rows,
+          onRowDoubleTap: (row) =>
+              context.go('${AppRoutes.salesAreas}/register/${row.id}'),
         ),
       ),
     );
   }
 }
 
-/// 현재 조회 조건에 대한 집계 — **버튼 아님**(표시 전용).
 class _SalesAreaSummaryBar extends StatelessWidget {
   const _SalesAreaSummaryBar({
     required this.total,
@@ -356,9 +312,9 @@ class _SalesAreaSummaryBar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _summaryTile(label: '총가맹점', count: total),
-              const SizedBox(height: 8),
+              const SizedBox(height: 7),
               _summaryTile(label: '설정가맹점', count: configured),
-              const SizedBox(height: 8),
+              const SizedBox(height: 7),
               _summaryTile(label: '미설정가맹점', count: unset),
             ],
           );
@@ -383,11 +339,10 @@ class _SalesAreaSummaryBar extends StatelessWidget {
     );
   }
 
-  static const _purpleBg = Color.fromARGB(255, 252, 160, 160);
-
+  static const _purpleBg = Color.fromRGBO(255, 218, 229, 1);
   Widget _summaryTile({required String label, required int count}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
       decoration: BoxDecoration(
         color: _purpleBg,
         borderRadius: BorderRadius.circular(8),
@@ -492,7 +447,10 @@ class _SalesAreaTable extends StatelessWidget {
                   ErpTableBodyCell(e.settingDateYmd, center: true),
                   onDoubleTap: open,
                 ),
-                _cell(ErpTableBodyCell(e.propertyName), onDoubleTap: open),
+                _cell(
+                  ErpTableBodyCell(e.propertyName, center: true),
+                  onDoubleTap: open,
+                ),
                 _cell(
                   ErpTableBodyCell(e.region, center: true),
                   onDoubleTap: open,
@@ -510,10 +468,7 @@ class _SalesAreaTable extends StatelessWidget {
                   ErpTableBodyCell(e.areaSettingLabel, center: true),
                   onDoubleTap: open,
                 ),
-                _cell(
-                  ErpTableBodyCell(formatPhoneNumber(e.salesAreaName)),
-                  onDoubleTap: open,
-                ),
+                _cell(ErpTableBodyCell(e.salesAreaName), onDoubleTap: open),
               ],
             );
           }),

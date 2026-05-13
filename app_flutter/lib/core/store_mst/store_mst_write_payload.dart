@@ -18,6 +18,7 @@ class StoreMstWritePayload {
   static const String jsonKeyAutoRenewalYn = 'autoRenewalYn';
   static const String jsonKeyStoreType = 'storeType';
   static const String jsonKeySvId = 'svId';
+  static const String jsonKeySvNm = 'svNm';
   static const String jsonKeyAdressDetail = 'adressDetail';
   static const String jsonKeyZipCd = 'zipCd';
   static const String jsonKeyBrandCd = 'brandCd';
@@ -29,7 +30,9 @@ class StoreMstWritePayload {
   static const String jsonKeyInsuDeposit = 'insuDeposit';
   static const String jsonKeyContDeposit = 'contDeposit';
   static const String jsonKeyContManager = 'contManager';
+  static const String jsonKeyContManagerNm = 'contManagerNm';
   static const String jsonKeyEduManager = 'eduManager';
+  static const String jsonKeyEduManagerNm = 'eduManagerNm';
   static const String jsonKeyContArea = 'contArea';
   static const String jsonKeyRealArea = 'realArea';
   static const String jsonKeyFloor = 'floor';
@@ -38,6 +41,9 @@ class StoreMstWritePayload {
   static const String jsonKeyMonthlyRent = 'monthlyRent';
   static const String jsonKeyRentDeposit = 'rentDeposit';
   static const String jsonKeyNotes = 'notes';
+
+  /// `property_mst.prop_idx` — 물건 조회로 연결 시 저장.
+  static const String jsonKeyPropIdx = 'propIdx';
 
   StoreMstWritePayload._(this._map);
 

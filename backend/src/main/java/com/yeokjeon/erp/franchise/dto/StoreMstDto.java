@@ -50,7 +50,9 @@ public record StoreMstDto(
         Integer premiumFee,
         Integer monthlyRent,
         Integer rentDeposit,
-        String notes) {
+        String notes,
+        Integer propIdx,
+        Integer partnerIdx) {
 
     public static StoreMstDto fromEntity(Store store) {
         return new StoreMstDto(
@@ -96,7 +98,9 @@ public record StoreMstDto(
                 store.getPremiumFee(),
                 store.getMonthlyRent(),
                 store.getRentDeposit(),
-                store.getNotes());
+                store.getNotes(),
+                store.getPropIdx(),
+                store.getPartnerIdx());
     }
 
     private static String codeName(String code, String name) {

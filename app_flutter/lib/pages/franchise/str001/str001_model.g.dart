@@ -45,6 +45,8 @@ Store _$StoreFromJson(Map<String, dynamic> json) => Store(
   premiumFee: _intAny(json['premiumFee']),
   businessNumber: json['businessNumber'] as String? ?? '',
   notes: json['notes'] as String? ?? '',
+  propIdx: _intOrNull(json['propIdx']),
+  partnerIdx: _intOrNull(json['partnerIdx']),
   latitude: _coordStringFromJson(json['latitude']),
   longitude: _coordStringFromJson(json['longitude']),
 );
@@ -88,6 +90,8 @@ Map<String, dynamic> _$StoreToJson(Store instance) => <String, dynamic>{
   'monthlyRent': instance.monthlyRent,
   'rentDeposit': instance.rentDeposit,
   'premiumFee': instance.premiumFee,
+  if (instance.propIdx != null) 'propIdx': instance.propIdx,
+  if (instance.partnerIdx != null) 'partnerIdx': instance.partnerIdx,
   'latitude': instance.latitude,
   'longitude': instance.longitude,
 };

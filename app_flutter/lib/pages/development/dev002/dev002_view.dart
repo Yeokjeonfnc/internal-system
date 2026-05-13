@@ -128,9 +128,6 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
         case CommonSearchFieldId.activityConsultMemo:
         case CommonSearchFieldId.activityDateRange:
         case CommonSearchFieldId.salesAreaName:
-        case CommonSearchFieldId.salesAreaPropertyName:
-        case CommonSearchFieldId.salesAreaBrand:
-        case CommonSearchFieldId.salesAreaRegion:
         case CommonSearchFieldId.salesAreaStrategicOnly:
         case CommonSearchFieldId.salesAreaIncludeNonFranchise:
         case CommonSearchFieldId.salesAreaIncludeUnset:

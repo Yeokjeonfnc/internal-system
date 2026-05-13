@@ -98,8 +98,8 @@ class SearchFilterDropdownField<T> extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          minWidth: compact ? 90 : 168,
-          maxWidth: compact ? 116 : 260,
+          minWidth: compact ? 80 : 168,
+          maxWidth: compact ? 130 : 260,
         ),
         child: DropdownButtonFormField<T?>(
           key: ValueKey<String>(fieldLabel),
@@ -115,7 +115,7 @@ class SearchFilterDropdownField<T> extends StatelessWidget {
           icon: Icon(
             Icons.keyboard_arrow_down_rounded,
             color: const Color(0xFF6B7280),
-            size: compact ? 20 : 22,
+            size: compact ? 24 : 22,
           ),
           items: items,
           onChanged: onChanged,
@@ -304,37 +304,36 @@ InputDecoration searchFilterFieldDecoration({
   String? hint,
   Widget? prefixIcon,
   double borderRadius = 4,
-}) =>
-    InputDecoration(
-      isDense: true,
-      hintText: hint,
-      hintStyle: const TextStyle(
-        fontSize: kSearchFilterFontSize,
-        color: kSearchFilterHintColor,
-        fontFamilyFallback: AppTheme.koreanFontFallback,
-      ),
-      prefixIcon: prefixIcon,
-      prefixIconConstraints: prefixIcon != null
-          ? const BoxConstraints(minWidth: 40, maxHeight: 36)
-          : null,
-      contentPadding: EdgeInsets.symmetric(
-        horizontal: prefixIcon != null ? 4 : 8,
-        vertical: 8,
-      ),
-      constraints: const BoxConstraints(minHeight: 36, maxHeight: 36),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(borderRadius),
-        borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(borderRadius),
-        borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(borderRadius),
-        borderSide: const BorderSide(color: Color(0xFFBC1F26), width: 1.2),
-      ),
-    );
+}) => InputDecoration(
+  isDense: true,
+  hintText: hint,
+  hintStyle: const TextStyle(
+    fontSize: kSearchFilterFontSize,
+    color: kSearchFilterHintColor,
+    fontFamilyFallback: AppTheme.koreanFontFallback,
+  ),
+  prefixIcon: prefixIcon,
+  prefixIconConstraints: prefixIcon != null
+      ? const BoxConstraints(minWidth: 40, maxHeight: 36)
+      : null,
+  contentPadding: EdgeInsets.symmetric(
+    horizontal: prefixIcon != null ? 4 : 8,
+    vertical: 8,
+  ),
+  constraints: const BoxConstraints(minHeight: 36, maxHeight: 36),
+  border: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(borderRadius),
+    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+  ),
+  enabledBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(borderRadius),
+    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+  ),
+  focusedBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(borderRadius),
+    borderSide: const BorderSide(color: Color(0xFFBC1F26), width: 1.2),
+  ),
+);
 
 class _SearchFilterRow extends StatelessWidget {
   const _SearchFilterRow({required this.data, required this.narrow});

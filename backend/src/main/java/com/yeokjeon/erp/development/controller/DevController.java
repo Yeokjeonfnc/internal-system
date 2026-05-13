@@ -5,6 +5,7 @@ import com.yeokjeon.erp.development.dto.PartnerMstDto;
 import com.yeokjeon.erp.development.dto.PartnerMstWriteRequestDto;
 import com.yeokjeon.erp.development.dto.PropertyMstDto;
 import com.yeokjeon.erp.development.dto.PropertyMstWriteRequestDto;
+import com.yeokjeon.erp.development.dto.SalesAreaDto;
 import com.yeokjeon.erp.development.service.DevService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/** 예비창업자·물건 — `/partners`, `/properties` 유지. */
+/** 예비창업자·물건·영업지역(DEV003) — {@code /partners}, {@code /properties}, {@code GET|POST /sales-areas}. */
 @Slf4j
 @RestController
 @RequiredArgsConstructor
@@ -90,5 +91,17 @@ public class DevController {
         log.info("물건 삭제 요청: {}", propIdx);
         devService.removeProperty(propIdx);
         return ResponseEntity.ok(ApiResponse.success("물건이 삭제되었습니다", null));
+    }
+
+    @GetMapping("/sales-areas")
+    public ResponseEntity<ApiResponse<List<SalesAreaDto>>> salesAreasListGet() {
+        log.info("영업지역 목록 조회 요청(GET)");
+        return ResponseEntity.ok(ApiResponse.success(devService.listSalesAreas()));
+    }
+
+    @PostMapping("/sales-areas")
+    public ResponseEntity<ApiResponse<List<SalesAreaDto>>> salesAreasListPost() {
+        log.info("영업지역 목록 조회 요청(POST)");
+        return ResponseEntity.ok(ApiResponse.success(devService.listSalesAreas()));
     }
 }

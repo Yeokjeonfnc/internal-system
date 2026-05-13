@@ -385,6 +385,19 @@ String _eduManagerDisplay(Store? s) {
   return s.eduManager.trim();
 }
 
+/// 담당 수퍼바이저 표시용 — `sv_nm` 우선, 없으면 `sv_id`.
+String _supervisorDisplay(Store? s) {
+  if (s == null) return '';
+  final nm = s.svNm.trim();
+  if (nm.isNotEmpty) return nm;
+  return s.svId.trim();
+}
+
+String _supervisorReadonlyDash(Store? s) {
+  final v = _supervisorDisplay(s);
+  return v.isEmpty ? '-' : v;
+}
+
 String _managerReadonlyDash(Store? s, {required bool contract}) {
   final v = contract ? _contManagerDisplay(s) : _eduManagerDisplay(s);
   return v.isEmpty ? '-' : v;
@@ -420,6 +433,9 @@ class StoreRegisterDraft {
   final eduManagerController = TextEditingController();
   final supervisorController = TextEditingController();
 
+  /// `store_mst.sv_id` 저장용. [supervisorController]는 표시용([_supervisorDisplay]와 동일).
+  String svId = '';
+
   String type = '';
   String region = '';
   String brand = '';
@@ -438,6 +454,9 @@ class StoreRegisterDraft {
 
   /// 예비창업자 조회로 점주를 채운 경우, 가맹점 등록 시 partner_mst 상태 갱신용.
   int? partnerIdx;
+
+  /// 물건 상세정보 조회로 연결한 `property_mst.prop_idx`.
+  int? propIdx;
 
   void hydrateFromStore(Store store) {
     storeAreaController.text = store.regionCd;
@@ -469,7 +488,8 @@ class StoreRegisterDraft {
     contDepositController.text = _formatMoneyInput(store.contDeposit);
     contManagerController.text = _contManagerDisplay(store);
     eduManagerController.text = _eduManagerDisplay(store);
-    supervisorController.text = store.svId;
+    svId = store.svId;
+    supervisorController.text = _supervisorDisplay(store);
     type = store.storeType;
     region = store.regionCd;
     brand = store.brandCd;
@@ -482,7 +502,8 @@ class StoreRegisterDraft {
     currentContractEnd = tryParseLooseDate(store.contEndDt);
     latitude = store.latitude;
     longitude = store.longitude;
-    partnerIdx = null;
+    partnerIdx = store.partnerIdx;
+    propIdx = store.propIdx;
   }
 
   void dispose() {
@@ -746,6 +767,7 @@ class _CommonStoreInfoSectionState
   void applyPropertySelection(Property property) {
     _storeNameController.text = property.name;
     widget.registerDraft?.storeNameController.text = property.name;
+    widget.registerDraft?.propIdx = property.propIdx;
     if (property.region.isNotEmpty) {
       widget.registerDraft?.region = property.region;
       widget.storeAreaController.text = property.region;
@@ -1703,6 +1725,7 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
   late TextEditingController _monthlyRentController;
   String? _latitude;
   String? _longitude;
+  int? _propIdx;
 
   Store? get _store => widget.store;
 
@@ -1735,6 +1758,7 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
         TextEditingController(text: _store?.addressDetail ?? '');
     _latitude = draft?.latitude ?? _store?.latitude;
     _longitude = draft?.longitude ?? _store?.longitude;
+    _propIdx = draft?.propIdx ?? _store?.propIdx;
     _notesController =
         draft?.notesController ??
         TextEditingController(text: _store?.notes ?? '');
@@ -1773,9 +1797,11 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
       if (d == null) {
         _latitude = _store?.latitude;
         _longitude = _store?.longitude;
+        _propIdx = _store?.propIdx;
       } else {
         _latitude = d.latitude;
         _longitude = d.longitude;
+        _propIdx = d.propIdx;
       }
     }
   }
@@ -1848,6 +1874,7 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
         _monthlyRentController.text,
       ),
       StoreMstWritePayload.jsonKeyNotes: _notesController.text.trim(),
+      if (_propIdx != null) StoreMstWritePayload.jsonKeyPropIdx: _propIdx,
     });
   }
 
@@ -1977,6 +2004,7 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
           : property.rent.toString();
       _latitude = property.latitude;
       _longitude = property.longitude;
+      _propIdx = property.propIdx;
       // 물건의 특이사항을 가맹점 특이사항으로 복사
       _notesController.text = property.notes;
     });
@@ -2002,6 +2030,7 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
           : _formatMoneyInput(property.rent);
       draft.latitude = property.latitude;
       draft.longitude = property.longitude;
+      draft.propIdx = property.propIdx;
       // draft의 notes도 업데이트
       draft.notesController.text = property.notes;
     }
@@ -2712,6 +2741,7 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
   late TextEditingController _contManagerController;
   late TextEditingController _eduManagerController;
   late TextEditingController _supervisorController;
+  String _supervisorSvId = '';
 
   Store? get _store => widget.store;
 
@@ -2733,7 +2763,7 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
       StoreMstWritePayload.jsonKeyContManager: _contManagerController.text
           .trim(),
       StoreMstWritePayload.jsonKeyEduManager: _eduManagerController.text.trim(),
-      StoreMstWritePayload.jsonKeySvId: _supervisorController.text.trim(),
+      StoreMstWritePayload.jsonKeySvId: _emptyToNull(_supervisorSvId),
     });
   }
 
@@ -2751,10 +2781,12 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
     return num.tryParse(normalized);
   }
 
-  Future<void> _openUserLookup(
-    TextEditingController target, {
-    required bool preferUserIdForSvField,
-  }) async {
+  String? _emptyToNull(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  Future<void> _openUserLookup(TextEditingController target) async {
     if (!widget.panelEditing) return;
     final selected = await showDialog<User>(
       context: context,
@@ -2764,10 +2796,33 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
       ),
     );
     if (!mounted || selected == null) return;
-    final text = preferUserIdForSvField && selected.name.trim().isNotEmpty
+    final text = selected.name.trim().isNotEmpty
         ? selected.name.trim()
         : selected.userId.trim();
     setState(() => target.text = text);
+  }
+
+  Future<void> _openSupervisorLookup() async {
+    if (!widget.panelEditing) return;
+    final selected = await showDialog<User>(
+      context: context,
+      builder: (dialogCtx) => UserLookupDialog(
+        usersFuture: ref.read(userRepositoryProvider).all(),
+        initialSearchKeyword: _supervisorController.text.trim(),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    final id = selected.userId.trim();
+    final nm = selected.name.trim().isNotEmpty ? selected.name.trim() : id;
+    setState(() {
+      _supervisorSvId = id;
+      _supervisorController.text = nm;
+      final d = widget.registerDraft;
+      if (d != null) {
+        d.svId = id;
+        d.supervisorController.text = nm;
+      }
+    });
   }
 
   @override
@@ -2792,13 +2847,14 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
         );
     _contManagerController =
         draft?.contManagerController ??
-        TextEditingController(text: _store?.contManager ?? '');
+        TextEditingController(text: _store?.contManagerNm ?? '');
     _eduManagerController =
         draft?.eduManagerController ??
-        TextEditingController(text: _store?.eduManager ?? '');
+        TextEditingController(text: _store?.eduManagerNm ?? '');
+    _supervisorSvId = draft?.svId ?? _store?.svId ?? '';
     _supervisorController =
         draft?.supervisorController ??
-        TextEditingController(text: _store?.svId ?? '');
+        TextEditingController(text: _supervisorDisplay(_store));
     _syncDates();
   }
 
@@ -2812,9 +2868,14 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
       _eduFeeController.text = _formatMoneyInput(_store?.eduFee);
       _insuDepositController.text = _formatMoneyInput(_store?.insuDeposit);
       _contDepositController.text = _formatMoneyInput(_store?.contDeposit);
-      _contManagerController.text = _store?.contManager ?? '';
-      _eduManagerController.text = _store?.eduManager ?? '';
-      _supervisorController.text = _store?.svId ?? '';
+      _contManagerController.text = _store?.contManagerNm ?? '';
+      _eduManagerController.text = _store?.eduManagerNm ?? '';
+      final d = widget.registerDraft;
+      _supervisorSvId = d?.svId ?? _store?.svId ?? '';
+      _supervisorController.text =
+          d != null && d.supervisorController.text.trim().isNotEmpty
+          ? d.supervisorController.text
+          : _supervisorDisplay(_store);
     }
   }
 
@@ -3042,19 +3103,14 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
                           textInputAction: TextInputAction.search,
                           onSubmitted: (_) {
                             FocusManager.instance.primaryFocus?.unfocus();
-                            _openUserLookup(
-                              _contManagerController,
-                              preferUserIdForSvField: false,
-                            );
+                            _openUserLookup(_contManagerController);
                           },
                         ),
                       ),
                       const SizedBox(width: 8),
                       IconButton.outlined(
-                        onPressed: () => _openUserLookup(
-                          _contManagerController,
-                          preferUserIdForSvField: false,
-                        ),
+                        onPressed: () =>
+                            _openUserLookup(_contManagerController),
                         icon: const Icon(Icons.search, size: 18),
                         tooltip: '가맹계약 담당자 조회',
                         style: IconButton.styleFrom(
@@ -3069,7 +3125,7 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
                       ),
                     ],
                   )
-                : ReadonlyValue(_managerReadonlyDash(_store, contract: true)),
+                : ReadonlyValue(_store?.contManagerNm ?? ''),
           ),
           b: FormFieldBlock(
             label: '기본교육 담당자',
@@ -3084,19 +3140,13 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
                           textInputAction: TextInputAction.search,
                           onSubmitted: (_) {
                             FocusManager.instance.primaryFocus?.unfocus();
-                            _openUserLookup(
-                              _eduManagerController,
-                              preferUserIdForSvField: false,
-                            );
+                            _openUserLookup(_eduManagerController);
                           },
                         ),
                       ),
                       const SizedBox(width: 8),
                       IconButton.outlined(
-                        onPressed: () => _openUserLookup(
-                          _eduManagerController,
-                          preferUserIdForSvField: false,
-                        ),
+                        onPressed: () => _openUserLookup(_eduManagerController),
                         icon: const Icon(Icons.search, size: 18),
                         tooltip: '기본교육 담당자 조회',
                         style: IconButton.styleFrom(
@@ -3127,19 +3177,13 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
                           textInputAction: TextInputAction.search,
                           onSubmitted: (_) {
                             FocusManager.instance.primaryFocus?.unfocus();
-                            _openUserLookup(
-                              _supervisorController,
-                              preferUserIdForSvField: true,
-                            );
+                            _openSupervisorLookup();
                           },
                         ),
                       ),
                       const SizedBox(width: 8),
                       IconButton.outlined(
-                        onPressed: () => _openUserLookup(
-                          _supervisorController,
-                          preferUserIdForSvField: true,
-                        ),
+                        onPressed: _openSupervisorLookup,
                         icon: const Icon(Icons.search, size: 18),
                         tooltip: '담당 수퍼바이저 조회',
                         style: IconButton.styleFrom(
@@ -3154,11 +3198,7 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
                       ),
                     ],
                   )
-                : ReadonlyValue(
-                    _store?.svNm.isNotEmpty == true
-                        ? _store!.svNm
-                        : (_store?.svId ?? '-'),
-                  ),
+                : ReadonlyValue(_supervisorReadonlyDash(_store)),
           ),
         ),
       ],
@@ -3785,6 +3825,10 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
         draft.monthlyRentController.text,
       ),
       StoreMstWritePayload.jsonKeyNotes: draft.notesController.text.trim(),
+      if (draft.propIdx != null)
+        StoreMstWritePayload.jsonKeyPropIdx: draft.propIdx,
+      if (draft.partnerIdx != null)
+        StoreMstWritePayload.jsonKeyPartnerIdx: draft.partnerIdx,
     });
   }
 
@@ -3817,9 +3861,7 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
       StoreMstWritePayload.jsonKeyEduManager: _emptyToNull(
         draft.eduManagerController.text,
       ),
-      StoreMstWritePayload.jsonKeySvId: _emptyToNull(
-        draft.supervisorController.text,
-      ),
+      StoreMstWritePayload.jsonKeySvId: _emptyToNull(draft.svId),
     });
   }
 

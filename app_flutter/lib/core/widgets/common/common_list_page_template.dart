@@ -11,6 +11,7 @@ import 'package:app_flutter/core/widgets/common/common_register_button.dart';
 ///
 /// - 상단: 적용 조건 **칩 요약** + (선택) **새로고침**
 /// - 선택: [mainSearchFields] — 칩 아래 본문 카드에 인라인 검색 영역
+/// - 선택: [belowMainSearch] — 본문 검색 아래·건수 행 위(영업지역 요약 등)
 /// - 중간: 조회 건수 + (선택) 등록 버튼
 /// - 하단: 테이블
 class ListPageTemplate extends StatelessWidget {
@@ -22,6 +23,7 @@ class ListPageTemplate extends StatelessWidget {
     this.onRegister,
     this.onRefresh,
     this.mainSearchFields,
+    this.belowMainSearch,
   });
 
   /// 메인에 표시할 칩(비어 있으면 안내 문구만).
@@ -29,6 +31,9 @@ class ListPageTemplate extends StatelessWidget {
 
   /// 칩 행 아래·건수 행 위에 붙는 인라인 검색 영역(가맹점 목록 등).
   final Widget? mainSearchFields;
+
+  /// [mainSearchFields] 아래·조회 건수 텍스트 위에 넣는 보조 블록(집계 바 등).
+  final Widget? belowMainSearch;
 
   final String countText;
   final Widget table;
@@ -103,6 +108,10 @@ class ListPageTemplate extends StatelessWidget {
                     if (mainSearchFields != null) ...[
                       const SizedBox(height: 12),
                       mainSearchFields!,
+                    ],
+                    if (belowMainSearch != null) ...[
+                      const SizedBox(height: 12),
+                      belowMainSearch!,
                     ],
                     const SizedBox(height: 8),
                     Row(

@@ -2,46 +2,45 @@
 
 class SalesAreaFilter {
   const SalesAreaFilter({
-    this.salesAreaKeyword = '',
-    this.brand = '전체',
-    this.region = '전체',
+    this.keyword = '',
+    this.brandCd = '전체',
+    this.regionCd = '전체',
     this.strategicOpeningOnly = false,
-    this.includeNonFranchise = false,
-    this.includeUnsetArea = false,
-    this.rangeStart,
-    this.rangeEnd,
+    this.includeNonFranchise = true,
+    this.includeUnsetArea = true,
+    required this.rangeStart,
+    required this.rangeEnd,
   });
 
   /// 영업지역명·물건명 통합 검색(부분 일치, OR).
-  final String salesAreaKeyword;
-  final String brand;
-  final String region;
+  final String keyword;
+  final String brandCd;
+  final String regionCd;
   final bool strategicOpeningOnly;
   final bool includeNonFranchise;
   final bool includeUnsetArea;
-  final DateTime? rangeStart;
-  final DateTime? rangeEnd;
+  final DateTime rangeStart;
+  final DateTime rangeEnd;
 
   SalesAreaFilter copyWith({
-    String? salesAreaKeyword,
-    String? brand,
-    String? region,
+    String? keyword,
+    String? brandCd,
+    String? regionCd,
+    DateTime? rangeStart,
+    DateTime? rangeEnd,
     bool? strategicOpeningOnly,
     bool? includeNonFranchise,
     bool? includeUnsetArea,
-    DateTime? rangeStart,
-    DateTime? rangeEnd,
-    bool clearRange = false,
   }) {
     return SalesAreaFilter(
-      salesAreaKeyword: salesAreaKeyword ?? this.salesAreaKeyword,
-      brand: brand ?? this.brand,
-      region: region ?? this.region,
+      keyword: keyword ?? this.keyword,
+      brandCd: brandCd ?? this.brandCd,
+      regionCd: regionCd ?? this.regionCd,
       strategicOpeningOnly: strategicOpeningOnly ?? this.strategicOpeningOnly,
       includeNonFranchise: includeNonFranchise ?? this.includeNonFranchise,
       includeUnsetArea: includeUnsetArea ?? this.includeUnsetArea,
-      rangeStart: clearRange ? null : rangeStart ?? this.rangeStart,
-      rangeEnd: clearRange ? null : rangeEnd ?? this.rangeEnd,
+      rangeStart: rangeStart ?? this.rangeStart,
+      rangeEnd: rangeEnd ?? this.rangeEnd,
     );
   }
 }

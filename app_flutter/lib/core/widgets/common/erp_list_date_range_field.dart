@@ -11,10 +11,14 @@ import 'package:app_flutter/core/widgets/common/form/common_date_input_with_pick
 class ErpListDateRangeField extends StatefulWidget {
   const ErpListDateRangeField({
     super.key,
+    this.initialPresetLabel,
     required this.start,
     required this.end,
     required this.onRangeChanged,
   });
+
+  /// null이면 `'최근1개월'` — 화면별 기본 프리셋과 맞출 때 사용(예: 영업지역 `'전체'`).
+  final String? initialPresetLabel;
 
   final DateTime start;
   final DateTime end;
@@ -25,7 +29,15 @@ class ErpListDateRangeField extends StatefulWidget {
 }
 
 class _ErpListDateRangeFieldState extends State<ErpListDateRangeField> {
-  static const _opts = ['최근1개월', '최근2개월', '최근3개월', '최근6개월', '최근1년', '직접 설정'];
+  static const _opts = [
+    '최근1개월',
+    '최근2개월',
+    '최근3개월',
+    '최근6개월',
+    '최근1년',
+    '전체',
+    '직접 설정',
+  ];
 
   static const _dateFieldWidth = 120.0;
 
@@ -34,7 +46,8 @@ class _ErpListDateRangeFieldState extends State<ErpListDateRangeField> {
   @override
   void initState() {
     super.initState();
-    _preset = '최근1개월';
+    final seed = widget.initialPresetLabel;
+    _preset = (seed != null && _opts.contains(seed)) ? seed : '최근1개월';
   }
 
   Future<void> _pickStart() async {
