@@ -14,7 +14,7 @@ Store _$StoreFromJson(Map<String, dynamic> json) => Store(
   storeCd: _stringAny(json['storeCd']),
   storeStatus: json['storeStatus'] as String,
   storeStatusNm: json['storeStatusNm'] as String,
-  ownerNm: json['ownerNm'] as String,
+  ownerNm: _stringAny(json['ownerNm']),
   storeTel: json['storeTel'] as String,
   zipCd: json['zipCd'] as String,
   address: json['address'] as String,

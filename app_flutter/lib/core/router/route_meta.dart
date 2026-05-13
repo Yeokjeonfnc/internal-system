@@ -1,6 +1,6 @@
 // 라우트별 상단 배너 제목·부모 경로 메타.
 
-import 'package:app_flutter/pages/active/activity_routes.dart';
+import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 
 import 'app_router.dart';
 

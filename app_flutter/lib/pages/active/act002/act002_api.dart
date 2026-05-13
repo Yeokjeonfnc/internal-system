@@ -1,42 +1,15 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
+import 'package:app_flutter/core/active_mst/active_mst_api_json_keys.dart';
+import 'package:app_flutter/core/active_mst/active_mst_api_paths.dart';
+import 'package:app_flutter/core/active_mst/active_mst_write_payload.dart';
 import 'package:app_flutter/core/checklist/chk_mst_write_payload.dart';
-import 'package:app_flutter/pages/active/activity_model.dart';
-import 'package:app_flutter/pages/active/activity_model_checklist.dart';
+import 'package:app_flutter/pages/active/act002/act002_model.dart';
+import 'package:app_flutter/pages/active/act002/act002_model_checklist.dart';
 
-/// `/activities` 계열 — 목록 [ActivityRow], 현황 [ActivityStatusPivotRow], 단건 [ActivityDetail], 저장 [ActivityWritePayload]/[ActivitySaveResult].
-class ActivityApiService extends BaseRepository {
-  /// 현황 화면용 `/activities/status/{type}`.
-  Future<List<ActivityStatusPivotRow>> fetchStatus({
-    required String type,
-    required String startDt,
-    required String endDt,
-    String? brandCd,
-    String? userId,
-  }) async {
-    try {
-      final queryParameters = <String, dynamic>{
-        ActiveMstQueryParamKeys.startDt: startDt,
-        ActiveMstQueryParamKeys.endDt: endDt,
-      };
-      if (brandCd != null && brandCd.isNotEmpty) {
-        queryParameters[ActiveMstApiJsonKeys.brandCd] = brandCd;
-      }
-      if (userId != null && userId.isNotEmpty) {
-        queryParameters[ActiveMstApiJsonKeys.userId] = userId;
-      }
-      final maps = await getDataListMap(
-        '${ActiveMstApiPaths.root}/status/$type',
-        queryParameters: queryParameters,
-      );
-      return maps.map(ActivityStatusPivotRow.fromJson).toList();
-    } catch (e) {
-      debugPrint('Error fetching activity status rows: $e');
-    }
-    return const [];
-  }
-
+/// 활동 관리(act002) — `/activities` 목록·단건·저장·체크리스트.
+class Act002Api extends BaseRepository {
   /// 체크리스트 탭 — `chkYn=Y` 목록.
   Future<List<ActivityRow>> fetchChkActs() async {
     try {

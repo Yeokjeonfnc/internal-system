@@ -12,7 +12,7 @@ import 'package:app_flutter/core/notifications/notif_model.dart';
 import 'package:app_flutter/core/notifications/notification_api_service.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/widgets/common/erp_popup_list_stripes.dart';
-import 'package:app_flutter/pages/active/activity_routes.dart';
+import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 
 /// [notif_mst.notif_typ] — 활동 결재 알림.
 const String _kNotifTypeActivityApproval = 'ACTIVITY_APPROVAL';

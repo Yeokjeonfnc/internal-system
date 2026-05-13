@@ -53,13 +53,11 @@ public class ActService {
     private final ActMstMapper actMstMapper;
 
     public List<ActivityStatusPivotRowDto> statusByStore(LocalDate startDt, LocalDate endDt, String brandCd) {
-        String normalizedBrand = normalizeBrand(brandCd);
-        return actMstMapper.selectStatusByStore(startDt, endDt, normalizedBrand);
+        return actMstMapper.selectStatusByStore(startDt, endDt, brandCd);
     }
 
     public List<ActivityStatusPivotRowDto> statusBySv(LocalDate startDt, LocalDate endDt, String brandCd) {
-        String normalizedBrand = normalizeBrand(brandCd);
-        return actMstMapper.selectStatusBySv(startDt, endDt, normalizedBrand);
+        return actMstMapper.selectStatusBySv(startDt, endDt, brandCd);
     }
 
     public List<ActiveMstResponseDto> listAll() {
@@ -358,11 +356,6 @@ public class ActService {
         if (STATUS_APPROVED.equals(active.getApprStatus()) && active.getApprDt() == null) {
             active.setApprDt(LocalDateTime.now());
         }
-    }
-
-    private String normalizeBrand(String brandCd) {
-        if (brandCd == null || brandCd.isBlank()) return null;
-        return brandCd.trim();
     }
 
     private Map<Integer, Store> storesByIdx(List<ActActive> rows) {

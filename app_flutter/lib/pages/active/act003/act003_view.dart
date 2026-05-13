@@ -10,14 +10,20 @@ import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart'
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
-
+import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/date/erp_list_date_presets.dart'
     show erpPresetDateRange;
 import 'package:app_flutter/core/widgets/common/erp_list_date_range_field.dart';
-import 'package:app_flutter/pages/active/activity_routes.dart';
+import 'package:app_flutter/pages/active/act003/act003_filter.dart';
+import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 import 'package:app_flutter/pages/active/act002/act002_view_manage.dart'
     show kActivityManagementSupportedSearchFields, ActivityChecklistTable;
 import 'package:app_flutter/pages/active/act002/act002_widget_drafts.dart';
+
+const Set<CommonSearchFieldId> kAct003SearchFields = {
+  CommonSearchFieldId.brandCd,
+  CommonSearchFieldId.activityDateRange,
+};
 
 /// 결재 화면 탭 순서와 [GoRouter] 경로 (상단 배너 제목 동기화).
 final List<String> kApprTabs = [
@@ -40,12 +46,10 @@ class Act003View extends StatefulWidget {
 
 class _Act003ViewState extends State<Act003View>
     with SingleTickerProviderStateMixin {
-  static const _brands = ['전체', '역전할머니맥주', '지미존스'];
-
+  List<CodeOption> _brandOptions = const [];
+  String _brandNm = '전체';
   late final TabController _tabController;
-  final _kwCtrl = TextEditingController();
-  String _brand = '전체';
-
+  final _keywordCtrl = TextEditingController();
   late DateTime _rangeStart;
   late DateTime _rangeEnd;
 
@@ -69,15 +73,13 @@ class _Act003ViewState extends State<Act003View>
     _rangeStart = r.$1;
     _rangeEnd = r.$2;
     _tabEpoch = List<int>.filled(5, 0);
+    _loadBrands();
   }
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
     if (!mounted) return;
-    final idx = _tabController.index.clamp(
-      0,
-      kApprTabs.length - 1,
-    );
+    final idx = _tabController.index.clamp(0, kApprTabs.length - 1);
     setState(() => _tabEpoch[idx]++);
     final target = kApprTabs[idx];
     final loc = GoRouterState.of(context).uri.path;
@@ -86,13 +88,28 @@ class _Act003ViewState extends State<Act003View>
     }
   }
 
+  Future<void> _loadBrands() async {
+    final brands = await CommonCodeApiService().getCodes(40);
+    if (!mounted) return;
+    setState(() => _brandOptions = brands);
+  }
+
+  List<String> _brandChipLabels() {
+    return ['전체', ..._brandOptions.map((e) => e.codeNm)];
+  }
+
+  String? _brandFilterCd() {
+    if (_brandNm == '전체') return null;
+    for (final o in _brandOptions) {
+      if (o.codeNm == _brandNm) return o.codeCd;
+    }
+    return null;
+  }
+
   /// 목록 [ListPageTemplate] 새로고침 — 현재 탭 테이블을 재생성해 API 재조회.
   void _reloadList() {
     if (!mounted) return;
-    final idx = _tabController.index.clamp(
-      0,
-      _tabEpoch.length - 1,
-    );
+    final idx = _tabController.index.clamp(0, _tabEpoch.length - 1);
     setState(() => _tabEpoch[idx]++);
   }
 
@@ -108,7 +125,7 @@ class _Act003ViewState extends State<Act003View>
   void dispose() {
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
-    _kwCtrl.dispose();
+    _keywordCtrl.dispose();
     super.dispose();
   }
 
@@ -120,7 +137,7 @@ class _Act003ViewState extends State<Act003View>
       case CommonSearchFieldId.activityConsultMemo:
         return;
       case CommonSearchFieldId.brandCd:
-        _brand = '전체';
+        _brandNm = '전체';
         return;
       case CommonSearchFieldId.activityDateRange:
         final d = _defRange();
@@ -142,7 +159,11 @@ class _Act003ViewState extends State<Act003View>
         '${d.day.toString().padLeft(2, '0')}';
   }
 
-  List<SearchFilterItemData> _inlineFilters() {
+  List<SearchFilterItemData> _inlineFilters(
+    BuildContext context,
+    Act003Filter filter,
+    List<String> brands,
+  ) {
     final items = <SearchFilterItemData>[];
     for (final def in commonSearchDefsOrdered(
       kActivityManagementSupportedSearchFields,
@@ -157,9 +178,9 @@ class _Act003ViewState extends State<Act003View>
           items.add(
             FilterStringOptionsSlot(
               label: def.label,
-              value: _brand,
-              options: _brands,
-              onSelected: (v) => setState(() => _brand = v),
+              value: filter.brandCd,
+              options: brands,
+              onSelected: (v) => setState(() => _brandNm = v),
             ).toItem(),
           );
           break;
@@ -189,12 +210,12 @@ class _Act003ViewState extends State<Act003View>
 
   List<ActiveFilterChip> _chips() {
     final chips = <ActiveFilterChip>[];
-    final kw = _kwCtrl.text.trim();
+    final kw = _keywordCtrl.text.trim();
     if (kw.isNotEmpty) {
       chips.add(
         ActiveFilterChip(
           label: '통합 검색: $kw',
-          onClear: () => setState(() => _kwCtrl.clear()),
+          onClear: () => setState(() => _keywordCtrl.clear()),
         ),
       );
     }
@@ -205,7 +226,7 @@ class _Act003ViewState extends State<Act003View>
         case CommonSearchFieldId.brandCd:
           chips.add(
             ActiveFilterChip(
-              label: '${def.label}: $_brand',
+              label: '${def.label}: $_brandNm',
               onClear: () => _clearChip(def.id),
             ),
           );
@@ -264,11 +285,17 @@ class _Act003ViewState extends State<Act003View>
 
   @override
   Widget build(BuildContext context) {
+    final filter = Act003Filter(
+      brandCd: _brandNm,
+      rangeStart: _rangeStart,
+      rangeEnd: _rangeEnd,
+      keyword: _keywordCtrl.text.trim(),
+    );
     final mainFields = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SearchFilterTextField(
-          controller: _kwCtrl,
+          controller: _keywordCtrl,
           hint: '가맹점명, 가맹점코드, 수퍼바이저, 상담내용 검색',
           borderRadius: 8,
           prefixIcon: Icon(
@@ -279,7 +306,9 @@ class _Act003ViewState extends State<Act003View>
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 8),
-        SearchFilterStackedItems(items: _inlineFilters()),
+        SearchFilterStackedItems(
+          items: _inlineFilters(context, filter, _brandChipLabels()),
+        ),
       ],
     );
 
@@ -298,7 +327,8 @@ class _Act003ViewState extends State<Act003View>
                   customTable: ActivityDraftsTable(
                     key: ValueKey<int>(_tabEpoch[0]),
                     mode: ActivityDraftsTableMode.approvalAll,
-                    rowKeywordFilter: _kwCtrl.text.trim(),
+                    rowKeywordFilter: _keywordCtrl.text.trim(),
+                    brandCdFilter: _brandFilterCd(),
                   ),
                 ),
                 _listShell(
@@ -306,7 +336,8 @@ class _Act003ViewState extends State<Act003View>
                   customTable: ActivityDraftsTable(
                     key: ValueKey<int>(_tabEpoch[1]),
                     mode: ActivityDraftsTableMode.approvalPending,
-                    rowKeywordFilter: _kwCtrl.text.trim(),
+                    rowKeywordFilter: _keywordCtrl.text.trim(),
+                    brandCdFilter: _brandFilterCd(),
                   ),
                 ),
                 _listShell(
@@ -314,7 +345,8 @@ class _Act003ViewState extends State<Act003View>
                   customTable: ActivityDraftsTable(
                     key: ValueKey<int>(_tabEpoch[2]),
                     mode: ActivityDraftsTableMode.approvalApproved,
-                    rowKeywordFilter: _kwCtrl.text.trim(),
+                    rowKeywordFilter: _keywordCtrl.text.trim(),
+                    brandCdFilter: _brandFilterCd(),
                   ),
                 ),
                 _listShell(
@@ -322,14 +354,15 @@ class _Act003ViewState extends State<Act003View>
                   customTable: ActivityDraftsTable(
                     key: ValueKey<int>(_tabEpoch[3]),
                     mode: ActivityDraftsTableMode.approvalSuggestions,
-                    rowKeywordFilter: _kwCtrl.text.trim(),
+                    rowKeywordFilter: _keywordCtrl.text.trim(),
+                    brandCdFilter: _brandFilterCd(),
                   ),
                 ),
                 _listShell(
                   mainFields,
                   customTable: ActivityChecklistTable(
                     key: ValueKey<int>(_tabEpoch[4]),
-                    rowKeywordFilter: _kwCtrl.text.trim(),
+                    rowKeywordFilter: _keywordCtrl.text.trim(),
                   ),
                 ),
               ],

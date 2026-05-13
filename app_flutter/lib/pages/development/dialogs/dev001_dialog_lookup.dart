@@ -11,16 +11,29 @@ import 'package:app_flutter/pages/development/dev001/dev001_model.dart';
 
 /// 성명·연락처·상태로 필터해 [Partner] 한 명을 고른다.
 class PartnerLookupDialog extends StatefulWidget {
-  const PartnerLookupDialog({super.key, required this.partnersFuture});
+  const PartnerLookupDialog({
+    super.key,
+    required this.partnersFuture,
+    this.initialSearchKeyword,
+  });
 
   final Future<List<Partner>> partnersFuture;
-
+  final String? initialSearchKeyword;
   @override
   State<PartnerLookupDialog> createState() => _PartnerLookupDialogState();
 }
 
 class _PartnerLookupDialogState extends State<PartnerLookupDialog> {
   final _keywordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final seed = widget.initialSearchKeyword?.trim();
+    if (seed != null && seed.isNotEmpty) {
+      _keywordController.text = seed;
+    }
+  }
 
   @override
   void dispose() {
@@ -74,9 +87,7 @@ class _PartnerLookupDialogState extends State<PartnerLookupDialog> {
                     controller: _keywordController,
                     onChanged: (_) => setState(() {}),
                     style: FormStylePalette.valueStyle,
-                    decoration: _searchDecor(
-                      '성명, 휴대전화, 상태 검색',
-                    ),
+                    decoration: _searchDecor('성명, 휴대전화, 상태 검색'),
                   ),
                   const SizedBox(height: 12),
                   const _PartnerLookupHeader(),
@@ -190,15 +201,11 @@ class _PartnerLookupRow extends StatelessWidget {
               Expanded(flex: 2, child: _PartnerLookupCell(partner.partnerNm)),
               Expanded(
                 flex: 2,
-                child: _PartnerLookupCell(
-                  _telFmt(partner.partnerTel),
-                ),
+                child: _PartnerLookupCell(_telFmt(partner.partnerTel)),
               ),
               Expanded(
                 flex: 2,
-                child: _PartnerLookupCell(
-                  statusLabelKo(partner.partnerStatus),
-                ),
+                child: _PartnerLookupCell(statusLabelKo(partner.partnerStatus)),
               ),
             ],
           ),

@@ -12,8 +12,8 @@ Property _$PropertyFromJson(Map<String, dynamic> json) => Property(
   registrationDate: erpFormatYmdFromJson(json['createDt']),
   name: _stringAny(json['propNm']),
   region: _stringAny(json['region']),
-  status: _propertyStatusFromJson(json['propStatus']),
-  ownership: _propertyOwnershipFromJson(json['propType']),
+  propStatus: _propStatusFromJson(json['propStatus']),
+  ownership: _ownershipFromJson(json['propType']),
   areaSqm: _doubleAny(json['contArea']),
   keyMoney: _intAny(json['premiumFee']),
   deposit: _intAny(json['rentDeposit']),
@@ -43,7 +43,7 @@ Map<String, dynamic> _$PropertyToJson(Property instance) => <String, dynamic>{
   'createDt': instance.registrationDate,
   'propNm': instance.name,
   'region': instance.region,
-  'propStatus': _$PropertyStatusEnumMap[instance.status]!,
+  'propStatus': _$PropStatusEnumMap[instance.propStatus]!,
   'propType': _$PropertyOwnershipEnumMap[instance.ownership]!,
   'contArea': instance.areaSqm,
   'realArea': instance.actualAreaSqm,
@@ -74,13 +74,13 @@ const _$AddressScopeEnumMap = {
   AddressScope.overseas: 'overseas',
 };
 
-const _$PropertyStatusEnumMap = {
-  PropertyStatus.contracted: 'contracted',
-  PropertyStatus.pending: 'pending',
-  PropertyStatus.unsuitable: 'unsuitable',
+const _$PropStatusEnumMap = {
+  PropStatus.contracted: 'CONTRACTED',
+  PropStatus.pending: 'PENDING',
+  PropStatus.unsuitable: 'UNSUITABLE',
 };
 
 const _$PropertyOwnershipEnumMap = {
-  PropertyOwnership.owned: 'owned',
-  PropertyOwnership.leased: 'leased',
+  Ownership.owned: 'owned',
+  Ownership.lease: 'lease',
 };

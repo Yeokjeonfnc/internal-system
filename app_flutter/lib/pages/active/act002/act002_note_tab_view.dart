@@ -9,9 +9,9 @@ import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/widgets/common/common_detail_button.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
-import 'package:app_flutter/pages/active/activity_api.dart';
-import 'package:app_flutter/pages/active/activity_model.dart';
-import 'package:app_flutter/pages/active/activity_routes.dart';
+import 'package:app_flutter/pages/active/act002/act002_api.dart';
+import 'package:app_flutter/pages/active/act002/act002_model.dart';
+import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 
 /// 활동관리 탭 — 지시사항(결재특이사항) 목록.
 class ActivityNoteTabView extends StatefulWidget {
@@ -19,12 +19,17 @@ class ActivityNoteTabView extends StatefulWidget {
     super.key,
     this.rowKeywordFilter = '',
     required this.brandLabel,
+    this.brandCdFilter,
     required this.rangeStart,
     required this.rangeEnd,
   });
 
   final String rowKeywordFilter;
   final String brandLabel;
+
+  /// 공통코드에서 선택한 브랜드 [CodeOption.codeCd]. 있으면 행 [ActivityRow.brandCd] 와만 비교한다.
+  final String? brandCdFilter;
+
   final DateTime rangeStart;
   final DateTime rangeEnd;
 
@@ -50,7 +55,7 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
     setState(() {
       _future = uid.isEmpty
           ? Future.value(const <ActivityRow>[])
-          : ActivityApiService().fetchRowsForSvWithApprNote(uid);
+          : Act002Api().fetchRowsForSvWithApprNote(uid);
     });
   }
 
@@ -93,10 +98,14 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
   }
 
   bool _brandOk(ActivityRow row) {
+    final cdFilter = widget.brandCdFilter?.trim() ?? '';
+    if (cdFilter.isNotEmpty) {
+      return row.brandCd.trim() == cdFilter;
+    }
     final label = widget.brandLabel.trim();
     if (label.isEmpty || label == '전체') return true;
-    final nm = row.brandNm;
-    final cd = row.brandCd;
+    final nm = row.brandNm.trim();
+    final cd = row.brandCd.trim();
     return nm == label || cd == label;
   }
 

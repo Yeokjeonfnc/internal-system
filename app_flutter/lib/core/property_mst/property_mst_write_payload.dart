@@ -36,6 +36,10 @@ class PropertyMstWritePayload {
       PropertyMstWritePayload._(Map<String, dynamic>.from(map));
 
   String? get propNm => _map[jsonKeyPropNm] as String?;
+  String? get zipCd => _map[jsonKeyZipCd] as String?;
+  String? get address => _map[jsonKeyAddress] as String?;
+  String? get surveyor => _map[jsonKeyAddress] as String?;
+  String? get surveyDt => _map[jsonKeySurveyDt] as String?;
 
   bool get isPropNmBlank => (propNm ?? '').trim().isEmpty;
 }

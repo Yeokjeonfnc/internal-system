@@ -3,7 +3,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'package:app_flutter/core/checklist/chk_mst_api_json_keys.dart';
 import 'package:app_flutter/core/utils/json_extensions.dart';
 
-part 'activity_model_checklist.g.dart';
+part 'act002_model_checklist.g.dart';
 
 @JsonSerializable()
 class ChecklistItem {

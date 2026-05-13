@@ -5,30 +5,37 @@ import 'package:app_flutter/core/utils/json_extensions.dart';
 
 part 'dev002_model.g.dart';
 
-/// 물건 구분 (자가/임대차).
-enum PropertyOwnership { owned, leased }
+// /// 물건 구분 (자가/임대차).
+enum Ownership { owned, lease }
+
+String ownershipLabelKo(Ownership s) => switch (s) {
+  Ownership.owned => '자가',
+  Ownership.lease => '임대차',
+};
+
+Ownership _ownershipFromJson(Object? v) =>
+    v?.toString() == 'OWNED' ? Ownership.owned : Ownership.lease;
 
 /// 물건 상태 (체결/보류/부적합).
-enum PropertyStatus { contracted, pending, unsuitable }
+enum PropStatus { contracted, pending, unsuitable }
+
+String propStatusLabelKo(PropStatus s) => switch (s) {
+  PropStatus.contracted => '체결물건',
+  PropStatus.pending => '보류물건',
+  PropStatus.unsuitable => '부적합물건',
+};
+
+PropStatus _propStatusFromJson(Object? v) => v?.toString() == 'CONTRACTED'
+    ? PropStatus.contracted
+    : v?.toString() == 'PENDING'
+    ? PropStatus.pending
+    : PropStatus.unsuitable;
 
 /// 가맹 여부 (가맹/비가맹).
 enum FranchiseFlag { franchised, nonFranchised }
 
 /// 주소 구분 (국내/국외).
 enum AddressScope { domestic, overseas }
-
-PropertyStatus _propertyStatusFromJson(Object? v) {
-  return switch (v?.toString()) {
-    'CONTRACTED' => PropertyStatus.contracted,
-    'UNSUITABLE' => PropertyStatus.unsuitable,
-    _ => PropertyStatus.pending,
-  };
-}
-
-PropertyOwnership _propertyOwnershipFromJson(Object? v) =>
-    v?.toString() == 'OWNED'
-    ? PropertyOwnership.owned
-    : PropertyOwnership.leased;
 
 /// API가 위도·경도를 문자열 또는 숫자로 줄 수 있음 — `as String?` 캐스트는 런타임 오류로 목록 전체 파싱이 실패한다.
 String? _coordStringFromJson(Object? v) {
@@ -46,7 +53,7 @@ class Property {
     required this.registrationDate,
     required this.name,
     required this.region,
-    required this.status,
+    required this.propStatus,
     required this.ownership,
     required this.areaSqm,
     required this.keyMoney,
@@ -92,15 +99,12 @@ class Property {
 
   @JsonKey(
     name: PropertyMstApiJsonKeys.propStatus,
-    fromJson: _propertyStatusFromJson,
+    fromJson: _propStatusFromJson,
   )
-  final PropertyStatus status;
+  final PropStatus propStatus;
 
-  @JsonKey(
-    name: PropertyMstApiJsonKeys.propType,
-    fromJson: _propertyOwnershipFromJson,
-  )
-  final PropertyOwnership ownership;
+  @JsonKey(name: PropertyMstApiJsonKeys.propType, fromJson: _ownershipFromJson)
+  final Ownership ownership;
 
   @JsonKey(name: PropertyMstApiJsonKeys.contArea, fromJson: _doubleAny)
   final double areaSqm;

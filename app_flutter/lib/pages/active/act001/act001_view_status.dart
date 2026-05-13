@@ -6,8 +6,9 @@ import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
-import 'package:app_flutter/pages/active/activity_api.dart';
-import 'package:app_flutter/pages/active/activity_model.dart';
+import 'package:app_flutter/pages/active/act001/act001_api.dart';
+import 'package:app_flutter/pages/active/act001/act001_filter.dart';
+import 'package:app_flutter/pages/active/act001/act001_model.dart';
 
 /// 담당자별 / 가맹점별 탭이 있는 활동 현황 상세.
 class ActivityStatusDetailView extends StatefulWidget {
@@ -29,35 +30,21 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
   late TabController _tabController;
   final ScrollController _tableHScroll = ScrollController();
   final ScrollController _tableVScroll = ScrollController();
-  String _brandCd = '';
   List<CodeOption> _brandOptions = const [];
   late Future<List<_StatusRow>> _assigneeRowsFuture;
   late Future<List<_StatusRow>> _storeRowsFuture;
 
-  /// 월 | 분기 | 반기 | 년
-  String _periodKind = '월';
-  late int _year;
-  late int _month;
-  late int _quarter;
-  late int _half;
-
-  /// 가맹점 탭 전용 — 검색 필터에 표시
-  bool _includeTerminatedStores = false;
-  bool _visitingStoresOnly = false;
+  late Act001StatusFilter _f;
 
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _year = now.year;
-    _month = now.month;
-    _quarter = ((now.month - 1) ~/ 3) + 1;
-    _half = now.month <= 6 ? 1 : 2;
+    _f = Act001StatusFilter.initial();
 
     final i = widget.initialTab.clamp(0, 1);
     _tabController = TabController(length: 2, vsync: this, initialIndex: i);
     _tabController.addListener(_onTabChanged);
-    _syncPeriod();
+    _f.syncPeriod();
     _assigneeRowsFuture = _pullRows('by-assignee');
     _storeRowsFuture = _pullRows('by-store');
     _loadBrands();
@@ -83,23 +70,33 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
     setState(() => _brandOptions = brands);
   }
 
+  /// 칩/드롭다운 표시용(코드명). API에는 [_f.brandCd] 코드를 넘긴다.
+  List<String> get _brandChipLabels => <String>[
+    '전체',
+    ..._brandOptions.map((e) => e.codeNm),
+  ];
+
+  String get _brandChipSelectedLabel {
+    if (_f.brandCd.isEmpty) return '전체';
+    for (final b in _brandOptions) {
+      if (b.codeCd == _f.brandCd) return b.codeNm;
+    }
+    return '전체';
+  }
+
+  void _onBrandChipOrDropdownSelected(String label) {
+    setState(() {
+      if (label == '전체') {
+        _f.brandCd = '';
+      } else {
+        final hits = _brandOptions.where((e) => e.codeNm == label).toList();
+        _f.brandCd = hits.isEmpty ? '' : hits.first.codeCd;
+      }
+    });
+    _reloadRows();
+  }
+
   /// 드롭다운 value가 items와 불일치하면 FormField/Web에서 런타임 오류가 날 수 있음.
-  void _syncPeriod() {
-    const kinds = {'월', '분기', '반기', '년'};
-    if (!kinds.contains(_periodKind)) _periodKind = '월';
-    _month = _month.clamp(1, 12);
-    _quarter = _quarter.clamp(1, 4);
-    _half = _half.clamp(1, 2);
-    final years = _getYearRange();
-    if (!years.contains(_year)) _year = DateTime.now().year;
-  }
-
-  /// 현재 연도 ± 1년 범위
-  List<int> _getYearRange() {
-    final now = DateTime.now().year;
-    return [now - 1, now, now + 1];
-  }
-
   @override
   void dispose() {
     _tabController.removeListener(_onTabChanged);
@@ -107,40 +104,6 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
     _tableHScroll.dispose();
     _tableVScroll.dispose();
     super.dispose();
-  }
-
-  int get _timelineColumnCount => switch (_periodKind) {
-    '월' => DateUtils.getDaysInMonth(_year, _month),
-    '분기' => 3,
-    '반기' => 6,
-    '년' => 12,
-    _ => 12,
-  };
-
-  (DateTime, DateTime) get _selectedDateRange {
-    switch (_periodKind) {
-      case '월':
-        return (
-          DateTime(_year, _month, 1),
-          DateTime(_year, _month, DateUtils.getDaysInMonth(_year, _month)),
-        );
-      case '분기':
-        final startMonth = (_quarter - 1) * 3 + 1;
-        return (
-          DateTime(_year, startMonth, 1),
-          DateTime(_year, startMonth + 3, 0),
-        );
-      case '반기':
-        final startMonth = _half == 1 ? 1 : 7;
-        return (
-          DateTime(_year, startMonth, 1),
-          DateTime(_year, startMonth + 6, 0),
-        );
-      case '년':
-        return (DateTime(_year, 1, 1), DateTime(_year, 12, 31));
-      default:
-        return (DateTime(_year, 1, 1), DateTime(_year, 12, 31));
-    }
   }
 
   String _formatYmd(DateTime value) {
@@ -157,27 +120,27 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
   }
 
   Future<List<_StatusRow>> _pullRows(String type) async {
-    final range = _selectedDateRange;
-    final rows = await ActivityApiService().fetchStatus(
+    final range = _f.selectedDateRange;
+    final rows = await Act001Api().fetchStatus(
       type: type,
       startDt: _formatYmd(range.$1),
       endDt: _formatYmd(range.$2),
-      brandCd: _brandCd.isEmpty ? null : _brandCd,
+      brandCd: _f.brandCd.isEmpty ? null : _f.brandCd,
     );
     return type == 'by-store'
-        ? _mapStoreStatusRows(rows)
+        ? _mapStoreStatusRows(rows, visitingStoresOnly: _f.visitingStoresOnly)
         : _mapAssigneeStatusRows(rows);
   }
 
   String _timelineHeaderLabel(int index0) {
-    switch (_periodKind) {
+    switch (_f.periodKind) {
       case '월':
         return '${index0 + 1}일';
       case '분기':
-        final startMonth = (_quarter - 1) * 3 + 1;
+        final startMonth = (_f.quarter - 1) * 3 + 1;
         return '${startMonth + index0}월';
       case '반기':
-        final startMonth = (_half - 1) * 6 + 1;
+        final startMonth = (_f.half - 1) * 6 + 1;
         return '${startMonth + index0}월';
       case '년':
         return '${index0 + 1}월';
@@ -187,13 +150,13 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
   }
 
   int? _timelineCellValue(_StatusRow row, int index0) {
-    switch (_periodKind) {
+    switch (_f.periodKind) {
       case '월':
         return row.bucketValue(index0 + 1);
       case '분기':
-        return row.bucketValue((_quarter - 1) * 3 + index0 + 1);
+        return row.bucketValue((_f.quarter - 1) * 3 + index0 + 1);
       case '반기':
-        return row.bucketValue((_half - 1) * 6 + index0 + 1);
+        return row.bucketValue((_f.half - 1) * 6 + index0 + 1);
       case '년':
         return row.bucketValue(index0 + 1);
       default:
@@ -326,39 +289,28 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
   }
 
   Widget _brandFilterContent(ThemeData theme, {required bool compact}) {
-    final brandDropdown = SizedBox(
-      width: compact ? double.infinity : 190,
-      child: SearchFilterDropdownField<String>(
-        fieldLabel: '활동현황_브랜드',
-        value: _brandCd,
-        items: [
-          const DropdownMenuItem<String?>(
-            value: '',
-            child: Text('전체', style: kSearchFilterValueTextStyle),
-          ),
-          for (final brand in _brandOptions)
-            DropdownMenuItem<String?>(
-              value: brand.codeCd,
-              child: Text(brand.codeNm, style: kSearchFilterValueTextStyle),
-            ),
-        ],
-        onChanged: (v) {
-          if (v == null) return;
-          _brandCd = v;
-          _reloadRows();
-        },
-      ),
-    );
+    final labels = _brandChipLabels;
+    final chips = FilterStringOptionsSlot(
+      label: '',
+      value: _brandChipSelectedLabel,
+      options: labels,
+      onSelected: _onBrandChipOrDropdownSelected,
+      forceDropdown: labels.length > kFilterStringChipMaxCount,
+    ).toItem().child;
+
+    final brandField = compact
+        ? SizedBox(width: double.infinity, child: chips)
+        : chips;
 
     if (_tabController.index != 1) {
-      return Align(alignment: Alignment.centerLeft, child: brandDropdown);
+      return Align(alignment: Alignment.centerLeft, child: brandField);
     }
 
     if (compact) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          brandDropdown,
+          brandField,
           const SizedBox(height: 8),
           _storeSearchFilterCheckboxes(theme),
         ],
@@ -367,7 +319,7 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
 
     return Row(
       children: [
-        brandDropdown,
+        brandField,
         const SizedBox(width: 14),
         Expanded(child: _storeSearchFilterCheckboxes(theme)),
       ],
@@ -378,35 +330,37 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: _ActivityPeriodFilterSlot(
-        periodKind: _periodKind,
+        periodKind: _f.periodKind,
         onPeriodKind: (v) {
           if (v == null) return;
-          _periodKind = v;
-          if (v == '분기') {
-            _quarter = ((_month - 1) ~/ 3 + 1).clamp(1, 4);
-          } else if (v == '반기') {
-            _half = _month <= 6 ? 1 : 2;
-          }
+          setState(() {
+            _f.periodKind = v;
+            if (v == '분기') {
+              _f.quarter = ((_f.month - 1) ~/ 3 + 1).clamp(1, 4);
+            } else if (v == '반기') {
+              _f.half = _f.month <= 6 ? 1 : 2;
+            }
+          });
           _reloadRows();
         },
-        year: _year,
+        year: _f.year,
         onYear: (y) {
-          _year = y ?? _year;
+          setState(() => _f.year = y ?? _f.year);
           _reloadRows();
         },
-        month: _month,
+        month: _f.month,
         onMonth: (m) {
-          _month = m ?? _month;
+          setState(() => _f.month = m ?? _f.month);
           _reloadRows();
         },
-        quarter: _quarter,
+        quarter: _f.quarter,
         onQuarter: (q) {
-          _quarter = q ?? _quarter;
+          setState(() => _f.quarter = q ?? _f.quarter);
           _reloadRows();
         },
-        half: _half,
+        half: _f.half,
         onHalf: (h) {
-          _half = h ?? _half;
+          setState(() => _f.half = h ?? _f.half);
           _reloadRows();
         },
       ).toItem().child,
@@ -422,16 +376,14 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
       children: [
         _filterCheckbox(
           theme,
-          label: '해지가맹점 포함',
-          value: _includeTerminatedStores,
-          onChanged: (v) =>
-              setState(() => _includeTerminatedStores = v ?? false),
-        ),
-        _filterCheckbox(
-          theme,
           label: '방문가맹점만 검색',
-          value: _visitingStoresOnly,
-          onChanged: (v) => setState(() => _visitingStoresOnly = v ?? false),
+          value: _f.visitingStoresOnly,
+          onChanged: (v) {
+            setState(() {
+              _f.visitingStoresOnly = v ?? false;
+              _storeRowsFuture = _pullRows('by-store');
+            });
+          },
         ),
       ],
     );
@@ -604,7 +556,7 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
     required String totalHeader,
     required List<_StatusRow> rows,
   }) {
-    final n = _timelineColumnCount;
+    final n = _f.timelineColumnCount;
     final hasLeading = leadingHeader != null;
     final nameCol = hasLeading ? 1 : 0;
     final totalCol = hasLeading ? 2 : 1;
@@ -636,7 +588,7 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
                       totalCol: const FixedColumnWidth(132),
                       for (int i = 0; i < n; i++)
                         timelineStart + i: FixedColumnWidth(
-                          _periodKind == '월' ? 50 : 58,
+                          _f.periodKind == '월' ? 50 : 58,
                         ),
                     },
                     children: [
@@ -781,7 +733,11 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
   }
 
   /// 서버가 `startDt`~`endDt`로 이미 필터링하므로 여기서는 날짜 재검사를 하지 않는다.
-  List<_StatusRow> _mapStoreStatusRows(List<ActivityStatusPivotRow> rows) {
+  /// [visitingStoresOnly] 가 true이면 기간 내 **총 활동수가 0보다 큰** 가맹점만 남긴다.
+  List<_StatusRow> _mapStoreStatusRows(
+    List<ActivityStatusPivotRow> rows, {
+    required bool visitingStoresOnly,
+  }) {
     final grouped = <String, _MutableStatusRow>{};
 
     // 모든 가맹점을 먼저 추가
@@ -807,13 +763,14 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
 
     return [
       for (final row in grouped.values)
-        _StatusRow(
-          row.name,
-          storeName: null,
-          totalDisplay: '${row.total}',
-          totalIsLink: false,
-          buckets: row.buckets,
-        ),
+        if (!visitingStoresOnly || row.total > 0)
+          _StatusRow(
+            row.name,
+            storeName: null,
+            totalDisplay: '${row.total}',
+            totalIsLink: false,
+            buckets: row.buckets,
+          ),
     ];
   }
 
@@ -853,7 +810,7 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
     ];
   }
 
-  int _bucketKey(DateTime date) => _periodKind == '월' ? date.day : date.month;
+  int _bucketKey(DateTime date) => _f.periodKind == '월' ? date.day : date.month;
 
   DateTime? _parseDate(String raw) {
     final s = raw.trim();
@@ -890,10 +847,7 @@ class _ActivityPeriodFilterSlot extends FilterSlotConfig {
   static const _kinds = ['월', '분기', '반기', '년'];
 
   /// 현재 연도 ± 1년 범위
-  static List<int> get _years {
-    final now = DateTime.now().year;
-    return [now - 1, now, now + 1];
-  }
+  static List<int> get _years => Act001StatusFilter.yearRange;
 
   /// [Expanded]로 늘리면 남는 가로가 균등 분배되어 칸이 과하게 벌어짐 — 콤팩트 폭으로 고정.
   static const _wKind = 120.0;

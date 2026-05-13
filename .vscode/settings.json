@@ -3,5 +3,6 @@
   "files.autoGuessEncoding": false,
   "java.compile.nullAnalysis.mode": "automatic",
   "java.configuration.updateBuildConfiguration": "automatic",
-  "cmake.ignoreCMakeListsMissing": true
+  "cmake.ignoreCMakeListsMissing": true,
+  "terminal.integrated.gpuAcceleration": "off"
 }

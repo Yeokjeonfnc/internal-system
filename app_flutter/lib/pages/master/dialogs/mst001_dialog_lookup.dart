@@ -11,9 +11,16 @@ import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
 
 /// 성명·부서·직급·연락처로 필터해 [User](user_mst) 한 명을 고른다.
 class UserLookupDialog extends StatefulWidget {
-  const UserLookupDialog({super.key, required this.usersFuture});
+  const UserLookupDialog({
+    super.key,
+    required this.usersFuture,
+    this.initialSearchKeyword,
+  });
 
   final Future<List<User>> usersFuture;
+
+  /// 다이얼로그 상단 검색란에 미리 채울 문자열(예: 조사자 필드에서 Enter).
+  final String? initialSearchKeyword;
 
   @override
   State<UserLookupDialog> createState() => _UserLookupDialogState();
@@ -21,6 +28,15 @@ class UserLookupDialog extends StatefulWidget {
 
 class _UserLookupDialogState extends State<UserLookupDialog> {
   final _keywordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final seed = widget.initialSearchKeyword?.trim();
+    if (seed != null && seed.isNotEmpty) {
+      _keywordController.text = seed;
+    }
+  }
 
   @override
   void dispose() {

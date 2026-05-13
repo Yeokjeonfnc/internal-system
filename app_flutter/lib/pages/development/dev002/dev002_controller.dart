@@ -72,19 +72,30 @@ class PropertyNotifier extends BaseListNotifier<PropertyFilter, Property> {
   AsyncValue<List<Property>> get listAsync => ref.watch(propertyDataProvider);
 
   @override
-  List<ListFilterRule<PropertyFilter, Property>> get ruleList =>
-      kDev002ListRules;
+  List<ListFilterRule<PropertyFilter, Property>> get ruleList {
+    final regionOpts =
+        ref.watch(propertyCodeOptionsProvider(20)).value ??
+        const <CodeOption>[];
+    return dev002ListRules(regionOpts);
+  }
 
   void setPropertyKeyword(String v) => state = state.copy(propertyKeyword: v);
-  void setRegion(String v) => state = state.copy(region: v);
-  void setOwnership(PropertyOwnership? v) => state = v == null
-      ? state.copy(clearOwnership: true)
-      : state.copy(ownership: v);
-  void setStatus(PropertyStatus? v) =>
-      state = v == null ? state.copy(clearStatus: true) : state.copy(status: v);
+  void setOwnership(String v) => state = state.copy(ownership: v);
+  void setPropStatus(String v) => state = state.copy(propStatus: v);
 
   void refresh() {
     ref.invalidate(propertyDataProvider);
-    ref.invalidate(propertyCodeOptionsProvider(20));
   }
+
+  void toggleRegion(String name) {
+    final next = Set<String>.from(state.regionNms);
+    if (next.contains(name)) {
+      next.remove(name);
+    } else {
+      next.add(name);
+    }
+    state = state.copy(regionNms: next);
+  }
+
+  void clearRegions() => state = state.copy(clearRegions: true);
 }

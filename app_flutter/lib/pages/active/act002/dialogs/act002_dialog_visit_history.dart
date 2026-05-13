@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:app_flutter/core/active_mst/active_mst_api_json_keys.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
@@ -10,9 +11,9 @@ import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_loading_indicator.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
-import 'package:app_flutter/pages/active/activity_api.dart';
-import 'package:app_flutter/pages/active/activity_model.dart';
-import 'package:app_flutter/pages/active/activity_routes.dart';
+import 'package:app_flutter/pages/active/act002/act002_api.dart';
+import 'package:app_flutter/pages/active/act002/act002_model.dart';
+import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 
 class VisitHistoryDialog extends StatefulWidget {
   const VisitHistoryDialog({
@@ -41,7 +42,7 @@ class _VisitHistoryDialogState extends State<VisitHistoryDialog> {
 
   Future<List<ActivityRow>> _load() async {
     try {
-      final api = ActivityApiService();
+      final api = Act002Api();
       var rows = await api.fetchRowsForStoreHistory(
         storeIdx: widget.storeIdx,
         apprStatusCsv: ActiveMstListApprStatus.approvedPendingCsv,

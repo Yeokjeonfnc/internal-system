@@ -16,14 +16,14 @@ import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table
 import 'package:app_flutter/core/widgets/common/erp_popup_list_stripes.dart';
 import 'package:app_flutter/core/widgets/common/form/common_date_input_with_picker.dart'
     show CalendarPickButton, showAccentDatePicker;
+import 'package:app_flutter/core/active_mst/active_mst_write_payload.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
-
-import 'package:app_flutter/pages/active/dialogs/act002_dialog_approval_line.dart';
-import 'package:app_flutter/pages/active/activity_api.dart';
-import 'package:app_flutter/pages/active/activity_model.dart';
-import 'package:app_flutter/pages/active/dialogs/act002_dialog_instructions.dart';
-import 'package:app_flutter/pages/active/dialogs/act002_dialog_visit_history.dart';
-import 'package:app_flutter/pages/active/activity_model_checklist.dart';
+import 'package:app_flutter/pages/active/act002/act002_api.dart';
+import 'package:app_flutter/pages/active/act002/act002_model.dart';
+import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_approval_line.dart';
+import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_instructions.dart';
+import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_visit_history.dart';
+import 'package:app_flutter/pages/active/act002/act002_model_checklist.dart';
 import 'package:app_flutter/core/notifications/notification_api_service.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_api.dart';
@@ -44,7 +44,7 @@ const double _kStoreLabelWidthTight = 108;
 
 /// 검색·입력: 텍스트 / 드롭다운 / 날짜 / 읽기전용 **동일** 박스·글자(13).
 const TextStyle kActivityFormValueStyle = TextStyle(
-  fontSize: 13,
+  fontSize: 14,
   height: 1.3,
   color: FormStylePalette.textPrimary,
   fontFamilyFallback: AppTheme.koreanFontFallback,
@@ -68,7 +68,9 @@ Widget _fieldShell(Widget child) {
 Widget _roVal(String? text) {
   final empty = text == null || text.trim().isEmpty;
   final s = empty
-      ? kActivityFormValueStyle.copyWith(color: FormStylePalette.textMuted)
+      ? kActivityFormValueStyle.copyWith(
+          color: const Color.fromARGB(255, 96, 103, 116),
+        )
       : kActivityFormValueStyle;
   final display = empty ? '' : text.trim();
   return Align(
@@ -348,7 +350,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   }
 
   Future<void> _loadAct(int actIdx) async {
-    final detail = await ActivityApiService().fetchOne(actIdx);
+    final detail = await Act002Api().fetchOne(actIdx);
     if (!mounted || detail == null) return;
 
     Store? store;
@@ -394,7 +396,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
 
   Future<void> _pullChkResults(int actIdx) async {
     try {
-      final results = await ActivityApiService().chkResults(actIdx);
+      final results = await Act002Api().chkResults(actIdx);
       if (!mounted) return;
 
       // 체크리스트 블록이 준비되면 결과 설정
@@ -707,7 +709,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   Future<ActivitySaveResult?> _pushAct(String apprStatus) async {
     final payload = _payload(apprStatus);
     if (payload == null) return null;
-    final api = ActivityApiService();
+    final api = Act002Api();
     final actIdx = _draftActIdx;
     if (actIdx != null) {
       return api.update(actIdx, payload);
@@ -843,23 +845,6 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                             ),
                             child: const Text('결재라인'),
                           ),
-                          if (_canSubmitApproval) ...[
-                            const SizedBox(width: 10),
-                            FilledButton(
-                              onPressed: _approving
-                                  ? null
-                                  : () => _submitApprove(),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFF047857),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 12,
-                                ),
-                              ),
-                              child: Text(_approving ? '처리 중...' : '결재하기'),
-                            ),
-                          ],
                         ],
                       ),
                       SizedBox(height: 12),
@@ -871,6 +856,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                             hint: '',
                             value: _selectedStore?.storeNm,
                             onTap: _openStoreLookup,
+                            enabled: !_isApprovalWorkflowView,
                           ),
                         ),
                         right: _LabeledField(
@@ -914,10 +900,12 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                               DropdownMenuItem(value: '점검', child: Text('점검')),
                               DropdownMenuItem(value: '전화', child: Text('전화')),
                             ],
-                            onChanged: (v) {
-                              if (v == null) return;
-                              setState(() => _activityKind = v);
-                            },
+                            onChanged: !_isApprovalWorkflowView
+                                ? (v) {
+                                    if (v == null) return;
+                                    setState(() => _activityKind = v);
+                                  }
+                                : null,
                           ),
                         ),
                         right: _LabeledField(
@@ -925,7 +913,9 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                           requiredMark: true,
                           child: _ActivityFormDateField(
                             labelText: _formatYmd(_activityDate),
-                            onPick: _pickActDate,
+                            onPick: !_isApprovalWorkflowView
+                                ? _pickActDate
+                                : () {},
                           ),
                         ),
                       ),
@@ -937,7 +927,9 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                _formatYmd(_today),
+                                !_isApprovalWorkflowView
+                                    ? _formatYmd(_today)
+                                    : _formatYmd(_activityDate),
                                 style: kActivityFormValueStyle,
                               ),
                             ),
@@ -958,12 +950,16 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                       hint: '',
                       maxLines: 4,
                       controller: _specialNotesController,
-                      readOnly: false,
+                      readOnly: !_isApprovalWorkflowView ? false : true,
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                _ChecklistBlock(key: _checklistKey, store: _selectedStore),
+                _ChecklistBlock(
+                  key: _checklistKey,
+                  store: _selectedStore,
+                  readOnly: _isApprovalWorkflowView,
+                ),
                 const SizedBox(height: 20),
                 _PanelCard(
                   child: Column(
@@ -976,7 +972,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                           hint: '',
                           maxLines: 7,
                           controller: _activityNotesController,
-                          readOnly: false,
+                          readOnly: !_isApprovalWorkflowView ? false : true,
                         ),
                       ),
                       SizedBox(height: 16),
@@ -986,7 +982,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                           hint: '',
                           maxLines: 7,
                           controller: _suggestionsController,
-                          readOnly: false,
+                          readOnly: !_isApprovalWorkflowView ? false : true,
                         ),
                       ),
                       SizedBox(height: 16),
@@ -996,7 +992,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                           hint: '',
                           maxLines: 7,
                           controller: _svNotesController,
-                          readOnly: false,
+                          readOnly: !_isApprovalWorkflowView ? false : true,
                         ),
                       ),
                     ],
@@ -1007,7 +1003,9 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     FilledButton(
-                      onPressed: () => _toast('첨부 기능은 추후 연결됩니다.'),
+                      onPressed: !_isApprovalWorkflowView
+                          ? () => _toast('첨부 기능은 추후 연결됩니다.')
+                          : null,
                       style: FilledButton.styleFrom(
                         backgroundColor: AppTheme.statusNew,
                         foregroundColor: Colors.white,
@@ -1086,18 +1084,21 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _LabeledField(
-                        label: '지시사항(결재특이사항)',
+                        label: '     지시사항\n(결재특이사항)',
                         child: _outlineInput(
                           hint: '',
                           maxLines: 7,
                           controller: _apprNotesController,
-                          readOnly: true,
+                          readOnly: _canSubmitApproval
+                              ? false
+                              : true, // 결재 대기 중에만 작성가능
                         ),
                       ),
                     ],
                   ),
                 ),
-                if (!_isApprovalWorkflowView)
+                if (!_isApprovalWorkflowView) ...[
+                  const SizedBox(height: 15),
                   Wrap(
                     spacing: 10,
                     runSpacing: 8,
@@ -1128,6 +1129,29 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                       ),
                     ],
                   ),
+                ],
+                if (_canSubmitApproval) ...[
+                  const SizedBox(height: 15),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 30,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton(
+                        onPressed: _approving ? null : () => _submitApprove(),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF047857),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                        ),
+                        child: Text(_approving ? '처리 중...' : '결재하기'),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -1721,11 +1745,17 @@ class _LabeledField extends StatelessWidget {
 }
 
 class _SearchLikeField extends StatelessWidget {
-  const _SearchLikeField({required this.hint, this.value, required this.onTap});
+  const _SearchLikeField({
+    required this.hint,
+    this.value,
+    required this.onTap,
+    this.enabled = true,
+  });
 
   final String hint;
   final String? value;
   final VoidCallback onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -1733,7 +1763,7 @@ class _SearchLikeField extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: enabled ? onTap : null,
         borderRadius: BorderRadius.circular(8),
         child: _fieldShell(
           Row(
@@ -1751,11 +1781,12 @@ class _SearchLikeField extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(
-                Icons.search,
-                size: 20,
-                color: FormStylePalette.textSecondary,
-              ),
+              if (enabled)
+                const Icon(
+                  Icons.search,
+                  size: 20,
+                  color: FormStylePalette.textSecondary,
+                ),
             ],
           ),
         ),
@@ -2174,9 +2205,16 @@ class _ApprovalTable extends StatelessWidget {
 }
 
 class _ChecklistBlock extends StatefulWidget {
-  const _ChecklistBlock({super.key, required this.store});
+  const _ChecklistBlock({
+    super.key,
+    required this.store,
+    this.readOnly = false,
+  });
 
   final Store? store;
+
+  /// 결재대기·결재완료 상세 — 체크리스트 수정 불가.
+  final bool readOnly;
 
   @override
   State<_ChecklistBlock> createState() => _ChecklistBlockState();
@@ -2219,7 +2257,7 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
     setState(() => _loading = true);
 
     try {
-      final items = await ActivityApiService().fetchChecklistMastersByBrand(
+      final items = await Act002Api().fetchChecklistMastersByBrand(
         widget.store!.brandCd,
       );
       if (!mounted) return;
@@ -2318,7 +2356,7 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
                   '가맹점을 선택하면 해당 브랜드의 체크리스트가 표시됩니다.',
                   style: TextStyle(
                     fontSize: 13,
-                    color: FormStylePalette.textMuted,
+                    color: Color.fromARGB(120, 156, 163, 175),
                     fontFamilyFallback: AppTheme.koreanFontFallback,
                   ),
                 ),
@@ -2338,7 +2376,7 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: _checkAllSuitable,
+              onPressed: widget.readOnly ? null : _checkAllSuitable,
               style: TextButton.styleFrom(
                 foregroundColor: AppTheme.accentRed,
                 padding: const EdgeInsets.symmetric(
@@ -2367,7 +2405,7 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
             child: Table(
               columnWidths: const {
                 0: FixedColumnWidth(44),
-                1: FixedColumnWidth(80),
+                1: FixedColumnWidth(90),
                 2: FlexColumnWidth(1.0),
                 3: FixedColumnWidth(140),
               },
@@ -2389,7 +2427,7 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
                   TableRow(
                     children: [
                       _ChCell('${i + 1}'),
-                      _ChCell(_items[i].chkTypeNm, left: true),
+                      _ChCell(_items[i].chkTypeNm),
                       _ChCell(_items[i].chkContent, left: true),
                       Padding(
                         padding: const EdgeInsets.symmetric(
@@ -2400,11 +2438,15 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _result[i] = _result[i] == 'Y' ? '미평가' : 'Y';
-                                });
-                              },
+                              onTap: widget.readOnly
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        _result[i] = _result[i] == 'Y'
+                                            ? '미평가'
+                                            : 'Y';
+                                      });
+                                    },
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -2413,13 +2455,15 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
                                     height: 18,
                                     child: Checkbox(
                                       value: _result[i] == 'Y',
-                                      onChanged: (v) {
-                                        setState(() {
-                                          _result[i] = _result[i] == 'Y'
-                                              ? '미평가'
-                                              : 'Y';
-                                        });
-                                      },
+                                      onChanged: widget.readOnly
+                                          ? null
+                                          : (v) {
+                                              setState(() {
+                                                _result[i] = _result[i] == 'Y'
+                                                    ? '미평가'
+                                                    : 'Y';
+                                              });
+                                            },
                                       materialTapTargetSize:
                                           MaterialTapTargetSize.shrinkWrap,
                                       visualDensity: VisualDensity.compact,
@@ -2440,11 +2484,15 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
                             ),
                             const SizedBox(width: 12),
                             InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _result[i] = _result[i] == 'N' ? '미평가' : 'N';
-                                });
-                              },
+                              onTap: widget.readOnly
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        _result[i] = _result[i] == 'N'
+                                            ? '미평가'
+                                            : 'N';
+                                      });
+                                    },
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -2453,13 +2501,15 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
                                     height: 18,
                                     child: Checkbox(
                                       value: _result[i] == 'N',
-                                      onChanged: (v) {
-                                        setState(() {
-                                          _result[i] = _result[i] == 'N'
-                                              ? '미평가'
-                                              : 'N';
-                                        });
-                                      },
+                                      onChanged: widget.readOnly
+                                          ? null
+                                          : (v) {
+                                              setState(() {
+                                                _result[i] = _result[i] == 'N'
+                                                    ? '미평가'
+                                                    : 'N';
+                                              });
+                                            },
                                       materialTapTargetSize:
                                           MaterialTapTargetSize.shrinkWrap,
                                       visualDensity: VisualDensity.compact,
@@ -2503,7 +2553,6 @@ class _ChHdr extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
       child: Text(
         t,
-        textAlign: TextAlign.center,
         style: const TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w700,

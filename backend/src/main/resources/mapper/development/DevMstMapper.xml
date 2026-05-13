@@ -92,4 +92,22 @@
         FROM property_mst
         ORDER BY prop_idx DESC
     </select>
+
+    <select id="checkSurveyor" resultType="int">
+        SELECT COUNT(*)
+        FROM user_mst
+        WHERE user_name = #{surveyor}
+    </select>
+
+    <select id="checkDuplicateProperty" resultType="int">
+        SELECT COUNT(*)
+        FROM property_mst
+        WHERE prop_nm = #{propNm} AND address = #{address}
+    </select>
+
+    <select id="checkDuplicateProperty2" resultType="int">
+        SELECT COUNT(*)
+        FROM property_mst
+        WHERE prop_nm = #{propNm} AND address = #{address} AND prop_idx != #{propIdx}
+    </select>
 </mapper>

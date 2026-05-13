@@ -12,9 +12,9 @@ import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/search/erp_activity_row_keyword.dart';
-import 'package:app_flutter/pages/active/activity_api.dart';
-import 'package:app_flutter/pages/active/activity_model.dart';
-import 'package:app_flutter/pages/active/activity_routes.dart';
+import 'package:app_flutter/pages/active/act002/act002_api.dart';
+import 'package:app_flutter/pages/active/act002/act002_model.dart';
+import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 
 /// 활동 목록 격자용 조회 모드 (임시보관 vs 활동관리결재 탭).
 enum ActivityDraftsTableMode {
@@ -40,12 +40,20 @@ class ActivityDraftsTable extends StatefulWidget {
     super.key,
     this.mode = ActivityDraftsTableMode.myDrafts,
     this.rowKeywordFilter = '',
+    this.brandLabel = '',
+    this.brandCdFilter,
   });
 
   final ActivityDraftsTableMode mode;
 
   /// 가맹점명·코드·수퍼바이저·상담내용 등 통합 키워드 (부모에서 전달).
   final String rowKeywordFilter;
+
+  /// 상단 브랜드 필터(표시명). [brandCdFilter] 가 없을 때 행 이름·코드와 비교한다.
+  final String brandLabel;
+
+  /// 공통코드 [CodeOption.codeCd]. 있으면 [ActivityRow.brandCd] 와만 비교한다.
+  final String? brandCdFilter;
 
   @override
   State<ActivityDraftsTable> createState() => _ActivityDraftsTableState();
@@ -67,21 +75,21 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
 
     switch (widget.mode) {
       case ActivityDraftsTableMode.myDrafts:
-        _draftsFuture = ActivityApiService().fetchDraftRows(svId: relUid);
+        _draftsFuture = Act002Api().fetchDraftRows(svId: relUid);
         break;
       case ActivityDraftsTableMode.approvalAll:
-        _draftsFuture = ActivityApiService().fetchAllRows();
+        _draftsFuture = Act002Api().fetchAllRows();
         break;
       case ActivityDraftsTableMode.approvalPending:
         _draftsFuture =
-            ActivityApiService().fetchPendingRowsForRelUser(relUid);
+            Act002Api().fetchPendingRowsForRelUser(relUid);
         break;
       case ActivityDraftsTableMode.approvalApproved:
         _draftsFuture =
-            ActivityApiService().fetchApprovedRowsForRelUser(relUid);
+            Act002Api().fetchApprovedRowsForRelUser(relUid);
         break;
       case ActivityDraftsTableMode.approvalSuggestions:
-        _draftsFuture = ActivityApiService().fetchRowsWithSuggestions();
+        _draftsFuture = Act002Api().fetchRowsWithSuggestions();
         break;
     }
   }
@@ -137,12 +145,24 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
     );
     if (confirmed != true || !context.mounted) return;
 
-    final deleted = await ActivityApiService().deleteOne(actIdx);
+    final deleted = await Act002Api().deleteOne(actIdx);
     if (!context.mounted) return;
     await showAlertDialog(context, deleted ? '삭제되었습니다.' : '삭제에 실패했습니다.');
     if (deleted) {
       setState(_reload);
     }
+  }
+
+  bool _rowMatchesBrand(ActivityRow row) {
+    final cdFilter = widget.brandCdFilter?.trim() ?? '';
+    if (cdFilter.isNotEmpty) {
+      return row.brandCd.trim() == cdFilter;
+    }
+    final label = widget.brandLabel.trim();
+    if (label.isEmpty || label == '전체') return true;
+    final nm = row.brandNm.trim();
+    final cd = row.brandCd.trim();
+    return nm == label || cd == label;
   }
 
   @override
@@ -154,10 +174,13 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
           return const Center(child: CircularProgressIndicator());
         }
         final raw = snapshot.data ?? const <ActivityRow>[];
+        final byBrand = raw.where(_rowMatchesBrand).toList();
         final kw = widget.rowKeywordFilter.trim();
         final rows = kw.isEmpty
-            ? raw
-            : raw.where((e) => erpActivityRowMatchesKeyword(e, kw)).toList();
+            ? byBrand
+            : byBrand
+                .where((e) => erpActivityRowMatchesKeyword(e, kw))
+                .toList();
         if (rows.isEmpty) {
           return Center(
             child: Text(

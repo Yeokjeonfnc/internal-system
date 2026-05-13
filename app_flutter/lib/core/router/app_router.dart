@@ -5,9 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart' as provider;
 
-import 'package:app_flutter/pages/active/activity_hub_view.dart';
+import 'package:app_flutter/pages/active/shared/activity_hub_view.dart';
 import 'package:app_flutter/pages/active/act002/act002_view_register.dart';
-import 'package:app_flutter/pages/active/activity_routes.dart';
+import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 import 'package:app_flutter/pages/active/act001/act001_view_status.dart';
 import 'package:app_flutter/pages/active/act002/act002_view.dart';
 import 'package:app_flutter/pages/active/act003/act003_view.dart';

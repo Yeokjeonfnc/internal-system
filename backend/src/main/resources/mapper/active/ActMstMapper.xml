@@ -120,15 +120,14 @@
                COUNT(DISTINCT am.store_idx) AS cnt
         FROM user_mst um
                  LEFT OUTER JOIN active_mst am
-                                 ON um.user_id = am.sv_id
+                                 ON um.user_id = am.appr_id
                                      AND (am.appr_status = 'PENDING' OR am.appr_status = 'APPROVED')
                                      AND am.act_dt BETWEEN #{startDt} AND #{endDt}
         WHERE um.sv_yn = 'Y'
         <if test="brandCd != null and brandCd != ''">
             AND EXISTS (SELECT 1
                         FROM store_mst sm
-                        WHERE sm.sv_id = um.user_id
-                          AND sm.brand_cd = #{brandCd})
+                        WHERE sm.brand_cd = #{brandCd})
         </if>
         GROUP BY um.user_id, am.act_dt, um.user_name
         ORDER BY um.user_id, am.act_dt

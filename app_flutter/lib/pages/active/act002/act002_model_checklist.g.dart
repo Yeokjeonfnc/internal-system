@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'activity_model_checklist.dart';
+part of 'act002_model_checklist.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator

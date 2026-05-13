@@ -126,6 +126,12 @@ public class DevService {
         if (!StringUtils.hasText(body.getPropNm())) {
             throw new IllegalArgumentException("propNm은(는) 필수입니다.");
         }
+        if (devMstMapper.checkSurveyor(body.getSurveyor()) == 0) {
+            throw new IllegalArgumentException("조사자 이름이 존재하지 않습니다. 조회 또는 등록된 이름을 입력하세요.");
+        }
+        if(devMstMapper.checkDuplicateProperty(body.getPropNm(), body.getAddress()) > 0) {
+            throw new IllegalArgumentException("물건 이름과 주소가 중복됩니다. 확인 후 등록해주세요.");
+        }
         BigDecimal lat = body.isLatitudePresent() ? body.getLatitude() : null;
         BigDecimal lon = body.isLongitudePresent() ? body.getLongitude() : null;
         Property property = Property.builder()
@@ -162,7 +168,13 @@ public class DevService {
 
         String newAddr = body.isAddressPresent() ? body.getAddress() : null;
         boolean addressChanged = newAddr != null && !newAddr.equals(property.getAddress());
-
+        if (devMstMapper.checkSurveyor(body.getSurveyor()) == 0) {
+            throw new IllegalArgumentException("조사자 이름이 존재하지 않습니다. 조회 또는 등록된 이름을 입력하세요.");
+        }
+        
+        if(devMstMapper.checkDuplicateProperty2(body.getPropNm(), body.getAddress(), propIdx) > 0) {
+            throw new IllegalArgumentException("물건 이름과 주소가 중복됩니다. 확인 후 등록해주세요.");
+        }
         if (body.isPropNmPresent()) {
             property.setPropNm(body.getPropNm());
         }

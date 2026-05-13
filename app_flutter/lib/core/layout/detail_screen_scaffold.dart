@@ -33,9 +33,9 @@ class DetailScreenHeadline extends StatelessWidget {
         children: [
           Text(
             lead,
-            style: GoogleFonts.notoSansKr(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
+            style: GoogleFonts.doHyeon(
+              fontSize: 30,
+              fontWeight: FontWeight.w700,
               color: kDetailHeadlineMuted,
               height: 1.2,
               letterSpacing: -0.2,

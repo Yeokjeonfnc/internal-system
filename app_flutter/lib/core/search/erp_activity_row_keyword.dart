@@ -1,4 +1,4 @@
-import 'package:app_flutter/pages/active/activity_model.dart';
+import 'package:app_flutter/pages/active/act002/act002_model.dart';
 
 /// 활동 목록 격자 등에서 통합 키워드(가맹점명·코드·수퍼바이저·메모 OR).
 bool erpActivityRowMatchesKeyword(ActivityRow row, String keyword) {

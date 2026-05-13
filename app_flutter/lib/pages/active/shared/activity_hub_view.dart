@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:app_flutter/pages/active/act002/act002_view.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
-import 'package:app_flutter/pages/active/activity_routes.dart';
+import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 import 'package:app_flutter/pages/active/act001/act001_view_status.dart';
 
 /// - [section] 없음: `/activities` — 상위 3메뉴만(각각 별도 경로로 이동).

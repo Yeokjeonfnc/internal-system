@@ -77,6 +77,8 @@ class Store {
   final String storeCd;
   final String storeStatus;
   final String storeStatusNm;
+
+  @JsonKey(fromJson: _stringAny)
   final String ownerNm;
   final String storeTel;
   final String zipCd;

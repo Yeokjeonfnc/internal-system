@@ -19,6 +19,7 @@ import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_controller.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_filter.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_model.dart';
+import 'package:app_flutter/core/widgets/common/common_search_filter_multi_select.dart';
 
 /// 물건 목록 본문에 항상 노출하는 검색 항목(통합 텍스트 검색은 상단 필드).
 const Set<CommonSearchFieldId> kPropertyListSupportedSearchFields = {
@@ -53,10 +54,12 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
 
   List<SearchFilterItemData> _mainFilterItems(
     PropertyFilter filter,
-    List<CodeOption> regionOptions,
+    BuildContext context,
+    List<String> regions,
     PropertyNotifier n,
   ) {
     final items = <SearchFilterItemData>[];
+    final regionOpts = regions.where((e) => e != '전체').toList();
     for (final def in commonSearchDefsOrdered(
       kPropertyListSupportedSearchFields,
     )) {
@@ -66,69 +69,47 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
           break;
         case CommonSearchFieldId.propertyOwnership:
           items.add(
-            FilterDropdownSlot<PropertyOwnership>(
+            FilterStringOptionsSlot(
               label: def.label,
               value: filter.ownership,
-              items: const [
-                DropdownMenuItem<PropertyOwnership?>(
-                  value: null,
-                  child: Text('전체'),
-                ),
-                DropdownMenuItem<PropertyOwnership?>(
-                  value: PropertyOwnership.owned,
-                  child: Text('자가'),
-                ),
-                DropdownMenuItem<PropertyOwnership?>(
-                  value: PropertyOwnership.leased,
-                  child: Text('임대차'),
-                ),
-              ],
-              onChanged: n.setOwnership,
+              options: _ownershipOptions,
+              onSelected: n.setOwnership,
             ).toItem(),
           );
           break;
         case CommonSearchFieldId.propertyStatus:
           items.add(
-            FilterDropdownSlot<PropertyStatus>(
+            FilterStringOptionsSlot(
               label: def.label,
-              value: filter.status,
-              items: const [
-                DropdownMenuItem<PropertyStatus?>(
-                  value: null,
-                  child: Text('전체'),
-                ),
-                DropdownMenuItem<PropertyStatus?>(
-                  value: PropertyStatus.contracted,
-                  child: Text('체결물건'),
-                ),
-                DropdownMenuItem<PropertyStatus?>(
-                  value: PropertyStatus.pending,
-                  child: Text('보류물건'),
-                ),
-                DropdownMenuItem<PropertyStatus?>(
-                  value: PropertyStatus.unsuitable,
-                  child: Text('부적합물건'),
-                ),
-              ],
-              onChanged: n.setStatus,
+              value: filter.propStatus,
+              options: _propStatusOptiohs,
+              onSelected: n.setPropStatus,
             ).toItem(),
           );
           break;
         case CommonSearchFieldId.regionCd:
           items.add(
-            FilterDropdownSlot<String>(
+            SearchFilterItemData(
               label: def.label,
-              value: filter.region,
-              items: [
-                const DropdownMenuItem<String>(value: '전체', child: Text('전체')),
-                for (final option in regionOptions)
-                  DropdownMenuItem<String>(
-                    value: option.codeCd,
-                    child: Text(option.codeNm),
+              child: SearchFilterMultiSelectField(
+                summaryText: searchFilterMultiSelectSummary(
+                  filter.regionNms,
+                  formatMultiple: searchFilterMultiSelectSummarySortedPreview,
+                ),
+                onTap: () => showDialogWithRef(
+                  context: context,
+                  options: regionOpts,
+                  bindings: (ref) => SearchFilterMultiPickBindings(
+                    selected: ref.watch(propertyProvider).regionNms,
+                    onToggle: ref.read(propertyProvider.notifier).toggleRegion,
                   ),
-              ],
-              onChanged: (v) => n.setRegion(v ?? '전체'),
-            ).toItem(),
+                  title: '지역 검색',
+                  searchHint: '지역명을 검색해주세요',
+                  emptyOptionsMessage: '등록된 지역이 없습니다.',
+                  emptySearchMessage: '검색 결과가 없습니다.',
+                ),
+              ),
+            ),
           );
           break;
         case CommonSearchFieldId.storeNm:
@@ -191,7 +172,12 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
         ),
         const SizedBox(height: 8),
         SearchFilterStackedItems(
-          items: _mainFilterItems(filter, regionOptions, n),
+          items: _mainFilterItems(
+            filter,
+            context,
+            regionOptions.map((e) => e.codeNm).toList(),
+            n,
+          ),
         ),
       ],
     );
@@ -229,40 +215,32 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
         ),
       );
     }
-    if (f.ownership != null) {
+    if (f.ownership != '전체') {
       chips.add(
         ActiveFilterChip(
-          label: '종류: ${_ownershipLabel(f.ownership!)}',
-          onClear: () => n.setOwnership(null),
+          label: '종류: ${f.ownership}',
+          onClear: () => n.setOwnership('전체'),
         ),
       );
     }
-    if (f.status != null) {
+    if (f.propStatus != '전체') {
       chips.add(
         ActiveFilterChip(
-          label: '구분: ${_statusLabel(f.status!)}',
-          onClear: () => n.setStatus(null),
+          label: '구분: ${f.propStatus}',
+          onClear: () => n.setPropStatus('전체'),
         ),
       );
     }
-    if (f.region != '전체') {
+    if (f.regionNms.isNotEmpty) {
+      final sorted = f.regionNms.toList()..sort();
+      final label = sorted.length <= 3
+          ? sorted.join(', ')
+          : '${sorted.take(3).join(', ')} 외 ${sorted.length - 3}건';
       chips.add(
-        ActiveFilterChip(
-          label: '지역: ${_regionLabel(f.region)}',
-          onClear: () => n.setRegion('전체'),
-        ),
+        ActiveFilterChip(label: '지역: $label', onClear: () => n.clearRegions()),
       );
     }
     return chips;
-  }
-
-  String _regionLabel(String code) {
-    final options = ref.read(propertyCodeOptionsProvider(20)).value;
-    if (options == null) return code;
-    for (final option in options) {
-      if (option.codeCd == code) return option.codeNm;
-    }
-    return code;
   }
 }
 
@@ -369,7 +347,7 @@ class _PropertyTable extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.all(8),
                   child: Center(
-                    child: _PropertyStatusChip(status: entry.value.status),
+                    child: _PropertyStatusChip(status: entry.value.propStatus),
                   ),
                 ),
                 ErpTableBodyCell(
@@ -451,29 +429,29 @@ class _PropertyDeleteButton extends StatelessWidget {
 class _PropertyStatusChip extends StatelessWidget {
   const _PropertyStatusChip({required this.status});
 
-  final PropertyStatus status;
+  final PropStatus status;
 
   @override
   Widget build(BuildContext context) {
     final colors = switch (status) {
-      PropertyStatus.contracted => (
+      PropStatus.contracted => (
         foreground: const Color(0xFF065F46),
         background: const Color(0xFFD1FAE5),
         border: const Color(0xFF6EE7B7),
       ),
-      PropertyStatus.pending => (
+      PropStatus.pending => (
         foreground: const Color(0xFF6D28D9),
         background: const Color(0xFFEDE9FE),
         border: const Color(0xFFC4B5FD),
       ),
-      PropertyStatus.unsuitable => (
+      PropStatus.unsuitable => (
         foreground: const Color(0xFF991B1B),
         background: const Color(0xFFFEE2E2),
         border: const Color(0xFFFCA5A5),
       ),
     };
     return _PropertyPill(
-      text: _statusLabel(status),
+      text: propStatusLabelKo(status),
       foreground: colors.foreground,
       background: colors.background,
       border: colors.border,
@@ -529,25 +507,9 @@ String _propertyRegionLabel(String code, List<CodeOption> options) {
   return code;
 }
 
-String _ownershipLabel(PropertyOwnership v) {
-  switch (v) {
-    case PropertyOwnership.owned:
-      return '자가';
-    case PropertyOwnership.leased:
-      return '임대차';
-  }
-}
+const List<String> _ownershipOptions = ['전체', '자가', '임대차'];
 
-String _statusLabel(PropertyStatus v) {
-  switch (v) {
-    case PropertyStatus.contracted:
-      return '체결물건';
-    case PropertyStatus.pending:
-      return '보류물건';
-    case PropertyStatus.unsuitable:
-      return '부적합물건';
-  }
-}
+const List<String> _propStatusOptiohs = ['전체', '체결물건', '보류물건', '부적합물건'];
 
 String _formatArea(double area) {
   if (area == 0) return '0';

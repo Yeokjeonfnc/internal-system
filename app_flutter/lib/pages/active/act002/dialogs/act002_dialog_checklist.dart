@@ -5,8 +5,8 @@ import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/widgets/common/common_loading_indicator.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
-import 'package:app_flutter/pages/active/activity_api.dart';
-import 'package:app_flutter/pages/active/activity_model.dart';
+import 'package:app_flutter/pages/active/act002/act002_api.dart';
+import 'package:app_flutter/pages/active/act002/act002_model.dart';
 
 /// 체크리스트 상세보기 다이얼로그
 Future<void> showActivityChecklistDetailDialog(
@@ -42,7 +42,7 @@ class _ActivityChecklistDetailDialogState
 
   Future<void> _loadChecklistResults() async {
     setState(() => _loading = true);
-    final results = await ActivityApiService().chkResults(
+    final results = await Act002Api().chkResults(
       widget.actIdx,
     );
     if (!mounted) return;

@@ -29,8 +29,8 @@ class PropertyRegisterDraft {
 
   DateTime? surveyDate;
   DateTime? registrationDate;
-  PropertyOwnership ownership = PropertyOwnership.leased;
-  PropertyStatus status = PropertyStatus.pending;
+  Ownership ownership = Ownership.lease;
+  PropStatus propStatus = PropStatus.pending;
   String region = _kRegionNone;
   AddressScope addressScope = AddressScope.domestic;
   String postalCode = '';
@@ -51,7 +51,7 @@ class PropertyRegisterDraft {
     surveyDate = _propertyParseYmd(property.surveyDate);
     registrationDate = _propertyParseYmd(property.registrationDate);
     ownership = property.ownership;
-    status = property.status;
+    propStatus = property.propStatus;
     region = property.region;
     addressScope = property.addressScope;
     postalCode = property.postalCode;
@@ -84,7 +84,9 @@ class PropertyRegisterDraft {
       PropertyMstWritePayload.jsonKeyRegion: region == _kRegionNone
           ? null
           : region,
-      PropertyMstWritePayload.jsonKeyPropStatus: _propertyStatusCode(status),
+      PropertyMstWritePayload.jsonKeyPropStatus: _propertyStatusCode(
+        propStatus,
+      ),
       PropertyMstWritePayload.jsonKeyPropType: _propertyTypeCode(ownership),
       PropertyMstWritePayload.jsonKeySurveyor: surveyor.trim(),
       PropertyMstWritePayload.jsonKeyFloor: int.tryParse(floor.trim()),
@@ -304,16 +306,27 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
     if (payload.isPropNmBlank) {
       _snack('물건명을 입력해 주세요.');
       return;
+    } else if (payload.address == null || payload.address!.trim().isEmpty) {
+      _snack('주소를 입력해 주세요.');
+      return;
+    } else if (payload.zipCd == null || payload.zipCd!.trim().isEmpty) {
+      _snack('우편번호를 입력해 주세요.');
+      return;
+    } else if (payload.surveyor == null || payload.surveyor!.trim().isEmpty) {
+      _snack('조사자를 입력해 주세요.');
+      return;
+    } else if (payload.surveyDt == null || payload.surveyDt!.trim().isEmpty) {
+      _snack('조사일자를 선택해 주세요.');
+      return;
     }
-
-    final saved = widget.property == null
+    final (Property? saved, String? saveError) = widget.property == null
         ? await ref.read(propertyApiServiceProvider).createProperty(payload)
         : await ref
               .read(propertyApiServiceProvider)
               .updateProperty(widget.property!.propIdx, payload);
     if (!mounted) return;
     if (saved == null) {
-      _snack('저장에 실패했습니다.');
+      _snack(saveError ?? '저장에 실패했습니다.');
       return;
     }
     if (widget.registerDraft != null) {
@@ -505,8 +518,8 @@ class _BasicInfoTab extends ConsumerStatefulWidget {
 class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
   DateTime? _surveyDate;
   DateTime? _registrationDate;
-  PropertyOwnership _ownership = PropertyOwnership.leased;
-  PropertyStatus _status = PropertyStatus.pending;
+  Ownership _ownership = Ownership.lease;
+  PropStatus _propStatus = PropStatus.pending;
   String _region = _kRegionNone;
   AddressScope _addressScope = AddressScope.domestic;
 
@@ -527,8 +540,8 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
     // 등록 모드(property == null)에서는 기본값으로 오늘 날짜를 채운다.
     _registrationDate =
         parsedRegistration ?? (p == null ? draft?.registrationDate : null);
-    _ownership = p?.ownership ?? draft?.ownership ?? PropertyOwnership.leased;
-    _status = p?.status ?? draft?.status ?? PropertyStatus.pending;
+    _ownership = p?.ownership ?? draft?.ownership ?? Ownership.lease;
+    _propStatus = p?.propStatus ?? draft?.propStatus ?? PropStatus.pending;
     _region = p?.region ?? draft?.region ?? _kRegionNone;
     _addressScope =
         p?.addressScope ?? draft?.addressScope ?? AddressScope.domestic;
@@ -564,7 +577,7 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
       ..surveyDate = _surveyDate
       ..registrationDate = _registrationDate
       ..ownership = _ownership
-      ..status = _status
+      ..propStatus = _propStatus
       ..region = _region
       ..addressScope = _addressScope
       ..postalCode = _postalCodeController.text
@@ -586,7 +599,9 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
       PropertyMstWritePayload.jsonKeyRegion: _region == _kRegionNone
           ? null
           : _region,
-      PropertyMstWritePayload.jsonKeyPropStatus: _propertyStatusCode(_status),
+      PropertyMstWritePayload.jsonKeyPropStatus: _propertyStatusCode(
+        _propStatus,
+      ),
       PropertyMstWritePayload.jsonKeyPropType: _propertyTypeCode(_ownership),
       PropertyMstWritePayload.jsonKeySurveyor: _surveyorController.text.trim(),
       PropertyMstWritePayload.jsonKeySurveyDt: _formatPayloadDate(_surveyDate),
@@ -622,7 +637,10 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
     final repo = ref.read(userRepositoryProvider);
     final selected = await showDialog<User>(
       context: context,
-      builder: (dialogContext) => UserLookupDialog(usersFuture: repo.all()),
+      builder: (dialogContext) => UserLookupDialog(
+        usersFuture: repo.all(),
+        initialSearchKeyword: _surveyorController.text.trim(),
+      ),
     );
     if (selected == null || !mounted) return;
 
@@ -667,6 +685,7 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
             child: ReadonlyValue(_formatReadonlyDate(_registrationDate)),
           ),
           right: FormFieldBlock(
+            requiredField: true,
             label: '조사일자',
             child: DateInputWithPicker(
               value: _surveyDate,
@@ -683,6 +702,7 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
         const SizedBox(height: 14),
         FormRowTwo(
           left: FormFieldBlock(
+            requiredField: true,
             label: '조사자',
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -690,8 +710,17 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
                 Expanded(
                   child: _DetailTextInput(
                     controller: _surveyorController,
-                    hint: '조사자를 입력하세요.',
+                    hint: '조사자를 입력해주세요.',
                     enabled: widget.isEditing,
+                    textInputAction: widget.isEditing
+                        ? TextInputAction.search
+                        : null,
+                    onSubmitted: widget.isEditing
+                        ? (_) {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            _openSurveyorUserLookup();
+                          }
+                        : null,
                   ),
                 ),
                 if (widget.isEditing) ...[
@@ -729,10 +758,10 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
           left: FormFieldBlock(
             label: '구분',
             child: _PropertyStatusCheckGroup(
-              value: _status,
+              value: _propStatus,
               enabled: widget.isEditing,
               onChanged: (v) => setState(() {
-                _status = v;
+                _propStatus = v;
                 _syncDraft();
               }),
             ),
@@ -876,7 +905,6 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
         const SizedBox(height: 12),
         LabeledFormRow(
           label: '특이사항',
-          requiredField: true,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1296,9 +1324,9 @@ class _PropertyStatusCheckGroup extends StatelessWidget {
     required this.onChanged,
   });
 
-  final PropertyStatus value;
+  final PropStatus value;
   final bool enabled;
-  final ValueChanged<PropertyStatus> onChanged;
+  final ValueChanged<PropStatus> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1308,21 +1336,21 @@ class _PropertyStatusCheckGroup extends StatelessWidget {
       children: [
         _CheckOption(
           label: '체결물건',
-          selected: value == PropertyStatus.contracted,
+          selected: value == PropStatus.contracted,
           enabled: enabled,
-          onTap: () => onChanged(PropertyStatus.contracted),
+          onTap: () => onChanged(PropStatus.contracted),
         ),
         _CheckOption(
           label: '보류물건',
-          selected: value == PropertyStatus.pending,
+          selected: value == PropStatus.pending,
           enabled: enabled,
-          onTap: () => onChanged(PropertyStatus.pending),
+          onTap: () => onChanged(PropStatus.pending),
         ),
         _CheckOption(
           label: '부적합물건',
-          selected: value == PropertyStatus.unsuitable,
+          selected: value == PropStatus.unsuitable,
           enabled: enabled,
-          onTap: () => onChanged(PropertyStatus.unsuitable),
+          onTap: () => onChanged(PropStatus.unsuitable),
         ),
       ],
     );
@@ -1336,9 +1364,9 @@ class _PropertyTypeCheckGroup extends StatelessWidget {
     required this.onChanged,
   });
 
-  final PropertyOwnership value;
+  final Ownership value;
   final bool enabled;
-  final ValueChanged<PropertyOwnership> onChanged;
+  final ValueChanged<Ownership> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1348,15 +1376,15 @@ class _PropertyTypeCheckGroup extends StatelessWidget {
       children: [
         _CheckOption(
           label: '임대차',
-          selected: value == PropertyOwnership.leased,
+          selected: value == Ownership.lease,
           enabled: enabled,
-          onTap: () => onChanged(PropertyOwnership.leased),
+          onTap: () => onChanged(Ownership.lease),
         ),
         _CheckOption(
           label: '자가',
-          selected: value == PropertyOwnership.owned,
+          selected: value == Ownership.owned,
           enabled: enabled,
-          onTap: () => onChanged(PropertyOwnership.owned),
+          onTap: () => onChanged(Ownership.owned),
         ),
       ],
     );
@@ -1396,15 +1424,15 @@ class _CheckOption extends StatelessWidget {
   }
 }
 
-String _propertyStatusCode(PropertyStatus status) => switch (status) {
-  PropertyStatus.contracted => 'CONTRACTED', // 체결물건
-  PropertyStatus.pending => 'PENDING', // 보류물건
-  PropertyStatus.unsuitable => 'UNSUITABLE', // 부적합물건
+String _propertyStatusCode(PropStatus propStatus) => switch (propStatus) {
+  PropStatus.contracted => 'CONTRACTED', // 체결물건
+  PropStatus.pending => 'PENDING', // 보류물건
+  PropStatus.unsuitable => 'UNSUITABLE', // 부적합물건
 };
 
-String _propertyTypeCode(PropertyOwnership type) => switch (type) {
-  PropertyOwnership.leased => 'LEASE', // 임대차
-  PropertyOwnership.owned => 'OWNED', // 자가
+String _propertyTypeCode(Ownership type) => switch (type) {
+  Ownership.owned => 'OWNED', // 자가
+  Ownership.lease => 'LEASE', // 임대차
 };
 
 String _formatReadonlyDate(DateTime? value) {
@@ -1431,6 +1459,8 @@ class _DetailTextInput extends StatelessWidget {
     this.enabled = true,
     this.minLines = 1,
     this.maxLines = 1,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   final TextEditingController controller;
@@ -1440,6 +1470,8 @@ class _DetailTextInput extends StatelessWidget {
   final bool enabled;
   final int minLines;
   final int maxLines;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
@@ -1447,6 +1479,8 @@ class _DetailTextInput extends StatelessWidget {
       controller: controller,
       enabled: enabled,
       keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      onSubmitted: onSubmitted,
       inputFormatters: inputFormatters,
       minLines: minLines,
       maxLines: maxLines,

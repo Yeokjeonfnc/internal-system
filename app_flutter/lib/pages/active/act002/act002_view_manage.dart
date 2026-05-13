@@ -16,11 +16,11 @@ import 'package:app_flutter/core/widgets/common/common_detail_button.dart';
 import 'package:app_flutter/core/date/erp_list_date_presets.dart';
 import 'package:app_flutter/core/search/erp_activity_row_keyword.dart';
 import 'package:app_flutter/core/widgets/common/erp_list_date_range_field.dart';
-import 'package:app_flutter/pages/active/activity_api.dart';
-import 'package:app_flutter/pages/active/activity_model.dart';
+import 'package:app_flutter/pages/active/act002/act002_api.dart';
+import 'package:app_flutter/pages/active/act002/act002_model.dart';
 import 'package:app_flutter/pages/active/act002/act002_view_register.dart';
 import 'package:app_flutter/pages/active/act002/act002_widget_drafts.dart';
-import 'package:app_flutter/pages/active/dialogs/act002_dialog_checklist.dart';
+import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_checklist.dart';
 import 'package:app_flutter/pages/active/act002/act002_note_tab_view.dart';
 
 /// 활동관리 화면 본문에 항상 노출하는 검색 항목.
@@ -342,7 +342,7 @@ class ActivityChecklistTableState extends State<ActivityChecklistTable> {
   }
 
   void _reload() {
-    _activitiesFuture = ActivityApiService().fetchChkActs();
+    _activitiesFuture = Act002Api().fetchChkActs();
   }
 
   String _text(String value) {

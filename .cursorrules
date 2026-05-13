@@ -19,8 +19,8 @@
   - 새 화면을 추가할 때 셸 코드를 복사하지 말고, 라우트만 `app_router.dart`의 `appRouteDefs`에 등록한다.
 - **업무 화면(이 프로젝트 표준 — `lib/pages`)**:
   - 사이드바 **메뉴 그룹 → 하위 메뉴 코드** 폴더: `lib/pages/franchise/str001/`, `lib/pages/development/dev001|dev002|dev003/`, `lib/pages/master/mst001|…/`, `lib/pages/dashboard/dsh001/`, `lib/pages/active/act001|…/` 등. 파일 세트는 보통 `*_view.dart`, `*_api.dart`, `*_model.dart`, `*_provider.dart` / `*_controller.dart`.
-  - **활동** 메뉴(`act001`~`act003`)는 `lib/pages/active/act001/`, `.../act002/`, `.../act003/` 에 둔다. 활동 관련 모달은 **`lib/pages/active/dialogs/`** 에만 둔다(`act002_dialog_*.dart` 등). `act00x/dialogs/` 는 두지 않는다.
-  - `act001`·`act002`·`act003` 아래 **하위 폴더를 두지 않는다**(탭명 폴더·빈 디렉터리 금지). 본문이 커지면 **같은 `act00x/` 폴더에 별도 `*_view.dart`** 로 분리한다(예: `act002_note_tab_view.dart`).
+  - **활동** 메뉴(`act001`~`act003`): 각각 `lib/pages/active/act00x/` 에 **`act00x_api.dart`**, **`act00x_model.dart`**, **`act00x_filter.dart`**(해당 화면에 필터가 있을 때), `*_view*.dart` 를 둔다. 화면·메뉴 공유만 **`lib/pages/active/shared/`** (`activity_routes.dart`, `activity_hub_view.dart`).
+  - **활동 전용 모달**은 해당 화면 폴더 아래 **`lib/pages/active/act002/dialogs/`** (`act002_dialog_*.dart` 등)에 둔다. `act001`·`act002`·`act003` 에서 본문이 커지면 **같은 `act00x/` 폴더에 별도 `*_view.dart`** 로 분리한다(예: `act002_note_tab_view.dart`). 빈 디렉터리만 두지 않는다.
   - **사용처 없는 한 줄 래퍼 `*_view.dart`는 두지 않는다** — `go_router`에서 곧바로 본 화면을 연다.
 
 ## 3) Brand Theming & UI (Based on Image Analysis)

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:app_flutter/core/date/erp_list_date_presets.dart';
+import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
@@ -14,6 +15,7 @@ import 'package:app_flutter/core/widgets/common/erp_list_date_range_field.dart';
 import 'package:app_flutter/pages/active/act002/act002_note_tab_view.dart';
 import 'package:app_flutter/pages/active/act002/act002_view_register.dart';
 import 'package:app_flutter/pages/active/act002/act002_widget_drafts.dart';
+import 'package:app_flutter/pages/active/act002/act002_filter.dart';
 
 const Set<CommonSearchFieldId> kAct002SearchFields = {
   CommonSearchFieldId.brandCd,
@@ -32,14 +34,16 @@ class Act002View extends StatefulWidget {
 
 class _Act002ViewState extends State<Act002View>
     with SingleTickerProviderStateMixin {
-  static const _brands = ['전체', '역전할머니맥주', '지미존스'];
+  List<CodeOption> _brandOptions = const [];
+
+  /// 브랜드 필터: `'전체'` 또는 공통코드(grp 40) `codeNm` — `str001_view` 와 동일.
+  String _selectedBrandNm = '전체';
 
   late final TabController _tabController;
   final _keywordCtrl = TextEditingController();
-  String _brand = '전체';
   late DateTime _rangeStart;
   late DateTime _rangeEnd;
-  late final List<int> _reloadEpoch;
+  late final List<int> _tabEpoch;
 
   (DateTime, DateTime) _defRange() => erpPresetDateRange('최근1개월');
 
@@ -55,7 +59,27 @@ class _Act002ViewState extends State<Act002View>
     final r = _defRange();
     _rangeStart = r.$1;
     _rangeEnd = r.$2;
-    _reloadEpoch = List<int>.filled(3, 0);
+    _tabEpoch = List<int>.filled(3, 0);
+    _loadBrands();
+  }
+
+  Future<void> _loadBrands() async {
+    final brands = await CommonCodeApiService().getCodes(40);
+    if (!mounted) return;
+    setState(() => _brandOptions = brands);
+  }
+
+  List<String> _brandDropdownLabels() {
+    return ['전체', ..._brandOptions.map((e) => e.codeNm)];
+  }
+
+  /// 선택 브랜드에 대응하는 공통코드 `codeCd` (행 `brandCd` 와 매칭). `'전체'` 는 null.
+  String? _brandFilterCd() {
+    if (_selectedBrandNm == '전체') return null;
+    for (final o in _brandOptions) {
+      if (o.codeNm == _selectedBrandNm) return o.codeCd;
+    }
+    return null;
   }
 
   @override
@@ -78,19 +102,19 @@ class _Act002ViewState extends State<Act002View>
     if (_tabController.indexIsChanging) return;
     final i = _tabController.index;
     if (i == 1) return;
-    setState(() => _reloadEpoch[i]++);
+    setState(() => _tabEpoch[i]++);
   }
 
   void _reloadList() {
     final i = _tabController.index;
     if (i == 1) return;
-    setState(() => _reloadEpoch[i]++);
+    setState(() => _tabEpoch[i]++);
   }
 
   void _resetFilter(CommonSearchFieldId id) {
     switch (id) {
       case CommonSearchFieldId.brandCd:
-        _brand = '전체';
+        _selectedBrandNm = '전체';
         return;
       case CommonSearchFieldId.activityDateRange:
         final d = _defRange();
@@ -112,7 +136,11 @@ class _Act002ViewState extends State<Act002View>
         '${d.day.toString().padLeft(2, '0')}';
   }
 
-  List<SearchFilterItemData> _inlineFilters() {
+  List<SearchFilterItemData> _inlineFilters(
+    BuildContext context,
+    Act002Filter filter,
+    List<String> brands,
+  ) {
     final items = <SearchFilterItemData>[];
     for (final def in commonSearchDefsOrdered(kAct002SearchFields)) {
       switch (def.id) {
@@ -120,9 +148,9 @@ class _Act002ViewState extends State<Act002View>
           items.add(
             FilterStringOptionsSlot(
               label: def.label,
-              value: _brand,
-              options: _brands,
-              onSelected: (v) => setState(() => _brand = v),
+              value: filter.brandCd,
+              options: brands,
+              onSelected: (v) => setState(() => _selectedBrandNm = v),
             ).toItem(),
           );
           break;
@@ -164,12 +192,14 @@ class _Act002ViewState extends State<Act002View>
     for (final def in commonSearchDefsOrdered(kAct002SearchFields)) {
       switch (def.id) {
         case CommonSearchFieldId.brandCd:
-          chips.add(
-            ActiveFilterChip(
-              label: '${def.label}: $_brand',
-              onClear: () => _clearChip(def.id),
-            ),
-          );
+          if (_selectedBrandNm != '전체') {
+            chips.add(
+              ActiveFilterChip(
+                label: '${def.label}: $_selectedBrandNm',
+                onClear: () => _clearChip(def.id),
+              ),
+            );
+          }
           break;
         case CommonSearchFieldId.activityDateRange:
           chips.add(
@@ -223,12 +253,18 @@ class _Act002ViewState extends State<Act002View>
 
   @override
   Widget build(BuildContext context) {
+    final filter = Act002Filter(
+      brandCd: _selectedBrandNm,
+      rangeStart: _rangeStart,
+      rangeEnd: _rangeEnd,
+      keyword: _keywordCtrl.text.trim(),
+    );
     final mainFields = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SearchFilterTextField(
           controller: _keywordCtrl,
-          hint: '가맹점명, 가맹점코드, 수퍼바이저, 상담내용 검색',
+          hint: '키워드 검색',
           borderRadius: 8,
           prefixIcon: Icon(
             Icons.search_rounded,
@@ -238,7 +274,9 @@ class _Act002ViewState extends State<Act002View>
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 8),
-        SearchFilterStackedItems(items: _inlineFilters()),
+        SearchFilterStackedItems(
+          items: _inlineFilters(context, filter, _brandDropdownLabels()),
+        ),
       ],
     );
 
@@ -255,17 +293,20 @@ class _Act002ViewState extends State<Act002View>
                 _listShell(
                   mainFields,
                   ActivityDraftsTable(
-                    key: ValueKey<int>(_reloadEpoch[0]),
+                    key: ValueKey<int>(_tabEpoch[0]),
                     rowKeywordFilter: _keywordCtrl.text.trim(),
+                    brandLabel: _selectedBrandNm,
+                    brandCdFilter: _brandFilterCd(),
                   ),
                 ),
                 const ActivityRegisterView(),
                 _listShell(
                   mainFields,
                   ActivityNoteTabView(
-                    key: ValueKey<int>(_reloadEpoch[2]),
+                    key: ValueKey<int>(_tabEpoch[2]),
                     rowKeywordFilter: _keywordCtrl.text.trim(),
-                    brandLabel: _brand,
+                    brandLabel: _selectedBrandNm,
+                    brandCdFilter: _brandFilterCd(),
                     rangeStart: _rangeStart,
                     rangeEnd: _rangeEnd,
                   ),

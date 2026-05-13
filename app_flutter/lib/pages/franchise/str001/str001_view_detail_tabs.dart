@@ -188,10 +188,14 @@ Widget _storeDetailOutlineTextField(
   TextInputType keyboardType = TextInputType.text,
   List<TextInputFormatter>? inputFormatters,
   String? hintText,
+  TextInputAction? textInputAction,
+  ValueChanged<String>? onSubmitted,
 }) {
   return TextField(
     controller: controller,
     keyboardType: keyboardType,
+    textInputAction: textInputAction,
+    onSubmitted: onSubmitted,
     inputFormatters: inputFormatters,
     style: FormStylePalette.valueStyle,
     cursorColor: FormStylePalette.accent,
@@ -1924,6 +1928,7 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
       context: context,
       builder: (dialogContext) => PartnerLookupDialog(
         partnersFuture: ref.read(partnerDataProvider.future),
+        initialSearchKeyword: _ownerNameController.text.trim(),
       ),
     );
     if (selected == null || !mounted) return;
@@ -2028,6 +2033,15 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
                       ? _storeDetailOutlineTextField(
                           _ownerNameController,
                           keyboardType: TextInputType.text,
+                          textInputAction: widget.panelEditing
+                              ? TextInputAction.search
+                              : null,
+                          onSubmitted: widget.panelEditing
+                              ? (_) {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  _openPartnerLookup();
+                                }
+                              : null,
                         )
                       : ReadonlyValue(_store?.ownerNm ?? '-'),
                 ),
@@ -2465,7 +2479,7 @@ class _PropertyLookupDialogState extends State<_PropertyLookupDialog> {
       insetPadding: const EdgeInsets.all(28),
       child: ErpDialogFrame(
         title: '물건 상세정보 조회',
-        maxWidth: 860,
+        maxWidth: 1000,
         maxHeight: 640,
         child: SizedBox(
           height: 520,
@@ -2605,7 +2619,7 @@ class _PropertyLookupRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
-              SizedBox(width: 30, child: _PropertyLookupCell('$displayNo')),
+              SizedBox(width: 60, child: _PropertyLookupCell('$displayNo')),
               Expanded(flex: 2, child: _PropertyLookupCell(property.name)),
               Expanded(
                 flex: 3,
@@ -2744,13 +2758,15 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
     if (!widget.panelEditing) return;
     final selected = await showDialog<User>(
       context: context,
-      builder: (dialogCtx) =>
-          UserLookupDialog(usersFuture: ref.read(userRepositoryProvider).all()),
+      builder: (dialogCtx) => UserLookupDialog(
+        usersFuture: ref.read(userRepositoryProvider).all(),
+        initialSearchKeyword: target.text.trim(),
+      ),
     );
     if (!mounted || selected == null) return;
-    final text = preferUserIdForSvField && selected.userId.trim().isNotEmpty
-        ? selected.userId.trim()
-        : selected.name.trim();
+    final text = preferUserIdForSvField && selected.name.trim().isNotEmpty
+        ? selected.name.trim()
+        : selected.userId.trim();
     setState(() => target.text = text);
   }
 
@@ -3023,6 +3039,14 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
                         child: _storeDetailOutlineTextField(
                           _contManagerController,
                           hintText: '사원 검색',
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            _openUserLookup(
+                              _contManagerController,
+                              preferUserIdForSvField: false,
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -3057,6 +3081,14 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
                         child: _storeDetailOutlineTextField(
                           _eduManagerController,
                           hintText: '사원 검색',
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            _openUserLookup(
+                              _eduManagerController,
+                              preferUserIdForSvField: false,
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -3092,6 +3124,14 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
                         child: _storeDetailOutlineTextField(
                           _supervisorController,
                           hintText: '사원 검색',
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            _openUserLookup(
+                              _supervisorController,
+                              preferUserIdForSvField: true,
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(width: 8),
