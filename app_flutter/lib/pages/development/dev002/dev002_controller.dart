@@ -74,7 +74,7 @@ class PropertyNotifier extends BaseListNotifier<PropertyFilter, Property> {
   @override
   List<ListFilterRule<PropertyFilter, Property>> get ruleList {
     final regionOpts =
-        ref.watch(propertyCodeOptionsProvider(20)).value ??
+        ref.watch(propertyCodeOptionsProvider(20)).valueOrNull ??
         const <CodeOption>[];
     return dev002ListRules(regionOpts);
   }

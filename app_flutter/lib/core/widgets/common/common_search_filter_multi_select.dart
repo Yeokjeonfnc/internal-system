@@ -345,10 +345,25 @@ class SearchFilterMultiPickDialog extends StatelessWidget {
           ),
         ),
         actionsAlignment: MainAxisAlignment.center,
+        actionsPadding: const EdgeInsets.fromLTRB(20, 0, 23, 10),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(closeLabel),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, kMinInteractiveDimension),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.zero,
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(closeLabel),
+                ),
+              ),
+            ],
           ),
         ],
       ),

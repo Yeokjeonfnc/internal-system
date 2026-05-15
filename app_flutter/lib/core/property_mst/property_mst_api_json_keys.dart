@@ -1,7 +1,7 @@
 /// `property_mst` 목록·상세 응답 — 백엔드 `PropertyMstDto` JSON 키와 동일.
 ///
 /// `location`·`franchiseFlag`·`addressScope` 등은 엔티티/확장 응답에서 올 수 있는 키로 앱 모델과 맞춘다.
-/// `PropertyMstWritePayload.jsonKey*`는 요청과 겹치는 이름에 이 상수를 가리킨다.
+/// `PropertyMstWriteRequest.jsonKey*`는 요청과 겹치는 이름에 이 상수를 가리킨다.
 abstract final class PropertyMstApiJsonKeys {
   static const String propIdx = 'propIdx';
   static const String propNm = 'propNm';
@@ -13,6 +13,7 @@ abstract final class PropertyMstApiJsonKeys {
   static const String propType = 'propType';
   static const String surveyor = 'surveyor';
   static const String floor = 'floor';
+  static const String parkingCount = 'parkingCount';
   static const String contArea = 'contArea';
   static const String realArea = 'realArea';
   static const String rentDeposit = 'rentDeposit';

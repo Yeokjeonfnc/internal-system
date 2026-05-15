@@ -81,12 +81,10 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
         _draftsFuture = Act002Api().fetchAllRows();
         break;
       case ActivityDraftsTableMode.approvalPending:
-        _draftsFuture =
-            Act002Api().fetchPendingRowsForRelUser(relUid);
+        _draftsFuture = Act002Api().fetchPendingRowsForRelUser(relUid);
         break;
       case ActivityDraftsTableMode.approvalApproved:
-        _draftsFuture =
-            Act002Api().fetchApprovedRowsForRelUser(relUid);
+        _draftsFuture = Act002Api().fetchApprovedRowsForRelUser(relUid);
         break;
       case ActivityDraftsTableMode.approvalSuggestions:
         _draftsFuture = Act002Api().fetchRowsWithSuggestions();
@@ -109,7 +107,9 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
     }
   }
 
-  bool get _showDelete => widget.mode == ActivityDraftsTableMode.myDrafts;
+  bool get _showDelete =>
+      widget.mode == ActivityDraftsTableMode.approvalAll ||
+      widget.mode == ActivityDraftsTableMode.myDrafts;
 
   void _goDetail(BuildContext context, int actIdx) {
     final path = widget.mode == ActivityDraftsTableMode.myDrafts
@@ -118,10 +118,7 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
     context.go(path);
   }
 
-  Future<void> _confirmDelete(
-    BuildContext context,
-    ActivityRow row,
-  ) async {
+  Future<void> _confirmDelete(BuildContext context, ActivityRow row) async {
     final actIdx = row.actIdx;
     if (actIdx == null) return;
 
@@ -179,68 +176,70 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
         final rows = kw.isEmpty
             ? byBrand
             : byBrand
-                .where((e) => erpActivityRowMatchesKeyword(e, kw))
-                .toList();
+                  .where((e) => erpActivityRowMatchesKeyword(e, kw))
+                  .toList();
         if (rows.isEmpty) {
           return Center(
-            child: Text(
-              raw.isEmpty
-                  ? _emptyMessage
-                  : '검색 조건에 맞는 활동이 없습니다.',
-            ),
+            child: Text(raw.isEmpty ? _emptyMessage : '검색 조건에 맞는 활동이 없습니다.'),
           );
         }
         return ErpDataTable(
           minWidth:
-              AppDimensions.tableMinWidthDefault + (_showDelete ? 460 : 400),
+              AppDimensions.tableMinWidthDefault + (_showDelete ? 180 : 70),
           tableBuilder: (context, w) => Table(
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             border: kErpTableInnerGridBorder,
-            columnWidths: _showDelete
+            columnWidths: !_showDelete
                 ? const {
-                    0: FlexColumnWidth(0.3),
+                    0: FlexColumnWidth(0.4),
                     1: FlexColumnWidth(0.5),
-                    2: FlexColumnWidth(0.4),
-                    3: FlexColumnWidth(0.7),
-                    // 4: FlexColumnWidth(0.5),
-                    4: FlexColumnWidth(1.5),
+                    2: FlexColumnWidth(0.5),
+                    3: FlexColumnWidth(0.9),
+                    4: FlexColumnWidth(2.5),
                     5: FlexColumnWidth(0.5),
                     6: FlexColumnWidth(0.5),
                     7: FlexColumnWidth(0.5),
                     8: FlexColumnWidth(0.7),
-                    9: FlexColumnWidth(0.42),
-                    10: FlexColumnWidth(0.42),
                   }
                 : const {
-                    0: FlexColumnWidth(0.3),
+                    0: FlexColumnWidth(0.4),
                     1: FlexColumnWidth(0.5),
-                    2: FlexColumnWidth(0.4),
-                    3: FlexColumnWidth(0.7),
-                    // 4: FlexColumnWidth(0.5),
-                    4: FlexColumnWidth(1.5),
+                    2: FlexColumnWidth(0.7),
+                    3: FlexColumnWidth(0.9),
+                    4: FlexColumnWidth(2.5),
                     5: FlexColumnWidth(0.5),
                     6: FlexColumnWidth(0.5),
                     7: FlexColumnWidth(0.5),
                     8: FlexColumnWidth(0.7),
-                    9: FlexColumnWidth(0.7),
+                    9: FlexColumnWidth(0.4),
                   },
             children: [
               TableRow(
                 decoration: const BoxDecoration(color: AppTheme.accentRed),
-                children: [
-                  const ErpTableHeaderCell('활동구분'),
-                  const ErpTableHeaderCell('활동일자'),
-                  const ErpTableHeaderCell('브랜드'),
-                  const ErpTableHeaderCell('가맹점명'),
-                  // const ErpTableHeaderCell('부진점 판별결과'),
-                  const ErpTableHeaderCell('주요상담내용'),
-                  const ErpTableHeaderCell('담당 수퍼바이저'),
-                  const ErpTableHeaderCell('기안자'),
-                  const ErpTableHeaderCell('체크리스트'),
-                  const ErpTableHeaderCell('결재상태'),
-                  const ErpTableHeaderCell('상세보기'),
-                  if (_showDelete) const ErpTableHeaderCell('삭제'),
-                ],
+                children: !_showDelete
+                    ? [
+                        const ErpTableHeaderCell('활동구분'),
+                        const ErpTableHeaderCell('활동일자'),
+                        const ErpTableHeaderCell('브랜드'),
+                        const ErpTableHeaderCell('가맹점명'),
+                        const ErpTableHeaderCell('주요상담내용'),
+                        const ErpTableHeaderCell('기안자'),
+                        const ErpTableHeaderCell('체크리스트'),
+                        const ErpTableHeaderCell('결재상태'),
+                        const ErpTableHeaderCell('상세보기'),
+                      ]
+                    : [
+                        const ErpTableHeaderCell('활동구분'),
+                        const ErpTableHeaderCell('활동일자'),
+                        const ErpTableHeaderCell('브랜드'),
+                        const ErpTableHeaderCell('가맹점명'),
+                        const ErpTableHeaderCell('주요상담내용'),
+                        const ErpTableHeaderCell('기안자'),
+                        const ErpTableHeaderCell('체크리스트'),
+                        const ErpTableHeaderCell('결재상태'),
+                        const ErpTableHeaderCell('상세보기'),
+                        const ErpTableHeaderCell('삭제'),
+                      ],
               ),
               for (final row in rows)
                 TableRow(
@@ -249,15 +248,13 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
                     ErpTableBodyCell(_text(row.actType), center: true),
                     ErpTableBodyCell(_dateText(row.actDt), center: true),
                     ErpTableBodyCell(
-                      _text(
-                        row.brandNm.isNotEmpty ? row.brandNm : row.brandCd,
-                      ),
+                      _text(row.brandNm.isNotEmpty ? row.brandNm : row.brandCd),
                       center: true,
                     ),
                     ErpTableBodyCell(_text(row.storeNm), center: true),
                     // const ErpTableBodyCell('-'),
                     ErpTableBodyCell(_text(row.actNotes)),
-                    ErpTableBodyCell(_text(row.ssvNm), center: true),
+                    // ErpTableBodyCell(_text(row.ssvNm), center: true),
                     ErpTableBodyCell(_text(row.svNm), center: true),
                     Padding(
                       padding: const EdgeInsets.all(8),
@@ -265,9 +262,7 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
                     ),
                     Padding(
                       padding: const EdgeInsets.all(8),
-                      child: Center(
-                        child: _ApprovalStatusChip(row.apprStatus),
-                      ),
+                      child: Center(child: _ApprovalStatusChip(row.apprStatus)),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -315,7 +310,6 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
     if (text == '-') return text;
     return text.split('T').first;
   }
-
 }
 
 class _ChecklistStatusChip extends StatelessWidget {
@@ -327,9 +321,13 @@ class _ChecklistStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final done = value?.toString().trim().toUpperCase() == 'Y';
     return _StatusChip(
-      label: done ? '작성' : '미작성',
-      foreground: done ? const Color(0xFF047857) : const Color(0xFF6B7280),
-      background: done ? const Color(0xFFD1FAE5) : const Color(0xFFF3F4F6),
+      label: done ? '완료' : '미완료',
+      foreground: done
+          ? const Color.fromARGB(255, 5, 102, 119)
+          : const Color.fromARGB(255, 97, 104, 119),
+      background: done
+          ? const Color.fromARGB(255, 171, 211, 238)
+          : const Color(0xFFF3F4F6),
       border: done ? const Color(0xFFA7F3D0) : const Color(0xFFE5E7EB),
     );
   }

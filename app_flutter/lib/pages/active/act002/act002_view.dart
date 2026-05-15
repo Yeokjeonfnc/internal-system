@@ -289,6 +289,8 @@ class _Act002ViewState extends State<Act002View>
           Expanded(
             child: TabBarView(
               controller: _tabController,
+              // 탭 안 [ErpDataTable] 가로 스크롤과 제스처가 겹치지 않도록 스와이프 전환은 끈다.
+              physics: const NeverScrollableScrollPhysics(),
               children: [
                 _listShell(
                   mainFields,

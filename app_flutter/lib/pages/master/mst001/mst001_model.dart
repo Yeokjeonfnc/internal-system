@@ -1,7 +1,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'package:app_flutter/core/user_mst/user_mst_api_json_keys.dart';
-import 'package:app_flutter/core/user_mst/user_mst_write_payload.dart';
+import 'package:app_flutter/core/user_mst/user_mst_write_request.dart';
 
 part 'mst001_model.g.dart';
 
@@ -80,7 +80,7 @@ class User {
   Map<String, dynamic> toJson() => _$UserToJson(this);
 
   /// POST `/users` 본문을 만든다. 필드 의미는 [User]와 동일하게 맞춘다.
-  static UserMstWritePayload buildCreateUserRequest({
+  static UserMstWriteRequest buildCreateUserRequest({
     int? userIdx,
     required String name,
     required String userPassword,
@@ -94,27 +94,27 @@ class User {
   }) {
     final yn = tagYn ? 'Y' : 'N';
     final body = <String, dynamic>{
-      UserMstWritePayload.jsonKeyUserName: name.trim(),
-      UserMstWritePayload.jsonKeyUserPassword: userPassword,
-      UserMstWritePayload.jsonKeyTagYn: yn,
-      UserMstWritePayload.jsonKeySvYn: yn,
+      UserMstWriteRequest.jsonKeyUserName: name.trim(),
+      UserMstWriteRequest.jsonKeyUserPassword: userPassword,
+      UserMstWriteRequest.jsonKeyTagYn: yn,
+      UserMstWriteRequest.jsonKeySvYn: yn,
     };
     final uid = userId.trim();
-    if (uid.isNotEmpty) body[UserMstWritePayload.jsonKeyUserId] = uid;
-    if (deptIdx != null) body[UserMstWritePayload.jsonKeyDeptIdx] = deptIdx;
+    if (uid.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserId] = uid;
+    if (deptIdx != null) body[UserMstWriteRequest.jsonKeyDeptIdx] = deptIdx;
     final phone = mobilePhone.trim();
-    if (phone.isNotEmpty) body[UserMstWritePayload.jsonKeyUserPhone] = phone;
+    if (phone.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserPhone] = phone;
     final em = email.trim();
-    if (em.isNotEmpty) body[UserMstWritePayload.jsonKeyUserEmail] = em;
+    if (em.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserEmail] = em;
     final pos = positionCd.trim();
-    if (pos.isNotEmpty) body[UserMstWritePayload.jsonKeyPositionCd] = pos;
+    if (pos.isNotEmpty) body[UserMstWriteRequest.jsonKeyPositionCd] = pos;
     final jd = joinDt.trim();
-    if (jd.isNotEmpty) body[UserMstWritePayload.jsonKeyJoinDt] = jd;
-    return UserMstWritePayload.fromMap(body);
+    if (jd.isNotEmpty) body[UserMstWriteRequest.jsonKeyJoinDt] = jd;
+    return UserMstWriteRequest.fromMap(body);
   }
 
   /// PUT `/users/:userIdx` — 비밀번호는 비어 있으면 본문에 넣지 않는다.
-  static UserMstWritePayload buildUpdateUserRequest({
+  static UserMstWriteRequest buildUpdateUserRequest({
     required String name,
     String userPassword = '',
     String userId = '',
@@ -127,24 +127,24 @@ class User {
   }) {
     final yn = tagYn ? 'Y' : 'N';
     final body = <String, dynamic>{
-      UserMstWritePayload.jsonKeyUserName: name.trim(),
-      UserMstWritePayload.jsonKeyTagYn: yn,
-      UserMstWritePayload.jsonKeySvYn: yn,
+      UserMstWriteRequest.jsonKeyUserName: name.trim(),
+      UserMstWriteRequest.jsonKeyTagYn: yn,
+      UserMstWriteRequest.jsonKeySvYn: yn,
     };
     final pw = userPassword.trim();
-    if (pw.isNotEmpty) body[UserMstWritePayload.jsonKeyUserPassword] = pw;
+    if (pw.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserPassword] = pw;
     final uid = userId.trim();
-    if (uid.isNotEmpty) body[UserMstWritePayload.jsonKeyUserId] = uid;
-    if (deptIdx != null) body[UserMstWritePayload.jsonKeyDeptIdx] = deptIdx;
+    if (uid.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserId] = uid;
+    if (deptIdx != null) body[UserMstWriteRequest.jsonKeyDeptIdx] = deptIdx;
     final phone = mobilePhone.trim();
-    if (phone.isNotEmpty) body[UserMstWritePayload.jsonKeyUserPhone] = phone;
+    if (phone.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserPhone] = phone;
     final em = email.trim();
-    if (em.isNotEmpty) body[UserMstWritePayload.jsonKeyUserEmail] = em;
+    if (em.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserEmail] = em;
     final pos = positionCd.trim();
-    if (pos.isNotEmpty) body[UserMstWritePayload.jsonKeyPositionCd] = pos;
+    if (pos.isNotEmpty) body[UserMstWriteRequest.jsonKeyPositionCd] = pos;
     final jd = joinDt.trim();
-    if (jd.isNotEmpty) body[UserMstWritePayload.jsonKeyJoinDt] = jd;
-    return UserMstWritePayload.fromMap(body);
+    if (jd.isNotEmpty) body[UserMstWriteRequest.jsonKeyJoinDt] = jd;
+    return UserMstWriteRequest.fromMap(body);
   }
 }
 

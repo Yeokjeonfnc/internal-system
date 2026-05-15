@@ -40,13 +40,14 @@ abstract final class ActivityRoutes {
       '$_b/approval/activity/$actIdx';
 }
 
-/// [ActivityApprovalManagementView] — 경로 → 탭(0=전체 … 4=체크리스트, 미일치 0).
+/// [ActivityApprovalManagementView] — 경로 → 탭(0=전체 … 5=체크리스트, 미일치 0).
 int approvalTabIndex(String path) {
   if (path == ActivityRoutes.approvalAll) return 0;
   if (path == ActivityRoutes.approvalPending) return 1;
   if (path == ActivityRoutes.approvalActive) return 2;
   if (path == ActivityRoutes.approvalSuggestions) return 3;
-  if (path == ActivityRoutes.approvalChecklist) return 4;
+  if (path == ActivityRoutes.approvalInstructions) return 4;
+  if (path == ActivityRoutes.approvalChecklist) return 5;
   return 0;
 }
 

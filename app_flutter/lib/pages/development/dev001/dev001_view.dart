@@ -220,14 +220,6 @@ class _PartnerListViewState extends ConsumerState<PartnerListView> {
     }
     return chips;
   }
-
-  // String _regionNm(String code, List<String> options) {
-  //   if (code.isEmpty || code == '전체') return '전체';
-  //   for (final option in options) {
-  //     if (option.codeCd == code) return option.codeNm;
-  //   }
-  //   return code;
-  // }
 }
 
 String _evalLabel(EvaluationStatus s) => switch (s) {

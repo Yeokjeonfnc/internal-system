@@ -13,16 +13,28 @@ import 'package:app_flutter/pages/active/act002/act002_api.dart';
 import 'package:app_flutter/pages/active/act002/act002_model.dart';
 import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 
-/// 활동관리 탭 — 지시사항(결재특이사항) 목록.
+/// [ActivityNoteTabView] 목록 API 분기.
+enum ActivityInstructionsQueryKind {
+  /// 활동관리 — `sv_id` = 로그인, `memo_txt`·비`PENDING`.
+  writerMemoSv,
+
+  /// 활동관리결재 — `notif_mst` + `appr_id` 결재선·본인.
+  approverMemoNotif,
+}
+
+/// 활동관리·활동관리결재 탭 — 지시사항(결재특이사항) 목록.
 class ActivityNoteTabView extends StatefulWidget {
   const ActivityNoteTabView({
     super.key,
+    this.queryKind = ActivityInstructionsQueryKind.writerMemoSv,
     this.rowKeywordFilter = '',
     required this.brandLabel,
     this.brandCdFilter,
     required this.rangeStart,
     required this.rangeEnd,
   });
+
+  final ActivityInstructionsQueryKind queryKind;
 
   final String rowKeywordFilter;
   final String brandLabel;
@@ -55,7 +67,12 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
     setState(() {
       _future = uid.isEmpty
           ? Future.value(const <ActivityRow>[])
-          : Act002Api().fetchRowsForSvWithApprNote(uid);
+          : switch (widget.queryKind) {
+              ActivityInstructionsQueryKind.writerMemoSv =>
+                Act002Api().fetchRowsForSvWithApprNote(uid),
+              ActivityInstructionsQueryKind.approverMemoNotif =>
+                Act002Api().fetchRowsForApproverMemoInstructions(uid),
+            };
     });
   }
 
@@ -127,7 +144,9 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
 
         final kw = widget.rowKeywordFilter.trim();
         if (kw.isNotEmpty) {
-          rows = rows.where((e) => erpActivityRowMatchesKeyword(e, kw)).toList();
+          rows = rows
+              .where((e) => erpActivityRowMatchesKeyword(e, kw))
+              .toList();
         }
 
         if (rows.isEmpty) {
@@ -163,16 +182,18 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
                   ErpTableHeaderCell('브랜드'),
                   ErpTableHeaderCell('가맹점명'),
                   ErpTableHeaderCell('주요상담내용'),
-                  ErpTableHeaderCell('결재특이사항'),
+                  ErpTableHeaderCell('지시사항(결재특이사항)'),
                   ErpTableHeaderCell('담당 수퍼바이저'),
                   ErpTableHeaderCell('체크리스트'),
-                  ErpTableHeaderCell('상세'),
+                  ErpTableHeaderCell('상세보기'),
                 ],
               ),
               for (var i = 0; i < rows.length; i++)
                 TableRow(
                   decoration: BoxDecoration(
-                    color: i.isEven ? AppTheme.tableRowOdd : AppTheme.tableRowEven,
+                    color: i.isEven
+                        ? AppTheme.tableRowOdd
+                        : AppTheme.tableRowEven,
                   ),
                   children: [
                     ErpTableBodyCell(_cell(rows[i].actType), center: true),
@@ -189,7 +210,12 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
                     ErpTableBodyCell(_cell(rows[i].actNotes)),
                     ErpTableBodyCell(_cell(rows[i].apprNotes)),
                     ErpTableBodyCell(_cell(rows[i].svNm), center: true),
-                    ErpTableBodyCell(_chkYn(rows[i].chkYn), center: true),
+                    Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Center(
+                        child: _ChecklistStatusChip(_cell(rows[i].chkYn)),
+                      ),
+                    ),
                     Padding(
                       padding: const EdgeInsets.all(8),
                       child: Center(
@@ -197,7 +223,15 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
                           onPressed: () {
                             final actIdx = rows[i].actIdx;
                             if (actIdx != null) {
-                              context.go(ActivityRoutes.manageDetail(actIdx));
+                              context.go(
+                                widget.queryKind ==
+                                        ActivityInstructionsQueryKind
+                                            .approverMemoNotif
+                                    ? ActivityRoutes.approvalActivityDetail(
+                                        actIdx,
+                                      )
+                                    : ActivityRoutes.manageDetail(actIdx),
+                              );
                             }
                           },
                         ),
@@ -209,6 +243,64 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ChecklistStatusChip extends StatelessWidget {
+  const _ChecklistStatusChip(this.value);
+
+  final dynamic value;
+
+  @override
+  Widget build(BuildContext context) {
+    final done = value?.toString().trim().toUpperCase() == 'Y';
+    return _StatusChip(
+      label: done ? '완료' : '미완료',
+      foreground: done
+          ? const Color.fromARGB(255, 5, 102, 119)
+          : const Color.fromARGB(255, 97, 104, 119),
+      background: done
+          ? const Color.fromARGB(255, 171, 211, 238)
+          : const Color(0xFFF3F4F6),
+      border: done ? const Color(0xFFA7F3D0) : const Color(0xFFE5E7EB),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.label,
+    required this.foreground,
+    required this.background,
+    required this.border,
+  });
+
+  final String label;
+  final Color foreground;
+  final Color background;
+  final Color border;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
+      ),
     );
   }
 }

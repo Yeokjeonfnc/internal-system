@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
-import 'package:app_flutter/core/checklist/chk_mst_write_payload.dart';
+import 'package:app_flutter/core/checklist/chk_mst_write_request.dart';
 import 'package:app_flutter/pages/master/mst004/mst004_model.dart';
 
 class MasterChecklistApiService extends BaseRepository {
-  Future<MasterChecklistItem?> createChecklist(ChkMstWritePayload body) async {
+  Future<MasterChecklistItem?> createChecklist(ChkMstWriteRequest body) async {
     try {
       return await postDataOrNull(
         ChkMstApiPaths.root,
@@ -20,7 +20,7 @@ class MasterChecklistApiService extends BaseRepository {
 
   Future<MasterChecklistItem?> updateChecklist(
     int chkIdx,
-    ChkMstWritePayload body,
+    ChkMstWriteRequest body,
   ) async {
     try {
       return await putDataOrNull(
@@ -41,10 +41,10 @@ class MasterChecklistApiService extends BaseRepository {
     try {
       final queryParameters = <String, dynamic>{};
       if (brandCd != null && brandCd.isNotEmpty) {
-        queryParameters[ChkMstWritePayload.jsonKeyBrandCd] = brandCd;
+        queryParameters[ChkMstWriteRequest.jsonKeyBrandCd] = brandCd;
       }
       if (chkType != null && chkType.isNotEmpty) {
-        queryParameters[ChkMstWritePayload.jsonKeyChkType] = chkType;
+        queryParameters[ChkMstWriteRequest.jsonKeyChkType] = chkType;
       }
 
       return await getDataList(

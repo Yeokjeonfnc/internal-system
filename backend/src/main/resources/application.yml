@@ -23,7 +23,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -38,6 +38,7 @@ spring:
       write-dates-as-timestamps: false
 
 mybatis:
+  # mapper 폴더 아래의 모든 하위 폴더(**) 내의 모든 xml(*)을 읽도록 설정
   mapper-locations: classpath:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
@@ -56,6 +57,9 @@ external:
     rest-api-key: 15c5f01644e0aa8f06fc80b5afd310da
 
 logging:
+  # 콘솔: Windows 기본 MS949(YeokjeonErpApplication). UTF-8 터미널은 LOGGING_CHARSET_CONSOLE=UTF-8
+  charset:
+    file: UTF-8
   level:
     com.yeokjeon: DEBUG
     com.yeokjeon.erp.common.mapper: DEBUG
@@ -79,7 +83,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
-    show-sql: true
+    show-sql: false
 
 server:
   port: 3001

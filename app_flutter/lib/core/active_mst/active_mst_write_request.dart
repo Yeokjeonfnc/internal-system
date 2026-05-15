@@ -21,9 +21,9 @@ class ChkResultDtlSave {
       };
 }
 
-/// `POST`/`PUT /activities` 요청 본문 — `ActivityWritePayload.toJson()`으로 직렬화.
+/// `POST`/`PUT /activities` 요청 본문 — `ActivityWriteRequest.toJson()`으로 직렬화.
 /// 키는 `ActiveMstWriteRequestDto` JSON과 동일.
-class ActivityWritePayload {
+class ActivityWriteRequest {
   static const String jsonKeyStoreIdx = 'storeIdx';
   static const String jsonKeyActType = 'actType';
   static const String jsonKeyActDt = 'actDt';
@@ -36,7 +36,7 @@ class ActivityWritePayload {
   static const String jsonKeyApprUserIds = 'apprUserIds';
   static const String jsonKeyChecklistResults = 'checklistResults';
 
-  const ActivityWritePayload({
+  const ActivityWriteRequest({
     required this.storeIdx,
     required this.actType,
     required this.actDt,

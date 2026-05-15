@@ -144,7 +144,7 @@ class _ShellTabStrip extends ConsumerWidget {
                         message: '열린 탭 모두 닫기',
                         child: IconButton(
                           onPressed: () => notifier.closeAllTabs(context),
-                          icon: const Icon(Icons.close_fullscreen_rounded),
+                          icon: const Icon(Icons.close_rounded),
                           color: Colors.white,
                           style: IconButton.styleFrom(
                             backgroundColor: Colors.white.withValues(

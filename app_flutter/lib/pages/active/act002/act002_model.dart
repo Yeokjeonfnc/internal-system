@@ -1,5 +1,5 @@
 import 'package:app_flutter/core/active_mst/active_mst_api_json_keys.dart';
-import 'package:app_flutter/core/active_mst/active_mst_write_payload.dart';
+import 'package:app_flutter/core/active_mst/active_mst_write_request.dart';
 import 'package:app_flutter/core/checklist/chk_mst_api_json_keys.dart';
 import 'package:app_flutter/core/utils/json_extensions.dart';
 
@@ -130,6 +130,31 @@ class ActivityDetail {
       }
     }
 
+    /// 결재 도장용 — 일자 맵에 값이 있는 사용자만 '결재함'으로 본다(목록·ID만 오는 오탐 방지).
+    String? nonEmptyAckDayForUser(String uid) {
+      final u = uid.trim();
+      if (u.isEmpty) return null;
+      final direct = ackDates[u]?.trim() ?? '';
+      if (direct.isNotEmpty) return direct;
+      for (final e in ackDates.entries) {
+        if (e.key.trim() == u) {
+          final d = e.value.toString().trim();
+          if (d.isNotEmpty) return d;
+        }
+      }
+      return null;
+    }
+
+    final ackIdsEffective = <String>{};
+    for (final id in ackIds) {
+      if (nonEmptyAckDayForUser(id) != null) ackIdsEffective.add(id.trim());
+    }
+    for (final e in ackDates.entries) {
+      final k = e.key.trim();
+      if (k.isEmpty) continue;
+      if (e.value.toString().trim().isNotEmpty) ackIdsEffective.add(k);
+    }
+
     final ids = <String>[];
     final fromApi = json[ActiveMstApiJsonKeys.apprUserIds];
     if (fromApi is List) {
@@ -154,7 +179,7 @@ class ActivityDetail {
 
     return ActivityDetail(
       storeIdx: asJsonIntOpt(json[ActiveMstApiJsonKeys.storeIdx]),
-      apprAckUserIds: ackIds,
+      apprAckUserIds: ackIdsEffective,
       apprAckDateByUserId: ackDates,
       svId: json.jsonString(ActiveMstApiJsonKeys.svId),
       actType: json.jsonString(ActiveMstApiJsonKeys.actType),

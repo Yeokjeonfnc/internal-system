@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_model.dart';
-import 'package:app_flutter/core/store_mst/store_mst_write_payload.dart';
+import 'package:app_flutter/core/store_mst/store_mst_write_request.dart';
 
 String _describeStoreCreateFailure(Object e) {
   if (e is DioException) {
@@ -51,7 +51,7 @@ class StoreApiService extends BaseRepository {
     try {
       final queryParams = <String, dynamic>{};
       if (name != null && name.isNotEmpty) {
-        queryParams[StoreMstWritePayload.jsonKeyStoreNm] = name;
+        queryParams[StoreMstWriteRequest.jsonKeyStoreNm] = name;
       }
 
       return await getDataList(
@@ -67,7 +67,7 @@ class StoreApiService extends BaseRepository {
 
   /// 가맹점 신규 등록. 실패 시 서버 [message]를 [onServerMessage]로 넘긴다(중복 주소 400 등).
   Future<Store?> createStore(
-    StoreMstWritePayload body, {
+    StoreMstWriteRequest body, {
     void Function(String message)? onServerMessage,
   }) async {
     void fail(String m) {
@@ -79,7 +79,10 @@ class StoreApiService extends BaseRepository {
     }
 
     try {
-      final r = await client.post(StoreMstApiPaths.root, data: body.toRequestBody());
+      final r = await client.post(
+        StoreMstApiPaths.root,
+        data: body.toRequestBody(),
+      );
       if (r.data == null) {
         fail('서버 응답이 비어 있습니다.');
         return null;
@@ -88,9 +91,7 @@ class StoreApiService extends BaseRepository {
         responseMap(r);
       } catch (e, st) {
         debugPrint('createStore responseMap: $e\n$st');
-        fail(
-          '서버 응답 형식 오류: 본문이 JSON 객체가 아닙니다.\n(${e.toString()})',
-        );
+        fail('서버 응답 형식 오류: 본문이 JSON 객체가 아닙니다.\n(${e.toString()})');
         return null;
       }
       if (!envelopeSuccess(r.data)) {
@@ -121,9 +122,7 @@ class StoreApiService extends BaseRepository {
           return null;
         }
       }
-      fail(
-        '저장에 실패했습니다.\n(${_describeStoreCreateFailure(e)})',
-      );
+      fail('저장에 실패했습니다.\n(${_describeStoreCreateFailure(e)})');
     }
     return null;
   }
@@ -131,7 +130,7 @@ class StoreApiService extends BaseRepository {
   /// 가맹점 수정 (400 시 서버 message 표시 — Dio 기본값은 4xx에서 예외 발생)
   Future<Store?> updateStore(
     int storeIdx,
-    StoreMstWritePayload body, {
+    StoreMstWriteRequest body, {
     void Function(String message)? onServerMessage,
   }) async {
     void fail(String m) {
@@ -155,9 +154,7 @@ class StoreApiService extends BaseRepository {
         responseMap(r);
       } catch (e, st) {
         debugPrint('updateStore responseMap: $e\n$st');
-        fail(
-          '서버 응답 형식 오류: 본문이 JSON 객체가 아닙니다.\n(${e.toString()})',
-        );
+        fail('서버 응답 형식 오류: 본문이 JSON 객체가 아닙니다.\n(${e.toString()})');
         return null;
       }
       if (!envelopeSuccess(r.data)) {

@@ -30,7 +30,7 @@ import 'package:app_flutter/pages/development/dev002/dev002_controller.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_model.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_controller.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_model.dart';
-import 'package:app_flutter/core/store_mst/store_mst_write_payload.dart';
+import 'package:app_flutter/core/store_mst/store_mst_write_request.dart';
 
 /// 가맹점 상세 화면(탭·스토어 로드).
 class StoreDetailView extends ConsumerStatefulWidget {
@@ -798,88 +798,88 @@ class _CommonStoreInfoSectionState
     }
   }
 
-  StoreMstWritePayload toUpdatePayload(
+  StoreMstWriteRequest toUpdatePayload(
     Store store, {
     required String storeTel,
   }) {
     final draft = widget.registerDraft;
     final codeFromField = draft?.storeCodeController.text.trim() ?? '';
     final storeCd = codeFromField.isNotEmpty ? codeFromField : store.storeCd;
-    return StoreMstWritePayload.fromMap({
-      StoreMstWritePayload.jsonKeyStoreCd: storeCd,
-      StoreMstWritePayload.jsonKeyStoreNm: _storeNameController.text.trim(),
-      StoreMstWritePayload.jsonKeyOwnerNm: store.ownerNm,
-      StoreMstWritePayload.jsonKeyRegionCd: _effRegion(),
-      StoreMstWritePayload.jsonKeyStoreTel: storeTel,
-      StoreMstWritePayload.jsonKeyAddress: store.address,
-      StoreMstWritePayload.jsonKeyStoreStatus: _effStatus(),
-      StoreMstWritePayload.jsonKeyContEndDt: _emptyToNull(store.contEndDt),
-      StoreMstWritePayload.jsonKeyAutoRenewalYn: true,
-      StoreMstWritePayload.jsonKeyStoreType: _effType(),
-      StoreMstWritePayload.jsonKeySvId: store.svId,
-      StoreMstWritePayload.jsonKeyAdressDetail: store.addressDetail,
-      StoreMstWritePayload.jsonKeyZipCd: store.zipCd,
-      StoreMstWritePayload.jsonKeyBrandCd: _effBrand(),
-      StoreMstWritePayload.jsonKeyContStartDt: _emptyToNull(store.contStartDt),
-      StoreMstWritePayload.jsonKeyFirstContDt: _emptyToNull(store.firstContDt),
-      StoreMstWritePayload.jsonKeyBusinessNumber: _businessNumberController.text
+    return StoreMstWriteRequest.fromMap({
+      StoreMstWriteRequest.jsonKeyStoreCd: storeCd,
+      StoreMstWriteRequest.jsonKeyStoreNm: _storeNameController.text.trim(),
+      StoreMstWriteRequest.jsonKeyOwnerNm: store.ownerNm,
+      StoreMstWriteRequest.jsonKeyRegionCd: _effRegion(),
+      StoreMstWriteRequest.jsonKeyStoreTel: storeTel,
+      StoreMstWriteRequest.jsonKeyAddress: store.address,
+      StoreMstWriteRequest.jsonKeyStoreStatus: _effStatus(),
+      StoreMstWriteRequest.jsonKeyContEndDt: _emptyToNull(store.contEndDt),
+      StoreMstWriteRequest.jsonKeyAutoRenewalYn: true,
+      StoreMstWriteRequest.jsonKeyStoreType: _effType(),
+      StoreMstWriteRequest.jsonKeySvId: store.svId,
+      StoreMstWriteRequest.jsonKeyAdressDetail: store.addressDetail,
+      StoreMstWriteRequest.jsonKeyZipCd: store.zipCd,
+      StoreMstWriteRequest.jsonKeyBrandCd: _effBrand(),
+      StoreMstWriteRequest.jsonKeyContStartDt: _emptyToNull(store.contStartDt),
+      StoreMstWriteRequest.jsonKeyFirstContDt: _emptyToNull(store.firstContDt),
+      StoreMstWriteRequest.jsonKeyBusinessNumber: _businessNumberController.text
           .trim(),
-      StoreMstWritePayload.jsonKeyFrFee: _numberToNull(store.frFee),
-      StoreMstWritePayload.jsonKeyEduFee: _numberToNull(store.eduFee),
-      StoreMstWritePayload.jsonKeyInsuDeposit: _numberToNull(store.insuDeposit),
-      StoreMstWritePayload.jsonKeyContDeposit: _numberToNull(store.contDeposit),
-      StoreMstWritePayload.jsonKeyContManager: store.contManager,
-      StoreMstWritePayload.jsonKeyEduManager: store.eduManager,
-      StoreMstWritePayload.jsonKeyContArea: _numberToNull(store.contArea),
-      StoreMstWritePayload.jsonKeyRealArea: _numberToNull(store.realArea),
-      StoreMstWritePayload.jsonKeyFloor: store.floor,
-      StoreMstWritePayload.jsonKeyParkingCount: store.parkingCount,
-      StoreMstWritePayload.jsonKeyPremiumFee: store.premiumFee,
-      StoreMstWritePayload.jsonKeyMonthlyRent: store.monthlyRent,
-      StoreMstWritePayload.jsonKeyRentDeposit: store.rentDeposit,
+      StoreMstWriteRequest.jsonKeyFrFee: _numberToNull(store.frFee),
+      StoreMstWriteRequest.jsonKeyEduFee: _numberToNull(store.eduFee),
+      StoreMstWriteRequest.jsonKeyInsuDeposit: _numberToNull(store.insuDeposit),
+      StoreMstWriteRequest.jsonKeyContDeposit: _numberToNull(store.contDeposit),
+      StoreMstWriteRequest.jsonKeyContManager: store.contManager,
+      StoreMstWriteRequest.jsonKeyEduManager: store.eduManager,
+      StoreMstWriteRequest.jsonKeyContArea: _numberToNull(store.contArea),
+      StoreMstWriteRequest.jsonKeyRealArea: _numberToNull(store.realArea),
+      StoreMstWriteRequest.jsonKeyFloor: store.floor,
+      StoreMstWriteRequest.jsonKeyParkingCount: store.parkingCount,
+      StoreMstWriteRequest.jsonKeyPremiumFee: store.premiumFee,
+      StoreMstWriteRequest.jsonKeyMonthlyRent: store.monthlyRent,
+      StoreMstWriteRequest.jsonKeyRentDeposit: store.rentDeposit,
     });
   }
 
-  StoreMstWritePayload toCreatePayload({required String storeTel}) {
+  StoreMstWriteRequest toCreatePayload({required String storeTel}) {
     final m = <String, dynamic>{
-      StoreMstWritePayload.jsonKeyStoreCd: _storeCodeController.text.trim(),
-      StoreMstWritePayload.jsonKeyStoreNm: _storeNameController.text.trim(),
-      StoreMstWritePayload.jsonKeyOwnerNm: null,
-      StoreMstWritePayload.jsonKeyRegionCd: _emptyToNull(_effRegion()),
-      StoreMstWritePayload.jsonKeyStoreTel: _emptyToNull(storeTel),
-      StoreMstWritePayload.jsonKeyAddress: null,
-      StoreMstWritePayload.jsonKeyStoreStatus: _emptyToNull(_effStatus()),
-      StoreMstWritePayload.jsonKeyContEndDt: null,
-      StoreMstWritePayload.jsonKeyAutoRenewalYn: true,
-      StoreMstWritePayload.jsonKeyStoreType: _emptyToNull(_effType()),
-      StoreMstWritePayload.jsonKeySvId: null,
-      StoreMstWritePayload.jsonKeyAdressDetail: null,
-      StoreMstWritePayload.jsonKeyZipCd: null,
-      StoreMstWritePayload.jsonKeyBrandCd: _emptyToNull(_effBrand()),
-      StoreMstWritePayload.jsonKeyContStartDt: null,
-      StoreMstWritePayload.jsonKeyFirstContDt: null,
-      StoreMstWritePayload.jsonKeyBusinessNumber: _emptyToNull(
+      StoreMstWriteRequest.jsonKeyStoreCd: _storeCodeController.text.trim(),
+      StoreMstWriteRequest.jsonKeyStoreNm: _storeNameController.text.trim(),
+      StoreMstWriteRequest.jsonKeyOwnerNm: null,
+      StoreMstWriteRequest.jsonKeyRegionCd: _emptyToNull(_effRegion()),
+      StoreMstWriteRequest.jsonKeyStoreTel: _emptyToNull(storeTel),
+      StoreMstWriteRequest.jsonKeyAddress: null,
+      StoreMstWriteRequest.jsonKeyStoreStatus: _emptyToNull(_effStatus()),
+      StoreMstWriteRequest.jsonKeyContEndDt: null,
+      StoreMstWriteRequest.jsonKeyAutoRenewalYn: true,
+      StoreMstWriteRequest.jsonKeyStoreType: _emptyToNull(_effType()),
+      StoreMstWriteRequest.jsonKeySvId: null,
+      StoreMstWriteRequest.jsonKeyAdressDetail: null,
+      StoreMstWriteRequest.jsonKeyZipCd: null,
+      StoreMstWriteRequest.jsonKeyBrandCd: _emptyToNull(_effBrand()),
+      StoreMstWriteRequest.jsonKeyContStartDt: null,
+      StoreMstWriteRequest.jsonKeyFirstContDt: null,
+      StoreMstWriteRequest.jsonKeyBusinessNumber: _emptyToNull(
         _businessNumberController.text,
       ),
-      StoreMstWritePayload.jsonKeyFrFee: 0,
-      StoreMstWritePayload.jsonKeyEduFee: 0,
-      StoreMstWritePayload.jsonKeyInsuDeposit: 0,
-      StoreMstWritePayload.jsonKeyContDeposit: 0,
-      StoreMstWritePayload.jsonKeyContManager: null,
-      StoreMstWritePayload.jsonKeyEduManager: null,
-      StoreMstWritePayload.jsonKeyContArea: 0,
-      StoreMstWritePayload.jsonKeyRealArea: 0,
-      StoreMstWritePayload.jsonKeyFloor: 0,
-      StoreMstWritePayload.jsonKeyParkingCount: 0,
-      StoreMstWritePayload.jsonKeyPremiumFee: 0,
-      StoreMstWritePayload.jsonKeyMonthlyRent: 0,
-      StoreMstWritePayload.jsonKeyRentDeposit: 0,
+      StoreMstWriteRequest.jsonKeyFrFee: 0,
+      StoreMstWriteRequest.jsonKeyEduFee: 0,
+      StoreMstWriteRequest.jsonKeyInsuDeposit: 0,
+      StoreMstWriteRequest.jsonKeyContDeposit: 0,
+      StoreMstWriteRequest.jsonKeyContManager: null,
+      StoreMstWriteRequest.jsonKeyEduManager: null,
+      StoreMstWriteRequest.jsonKeyContArea: 0,
+      StoreMstWriteRequest.jsonKeyRealArea: 0,
+      StoreMstWriteRequest.jsonKeyFloor: 0,
+      StoreMstWriteRequest.jsonKeyParkingCount: 0,
+      StoreMstWriteRequest.jsonKeyPremiumFee: 0,
+      StoreMstWriteRequest.jsonKeyMonthlyRent: 0,
+      StoreMstWriteRequest.jsonKeyRentDeposit: 0,
     };
     final pid = widget.registerDraft?.partnerIdx;
     if (pid != null) {
-      m[StoreMstWritePayload.jsonKeyPartnerIdx] = pid;
+      m[StoreMstWriteRequest.jsonKeyPartnerIdx] = pid;
     }
-    return StoreMstWritePayload.fromMap(m);
+    return StoreMstWriteRequest.fromMap(m);
   }
 
   String? _emptyToNull(String value) {
@@ -1838,43 +1838,43 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
   }
 
   /// 계약정보 탭만 저장할 때도 요청에 포함되도록 분리.
-  StoreMstWritePayload toGeoUpdatePayload() => StoreMstWritePayload.fromMap({
-    StoreMstWritePayload.jsonKeyLatitude: _decimalToNull(_latitude),
-    StoreMstWritePayload.jsonKeyLongitude: _decimalToNull(_longitude),
+  StoreMstWriteRequest toGeoUpdatePayload() => StoreMstWriteRequest.fromMap({
+    StoreMstWriteRequest.jsonKeyLatitude: _decimalToNull(_latitude),
+    StoreMstWriteRequest.jsonKeyLongitude: _decimalToNull(_longitude),
   });
 
-  StoreMstWritePayload toUpdatePayload() {
-    return StoreMstWritePayload.fromMap({
+  StoreMstWriteRequest toUpdatePayload() {
+    return StoreMstWriteRequest.fromMap({
       ...toGeoUpdatePayload().toRequestBody(),
-      StoreMstWritePayload.jsonKeyFirstContDt: _dateToYmd(_firstContDt),
-      StoreMstWritePayload.jsonKeyContEndDt: _dateToYmd(_contractExpiryDate),
-      StoreMstWritePayload.jsonKeyOwnerNm: _ownerNameController.text.trim(),
-      StoreMstWritePayload.jsonKeyZipCd: _emptyToNull(_zipCodeController.text),
-      StoreMstWritePayload.jsonKeyAddress: _emptyToNull(
+      StoreMstWriteRequest.jsonKeyFirstContDt: _dateToYmd(_firstContDt),
+      StoreMstWriteRequest.jsonKeyContEndDt: _dateToYmd(_contractExpiryDate),
+      StoreMstWriteRequest.jsonKeyOwnerNm: _ownerNameController.text.trim(),
+      StoreMstWriteRequest.jsonKeyZipCd: _emptyToNull(_zipCodeController.text),
+      StoreMstWriteRequest.jsonKeyAddress: _emptyToNull(
         _addressController.text,
       ),
-      StoreMstWritePayload.jsonKeyAdressDetail: _emptyToNull(
+      StoreMstWriteRequest.jsonKeyAdressDetail: _emptyToNull(
         _addressDetailController.text,
       ),
-      StoreMstWritePayload.jsonKeyContArea: _numberToNull(_contArea.text),
-      StoreMstWritePayload.jsonKeyRealArea: _numberToNull(
+      StoreMstWriteRequest.jsonKeyContArea: _numberToNull(_contArea.text),
+      StoreMstWriteRequest.jsonKeyRealArea: _numberToNull(
         _realAreaController.text,
       ),
-      StoreMstWritePayload.jsonKeyFloor: _intToNull(_floorController.text),
-      StoreMstWritePayload.jsonKeyParkingCount: _intToNull(
+      StoreMstWriteRequest.jsonKeyFloor: _intToNull(_floorController.text),
+      StoreMstWriteRequest.jsonKeyParkingCount: _intToNull(
         _parkingController.text,
       ),
-      StoreMstWritePayload.jsonKeyRentDeposit: _intToNull(
+      StoreMstWriteRequest.jsonKeyRentDeposit: _intToNull(
         _rentDepositController.text,
       ),
-      StoreMstWritePayload.jsonKeyPremiumFee: _intToNull(
+      StoreMstWriteRequest.jsonKeyPremiumFee: _intToNull(
         _premiumFeeController.text,
       ),
-      StoreMstWritePayload.jsonKeyMonthlyRent: _intToNull(
+      StoreMstWriteRequest.jsonKeyMonthlyRent: _intToNull(
         _monthlyRentController.text,
       ),
-      StoreMstWritePayload.jsonKeyNotes: _notesController.text.trim(),
-      if (_propIdx != null) StoreMstWritePayload.jsonKeyPropIdx: _propIdx,
+      StoreMstWriteRequest.jsonKeyNotes: _notesController.text.trim(),
+      if (_propIdx != null) StoreMstWriteRequest.jsonKeyPropIdx: _propIdx,
     });
   }
 
@@ -2745,25 +2745,25 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
 
   Store? get _store => widget.store;
 
-  StoreMstWritePayload toUpdatePayload() {
-    return StoreMstWritePayload.fromMap({
-      StoreMstWritePayload.jsonKeyFirstContDt: _dateToYmd(_firstContDt),
-      StoreMstWritePayload.jsonKeyContStartDt: _dateToYmd(
+  StoreMstWriteRequest toUpdatePayload() {
+    return StoreMstWriteRequest.fromMap({
+      StoreMstWriteRequest.jsonKeyFirstContDt: _dateToYmd(_firstContDt),
+      StoreMstWriteRequest.jsonKeyContStartDt: _dateToYmd(
         _currentContractStart,
       ),
-      StoreMstWritePayload.jsonKeyContEndDt: _dateToYmd(_currentContractEnd),
-      StoreMstWritePayload.jsonKeyFrFee: _numberToNull(_frFreeController.text),
-      StoreMstWritePayload.jsonKeyEduFee: _numberToNull(_eduFeeController.text),
-      StoreMstWritePayload.jsonKeyInsuDeposit: _numberToNull(
+      StoreMstWriteRequest.jsonKeyContEndDt: _dateToYmd(_currentContractEnd),
+      StoreMstWriteRequest.jsonKeyFrFee: _numberToNull(_frFreeController.text),
+      StoreMstWriteRequest.jsonKeyEduFee: _numberToNull(_eduFeeController.text),
+      StoreMstWriteRequest.jsonKeyInsuDeposit: _numberToNull(
         _insuDepositController.text,
       ),
-      StoreMstWritePayload.jsonKeyContDeposit: _numberToNull(
+      StoreMstWriteRequest.jsonKeyContDeposit: _numberToNull(
         _contDepositController.text,
       ),
-      StoreMstWritePayload.jsonKeyContManager: _contManagerController.text
+      StoreMstWriteRequest.jsonKeyContManager: _contManagerController.text
           .trim(),
-      StoreMstWritePayload.jsonKeyEduManager: _eduManagerController.text.trim(),
-      StoreMstWritePayload.jsonKeySvId: _emptyToNull(_supervisorSvId),
+      StoreMstWriteRequest.jsonKeyEduManager: _eduManagerController.text.trim(),
+      StoreMstWriteRequest.jsonKeySvId: _emptyToNull(_supervisorSvId),
     });
   }
 
@@ -3782,86 +3782,86 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
     Navigator.of(context).maybePop();
   }
 
-  StoreMstWritePayload _basicDraftPayload(StoreRegisterDraft draft) {
-    return StoreMstWritePayload.fromMap({
-      StoreMstWritePayload.jsonKeyFirstContDt: _dateToYmd(draft.firstContDt),
-      StoreMstWritePayload.jsonKeyContEndDt: _dateToYmd(
+  StoreMstWriteRequest _basicDraftPayload(StoreRegisterDraft draft) {
+    return StoreMstWriteRequest.fromMap({
+      StoreMstWriteRequest.jsonKeyFirstContDt: _dateToYmd(draft.firstContDt),
+      StoreMstWriteRequest.jsonKeyContEndDt: _dateToYmd(
         draft.contractExpiryDate,
       ),
-      StoreMstWritePayload.jsonKeyOwnerNm: draft.ownerNameController.text
+      StoreMstWriteRequest.jsonKeyOwnerNm: draft.ownerNameController.text
           .trim(),
-      StoreMstWritePayload.jsonKeyZipCd: _emptyToNull(
+      StoreMstWriteRequest.jsonKeyZipCd: _emptyToNull(
         draft.zipCodeController.text,
       ),
-      StoreMstWritePayload.jsonKeyAddress: _emptyToNull(
+      StoreMstWriteRequest.jsonKeyAddress: _emptyToNull(
         draft.addressController.text,
       ),
-      StoreMstWritePayload.jsonKeyAdressDetail: _emptyToNull(
+      StoreMstWriteRequest.jsonKeyAdressDetail: _emptyToNull(
         draft.addressDetailController.text,
       ),
-      StoreMstWritePayload.jsonKeyLatitude: _optionalCoordPayload(
+      StoreMstWriteRequest.jsonKeyLatitude: _optionalCoordPayload(
         draft.latitude,
       ),
-      StoreMstWritePayload.jsonKeyLongitude: _optionalCoordPayload(
+      StoreMstWriteRequest.jsonKeyLongitude: _optionalCoordPayload(
         draft.longitude,
       ),
-      StoreMstWritePayload.jsonKeyContArea: _numberToNull(
+      StoreMstWriteRequest.jsonKeyContArea: _numberToNull(
         draft.contAreaController.text,
       ),
-      StoreMstWritePayload.jsonKeyRealArea: _numberToNull(
+      StoreMstWriteRequest.jsonKeyRealArea: _numberToNull(
         draft.realAreaController.text,
       ),
-      StoreMstWritePayload.jsonKeyFloor: _intToNull(draft.floorController.text),
-      StoreMstWritePayload.jsonKeyParkingCount: _intToNull(
+      StoreMstWriteRequest.jsonKeyFloor: _intToNull(draft.floorController.text),
+      StoreMstWriteRequest.jsonKeyParkingCount: _intToNull(
         draft.parkingController.text,
       ),
-      StoreMstWritePayload.jsonKeyRentDeposit: _intToNull(
+      StoreMstWriteRequest.jsonKeyRentDeposit: _intToNull(
         draft.rentDepositController.text,
       ),
-      StoreMstWritePayload.jsonKeyPremiumFee: _intToNull(
+      StoreMstWriteRequest.jsonKeyPremiumFee: _intToNull(
         draft.premiumFeeController.text,
       ),
-      StoreMstWritePayload.jsonKeyMonthlyRent: _intToNull(
+      StoreMstWriteRequest.jsonKeyMonthlyRent: _intToNull(
         draft.monthlyRentController.text,
       ),
-      StoreMstWritePayload.jsonKeyNotes: draft.notesController.text.trim(),
+      StoreMstWriteRequest.jsonKeyNotes: draft.notesController.text.trim(),
       if (draft.propIdx != null)
-        StoreMstWritePayload.jsonKeyPropIdx: draft.propIdx,
+        StoreMstWriteRequest.jsonKeyPropIdx: draft.propIdx,
       if (draft.partnerIdx != null)
-        StoreMstWritePayload.jsonKeyPartnerIdx: draft.partnerIdx,
+        StoreMstWriteRequest.jsonKeyPartnerIdx: draft.partnerIdx,
     });
   }
 
-  StoreMstWritePayload _contractDraftPayload(StoreRegisterDraft draft) {
-    return StoreMstWritePayload.fromMap({
-      StoreMstWritePayload.jsonKeyFirstContDt:
+  StoreMstWriteRequest _contractDraftPayload(StoreRegisterDraft draft) {
+    return StoreMstWriteRequest.fromMap({
+      StoreMstWriteRequest.jsonKeyFirstContDt:
           _dateToYmd(draft.contractFirstContDt) ??
           _dateToYmd(draft.firstContDt),
-      StoreMstWritePayload.jsonKeyContStartDt: _dateToYmd(
+      StoreMstWriteRequest.jsonKeyContStartDt: _dateToYmd(
         draft.currentContractStart,
       ),
-      StoreMstWritePayload.jsonKeyContEndDt:
+      StoreMstWriteRequest.jsonKeyContEndDt:
           _dateToYmd(draft.currentContractEnd) ??
           _dateToYmd(draft.contractExpiryDate),
-      StoreMstWritePayload.jsonKeyFrFee: _numberToNull(
+      StoreMstWriteRequest.jsonKeyFrFee: _numberToNull(
         draft.frFeeController.text,
       ),
-      StoreMstWritePayload.jsonKeyEduFee: _numberToNull(
+      StoreMstWriteRequest.jsonKeyEduFee: _numberToNull(
         draft.eduFeeController.text,
       ),
-      StoreMstWritePayload.jsonKeyInsuDeposit: _numberToNull(
+      StoreMstWriteRequest.jsonKeyInsuDeposit: _numberToNull(
         draft.insuDepositController.text,
       ),
-      StoreMstWritePayload.jsonKeyContDeposit: _numberToNull(
+      StoreMstWriteRequest.jsonKeyContDeposit: _numberToNull(
         draft.contDepositController.text,
       ),
-      StoreMstWritePayload.jsonKeyContManager: _emptyToNull(
+      StoreMstWriteRequest.jsonKeyContManager: _emptyToNull(
         draft.contManagerController.text,
       ),
-      StoreMstWritePayload.jsonKeyEduManager: _emptyToNull(
+      StoreMstWriteRequest.jsonKeyEduManager: _emptyToNull(
         draft.eduManagerController.text,
       ),
-      StoreMstWritePayload.jsonKeySvId: _emptyToNull(draft.svId),
+      StoreMstWriteRequest.jsonKeySvId: _emptyToNull(draft.svId),
     });
   }
 

@@ -8,6 +8,7 @@ class SalesAreaRow {
     this.zoneIdx,
     required this.settingDateYmd,
     required this.propertyName,
+    required this.regionCd,
     required this.region,
     required this.franchiseLabel,
     required this.storeName,
@@ -29,6 +30,7 @@ class SalesAreaRow {
       zoneIdx: zoneIdx,
       settingDateYmd: _str(j['settingDateYmd']),
       propertyName: _str(j['propNm']),
+      regionCd: _str(j['regionCd']),
       region: _str(j['regionNm']),
       franchiseLabel: _str(j['franchiseLabel']).isEmpty ? '-' : _str(j['franchiseLabel']),
       storeName: _str(j['storeNm']).isEmpty ? '-' : _str(j['storeNm']),
@@ -64,6 +66,7 @@ class SalesAreaRow {
   final int? zoneIdx;
   final String settingDateYmd;
   final String propertyName;
+  final String regionCd;
   final String region;
   final String franchiseLabel;
   final String storeName;

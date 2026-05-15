@@ -72,8 +72,10 @@ class _ErpDataTableState extends State<ErpDataTable> {
           builder: (context, constraints) {
             // 화면보다 넓은 표는 [minWidth] 기준. 가로 스크롤을 **밖**에 두어
             // 터치/트랙패드/웹에서 세로·가로 제스처가 둘 다 동작하도록 한다.
-            final width = constraints.maxWidth > widget.minWidth
-                ? constraints.maxWidth
+            final maxW = constraints.maxWidth;
+            final viewportW = maxW.isFinite ? maxW : widget.minWidth;
+            final width = viewportW > widget.minWidth
+                ? viewportW
                 : widget.minWidth;
             return Scrollbar(
               controller: _horizontalController,
@@ -83,8 +85,10 @@ class _ErpDataTableState extends State<ErpDataTable> {
               child: SingleChildScrollView(
                 controller: _horizontalController,
                 scrollDirection: Axis.horizontal,
+                primary: false,
                 child: SingleChildScrollView(
                   scrollDirection: Axis.vertical,
+                  primary: false,
                   child: SizedBox(
                     width: width,
                     child: widget.tableBuilder(context, width),

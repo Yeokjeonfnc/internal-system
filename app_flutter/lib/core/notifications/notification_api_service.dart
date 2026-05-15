@@ -1,9 +1,10 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/core/notifications/notif_api_paths.dart';
 import 'package:app_flutter/core/notifications/notif_model.dart';
-import 'package:app_flutter/core/user_mst/user_mst_write_payload.dart';
+import 'package:app_flutter/core/user_mst/user_mst_write_request.dart';
 
 /// 활동 결재 등 [notif_mst] 알림 API.
 class NotificationApiService extends BaseRepository {
@@ -12,7 +13,7 @@ class NotificationApiService extends BaseRepository {
     try {
       return await getDataList(
         NotifMstApiPaths.root,
-        queryParameters: {UserMstWritePayload.jsonKeyUserId: userId},
+        queryParameters: {UserMstWriteRequest.jsonKeyUserId: userId},
         fromJson: NotifRow.fromJson,
       );
     } catch (e) {
@@ -26,7 +27,7 @@ class NotificationApiService extends BaseRepository {
     try {
       final r = await client.get(
         NotifMstApiPaths.unreadCount,
-        queryParameters: {UserMstWritePayload.jsonKeyUserId: userId},
+        queryParameters: {UserMstWriteRequest.jsonKeyUserId: userId},
       );
       if (r.statusCode != 200 || r.data == null) return 0;
       final n = readEnvelopeData(r.data, (raw) {
@@ -46,34 +47,59 @@ class NotificationApiService extends BaseRepository {
     try {
       await client.patch(
         NotifMstApiPaths.read(notifIdx),
-        queryParameters: {UserMstWritePayload.jsonKeyUserId: userId},
+        queryParameters: {UserMstWriteRequest.jsonKeyUserId: userId},
       );
     } catch (e) {
       debugPrint('알림 읽음 처리 실패: $e');
     }
   }
 
-  /// 활동 결재 화면 [결재하기]: 해당 활동 알림의 appr_yn 을 Y 로 반영.
-  Future<bool> acknowledgeActivityApproval({
+  /// 활동 결재 화면 [결재하기]: `notif_mst` 대기(N) 건만 Y 로 반영.
+  /// [apprNotes] 는 `active_mst.appr_notes` 에 그대로 반영한다(빈 문자열이면 DB NULL).
+  /// 실패 시 서버 [ApiResponse.message] 를 [errorMessage] 로 돌려 얼럿에 쓴다.
+  Future<({bool ok, String? errorMessage})> acknowledgeActivityApproval({
     required int actIdx,
     required String userId,
+    String? apprNotes,
   }) async {
-    if (userId.isEmpty) return false;
+    if (userId.isEmpty) {
+      return (ok: false, errorMessage: '로그인 정보가 없습니다.');
+    }
     try {
+      final qp = <String, dynamic>{
+        UserMstWriteRequest.jsonKeyUserId: userId,
+        NotifMstQueryParamKeys.actIdx: actIdx,
+        NotifMstQueryParamKeys.apprNotes: apprNotes ?? '',
+      };
       final response = await client.patch(
         NotifMstApiPaths.activityApproval,
-        queryParameters: {
-          UserMstWritePayload.jsonKeyUserId: userId,
-          NotifMstQueryParamKeys.actIdx: actIdx,
-        },
+        queryParameters: qp,
       );
-      if (response.statusCode != 200 || response.data == null) {
-        return false;
+      if (response.statusCode == 200 &&
+          response.data != null &&
+          envelopeSuccess(response.data)) {
+        return (ok: true, errorMessage: null);
       }
-      return envelopeSuccess(response.data);
+      final msg = response.data != null
+          ? envelopeMessage(response.data)
+          : null;
+      return (
+        ok: false,
+        errorMessage: msg ?? '결재 처리에 실패했습니다.',
+      );
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data != null) {
+        final m = envelopeMessage(data);
+        if (m != null) {
+          return (ok: false, errorMessage: m);
+        }
+      }
+      debugPrint('결재 확인 반영 실패: $e');
+      return (ok: false, errorMessage: '결재 처리에 실패했습니다.');
     } catch (e) {
       debugPrint('결재 확인 반영 실패: $e');
-      return false;
+      return (ok: false, errorMessage: '결재 처리에 실패했습니다.');
     }
   }
 }

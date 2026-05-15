@@ -7,11 +7,36 @@ import 'package:app_flutter/pages/development/dev002/dev002_model.dart';
 
 /// 공통코드(지역 grp=20)로 [Property.region] 코드를 화면 지역명과 맞춘다.
 String dev002PropertyRegionLabel(String region, List<CodeOption> options) {
-  if (region.isEmpty) return '';
+  final key = region.trim();
+  if (key.isEmpty) return '';
   for (final o in options) {
-    if (o.codeCd == region) return o.codeNm;
+    if (o.codeCd == key) return o.codeNm.trim();
   }
-  return region;
+  return key;
+}
+
+/// 다중 선택 지역 — [dev001]/[dev003]과 동일하게 `regionNms` + 코드/명 매칭.
+bool dev002RegionFilterAllows(
+  PropertyFilter s,
+  Property r,
+  List<CodeOption> regionCodeOptions,
+) {
+  final picksRaw = s.regionNms
+      .map((e) => e.trim())
+      .where((e) => e.isNotEmpty)
+      .toSet();
+  final picks = picksRaw.where((e) => e != '전체').toSet();
+  if (picks.isEmpty) {
+    if (s.region == '전체') return true;
+    return r.region.trim() == s.region.trim();
+  }
+  final rowKey = r.region.trim();
+  if (rowKey.isEmpty) return false;
+  if (regionCodeOptions.isEmpty) {
+    return picks.contains(rowKey);
+  }
+  final label = dev002PropertyRegionLabel(rowKey, regionCodeOptions);
+  return picks.contains(rowKey) || picks.contains(label);
 }
 
 /// [regionCodeOptions] — `propertyCodeOptionsProvider(20)` 값(로딩 전엔 빈 리스트).
@@ -19,7 +44,7 @@ List<ListFilterRule<PropertyFilter, Property>> dev002ListRules(
   List<CodeOption> regionCodeOptions,
 ) {
   return <ListFilterRule<PropertyFilter, Property>>[
-    (s, r) => s.region == '전체' || r.region == s.region,
+    (s, r) => dev002RegionFilterAllows(s, r, regionCodeOptions),
     (s, r) {
       final q = s.propertyKeyword.trim().toLowerCase();
       if (q.isEmpty) return true;

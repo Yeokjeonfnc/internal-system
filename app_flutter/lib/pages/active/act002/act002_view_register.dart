@@ -1,6 +1,7 @@
 // 활동 관리 등록 — 제공 화면 구조·[FormStylePalette] 톤.
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,13 +17,14 @@ import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table
 import 'package:app_flutter/core/widgets/common/erp_popup_list_stripes.dart';
 import 'package:app_flutter/core/widgets/common/form/common_date_input_with_picker.dart'
     show CalendarPickButton, showAccentDatePicker;
-import 'package:app_flutter/core/active_mst/active_mst_write_payload.dart';
+import 'package:app_flutter/core/active_mst/active_mst_write_request.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/pages/active/act002/act002_api.dart';
 import 'package:app_flutter/pages/active/act002/act002_model.dart';
 import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_approval_line.dart';
 import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_instructions.dart';
 import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_visit_history.dart';
+import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_electronic_signature.dart';
 import 'package:app_flutter/pages/active/act002/act002_model_checklist.dart';
 import 'package:app_flutter/core/notifications/notification_api_service.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
@@ -238,6 +240,9 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   final _apprNotesController = TextEditingController();
   final _svNotesController = TextEditingController();
 
+  /// 전자서명 팝업에서 저장한 PNG(미연동 시 로컬만).
+  Uint8List? _electronicSignaturePng;
+
   // 체크리스트 블록에 접근하기 위한 GlobalKey
   final _checklistKey = GlobalKey<_ChecklistBlockState>();
 
@@ -265,9 +270,17 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   }
 
   /// 결재하기 버튼은 결재대기에서만 표시 (완료 후 재클릭 방지).
+  /// 기안자(0번 슬롯)는 결재자가 아니므로 버튼을 숨긴다.
   bool get _canSubmitApproval {
     final s = _loadedApprStatus?.trim().toUpperCase();
-    return s == 'PENDING';
+    if (s != 'PENDING') return false;
+    final self = context.read<AuthProvider>().userId.trim();
+    if (self.isEmpty) return false;
+    final writer = _approvalLineUserIds.isNotEmpty
+        ? _approvalLineUserIds[0].trim()
+        : '';
+    if (writer.isNotEmpty && self == writer) return false;
+    return true;
   }
 
   String _todayYmd() {
@@ -484,7 +497,8 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   List<String> _peerApproverIds() {
     final self = context.read<AuthProvider>().userId.trim();
     final out = <String>[];
-    for (var i = 0; i < kActivityApprovalLineSlotCount; i++) {
+    // 0열은 기안(작성자) 표시용 — 상신 시 결재자 CSV에는 1열부터만 포함한다.
+    for (var i = 1; i < kActivityApprovalLineSlotCount; i++) {
       final id = _approvalLineUserIds[i].trim();
       final nm = _approvalLineStampSlots[i].trim();
       if (nm.isEmpty || id.isEmpty) continue;
@@ -502,17 +516,21 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
       return;
     }
     setState(() => _approving = true);
-    final ok = await NotificationApiService().acknowledgeActivityApproval(
+    final result = await NotificationApiService().acknowledgeActivityApproval(
       actIdx: actIdx,
       userId: uid,
+      apprNotes: _apprNotesController.text,
     );
     if (!mounted) return;
     setState(() => _approving = false);
-    if (ok) {
+    if (result.ok) {
       await _loadAct(actIdx);
     }
     if (!mounted) return;
-    await showAlertDialog(context, ok ? '결재 처리되었습니다.' : '결재 처리에 실패했습니다.');
+    await showAlertDialog(
+      context,
+      result.ok ? '결재 처리되었습니다.' : (result.errorMessage ?? '결재 처리에 실패했습니다.'),
+    );
   }
 
   Future<void> _pickActDate() async {
@@ -557,7 +575,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     setState(() => _selectedStore = detail);
   }
 
-  ActivityWritePayload? _payload(String apprStatus) {
+  ActivityWriteRequest? _payload(String apprStatus) {
     final store = _selectedStore;
     if (store == null) return null;
 
@@ -569,7 +587,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     final checklistResults = _chkSavePayload();
     final approvers = _peerApproverIds();
 
-    return ActivityWritePayload(
+    return ActivityWriteRequest(
       storeIdx: store.storeIdx,
       actType: _activityKind,
       actDt: _formatYmd(_activityDate),
@@ -629,6 +647,54 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     return false;
   }
 
+  static const String _kChecklistGapStrictConfirmMessage =
+      '미평가 체크리스트가 존재합니다.\n'
+      '전자서명을 저장하면 입력된 내용 수정 불가합니다.\n'
+      '바로 상신 하시겠습니까?';
+
+  /// 미평가가 없으면 `true`, 있으면 동일 문구 확인 후 사용자 선택.
+  Future<bool> _confirmChecklistGapsBeforeStrictAction() async {
+    if (!_chkHasGaps()) return true;
+    if (!mounted) return false;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text(
+          '확인',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          _kChecklistGapStrictConfirmMessage,
+          style: TextStyle(fontSize: 15, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              '취소',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.accentRed),
+            child: const Text(
+              '예',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _autosaveDraft() async {
     if (_isApprovalWorkflowView) return;
     if (_submitted || _autoSaving || _saving || _selectedStore == null) return;
@@ -656,10 +722,16 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
         _toast('결재자를 한 명 이상(본인 제외) 지정해 주세요.');
         return;
       }
-      if (_chkHasGaps()) {
-        _toast('아직 체크되지 않은 체크리스트 항목이 있습니다.');
-        return;
+      for (var i = 1; i < kActivityApprovalLineSlotCount; i++) {
+        final nm = _approvalLineStampSlots[i].trim();
+        final rk = _rankLineStampSlots[i].trim();
+        final id = _approvalLineUserIds[i].trim();
+        if ((nm.isNotEmpty || rk.isNotEmpty) && id.isEmpty) {
+          _toast('결재란 ${i + 1}열에 이름·직급이 있으면 결재자(사용자)를 선택한 뒤 상신해 주세요.');
+          return;
+        }
       }
+      if (!await _confirmChecklistGapsBeforeStrictAction()) return;
     }
 
     if (_saving) return;
@@ -741,6 +813,16 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     showAlertDialog(context, message);
   }
 
+  Future<void> _openElectronicSignatureDialog() async {
+    if (_isApprovalWorkflowView) return;
+    final bytes = await showAct002ElectronicSignatureDialog(
+      context,
+      confirmIfChecklistIncomplete: _confirmChecklistGapsBeforeStrictAction,
+    );
+    if (!mounted || bytes == null) return;
+    setState(() => _electronicSignaturePng = bytes);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
@@ -786,6 +868,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                             apprAckDateByUserId: _apprAckDateByUserId,
                             documentWrittenAt: _docWrittenAtDisplay,
                             writerSealDate: _writerSealDateDisplay,
+                            loadedApprStatus: _loadedApprStatus,
                             deptNm: _deptNm,
                             drafterNm: _drafterNm,
                           ),
@@ -1053,13 +1136,34 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: FormStylePalette.panelBorder),
                       ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        '(서명)',
-                        style: TextStyle(
-                          color: FormStylePalette.textMuted,
-                          fontSize: 14,
-                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                      clipBehavior: Clip.antiAlias,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _isApprovalWorkflowView
+                              ? null
+                              : _openElectronicSignatureDialog,
+                          child: Center(
+                            child: _electronicSignaturePng != null
+                                ? Padding(
+                                    padding: const EdgeInsets.all(6),
+                                    child: Image.memory(
+                                      _electronicSignaturePng!,
+                                      fit: BoxFit.contain,
+                                      alignment: Alignment.center,
+                                      filterQuality: FilterQuality.medium,
+                                    ),
+                                  )
+                                : Text(
+                                    '(서명)',
+                                    style: TextStyle(
+                                      color: FormStylePalette.textMuted,
+                                      fontSize: 14,
+                                      fontFamilyFallback:
+                                          AppTheme.koreanFontFallback,
+                                    ),
+                                  ),
+                          ),
                         ),
                       ),
                     ),
@@ -1067,9 +1171,9 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                     Expanded(
                       child: Text(
                         '* 전자서명을 저장하면 입력된 내용 수정 불가하며 자동 상신됩니다.\n'
-                        '저장 전에 활동관리 작성을 완료하세요.',
+                        '   저장 전에 활동관리 작성을 완료하세요.',
                         style: GoogleFonts.notoSansKr(
-                          fontSize: 13,
+                          fontSize: 14,
                           color: AppTheme.accentRed,
                           height: 1.4,
                           fontWeight: FontWeight.w600,
@@ -1215,7 +1319,7 @@ class _StoreLookupDialogState extends State<_StoreLookupDialog> {
             TextField(
               controller: _keywordController,
               style: kActivityFormValueStyle,
-              decoration: _inputDeco('가맹점명, 코드, 브랜드, 사업자명 검색'),
+              decoration: _inputDeco('키워드 검색'),
             ),
             const SizedBox(height: 12),
             Expanded(
@@ -1244,22 +1348,42 @@ class _StoreLookupDialogState extends State<_StoreLookupDialog> {
                               vertical: 9,
                             ),
                             child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Expanded(
                                   flex: 3,
-                                  child: _StoreLookupHeaderCell('가맹점명'),
+                                  child: _StoreLookupHeaderCell(
+                                    '가맹점명',
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
                                 Expanded(
                                   flex: 2,
-                                  child: _StoreLookupHeaderCell('브랜드'),
+                                  child: _StoreLookupHeaderCell(
+                                    '브랜드',
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
                                 Expanded(
                                   flex: 2,
-                                  child: _StoreLookupHeaderCell('가맹점코드'),
+                                  child: _StoreLookupHeaderCell(
+                                    '가맹점코드',
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
                                 Expanded(
                                   flex: 2,
-                                  child: _StoreLookupHeaderCell('사업자명'),
+                                  child: _StoreLookupHeaderCell(
+                                    '사업자명',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: _StoreLookupHeaderCell(
+                                    '담당수퍼바이저',
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
                               ],
                             ),
@@ -1294,6 +1418,7 @@ class _StoreLookupDialogState extends State<_StoreLookupDialog> {
                                         Expanded(
                                           flex: 3,
                                           child: Text(
+                                            textAlign: TextAlign.center,
                                             store.storeNm,
                                             style: kActivityFormValueStyle
                                                 .copyWith(
@@ -1304,6 +1429,7 @@ class _StoreLookupDialogState extends State<_StoreLookupDialog> {
                                         Expanded(
                                           flex: 2,
                                           child: Text(
+                                            textAlign: TextAlign.center,
                                             store.brandNm,
                                             style: kActivityFormValueStyle,
                                           ),
@@ -1311,6 +1437,7 @@ class _StoreLookupDialogState extends State<_StoreLookupDialog> {
                                         Expanded(
                                           flex: 2,
                                           child: Text(
+                                            textAlign: TextAlign.center,
                                             store.storeCd,
                                             style: kActivityFormValueStyle,
                                           ),
@@ -1318,7 +1445,16 @@ class _StoreLookupDialogState extends State<_StoreLookupDialog> {
                                         Expanded(
                                           flex: 2,
                                           child: Text(
+                                            textAlign: TextAlign.center,
                                             store.ownerNm,
+                                            style: kActivityFormValueStyle,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Text(
+                                            textAlign: TextAlign.center,
+                                            store.svNm,
                                             style: kActivityFormValueStyle,
                                           ),
                                         ),
@@ -1365,14 +1501,16 @@ class _StoreLookupDialogState extends State<_StoreLookupDialog> {
 }
 
 class _StoreLookupHeaderCell extends StatelessWidget {
-  const _StoreLookupHeaderCell(this.text);
+  const _StoreLookupHeaderCell(this.text, {this.textAlign = TextAlign.start});
 
   final String text;
+  final TextAlign textAlign;
 
   @override
   Widget build(BuildContext context) {
     return Text(
       text,
+      textAlign: textAlign,
       style: const TextStyle(
         color: Colors.white,
         fontSize: 13,
@@ -1795,6 +1933,9 @@ class _SearchLikeField extends StatelessWidget {
   }
 }
 
+/// 결재 칸 도장 표시 — 채움은 실제 결재(또는 전체 완료 후 기안란)에만 사용한다.
+enum _ApprovalSealKind { none, filled }
+
 /// 결재정보 — 브랜드 레드 라벨 열 + 밝은 본문 (테마 [FormStylePalette] / [AppTheme]).
 class _ApprovalTable extends StatelessWidget {
   const _ApprovalTable({
@@ -1805,6 +1946,7 @@ class _ApprovalTable extends StatelessWidget {
     required this.apprAckDateByUserId,
     required this.documentWrittenAt,
     required this.writerSealDate,
+    required this.loadedApprStatus,
     required this.deptNm,
     required this.drafterNm,
   });
@@ -1816,6 +1958,9 @@ class _ApprovalTable extends StatelessWidget {
   final Map<String, String> apprAckDateByUserId;
   final String documentWrittenAt;
   final String writerSealDate;
+
+  /// 서버에서 온 `apprStatus` — 없으면 신규 작성·미로드로 간주해 도장 채움을 쓰지 않는다.
+  final String? loadedApprStatus;
   final String deptNm;
   final String drafterNm;
 
@@ -1841,13 +1986,58 @@ class _ApprovalTable extends StatelessWidget {
   List<String> get _paddedRank => _padList(rankStampSlots);
   List<String> get _paddedUserIds => _padList(approvalUserIds);
 
-  bool _slotSealed(int i) {
+  String get _normApprStatus => (loadedApprStatus ?? '').trim().toUpperCase();
+
+  /// 결재 칸 빨간 채움 — `apprAckUserIds`만으로는 부족할 수 있어(키 불일치 등),
+  /// 서버가 내려준 `apprAckDateByUserId`에 **해당 사용자의 결재일**이 있을 때만 인정한다.
+  bool _peerHasConfirmedApproval(String uidRaw) {
+    final u = uidRaw.trim();
+    if (u.isEmpty) return false;
+    String? ackId;
+    for (final id in apprAckUserIds) {
+      final t = id.trim();
+      if (t.isEmpty) continue;
+      if (t == u) {
+        ackId = id;
+        break;
+      }
+    }
+    if (ackId == null) return false;
+    var day = apprAckDateByUserId[ackId]?.trim() ?? '';
+    if (day.isEmpty) day = apprAckDateByUserId[u]?.trim() ?? '';
+    if (day.isEmpty) {
+      for (final e in apprAckDateByUserId.entries) {
+        if (e.key.trim() == u && e.value.toString().trim().isNotEmpty) {
+          return true;
+        }
+      }
+      return false;
+    }
+    return true;
+  }
+
+  _ApprovalSealKind _sealKind(int i) {
     final name = _paddedApprovalNames[i].trim();
-    if (name.isEmpty) return false;
-    if (i == 0) return true;
+    if (name.isEmpty) return _ApprovalSealKind.none;
+    if (i == 0) {
+      final st = _normApprStatus;
+      // 기안자: 상신(PENDING) 시점부터 결재한 것과 동일하게 채움 도장(결재완료도 동일).
+      if ((st == 'PENDING' || st == 'APPROVED') &&
+          writerSealDate.trim().isNotEmpty) {
+        return _ApprovalSealKind.filled;
+      }
+      return _ApprovalSealKind.none;
+    }
     final uid = _paddedUserIds[i].trim();
-    if (uid.isEmpty) return false;
-    return apprAckUserIds.contains(uid);
+    if (uid.isEmpty) return _ApprovalSealKind.none;
+    if (_peerHasConfirmedApproval(uid)) return _ApprovalSealKind.filled;
+    return _ApprovalSealKind.none;
+  }
+
+  /// 결재일자 행 — 1열부터는 실제 결재 확인된 경우에만 날짜를 진하게 표시한다.
+  bool _dateCellEmphasis(int i) {
+    if (i == 0) return _slotDateLabel(i).trim().isNotEmpty;
+    return _sealKind(i) == _ApprovalSealKind.filled;
   }
 
   String _slotDateLabel(int i) {
@@ -1940,7 +2130,7 @@ class _ApprovalTable extends StatelessWidget {
                   Expanded(
                     child: _sealCell(
                       i < names.length ? names[i] : '',
-                      sealed: _slotSealed(i),
+                      kind: _sealKind(i),
                       edge: edge,
                       isLast: i == _slotCount - 1,
                     ),
@@ -1971,7 +2161,7 @@ class _ApprovalTable extends StatelessWidget {
                   Expanded(
                     child: _dateCell(
                       _slotDateLabel(i),
-                      showText: _slotSealed(i),
+                      showText: _dateCellEmphasis(i),
                       edge: edge,
                       isLast: i == _slotCount - 1,
                     ),
@@ -2110,11 +2300,21 @@ class _ApprovalTable extends StatelessWidget {
 
   Widget _sealCell(
     String nameRaw, {
-    required bool sealed,
+    required _ApprovalSealKind kind,
     required Color edge,
     required bool isLast,
   }) {
     final name = nameRaw.trim();
+    const sealRed = Color.fromARGB(255, 238, 92, 92);
+    final nameTextStyle = TextStyle(
+      color: kind == _ApprovalSealKind.filled
+          ? Colors.white
+          : FormStylePalette.textPrimary,
+      fontSize: kind == _ApprovalSealKind.filled ? 11 : 12,
+      fontWeight: FontWeight.w800,
+      height: 1.05,
+      fontFamilyFallback: AppTheme.koreanFontFallback,
+    );
     return ColoredBox(
       color: FormStylePalette.approvalTableDataBg,
       child: Container(
@@ -2127,31 +2327,8 @@ class _ApprovalTable extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: name.isEmpty
             ? const SizedBox.shrink()
-            : sealed
-            ? Container(
-                width: _sealDiameter,
-                height: _sealDiameter,
-                decoration: const BoxDecoration(
-                  color: AppTheme.accentRed,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(
-                  name,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    height: 1.05,
-                    fontFamilyFallback: AppTheme.koreanFontFallback,
-                  ),
-                ),
-              )
-            : Padding(
+            : kind == _ApprovalSealKind.none
+            ? Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Text(
                   name,
@@ -2165,6 +2342,23 @@ class _ApprovalTable extends StatelessWidget {
                     height: 1.05,
                     fontFamilyFallback: AppTheme.koreanFontFallback,
                   ),
+                ),
+              )
+            : Container(
+                width: _sealDiameter,
+                height: _sealDiameter,
+                decoration: BoxDecoration(
+                  color: sealRed,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  name,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: nameTextStyle,
                 ),
               ),
       ),
@@ -2553,6 +2747,7 @@ class _ChHdr extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
       child: Text(
         t,
+        textAlign: TextAlign.center,
         style: const TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w700,

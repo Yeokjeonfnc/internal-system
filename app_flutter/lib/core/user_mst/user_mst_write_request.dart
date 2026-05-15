@@ -1,7 +1,7 @@
 import 'package:app_flutter/core/user_mst/user_mst_api_json_keys.dart';
 
 /// 사원 저장 요청 본문 — 생성 `UserMstCreateRequestDto`, 수정 `UserMstUpdateRequestDto` JSON 키와 동일.
-class UserMstWritePayload {
+class UserMstWriteRequest {
   static const String jsonKeyUserName = UserMstApiJsonKeys.userName;
   static const String jsonKeyUserPassword = UserMstApiJsonKeys.userPassword;
   static const String jsonKeyUserId = UserMstApiJsonKeys.userId;
@@ -13,14 +13,14 @@ class UserMstWritePayload {
   static const String jsonKeyPositionCd = UserMstApiJsonKeys.positionCd;
   static const String jsonKeyJoinDt = UserMstApiJsonKeys.joinDt;
 
-  UserMstWritePayload._(this._map);
+  UserMstWriteRequest._(this._map);
 
   final Map<String, dynamic> _map;
 
   Map<String, dynamic> toRequestBody() => Map<String, dynamic>.from(_map);
 
-  factory UserMstWritePayload.fromMap(Map<String, dynamic> map) =>
-      UserMstWritePayload._(Map<String, dynamic>.from(map));
+  factory UserMstWriteRequest.fromMap(Map<String, dynamic> map) =>
+      UserMstWriteRequest._(Map<String, dynamic>.from(map));
 }
 
 /// 사원 REST 경로 — 백엔드 `MstController` (`/users`).

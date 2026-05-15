@@ -6,6 +6,8 @@ abstract final class ActiveMstApiPaths {
   static const String listAll = '$root/list/all';
   static const String listByStore = '$root/list/by-store';
   static const String listByApprNote = '$root/list/by-appr-note';
+  /// 활동관리결재 > 지시사항 — `notif_mst` 조인·결재선 포함.
+  static const String listByMemoNotifForApprover = '$root/list/by-memo-notif';
   static const String listBySuggestions = '$root/list/by-suggestions';
   static const String listByCheck = '$root/list/by-check';
   static const String listByStatus = '$root/list/by-status';

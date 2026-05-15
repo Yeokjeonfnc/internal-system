@@ -1,19 +1,19 @@
 /// `POST /auth/login` 본문 — 백엔드 `AuthLoginRequestDto`.
-class AuthLoginPayload {
+class AuthLoginRequest {
   static const String jsonKeyUserId = 'userId';
   static const String jsonKeyUserPassword = 'userPassword';
 
-  AuthLoginPayload._(this._map);
+  AuthLoginRequest._(this._map);
 
   final Map<String, dynamic> _map;
 
   Map<String, dynamic> toRequestBody() => Map<String, dynamic>.from(_map);
 
-  factory AuthLoginPayload({
+  factory AuthLoginRequest({
     required String userId,
     required String userPassword,
   }) =>
-      AuthLoginPayload._({
+      AuthLoginRequest._({
         jsonKeyUserId: userId,
         jsonKeyUserPassword: userPassword,
       });
@@ -21,7 +21,7 @@ class AuthLoginPayload {
 
 /// `PUT /auth/profile` 본문 — 백엔드 `AuthProfileUpdateRequestDto`.
 /// 값이 `null`인 인자는 JSON에 포함하지 않는다(기존 `AuthApiService.updateUserProfile`와 동일).
-class AuthProfileUpdatePayload {
+class AuthProfileUpdateRequest {
   static const String jsonKeyUserName = 'userName';
   static const String jsonKeyUserPassword = 'userPassword';
   static const String jsonKeyUserPhone = 'userPhone';
@@ -29,13 +29,13 @@ class AuthProfileUpdatePayload {
   static const String jsonKeySvYn = 'svYn';
   static const String jsonKeyTagYn = 'tagYn';
 
-  AuthProfileUpdatePayload._(this._map);
+  AuthProfileUpdateRequest._(this._map);
 
   final Map<String, dynamic> _map;
 
   Map<String, dynamic> toRequestBody() => Map<String, dynamic>.from(_map);
 
-  factory AuthProfileUpdatePayload({
+  factory AuthProfileUpdateRequest({
     String? userName,
     String? userPassword,
     String? userPhone,
@@ -52,12 +52,12 @@ class AuthProfileUpdatePayload {
     if (positionCd != null) m[jsonKeyPositionCd] = positionCd;
     if (svYn != null) m[jsonKeySvYn] = svYn;
     if (tagYn != null) m[jsonKeyTagYn] = tagYn;
-    return AuthProfileUpdatePayload._(m);
+    return AuthProfileUpdateRequest._(m);
   }
 }
 
 /// 인증 REST 경로 — `AuthController` (`/auth/*`).
-/// 쿼리 `userId`는 [AuthLoginPayload.jsonKeyUserId]와 동일 문자열.
+/// 쿼리 `userId`는 [AuthLoginRequest.jsonKeyUserId]와 동일 문자열.
 abstract final class AuthApiPaths {
   static const String login = '/auth/login';
 

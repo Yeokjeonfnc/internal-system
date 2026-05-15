@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/core/auth/auth_profile.dart';
-import 'package:app_flutter/core/auth/auth_write_payload.dart';
+import 'package:app_flutter/core/auth/auth_write_request.dart';
 
 class AuthApiService extends BaseRepository {
   Future<AuthProfile?> login({
@@ -10,7 +10,7 @@ class AuthApiService extends BaseRepository {
     required String userPassword,
   }) async {
     try {
-      final body = AuthLoginPayload(
+      final body = AuthLoginRequest(
         userId: userId,
         userPassword: userPassword,
       );
@@ -32,7 +32,7 @@ class AuthApiService extends BaseRepository {
     try {
       final response = await client.get(
         AuthApiPaths.profile,
-        queryParameters: {AuthLoginPayload.jsonKeyUserId: userId},
+        queryParameters: {AuthLoginRequest.jsonKeyUserId: userId},
       );
 
       if (response.statusCode == 200 && response.data != null) {
@@ -54,7 +54,7 @@ class AuthApiService extends BaseRepository {
     String? tagYn,
   }) async {
     try {
-      final body = AuthProfileUpdatePayload(
+      final body = AuthProfileUpdateRequest(
         userName: userName,
         userPassword: userPassword,
         userPhone: userPhone,
@@ -65,7 +65,7 @@ class AuthApiService extends BaseRepository {
 
       final response = await client.put(
         AuthApiPaths.profile,
-        queryParameters: {AuthLoginPayload.jsonKeyUserId: userId},
+        queryParameters: {AuthLoginRequest.jsonKeyUserId: userId},
         data: body.toRequestBody(),
       );
 

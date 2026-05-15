@@ -37,7 +37,6 @@ public record ActiveMstResponseDto(
         String apprNotes,
         String suggestions,
         String svNotes,
-        Integer rChkId,
         String chkYn,
         Map<String, String> apprAckDateByUserId,
         List<String> apprAckUserIds) {
@@ -74,7 +73,6 @@ public record ActiveMstResponseDto(
                 active.getApprNotes(),
                 active.getSuggestions(),
                 active.getSvNotes(),
-                active.getRChkId(),
                 active.getChkYn() != null ? String.valueOf(active.getChkYn()) : null,
                 apprAckDateByUserId,
                 apprAckUserIds);
@@ -105,7 +103,6 @@ public record ActiveMstResponseDto(
                 apprNotes,
                 suggestions,
                 svNotes,
-                rChkId,
                 chkYn,
                 apprAckDateByUserId,
                 apprAckUserIds);

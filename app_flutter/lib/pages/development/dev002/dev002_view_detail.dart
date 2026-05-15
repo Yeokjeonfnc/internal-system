@@ -19,7 +19,7 @@ import 'package:app_flutter/core/widgets/common/form/common_labeled_form_row.dar
 import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_model.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_controller.dart';
-import 'package:app_flutter/core/property_mst/property_mst_write_payload.dart';
+import 'package:app_flutter/core/property_mst/property_mst_write_request.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_controller.dart';
 import 'package:app_flutter/pages/master/dialogs/mst001_dialog_lookup.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
@@ -39,6 +39,7 @@ class PropertyRegisterDraft {
   String name = '';
   String surveyor = '';
   String floor = '';
+  String parkingCount = '';
   String contArea = '';
   String realArea = '';
   String rentDeposit = '0';
@@ -60,6 +61,7 @@ class PropertyRegisterDraft {
     name = property.name;
     surveyor = property.surveyor;
     floor = property.floor == '-' ? '' : property.floor;
+    parkingCount = property.parkingCount == '-' ? '' : property.parkingCount;
     contArea = _propertyNumberText(property.areaSqm);
     realArea = _propertyNumberText(property.actualAreaSqm);
     rentDeposit = property.deposit == 0
@@ -75,33 +77,36 @@ class PropertyRegisterDraft {
     notes = property.notes;
   }
 
-  PropertyMstWritePayload toPayload() {
-    return PropertyMstWritePayload.fromMap({
-      PropertyMstWritePayload.jsonKeyPropNm: name.trim(),
-      PropertyMstWritePayload.jsonKeyZipCd: postalCode.trim(),
-      PropertyMstWritePayload.jsonKeyAddress: address.trim(),
-      PropertyMstWritePayload.jsonKeyAddressDetail: addressDetail.trim(),
-      PropertyMstWritePayload.jsonKeyRegion: region == _kRegionNone
+  PropertyMstWriteRequest toPayload() {
+    return PropertyMstWriteRequest.fromMap({
+      PropertyMstWriteRequest.jsonKeyPropNm: name.trim(),
+      PropertyMstWriteRequest.jsonKeyZipCd: postalCode.trim(),
+      PropertyMstWriteRequest.jsonKeyAddress: address.trim(),
+      PropertyMstWriteRequest.jsonKeyAddressDetail: addressDetail.trim(),
+      PropertyMstWriteRequest.jsonKeyRegion: region == _kRegionNone
           ? null
           : region,
-      PropertyMstWritePayload.jsonKeyPropStatus: _propertyStatusCode(
+      PropertyMstWriteRequest.jsonKeyPropStatus: _propertyStatusCode(
         propStatus,
       ),
-      PropertyMstWritePayload.jsonKeyPropType: _propertyTypeCode(ownership),
-      PropertyMstWritePayload.jsonKeySurveyor: surveyor.trim(),
-      PropertyMstWritePayload.jsonKeyFloor: int.tryParse(floor.trim()),
-      PropertyMstWritePayload.jsonKeyContArea: _doubleFromText(contArea),
-      PropertyMstWritePayload.jsonKeyRealArea: _doubleFromText(realArea),
-      PropertyMstWritePayload.jsonKeyRentDeposit: _intFromMoneyText(
+      PropertyMstWriteRequest.jsonKeyPropType: _propertyTypeCode(ownership),
+      PropertyMstWriteRequest.jsonKeySurveyor: surveyor.trim(),
+      PropertyMstWriteRequest.jsonKeyFloor: int.tryParse(floor.trim()),
+      PropertyMstWriteRequest.jsonKeyParkingCount: int.tryParse(
+        parkingCount.trim(),
+      ),
+      PropertyMstWriteRequest.jsonKeyContArea: _doubleFromText(contArea),
+      PropertyMstWriteRequest.jsonKeyRealArea: _doubleFromText(realArea),
+      PropertyMstWriteRequest.jsonKeyRentDeposit: _intFromMoneyText(
         rentDeposit,
       ),
-      PropertyMstWritePayload.jsonKeyMonthlyRent: _intFromMoneyText(
+      PropertyMstWriteRequest.jsonKeyMonthlyRent: _intFromMoneyText(
         monthlyRent,
       ),
-      PropertyMstWritePayload.jsonKeyPremiumFee: _intFromMoneyText(premiumFee),
-      PropertyMstWritePayload.jsonKeyMaintFee: _intFromMoneyText(maintFee),
-      PropertyMstWritePayload.jsonKeyPropNotes: notes.trim(),
-      PropertyMstWritePayload.jsonKeySurveyDt: _formatPayloadDate(surveyDate),
+      PropertyMstWriteRequest.jsonKeyPremiumFee: _intFromMoneyText(premiumFee),
+      PropertyMstWriteRequest.jsonKeyMaintFee: _intFromMoneyText(maintFee),
+      PropertyMstWriteRequest.jsonKeyPropNotes: notes.trim(),
+      PropertyMstWriteRequest.jsonKeySurveyDt: _formatPayloadDate(surveyDate),
     });
   }
 }
@@ -277,11 +282,11 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
   }
 
   Future<void> saveProperty() async {
-    PropertyMstWritePayload payload;
+    PropertyMstWriteRequest payload;
     if (widget.registerDraft != null) {
       payload = widget.registerDraft!.toPayload();
     } else {
-      payload = PropertyMstWritePayload.fromMap({});
+      payload = PropertyMstWriteRequest.fromMap({});
       if (widget.fixedTabIndex == 0 || widget.fixedTabIndex == null) {
         final basic = _basicInfoKey.currentState?.toPayload();
         if (basic != null) {
@@ -297,8 +302,8 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
     }
     if (widget.property != null && payload.isPropNmBlank) {
       payload = payload.merge(
-        PropertyMstWritePayload.fromMap({
-          PropertyMstWritePayload.jsonKeyPropNm: widget.property!.name,
+        PropertyMstWriteRequest.fromMap({
+          PropertyMstWriteRequest.jsonKeyPropNm: widget.property!.name,
         }),
       );
     }
@@ -588,24 +593,24 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
       ..notes = _notesController.text;
   }
 
-  PropertyMstWritePayload toPayload() {
-    return PropertyMstWritePayload.fromMap({
-      PropertyMstWritePayload.jsonKeyPropNm: _nameController.text.trim(),
-      PropertyMstWritePayload.jsonKeyZipCd: _postalCodeController.text.trim(),
-      PropertyMstWritePayload.jsonKeyAddress: _addressController.text.trim(),
-      PropertyMstWritePayload.jsonKeyAddressDetail: _addressDetailController
+  PropertyMstWriteRequest toPayload() {
+    return PropertyMstWriteRequest.fromMap({
+      PropertyMstWriteRequest.jsonKeyPropNm: _nameController.text.trim(),
+      PropertyMstWriteRequest.jsonKeyZipCd: _postalCodeController.text.trim(),
+      PropertyMstWriteRequest.jsonKeyAddress: _addressController.text.trim(),
+      PropertyMstWriteRequest.jsonKeyAddressDetail: _addressDetailController
           .text
           .trim(),
-      PropertyMstWritePayload.jsonKeyRegion: _region == _kRegionNone
+      PropertyMstWriteRequest.jsonKeyRegion: _region == _kRegionNone
           ? null
           : _region,
-      PropertyMstWritePayload.jsonKeyPropStatus: _propertyStatusCode(
+      PropertyMstWriteRequest.jsonKeyPropStatus: _propertyStatusCode(
         _propStatus,
       ),
-      PropertyMstWritePayload.jsonKeyPropType: _propertyTypeCode(_ownership),
-      PropertyMstWritePayload.jsonKeySurveyor: _surveyorController.text.trim(),
-      PropertyMstWritePayload.jsonKeySurveyDt: _formatPayloadDate(_surveyDate),
-      PropertyMstWritePayload.jsonKeyPropNotes: _notesController.text.trim(),
+      PropertyMstWriteRequest.jsonKeyPropType: _propertyTypeCode(_ownership),
+      PropertyMstWriteRequest.jsonKeySurveyor: _surveyorController.text.trim(),
+      PropertyMstWriteRequest.jsonKeySurveyDt: _formatPayloadDate(_surveyDate),
+      PropertyMstWriteRequest.jsonKeyPropNotes: _notesController.text.trim(),
     });
   }
 
@@ -963,6 +968,7 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
   late final TextEditingController _monthlyRentController;
   late final TextEditingController _premiumFeeController;
   late final TextEditingController _maintFeeController;
+  late final TextEditingController _parkingCountController;
 
   @override
   void initState() {
@@ -971,6 +977,11 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
     final draft = widget.registerDraft;
     _floorController = TextEditingController(
       text: p?.floor == '-' ? '' : p?.floor ?? draft?.floor ?? '',
+    );
+    _parkingCountController = TextEditingController(
+      text: p?.parkingCount == '-'
+          ? ''
+          : p?.parkingCount ?? draft?.parkingCount ?? '',
     );
     _contAreaController = TextEditingController(
       text: p == null ? draft?.contArea ?? '' : _numberText(p.areaSqm),
@@ -1007,6 +1018,7 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
       ),
     );
     _floorController.addListener(_syncDraft);
+    _parkingCountController.addListener(_syncDraft);
     _contAreaController.addListener(_syncDraftAndRefreshArea);
     _realAreaController.addListener(_syncDraftAndRefreshArea);
     _rentDepositController.addListener(_syncDraft);
@@ -1026,6 +1038,7 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
     if (draft == null) return;
     draft
       ..floor = _floorController.text
+      ..parkingCount = _parkingCountController.text
       ..contArea = _contAreaController.text
       ..realArea = _realAreaController.text
       ..rentDeposit = _rentDepositController.text
@@ -1046,27 +1059,30 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
     super.dispose();
   }
 
-  PropertyMstWritePayload toPayload() {
-    return PropertyMstWritePayload.fromMap({
-      PropertyMstWritePayload.jsonKeyFloor: int.tryParse(
+  PropertyMstWriteRequest toPayload() {
+    return PropertyMstWriteRequest.fromMap({
+      PropertyMstWriteRequest.jsonKeyFloor: int.tryParse(
         _floorController.text.trim(),
       ),
-      PropertyMstWritePayload.jsonKeyContArea: _doubleFromInput(
+      PropertyMstWriteRequest.jsonKeyParkingCount: int.tryParse(
+        _parkingCountController.text.trim(),
+      ),
+      PropertyMstWriteRequest.jsonKeyContArea: _doubleFromInput(
         _contAreaController.text,
       ),
-      PropertyMstWritePayload.jsonKeyRealArea: _doubleFromInput(
+      PropertyMstWriteRequest.jsonKeyRealArea: _doubleFromInput(
         _realAreaController.text,
       ),
-      PropertyMstWritePayload.jsonKeyRentDeposit: _intFromMoney(
+      PropertyMstWriteRequest.jsonKeyRentDeposit: _intFromMoney(
         _rentDepositController.text,
       ),
-      PropertyMstWritePayload.jsonKeyMonthlyRent: _intFromMoney(
+      PropertyMstWriteRequest.jsonKeyMonthlyRent: _intFromMoney(
         _monthlyRentController.text,
       ),
-      PropertyMstWritePayload.jsonKeyPremiumFee: _intFromMoney(
+      PropertyMstWriteRequest.jsonKeyPremiumFee: _intFromMoney(
         _premiumFeeController.text,
       ),
-      PropertyMstWritePayload.jsonKeyMaintFee: _intFromMoney(
+      PropertyMstWriteRequest.jsonKeyMaintFee: _intFromMoney(
         _maintFeeController.text,
       ),
     });
@@ -1080,9 +1096,18 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
         const _SectionTitle('점포조건'),
         const SizedBox(height: 10),
         FormRowTwo(
+          // left: FormFieldBlock(
+          //   label: '위치',
+          //   child: ReadonlyValue(widget.property?.address ?? '-'),
+          // ),
           left: FormFieldBlock(
-            label: '위치',
-            child: ReadonlyValue(widget.property?.address ?? '-'),
+            label: '주차가능대수',
+            child: _DetailTextInput(
+              controller: _parkingCountController,
+              hint: '',
+              keyboardType: TextInputType.number,
+              enabled: widget.isEditing,
+            ),
           ),
           right: FormFieldBlock(
             label: '층수',
@@ -1289,7 +1314,7 @@ String _detailMoneyFieldInitialText({
     return n == 0 ? '0' : _formatMoneyInput(n);
   }
   final raw = (draftMoneyStr ?? '').trim();
-  return raw.isEmpty ? '0' : raw;
+  return raw.isEmpty ? '' : raw;
 }
 
 String _formatMoneyInput(Object? value) {

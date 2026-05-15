@@ -63,8 +63,15 @@ public class ActController {
     @GetMapping("/activities/list/by-appr-note")
     public ResponseEntity<ApiResponse<List<ActiveMstResponseDto>>> listByApprNote(
             @RequestParam String svId) {
-        log.info("활동관리 목록 조회: 결재메모 svId={}", svId);
+        log.info("활동관리 목록 조회: 지시사항(메모·비결재대기) svId={}", svId);
         return ResponseEntity.ok(ApiResponse.success(actService.listBySvAppr(svId)));
+    }
+
+    @GetMapping("/activities/list/by-memo-notif")
+    public ResponseEntity<ApiResponse<List<ActiveMstResponseDto>>> listByMemoNotifForApprover(
+            @RequestParam String userId) {
+        log.info("활동관리결재 목록 조회: 지시사항(메모·알림·결재선) userId={}", userId);
+        return ResponseEntity.ok(ApiResponse.success(actService.listMemoInstructionsForApprover(userId)));
     }
 
     @GetMapping("/activities/list/by-suggestions")
@@ -180,8 +187,9 @@ public class ActController {
     @PatchMapping("/notifications/activity-approval")
     public ResponseEntity<ApiResponse<Void>> notifAcknowledgeActivityApproval(
             @RequestParam String userId,
-            @RequestParam Integer actIdx) {
-        actService.markActivityApprovalAcknowledged(userId, actIdx);
+            @RequestParam Integer actIdx,
+            @RequestParam(required = false) String apprNotes) {
+        actService.markActivityApprovalAcknowledged(userId, actIdx, apprNotes);
         return ResponseEntity.ok(ApiResponse.success("결재 확인이 반영되었습니다.", null));
     }
 }

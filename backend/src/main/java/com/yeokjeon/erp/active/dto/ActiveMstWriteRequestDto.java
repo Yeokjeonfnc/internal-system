@@ -49,7 +49,6 @@ public class ActiveMstWriteRequestDto {
     private List<String> apprUserIds;
     private boolean apprUserIdsPresent;
 
-    private Integer rChkId;
     private Character chkYn;
 
     private List<ChkResultDtlSaveDto> checklistResults;
@@ -212,14 +211,6 @@ public class ActiveMstWriteRequestDto {
 
     public List<String> getApprUserIds() {
         return apprUserIds;
-    }
-
-    public void setRChkId(Integer rChkId) {
-        this.rChkId = rChkId;
-    }
-
-    public Integer getRChkId() {
-        return rChkId;
     }
 
     public void setChkYn(Character chkYn) {

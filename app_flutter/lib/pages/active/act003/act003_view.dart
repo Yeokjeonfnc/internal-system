@@ -16,6 +16,7 @@ import 'package:app_flutter/core/date/erp_list_date_presets.dart'
 import 'package:app_flutter/core/widgets/common/erp_list_date_range_field.dart';
 import 'package:app_flutter/pages/active/act003/act003_filter.dart';
 import 'package:app_flutter/pages/active/shared/activity_routes.dart';
+import 'package:app_flutter/pages/active/act002/act002_note_tab_view.dart';
 import 'package:app_flutter/pages/active/act002/act002_view_manage.dart'
     show kActivityManagementSupportedSearchFields, ActivityChecklistTable;
 import 'package:app_flutter/pages/active/act002/act002_widget_drafts.dart';
@@ -31,10 +32,11 @@ final List<String> kApprTabs = [
   ActivityRoutes.approvalPending,
   ActivityRoutes.approvalActive,
   ActivityRoutes.approvalSuggestions,
+  ActivityRoutes.approvalInstructions,
   ActivityRoutes.approvalChecklist,
 ];
 
-/// `/activities/approval/...` 등에서 열릴 때 [initialTab]으로 탭 선택(0=전체 … 4=체크리스트).
+/// `/activities/approval/...` 등에서 열릴 때 [initialTab]으로 탭 선택(0=전체 … 5=체크리스트).
 class Act003View extends StatefulWidget {
   const Act003View({super.key, required this.initialTab});
 
@@ -64,15 +66,15 @@ class _Act003ViewState extends State<Act003View>
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 5,
+      length: 6,
       vsync: this,
-      initialIndex: widget.initialTab.clamp(0, 4),
+      initialIndex: widget.initialTab.clamp(0, 5),
     );
     _tabController.addListener(_onTabChanged);
     final r = _defRange();
     _rangeStart = r.$1;
     _rangeEnd = r.$2;
-    _tabEpoch = List<int>.filled(5, 0);
+    _tabEpoch = List<int>.filled(6, 0);
     _loadBrands();
   }
 
@@ -117,7 +119,7 @@ class _Act003ViewState extends State<Act003View>
   void didUpdateWidget(covariant Act003View oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialTab != widget.initialTab) {
-      _tabController.index = widget.initialTab.clamp(0, 4);
+      _tabController.index = widget.initialTab.clamp(0, 5);
     }
   }
 
@@ -267,6 +269,7 @@ class _Act003ViewState extends State<Act003View>
           Tab(text: '결재대기'),
           Tab(text: '결재완료'),
           Tab(text: '건의사항'),
+          Tab(text: '지시사항(결재특이사항)'),
           Tab(text: '체크리스트'),
         ],
       ),
@@ -360,8 +363,20 @@ class _Act003ViewState extends State<Act003View>
                 ),
                 _listShell(
                   mainFields,
-                  customTable: ActivityChecklistTable(
+                  customTable: ActivityNoteTabView(
                     key: ValueKey<int>(_tabEpoch[4]),
+                    queryKind: ActivityInstructionsQueryKind.approverMemoNotif,
+                    rowKeywordFilter: _keywordCtrl.text.trim(),
+                    brandLabel: _brandNm,
+                    brandCdFilter: _brandFilterCd(),
+                    rangeStart: _rangeStart,
+                    rangeEnd: _rangeEnd,
+                  ),
+                ),
+                _listShell(
+                  mainFields,
+                  customTable: ActivityChecklistTable(
+                    key: ValueKey<int>(_tabEpoch[5]),
                     rowKeywordFilter: _keywordCtrl.text.trim(),
                   ),
                 ),

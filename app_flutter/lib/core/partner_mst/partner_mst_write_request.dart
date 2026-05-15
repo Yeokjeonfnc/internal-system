@@ -1,7 +1,7 @@
 import 'package:app_flutter/core/partner_mst/partner_mst_api_json_keys.dart';
 
 /// 예비창업자 저장 요청 본문 — 백엔드 `PartnerMstWriteRequestDto` JSON 키와 동일.
-class PartnerMstWritePayload {
+class PartnerMstWriteRequest {
   static const String jsonKeyPartnerNm = PartnerMstApiJsonKeys.partnerNm;
   static const String jsonKeyPartnerStatus =
       PartnerMstApiJsonKeys.partnerStatus;
@@ -15,14 +15,14 @@ class PartnerMstWritePayload {
       PartnerMstApiJsonKeys.pAddressDetail;
   static const String jsonKeyPRegion = PartnerMstApiJsonKeys.pRegion;
 
-  PartnerMstWritePayload._(this._map);
+  PartnerMstWriteRequest._(this._map);
 
   final Map<String, dynamic> _map;
 
   Map<String, dynamic> toRequestBody() => Map<String, dynamic>.from(_map);
 
-  factory PartnerMstWritePayload.fromMap(Map<String, dynamic> map) =>
-      PartnerMstWritePayload._(Map<String, dynamic>.from(map));
+  factory PartnerMstWriteRequest.fromMap(Map<String, dynamic> map) =>
+      PartnerMstWriteRequest._(Map<String, dynamic>.from(map));
 
   String? get partnerNm => _map[jsonKeyPartnerNm] as String?;
   String? get partnerTel => _map[jsonKeyPartnerTel] as String?;

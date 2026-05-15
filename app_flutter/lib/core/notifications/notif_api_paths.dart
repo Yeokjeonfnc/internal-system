@@ -12,4 +12,5 @@ abstract final class NotifMstApiPaths {
 /// `PATCH /notifications/activity-approval` 쿼리 — `actIdx`는 [active_mst]와 동일 키명.
 abstract final class NotifMstQueryParamKeys {
   static const String actIdx = 'actIdx';
+  static const String apprNotes = 'apprNotes';
 }

@@ -75,9 +75,6 @@ public class ActActive {
     @Column(name = "appr_notes", columnDefinition = "TEXT")
     private String apprNotes;
 
-    @Column(name = "r_chk_id")
-    private Integer rChkId;
-
     @Column(name = "chk_yn")
     private Character chkYn;
 }

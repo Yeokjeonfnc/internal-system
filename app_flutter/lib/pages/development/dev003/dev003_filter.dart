@@ -10,6 +10,7 @@ class SalesAreaFilter {
     this.includeUnsetArea = true,
     required this.rangeStart,
     required this.rangeEnd,
+    this.regionNms = const <String>{},
   });
 
   /// 영업지역명·물건명 통합 검색(부분 일치, OR).
@@ -21,8 +22,9 @@ class SalesAreaFilter {
   final bool includeUnsetArea;
   final DateTime rangeStart;
   final DateTime rangeEnd;
+  final Set<String> regionNms;
 
-  SalesAreaFilter copyWith({
+  SalesAreaFilter copy({
     String? keyword,
     String? brandCd,
     String? regionCd,
@@ -31,6 +33,8 @@ class SalesAreaFilter {
     bool? strategicOpeningOnly,
     bool? includeNonFranchise,
     bool? includeUnsetArea,
+    Set<String>? regionNms,
+    bool clearRegions = false,
   }) {
     return SalesAreaFilter(
       keyword: keyword ?? this.keyword,
@@ -41,6 +45,7 @@ class SalesAreaFilter {
       includeUnsetArea: includeUnsetArea ?? this.includeUnsetArea,
       rangeStart: rangeStart ?? this.rangeStart,
       rangeEnd: rangeEnd ?? this.rangeEnd,
+      regionNms: clearRegions ? <String>{} : regionNms ?? this.regionNms,
     );
   }
 }

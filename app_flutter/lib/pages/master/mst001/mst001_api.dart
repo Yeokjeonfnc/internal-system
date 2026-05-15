@@ -2,13 +2,13 @@
 
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/core/user_mst/user_id_availability.dart';
-import 'package:app_flutter/core/user_mst/user_mst_write_payload.dart';
+import 'package:app_flutter/core/user_mst/user_mst_write_request.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
 
 class Mst001ApiService extends BaseRepository {
   Future<List<User>> getUsers({int? deptIdx}) async {
     final qp = deptIdx != null
-        ? <String, dynamic>{UserMstWritePayload.jsonKeyDeptIdx: deptIdx}
+        ? <String, dynamic>{UserMstWriteRequest.jsonKeyDeptIdx: deptIdx}
         : null;
     return getDataList(
       UserMstApiPaths.root,
@@ -24,16 +24,16 @@ class Mst001ApiService extends BaseRepository {
   Future<bool> isUserIdAvailable(String userId) async {
     final v = await getDataOrNull(
       UserMstApiPaths.checkUserId,
-      queryParameters: {UserMstWritePayload.jsonKeyUserId: userId},
+      queryParameters: {UserMstWriteRequest.jsonKeyUserId: userId},
       fromJson: UserIdAvailability.fromJson,
     );
     return v?.available ?? false;
   }
 
-  Future<User> createUser(UserMstWritePayload body) =>
+  Future<User> createUser(UserMstWriteRequest body) =>
       postData(UserMstApiPaths.root, data: body.toRequestBody(), fromJson: User.fromJson);
 
-  Future<User> updateUser(int userIdx, UserMstWritePayload body) =>
+  Future<User> updateUser(int userIdx, UserMstWriteRequest body) =>
       putData(UserMstApiPaths.one(userIdx), data: body.toRequestBody(), fromJson: User.fromJson);
 
   Future<void> deleteUser(int userIdx) async {

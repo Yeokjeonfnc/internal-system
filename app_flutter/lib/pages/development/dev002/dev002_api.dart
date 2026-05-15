@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_model.dart';
-import 'package:app_flutter/core/property_mst/property_mst_write_payload.dart';
+import 'package:app_flutter/core/property_mst/property_mst_write_request.dart';
 
 /// 물건 API — 백엔드 `DevController` (`/properties`).
 
@@ -34,7 +34,7 @@ class PropertyApiService extends BaseRepository {
 
   /// 성공 시 `(property, null)`, 실패 시 `(null, 서버 message 또는 안내 문구)`.
   Future<(Property?, String?)> createProperty(
-    PropertyMstWritePayload body,
+    PropertyMstWriteRequest body,
   ) async {
     try {
       final r = await client.post(
@@ -65,7 +65,7 @@ class PropertyApiService extends BaseRepository {
   /// 성공 시 `(property, null)`, 실패 시 `(null, 서버 message 또는 안내 문구)`.
   Future<(Property?, String?)> updateProperty(
     int propIdx,
-    PropertyMstWritePayload body,
+    PropertyMstWriteRequest body,
   ) async {
     try {
       final r = await client.put(

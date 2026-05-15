@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/core/active_mst/active_mst_api_json_keys.dart';
 import 'package:app_flutter/core/active_mst/active_mst_api_paths.dart';
-import 'package:app_flutter/core/active_mst/active_mst_write_payload.dart';
-import 'package:app_flutter/core/checklist/chk_mst_write_payload.dart';
+import 'package:app_flutter/core/active_mst/active_mst_write_request.dart';
+import 'package:app_flutter/core/checklist/chk_mst_write_request.dart';
 import 'package:app_flutter/pages/active/act002/act002_model.dart';
 import 'package:app_flutter/pages/active/act002/act002_model_checklist.dart';
 
@@ -71,10 +71,12 @@ class Act002Api extends BaseRepository {
     return const [];
   }
 
-  /// 임시보관(작성 중) — `apprStatus=DRAFT`, 선택적 작성자 `svId`.
+  /// 임시보관(작성 중) — `apprStatus=DRAFT`, 작성자는 `sv_id`와 동일한 로그인 `user_id`.
+  /// 백엔드는 `svId` 우선, 없으면 `relUserId`로 작성자 필터를 적용한다.
   Future<List<ActivityRow>> fetchDraftRows({String? svId}) => fetchList(
         apprStatus: ActiveMstListApprStatus.draft,
         svId: svId,
+        relUserId: svId,
       );
 
   /// 활동관리결재 「전체」.
@@ -98,9 +100,24 @@ class Act002Api extends BaseRepository {
   Future<List<ActivityRow>> fetchRowsWithSuggestions() =>
       fetchList(hasSuggestions: true);
 
-  /// 지시사항 탭: SV별 결재 메모(`hasApprNote`) 목록.
+  /// 지시사항 탭(활동관리): `appr_notes`·비`PENDING`·`sv_id` = [svId].
   Future<List<ActivityRow>> fetchRowsForSvWithApprNote(String svId) =>
       fetchList(svId: svId, hasApprNote: true);
+
+  /// 지시사항 탭(활동관리결재): `appr_notes`·비`PENDING`·`notif_mst`·`appr_id` 결재선.
+  Future<List<ActivityRow>> fetchRowsForApproverMemoInstructions(String userId) async {
+    if (userId.isEmpty) return const [];
+    try {
+      final maps = await getDataListMap(
+        ActiveMstApiPaths.listByMemoNotifForApprover,
+        queryParameters: {ActiveMstApiJsonKeys.userId: userId},
+      );
+      return maps.map(ActivityRow.fromJson).toList();
+    } catch (e) {
+      debugPrint('Error fetching approver memo instructions: $e');
+    }
+    return const [];
+  }
 
   /// 가맹점별 `DRAFT` 후보(등록 화면 중복 임시저장 방지).
   Future<List<ActivityRow>> fetchDraftRowsForStore(int storeIdx) => fetchList(
@@ -126,7 +143,7 @@ class Act002Api extends BaseRepository {
     return null;
   }
 
-  Future<ActivitySaveResult?> create(ActivityWritePayload payload) async {
+  Future<ActivitySaveResult?> create(ActivityWriteRequest payload) async {
     try {
       final m = await postDataMapOrNull(
         ActiveMstApiPaths.root,
@@ -142,7 +159,7 @@ class Act002Api extends BaseRepository {
 
   Future<ActivitySaveResult?> update(
     int actIdx,
-    ActivityWritePayload payload,
+    ActivityWriteRequest payload,
   ) async {
     try {
       final m = await putDataMapOrNull(
@@ -177,7 +194,7 @@ class Act002Api extends BaseRepository {
     try {
       return await getDataList(
         ChkMstApiPaths.root,
-        queryParameters: {ChkMstWritePayload.jsonKeyBrandCd: brandCd},
+        queryParameters: {ChkMstWriteRequest.jsonKeyBrandCd: brandCd},
         fromJson: ChecklistItem.fromJson,
       );
     } catch (e) {

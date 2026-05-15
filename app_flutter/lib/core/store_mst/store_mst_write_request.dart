@@ -1,7 +1,7 @@
 /// 가맹점 저장 요청 본문 — 백엔드 `StoreMstWriteRequestDto`와 동일한 JSON 키.
 ///
 /// `merge`는 뒤쪽 페이로드의 키가 이긴다(`Map` 병합과 동일, null 값 포함).
-class StoreMstWritePayload {
+class StoreMstWriteRequest {
   /// 등록·수정 시 연결 창업자 FK — DTO 필드 `partnerIdx`.
   static const String jsonKeyPartnerIdx = 'partnerIdx';
 
@@ -45,17 +45,17 @@ class StoreMstWritePayload {
   /// `property_mst.prop_idx` — 물건 조회로 연결 시 저장.
   static const String jsonKeyPropIdx = 'propIdx';
 
-  StoreMstWritePayload._(this._map);
+  StoreMstWriteRequest._(this._map);
 
   final Map<String, dynamic> _map;
 
   Map<String, dynamic> toRequestBody() => Map<String, dynamic>.from(_map);
 
-  StoreMstWritePayload merge(StoreMstWritePayload other) =>
-      StoreMstWritePayload._({..._map, ...other._map});
+  StoreMstWriteRequest merge(StoreMstWriteRequest other) =>
+      StoreMstWriteRequest._({..._map, ...other._map});
 
-  factory StoreMstWritePayload.fromMap(Map<String, dynamic> map) =>
-      StoreMstWritePayload._(Map<String, dynamic>.from(map));
+  factory StoreMstWriteRequest.fromMap(Map<String, dynamic> map) =>
+      StoreMstWriteRequest._(Map<String, dynamic>.from(map));
 
   String? get storeNm => _map[jsonKeyStoreNm] as String?;
 
@@ -70,6 +70,6 @@ abstract final class StoreMstApiPaths {
 
   static String histories(int storeIdx) => '$root/$storeIdx/histories';
 
-  /// `GET` 검색 — 쿼리 키는 [StoreMstWritePayload.jsonKeyStoreNm].
+  /// `GET` 검색 — 쿼리 키는 [StoreMstWriteRequest.jsonKeyStoreNm].
   static String get search => '$root/search';
 }

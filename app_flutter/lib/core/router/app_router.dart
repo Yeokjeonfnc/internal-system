@@ -29,8 +29,8 @@ import 'package:app_flutter/pages/franchise/str001/str001_view_detail_tabs.dart'
 import 'package:app_flutter/pages/franchise/str001/str001_view.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_view_register.dart';
 import 'package:app_flutter/core/active_mst/active_mst_api_paths.dart';
-import 'package:app_flutter/core/property_mst/property_mst_write_payload.dart';
-import 'package:app_flutter/core/store_mst/store_mst_write_payload.dart';
+import 'package:app_flutter/core/property_mst/property_mst_write_request.dart';
+import 'package:app_flutter/core/store_mst/store_mst_write_request.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/auth/login_view.dart';
@@ -407,6 +407,10 @@ List<RouteBase> _shellChildRoutes() {
         ),
         GoRoute(
           path: 'approval/suggestions',
+          pageBuilder: _activityApprovalManagementPage,
+        ),
+        GoRoute(
+          path: 'approval/instructions',
           pageBuilder: _activityApprovalManagementPage,
         ),
         GoRoute(

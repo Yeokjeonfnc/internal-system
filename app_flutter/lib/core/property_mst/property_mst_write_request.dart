@@ -3,7 +3,7 @@ import 'package:app_flutter/core/property_mst/property_mst_api_json_keys.dart';
 /// 물건 저장 요청 본문 — 백엔드 `PropertyMstWriteRequestDto` JSON 키와 동일.
 ///
 /// `merge`는 뒤쪽 페이로드의 키가 이긴다(null 포함).
-class PropertyMstWritePayload {
+class PropertyMstWriteRequest {
   static const String jsonKeyPropNm = PropertyMstApiJsonKeys.propNm;
   static const String jsonKeyZipCd = PropertyMstApiJsonKeys.zipCd;
   static const String jsonKeyAddress = PropertyMstApiJsonKeys.address;
@@ -14,6 +14,7 @@ class PropertyMstWritePayload {
   static const String jsonKeyPropType = PropertyMstApiJsonKeys.propType;
   static const String jsonKeySurveyor = PropertyMstApiJsonKeys.surveyor;
   static const String jsonKeyFloor = PropertyMstApiJsonKeys.floor;
+  static const String jsonKeyParkingCount = PropertyMstApiJsonKeys.parkingCount;
   static const String jsonKeyContArea = PropertyMstApiJsonKeys.contArea;
   static const String jsonKeyRealArea = PropertyMstApiJsonKeys.realArea;
   static const String jsonKeyRentDeposit = PropertyMstApiJsonKeys.rentDeposit;
@@ -23,17 +24,17 @@ class PropertyMstWritePayload {
   static const String jsonKeyPropNotes = PropertyMstApiJsonKeys.propNotes;
   static const String jsonKeySurveyDt = PropertyMstApiJsonKeys.surveyDt;
 
-  PropertyMstWritePayload._(this._map);
+  PropertyMstWriteRequest._(this._map);
 
   final Map<String, dynamic> _map;
 
   Map<String, dynamic> toRequestBody() => Map<String, dynamic>.from(_map);
 
-  PropertyMstWritePayload merge(PropertyMstWritePayload other) =>
-      PropertyMstWritePayload._({..._map, ...other._map});
+  PropertyMstWriteRequest merge(PropertyMstWriteRequest other) =>
+      PropertyMstWriteRequest._({..._map, ...other._map});
 
-  factory PropertyMstWritePayload.fromMap(Map<String, dynamic> map) =>
-      PropertyMstWritePayload._(Map<String, dynamic>.from(map));
+  factory PropertyMstWriteRequest.fromMap(Map<String, dynamic> map) =>
+      PropertyMstWriteRequest._(Map<String, dynamic>.from(map));
 
   String? get propNm => _map[jsonKeyPropNm] as String?;
   String? get zipCd => _map[jsonKeyZipCd] as String?;

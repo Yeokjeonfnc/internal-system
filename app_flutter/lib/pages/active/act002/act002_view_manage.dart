@@ -286,6 +286,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
           Expanded(
             child: TabBarView(
               controller: _tabController,
+              physics: const NeverScrollableScrollPhysics(),
               children: [
                 _listShell(
                   mainFields,
@@ -387,7 +388,7 @@ class ActivityChecklistTableState extends State<ActivityChecklistTable> {
         }
 
         return ErpDataTable(
-          minWidth: AppDimensions.tableMinWidthDefault + 240,
+          minWidth: AppDimensions.tableMinWidthDefault + 220,
           tableBuilder: (context, w) {
             return Table(
               defaultVerticalAlignment: TableCellVerticalAlignment.middle,
@@ -399,9 +400,8 @@ class ActivityChecklistTableState extends State<ActivityChecklistTable> {
                 3: FlexColumnWidth(0.5),
                 4: FlexColumnWidth(0.8),
                 5: FlexColumnWidth(0.4),
-                6: FlexColumnWidth(0.4),
-                7: FlexColumnWidth(0.3),
-                8: FlexColumnWidth(0.4),
+                6: FlexColumnWidth(0.3),
+                7: FlexColumnWidth(0.4),
               },
               children: [
                 const TableRow(
@@ -413,9 +413,8 @@ class ActivityChecklistTableState extends State<ActivityChecklistTable> {
                     ErpTableHeaderCell('가맹점명'),
                     ErpTableHeaderCell('주요상담내용'),
                     ErpTableHeaderCell('담당 수퍼바이저'),
-                    ErpTableHeaderCell('등록일'),
                     ErpTableHeaderCell('체크리스트'),
-                    ErpTableHeaderCell('상세'),
+                    ErpTableHeaderCell('상세보기'),
                   ],
                 ),
                 for (final row in rows)
@@ -435,11 +434,10 @@ class ActivityChecklistTableState extends State<ActivityChecklistTable> {
                       ErpTableBodyCell(_text(row.storeNm), center: true),
                       ErpTableBodyCell(_text(row.actNotes)),
                       ErpTableBodyCell(_text(row.svNm), center: true),
-                      ErpTableBodyCell(
-                        _dateText(row.createDt),
-                        center: true,
+                      Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Center(child: _ChecklistStatusChip(row.chkYn)),
                       ),
-                      ErpTableBodyCell(_chkYnText(row.chkYn), center: true),
                       Padding(
                         padding: const EdgeInsets.all(8),
                         child: Center(
@@ -463,6 +461,64 @@ class ActivityChecklistTableState extends State<ActivityChecklistTable> {
           },
         );
       },
+    );
+  }
+}
+
+class _ChecklistStatusChip extends StatelessWidget {
+  const _ChecklistStatusChip(this.value);
+
+  final dynamic value;
+
+  @override
+  Widget build(BuildContext context) {
+    final done = value?.toString().trim().toUpperCase() == 'Y';
+    return _StatusChip(
+      label: done ? '완료' : '미완료',
+      foreground: done
+          ? const Color.fromARGB(255, 5, 102, 119)
+          : const Color.fromARGB(255, 97, 104, 119),
+      background: done
+          ? const Color.fromARGB(255, 171, 211, 238)
+          : const Color(0xFFF3F4F6),
+      border: done ? const Color(0xFFA7F3D0) : const Color(0xFFE5E7EB),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.label,
+    required this.foreground,
+    required this.background,
+    required this.border,
+  });
+
+  final String label;
+  final Color foreground;
+  final Color background;
+  final Color border;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
+      ),
     );
   }
 }

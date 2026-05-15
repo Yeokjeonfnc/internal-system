@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_model.dart';
-import 'package:app_flutter/core/partner_mst/partner_mst_write_payload.dart';
+import 'package:app_flutter/core/partner_mst/partner_mst_write_request.dart';
 
 /// 예비창업자 API — 백엔드 `DevController` (`/partners`).
 class PartnerApiService extends BaseRepository {
@@ -27,7 +27,7 @@ class PartnerApiService extends BaseRepository {
     return null;
   }
 
-  Future<Partner?> create(PartnerMstWritePayload body) async {
+  Future<Partner?> create(PartnerMstWriteRequest body) async {
     try {
       return await postDataOrNull(
         PartnerMstApiPaths.root,
@@ -40,7 +40,7 @@ class PartnerApiService extends BaseRepository {
     return null;
   }
 
-  Future<Partner?> update(int partnerIdx, PartnerMstWritePayload body) async {
+  Future<Partner?> update(int partnerIdx, PartnerMstWriteRequest body) async {
     try {
       return await putDataOrNull(
         PartnerMstApiPaths.one(partnerIdx),

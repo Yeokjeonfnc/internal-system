@@ -13,7 +13,7 @@ import 'package:app_flutter/core/widgets/common/common_register_button.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
-import 'package:app_flutter/core/checklist/chk_mst_write_payload.dart';
+import 'package:app_flutter/core/checklist/chk_mst_write_request.dart';
 import 'package:app_flutter/pages/master/mst004/mst004_api.dart';
 import 'package:app_flutter/pages/master/mst004/mst004_model.dart';
 
@@ -505,13 +505,13 @@ class _ChecklistCreateDialogState extends State<_ChecklistCreateDialog> {
     }
     if (_saving) return;
     setState(() => _saving = true);
-    final body = ChkMstWritePayload.fromMap({
-      ChkMstWritePayload.jsonKeyBrandCd: _brandCd,
-      ChkMstWritePayload.jsonKeyChkType: _chkType,
-      ChkMstWritePayload.jsonKeyChkContent: content,
-      ChkMstWritePayload.jsonKeyBaseScore:
+    final body = ChkMstWriteRequest.fromMap({
+      ChkMstWriteRequest.jsonKeyBrandCd: _brandCd,
+      ChkMstWriteRequest.jsonKeyChkType: _chkType,
+      ChkMstWriteRequest.jsonKeyChkContent: content,
+      ChkMstWriteRequest.jsonKeyBaseScore:
           int.tryParse(_scoreCtrl.text.trim()) ?? 0,
-      ChkMstWritePayload.jsonKeyUseYn: _required ? 'Y' : 'N',
+      ChkMstWriteRequest.jsonKeyUseYn: _required ? 'Y' : 'N',
     });
     final api = MasterChecklistApiService();
     final item = widget.item;

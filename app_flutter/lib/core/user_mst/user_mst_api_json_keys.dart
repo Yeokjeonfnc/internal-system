@@ -1,7 +1,7 @@
 /// `user_mst` 목록·상세 응답 — 백엔드 `UserMstDto` JSON 키와 동일.
 ///
 /// 생성·수정 요청(`UserMstCreateRequestDto` / `UserMstUpdateRequestDto`)에도 쓰이는 이름은
-/// `UserMstWritePayload.jsonKey*`가 이 상수를 가리킨다.
+/// `UserMstWriteRequest.jsonKey*`가 이 상수를 가리킨다.
 abstract final class UserMstApiJsonKeys {
   static const String userIdx = 'userIdx';
   static const String userName = 'userName';

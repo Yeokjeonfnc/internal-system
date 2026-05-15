@@ -20,7 +20,7 @@ import 'package:app_flutter/core/widgets/common/form/common_labeled_form_row.dar
 import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_controller.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_model.dart';
-import 'package:app_flutter/core/partner_mst/partner_mst_write_payload.dart';
+import 'package:app_flutter/core/partner_mst/partner_mst_write_request.dart';
 
 String _phoneDash(String value) {
   final formatted = formatKoreanPhoneDisplay(value);
@@ -185,7 +185,7 @@ class _PartnerInfoPanelState extends ConsumerState<_PartnerInfoPanel> {
     );
   }
 
-  bool _validate(PartnerMstWritePayload payload) {
+  bool _validate(PartnerMstWriteRequest payload) {
     final missing = <String>[];
     if (payload.isPartnerNmBlank) {
       missing.add('성명');
@@ -318,19 +318,19 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
     _region = partner?.pRegion ?? '';
   }
 
-  PartnerMstWritePayload payload() {
-    return PartnerMstWritePayload.fromMap({
-      PartnerMstWritePayload.jsonKeyPartnerNm: _nameController.text.trim(),
-      PartnerMstWritePayload.jsonKeyPartnerStatus: statusLabelKo(_partnerStatus),
-      PartnerMstWritePayload.jsonKeyPartnerTel: _phoneController.text.trim(),
-      PartnerMstWritePayload.jsonKeyPartnerEmail: _emailController.text.trim(),
-      PartnerMstWritePayload.jsonKeyGender: _gender == Gender.female ? 'F' : 'M',
-      PartnerMstWritePayload.jsonKeyPartnerBirth: _formatYmd(_birthDate),
-      PartnerMstWritePayload.jsonKeyPZipCd: _zipCodeController.text.trim(),
-      PartnerMstWritePayload.jsonKeyPAddress: _addressController.text.trim(),
-      PartnerMstWritePayload.jsonKeyPAddressDetail:
+  PartnerMstWriteRequest payload() {
+    return PartnerMstWriteRequest.fromMap({
+      PartnerMstWriteRequest.jsonKeyPartnerNm: _nameController.text.trim(),
+      PartnerMstWriteRequest.jsonKeyPartnerStatus: statusLabelKo(_partnerStatus),
+      PartnerMstWriteRequest.jsonKeyPartnerTel: _phoneController.text.trim(),
+      PartnerMstWriteRequest.jsonKeyPartnerEmail: _emailController.text.trim(),
+      PartnerMstWriteRequest.jsonKeyGender: _gender == Gender.female ? 'F' : 'M',
+      PartnerMstWriteRequest.jsonKeyPartnerBirth: _formatYmd(_birthDate),
+      PartnerMstWriteRequest.jsonKeyPZipCd: _zipCodeController.text.trim(),
+      PartnerMstWriteRequest.jsonKeyPAddress: _addressController.text.trim(),
+      PartnerMstWriteRequest.jsonKeyPAddressDetail:
           _addressDetailController.text.trim(),
-      PartnerMstWritePayload.jsonKeyPRegion: _region,
+      PartnerMstWriteRequest.jsonKeyPRegion: _region,
     });
   }
 
@@ -647,24 +647,24 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
 
     setState(() => _saving = true);
     final saved = await ref.read(partnerApiServiceProvider).create(
-          PartnerMstWritePayload.fromMap({
-            PartnerMstWritePayload.jsonKeyPartnerNm: _nameController.text.trim(),
-            PartnerMstWritePayload.jsonKeyPartnerStatus:
+          PartnerMstWriteRequest.fromMap({
+            PartnerMstWriteRequest.jsonKeyPartnerNm: _nameController.text.trim(),
+            PartnerMstWriteRequest.jsonKeyPartnerStatus:
                 statusLabelKo(_partnerStatus),
-            PartnerMstWritePayload.jsonKeyPartnerTel:
+            PartnerMstWriteRequest.jsonKeyPartnerTel:
                 _phoneController.text.trim(),
-            PartnerMstWritePayload.jsonKeyPartnerEmail:
+            PartnerMstWriteRequest.jsonKeyPartnerEmail:
                 _emailController.text.trim(),
-            PartnerMstWritePayload.jsonKeyGender:
+            PartnerMstWriteRequest.jsonKeyGender:
                 _gender == Gender.female ? 'F' : 'M',
-            PartnerMstWritePayload.jsonKeyPartnerBirth: _formatYmd(_birthDate),
-            PartnerMstWritePayload.jsonKeyPZipCd:
+            PartnerMstWriteRequest.jsonKeyPartnerBirth: _formatYmd(_birthDate),
+            PartnerMstWriteRequest.jsonKeyPZipCd:
                 _postalCodeController.text.trim(),
-            PartnerMstWritePayload.jsonKeyPAddress:
+            PartnerMstWriteRequest.jsonKeyPAddress:
                 _addressController.text.trim(),
-            PartnerMstWritePayload.jsonKeyPAddressDetail:
+            PartnerMstWriteRequest.jsonKeyPAddressDetail:
                 _addressDetailController.text.trim(),
-            PartnerMstWritePayload.jsonKeyPRegion: _region,
+            PartnerMstWriteRequest.jsonKeyPRegion: _region,
           }),
         );
     if (!mounted) return;

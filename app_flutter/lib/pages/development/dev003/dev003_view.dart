@@ -1,5 +1,6 @@
 // 영업지역 관리 — 필터·집계 탭·테이블.
 
+import 'package:app_flutter/core/widgets/common/common_search_filter_multi_select.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -130,13 +131,29 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
           );
           break;
         case CommonSearchFieldId.regionCd:
+          final regionOpts = regions.where((e) => e != '전체').toList();
           items.add(
-            FilterStringOptionsSlot(
+            SearchFilterItemData(
               label: def.label,
-              value: filter.regionCd,
-              options: regions,
-              onSelected: (v) => setState(() => n.setRegionCd(v)),
-            ).toItem(),
+              child: SearchFilterMultiSelectField(
+                summaryText: searchFilterMultiSelectSummary(
+                  filter.regionNms,
+                  formatMultiple: searchFilterMultiSelectSummarySortedPreview,
+                ),
+                onTap: () => showDialogWithRef(
+                  context: context,
+                  options: regionOpts,
+                  bindings: (ref) => SearchFilterMultiPickBindings(
+                    selected: ref.watch(salesAreaProvider).regionNms,
+                    onToggle: ref.read(salesAreaProvider.notifier).toggleRegion,
+                  ),
+                  title: '지역 검색',
+                  searchHint: '지역명을 검색해주세요',
+                  emptyOptionsMessage: '등록된 지역이 없습니다.',
+                  emptySearchMessage: '검색 결과가 없습니다.',
+                ),
+              ),
+            ),
           );
           break;
         case CommonSearchFieldId.salesAreaSettingDateRange:
@@ -192,11 +209,15 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
           }
           break;
         case CommonSearchFieldId.regionCd:
-          if (f.regionCd != '전체') {
+          if (f.regionNms.isNotEmpty) {
+            final sorted = f.regionNms.toList()..sort();
+            final label = sorted.length <= 3
+                ? sorted.join(', ')
+                : '${sorted.take(3).join(', ')} 외 ${sorted.length - 3}건';
             chips.add(
               ActiveFilterChip(
-                label: '${def.label}: ${f.regionCd}',
-                onClear: () => _clearChip(n, def.id),
+                label: '지역: $label',
+                onClear: () => n.clearRegions(),
               ),
             );
           }
@@ -222,8 +243,11 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
     final filter = ref.watch(salesAreaProvider);
     final n = ref.read(salesAreaProvider.notifier);
     final listAsync = ref.watch(dev003DataProvider);
+    final regionOptions =
+        ref.watch(salesAreaCodeOptionsProvider(20)).valueOrNull ??
+        const <CodeOption>[];
     final rawRows = listAsync.valueOrNull ?? const <SalesAreaRow>[];
-    final rows = dev003ApplyClientFilters(filter, rawRows);
+    final rows = dev003ApplyClientFilters(filter, rawRows, regionOptions);
 
     final mainFields = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -283,6 +307,7 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
         ),
         data: (_) => _SalesAreaTable(
           rows: rows,
+          regionOptions: regionOptions,
           onRowDoubleTap: (row) =>
               context.go('${AppRoutes.salesAreas}/register/${row.id}'),
         ),
@@ -386,9 +411,14 @@ class _SalesAreaSummaryBar extends StatelessWidget {
 }
 
 class _SalesAreaTable extends StatelessWidget {
-  const _SalesAreaTable({required this.rows, required this.onRowDoubleTap});
+  const _SalesAreaTable({
+    required this.rows,
+    required this.regionOptions,
+    required this.onRowDoubleTap,
+  });
 
   final List<SalesAreaRow> rows;
+  final List<CodeOption> regionOptions;
   final void Function(SalesAreaRow row) onRowDoubleTap;
 
   static Widget _cell(Widget child, {required void Function() onDoubleTap}) {
@@ -452,7 +482,10 @@ class _SalesAreaTable extends StatelessWidget {
                   onDoubleTap: open,
                 ),
                 _cell(
-                  ErpTableBodyCell(e.region, center: true),
+                  ErpTableBodyCell(
+                    _regionNm(e.region, regionOptions),
+                    center: true,
+                  ),
                   onDoubleTap: open,
                 ),
                 _cell(
@@ -476,4 +509,12 @@ class _SalesAreaTable extends StatelessWidget {
       ),
     );
   }
+}
+
+String _regionNm(String code, List<CodeOption> options) {
+  if (code.isEmpty) return '-';
+  for (final option in options) {
+    if (option.codeCd == code) return option.codeNm;
+  }
+  return code;
 }

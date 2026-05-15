@@ -1,6 +1,7 @@
 package com.yeokjeon.erp.active.service;
 
 import com.yeokjeon.erp.active.dto.ActNotifAckDateRow;
+import com.yeokjeon.erp.active.dto.ActiveListQuery;
 import com.yeokjeon.erp.active.dto.ActiveMstResponseDto;
 import com.yeokjeon.erp.active.dto.ActiveMstWriteRequestDto;
 import com.yeokjeon.erp.active.dto.ActivityStatusPivotRowDto;
@@ -53,15 +54,15 @@ public class ActService {
     private final ActMstMapper actMstMapper;
 
     public List<ActivityStatusPivotRowDto> statusByStore(LocalDate startDt, LocalDate endDt, String brandCd) {
-        return actMstMapper.selectStatusByStore(startDt, endDt, brandCd);
+        return actMstMapper.pivotByStore(startDt, endDt, brandCd);
     }
 
     public List<ActivityStatusPivotRowDto> statusBySv(LocalDate startDt, LocalDate endDt, String brandCd) {
-        return actMstMapper.selectStatusBySv(startDt, endDt, brandCd);
+        return actMstMapper.pivotBySv(startDt, endDt, brandCd);
     }
 
     public List<ActiveMstResponseDto> listAll() {
-        List<ActActive> rows = actMstMapper.selectAllActivities();
+        List<ActActive> rows = actMstMapper.actList(ActiveListQuery.allNoDraft());
         Map<Integer, Store> stores = storesByIdx(rows);
         Map<String, String> userNames = loadUserNames(rows);
 
@@ -72,12 +73,23 @@ public class ActService {
     }
 
     public List<ActiveMstResponseDto> listByStatus(String apprStatus, String svId, String relUserId) {
-        List<ActActive> rows = actMstMapper.selectActivitiesByApprStatus(apprStatus);
+        List<ActActive> rows = actMstMapper.actList(ActiveListQuery.byApprStatus(apprStatus));
 
-        if ("DRAFT".equals(apprStatus) && svId != null && !svId.isBlank()) {
-            rows = rows.stream()
-                    .filter(active -> svId.equals(active.getSvId()))
-                    .collect(Collectors.toList());
+        // DRAFT: 작성자 = act_active.sv_id. 클라이언트는 보통 로그인 ID를 svId로 넘기며,
+        // relUserId만 보낸 경우(동일 값)도 작성자 필터로 받아들인다.
+        if (STATUS_DRAFT.equals(apprStatus)) {
+            String writerId = null;
+            if (svId != null && !svId.isBlank()) {
+                writerId = svId.trim();
+            } else if (relUserId != null && !relUserId.isBlank()) {
+                writerId = relUserId.trim();
+            }
+            if (writerId != null) {
+                final String uid = writerId;
+                rows = rows.stream()
+                        .filter(active -> uid.equals(active.getSvId()))
+                        .collect(Collectors.toList());
+            }
         }
 
         if (relUserId != null && !relUserId.isBlank()
@@ -112,16 +124,14 @@ public class ActService {
                 .orElseThrow(() -> new ResourceNotFoundException("활동관리", "actIdx", actIdx));
         Store store = storeRepository.findByStoreIdx(active.getStoreIdx()).orElse(null);
         ActiveMstResponseDto base = toActiveResponse(active, store);
-        String apprStatus = base.apprStatus() == null ? "" : base.apprStatus();
-        Map<String, String> dates =
-                approvalAckDateMapForActivity(actIdx, apprStatus);
+        Map<String, String> dates = approvalAckDateMapForActivity(actIdx);
         return base.withApprAck(new LinkedHashMap<>(dates), new ArrayList<>(dates.keySet()));
     }
 
     public List<ActiveMstResponseDto> listByStore(Integer storeIdx) {
         Store store = storeRepository.findByStoreIdx(storeIdx)
                 .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeIdx", storeIdx));
-        List<ActActive> rows = actMstMapper.selectActivitiesByStoreIdx(storeIdx);
+        List<ActActive> rows = actMstMapper.actList(ActiveListQuery.byStore(storeIdx));
         Map<String, String> userNames = loadUserNames(rows);
 
         return rows.stream()
@@ -130,7 +140,7 @@ public class ActService {
     }
 
     public List<ActiveMstResponseDto> listByChkYn(Character chkYn) {
-        List<ActActive> rows = actMstMapper.selectActivitiesByChkYn(chkYn);
+        List<ActActive> rows = actMstMapper.actList(ActiveListQuery.byChkYn(chkYn));
         Map<Integer, Store> stores = storesByIdx(rows);
         Map<String, String> userNames = loadUserNames(rows);
 
@@ -141,7 +151,7 @@ public class ActService {
     }
 
     public List<ActiveMstResponseDto> listBySuggestions() {
-        List<ActActive> rows = actMstMapper.selectActivitiesByApprStatus(STATUS_APPROVED);
+        List<ActActive> rows = actMstMapper.actList(ActiveListQuery.byApprStatus(STATUS_APPROVED));
         rows = rows.stream()
                 .filter(active -> active.getSuggestions() != null
                         && !active.getSuggestions().isBlank())
@@ -157,17 +167,36 @@ public class ActService {
     }
 
     /**
-     * 지시사항(결재특이사항) — {@code active_mst.appr_note} 가 비어 있지 않고,
-     * {@code sv_id} 가 로그인 사용자(요청 파라미터 {@code svId})와 같은 행만.
+     * 활동관리 > 지시사항(결재특이사항) — {@code appr_notes} 가 비어 있지 않고,
+     * {@code appr_status} 가 {@code PENDING} 이 아니며, {@code sv_id} 가 기안(로그인) 사용자와 같음.
      */
     public List<ActiveMstResponseDto> listBySvAppr(String svId) {
         if (svId == null || svId.isBlank()) {
             return List.of();
         }
         String uid = svId.trim();
-        List<ActActive> rows = actMstMapper.selectActivitiesBySvForApprNotes(uid).stream()
-                .filter(active -> active.getApprNotes() != null && !active.getApprNotes().isBlank())
+        List<ActActive> rows = actMstMapper.actList(ActiveListQuery.byDrafterMemo(uid));
+
+        Map<Integer, Store> stores = storesByIdx(rows);
+        Map<String, String> userNames = loadUserNames(rows);
+
+        return rows.stream()
+                .map(active -> toActiveResponse(active, stores.get(active.getStoreIdx()),
+                        userNames.get(active.getSvId()), null))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 활동관리결재 > 지시사항(결재특이사항) — {@code appr_notes} 있음·비결재대기·
+     * {@code notif_mst} 에 본인 알림이 있고 {@code appr_id}(CSV)에 본인이 포함된 활동만.
+     */
+    public List<ActiveMstResponseDto> listMemoInstructionsForApprover(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return List.of();
+        }
+        String uid = userId.trim();
+        List<ActActive> rows =
+                actMstMapper.actListApprMemo(uid, TYPE_ACTIVITY_APPROVAL);
 
         Map<Integer, Store> stores = storesByIdx(rows);
         Map<String, String> userNames = loadUserNames(rows);
@@ -190,10 +219,11 @@ public class ActService {
 
         List<ChkResultDtlSaveDto> checklistRows = body.checklistResultsOrEmpty();
         if (!checklistRows.isEmpty()) {
-            saveChecklistResults(saved.getActIdx(), checklistRows);
-            saved.setRChkId(saved.getActIdx());
-            saved.setChkYn('Y');
-            saved = actRepository.save(saved);
+            int inserted = saveChecklistResults(saved.getActIdx(), checklistRows);
+            if (inserted > 0) {
+                saved.setChkYn('Y');
+                saved = actRepository.save(saved);
+            }
         }
 
         maybeNotifyPendingApprovers(saved, body.getApprUserIds(), null);
@@ -213,13 +243,13 @@ public class ActService {
 
         List<ChkResultDtlSaveDto> checklistRows = body.checklistResultsOrEmpty();
         if (!checklistRows.isEmpty()) {
-            if (active.getRChkId() != null) {
-                deleteChecklistResults(actIdx);
+            int inserted = saveChecklistResults(actIdx, checklistRows);
+            if (inserted > 0) {
+                active.setChkYn('Y');
+            } else {
+                active.setChkYn('N');
             }
-            saveChecklistResults(actIdx, checklistRows);
-            active.setChkYn('Y');
         }
-
         normalizeForSave(active);
 
         Store store = storeRepository.findByStoreIdx(active.getStoreIdx())
@@ -253,7 +283,6 @@ public class ActService {
                 .apprDt(b.getApprDt())
                 .suggestions(trimToNull(b.getSuggestions()))
                 .svNotes(trimToNull(b.getSvNotes()))
-                .rChkId(b.getRChkId())
                 .chkYn(b.getChkYn())
                 .apprNotes(trimToNull(b.getApprNotes()))
                 .build();
@@ -350,9 +379,6 @@ public class ActService {
         } else {
             active.setApprStatus(active.getApprStatus().trim().toUpperCase());
         }
-        if (active.getChkYn() == null) {
-            active.setChkYn('N');
-        }
         if (STATUS_APPROVED.equals(active.getApprStatus()) && active.getApprDt() == null) {
             active.setApprDt(LocalDateTime.now());
         }
@@ -423,21 +449,25 @@ public class ActService {
         }
         notifyActivityApprovers(saved.getActIdx(), ids);
     }
-
-    private void saveChecklistResults(Integer actIdx, List<ChkResultDtlSaveDto> results) {
+    
+    /** 실제 insert 된 체크리스트 행 수({@code chkIdx} 가 있는 항목만). */
+    private int saveChecklistResults(Integer actIdx, List<ChkResultDtlSaveDto> results) {
+        int inserted = 0;
         for (ChkResultDtlSaveDto result : results) {
             if (result.chkIdx() == null) {
                 continue;
             }
             int score = result.answerScore() != null ? result.answerScore() : 0;
-            actMstMapper.insertChkResultDtl(actIdx, result.chkIdx(), result.answerVal(), score);
+            actMstMapper.insChkDtl(actIdx, result.chkIdx(), result.answerVal(), score);
+            inserted++;
         }
 
-        log.info("체크리스트 결과 저장 완료: actIdx={}, 항목수={}", actIdx, results.size());
+        log.info("체크리스트 결과 저장 완료: actIdx={}, 저장건수={}", actIdx, inserted);
+        return inserted;
     }
 
     private void deleteChecklistResults(Integer actIdx) {
-        int deleted = actMstMapper.deleteChkResultDtlByActIdx(actIdx);
+        int deleted = actMstMapper.delChkDtlByAct(actIdx);
         log.info("체크리스트 결과 삭제 완료: actIdx={}, 삭제된 항목수={}", actIdx, deleted);
     }
 
@@ -453,7 +483,7 @@ public class ActService {
         }
 
         Map<String, String> result = new LinkedHashMap<>();
-        for (UserIdNameRow row : actMstMapper.selectUserNamesByIds(userIds)) {
+        for (UserIdNameRow row : actMstMapper.userNamesByIds(userIds)) {
             result.put(row.userId(), row.userName());
         }
         return result;
@@ -466,7 +496,7 @@ public class ActService {
         }
         String uid = svId.trim();
         try {
-            UserWriterDeptRow row = actMstMapper.selectWriterAndDept(uid);
+            UserWriterDeptRow row = actMstMapper.writerDept(uid);
             if (row == null) {
                 return new String[]{loadUserName(uid), null};
             }
@@ -483,7 +513,7 @@ public class ActService {
         }
 
         try {
-            return actMstMapper.selectUserName(userId);
+            return actMstMapper.userName(userId);
         } catch (Exception e) {
             log.warn("사용자 이름 조회 실패: userId={}", userId);
             return null;
@@ -491,7 +521,7 @@ public class ActService {
     }
 
     public List<ChkResultRowDto> chkResults(Integer actIdx) {
-        return actMstMapper.selectChkResultsForActivity(actIdx);
+        return actMstMapper.chkResultRows(actIdx);
     }
 
     // --- notifications ---
@@ -500,14 +530,14 @@ public class ActService {
         if (userId == null || userId.isBlank()) {
             return List.of();
         }
-        return actMstMapper.selectNotifsForUser(userId.trim());
+        return actMstMapper.notifList(userId.trim());
     }
 
     public long countUnread(String userId) {
         if (userId == null || userId.isBlank()) {
             return 0;
         }
-        return actMstMapper.countUnreadNotifsForUser(userId.trim());
+        return actMstMapper.notifUnreadCnt(userId.trim());
     }
 
     @Transactional(readOnly = false)
@@ -524,55 +554,84 @@ public class ActService {
     }
 
     @Transactional(readOnly = false)
-    public void markActivityApprovalAcknowledged(String userId, Integer actIdx) {
+    public void markActivityApprovalAcknowledged(String userId, Integer actIdx, String apprNotes) {
         if (userId == null || userId.isBlank() || actIdx == null) {
             return;
         }
         String uid = userId.trim();
-        int updated =
-                actMstMapper.updateApprYnForUserActivityNotifs(uid, actIdx, TYPE_ACTIVITY_APPROVAL, "Y");
-        if (updated == 0) {
-            ActNotif ack = ActNotif.builder()
-                    .userId(uid)
-                    .msgTxt("활동 결재 확인")
-                    .notifTyp(TYPE_ACTIVITY_APPROVAL)
-                    .actIdx(actIdx)
-                    .apprYn("Y")
-                    .readYn('Y')
-                    .build();
-            actNotifRepository.save(ack);
+        ActActive active = actRepository.findById(actIdx)
+                .orElseThrow(() -> new ResourceNotFoundException("활동관리", "actIdx", actIdx));
+
+        String apprStatus = active.getApprStatus() == null ? "" : active.getApprStatus().trim();
+        if (!STATUS_PENDING.equalsIgnoreCase(apprStatus)) {
+            throw new IllegalArgumentException("결재대기 상태에서만 결재할 수 있습니다.");
         }
-        actRepository.findById(actIdx).ifPresent(active -> {
+
+        String svId = active.getSvId() == null ? "" : active.getSvId().trim();
+        if (!svId.isEmpty() && uid.equals(svId)) {
+            throw new IllegalArgumentException("기안자는 결재하기를 사용할 수 없습니다. 지정된 결재자만 결재합니다.");
+        }
+
+        List<String> peers = splitApprUserIdsCsv(active.getApprId());
+        if (peers.isEmpty()) {
+            throw new IllegalArgumentException("상신된 결재자 목록이 비어 있어 결재를 확인할 수 없습니다.");
+        }
+
+        int notifTotal =
+                actMstMapper.apprNotifCnt(actIdx, uid, TYPE_ACTIVITY_APPROVAL);
+        if (notifTotal == 0) {
+            throw new IllegalArgumentException(
+                    "해당 활동으로 본인 계정에 온 결재 알림이 없어 결재할 수 없습니다.");
+        }
+        int notifPending =
+                actMstMapper.apprNotifPendingCnt(actIdx, uid, TYPE_ACTIVITY_APPROVAL);
+        if (notifPending == 0) {
+            throw new IllegalArgumentException("이미 결재 처리된 건입니다.");
+        }
+
+        int updated = actMstMapper.apprNotifSetYn(
+                uid, actIdx, TYPE_ACTIVITY_APPROVAL, "Y");
+        if (updated == 0) {
+            throw new IllegalArgumentException("결재 반영에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+
+        boolean needsActiveSave = false;
+        // 지시사항(결재특이사항): 요청에 apprNotes 가 있으면 화면 전문으로 덮어쓴다(줄 단위 병합 금지 — 중복 누적 방지).
+        if (apprNotes != null) {
+            active.setApprNotes(trimToNull(apprNotes));
+            needsActiveSave = true;
+        }
+
+        int ackedDistinct = actMstMapper.apprCsvAckCnt(actIdx, TYPE_ACTIVITY_APPROVAL, peers);
+        if (ackedDistinct >= peers.size()) {
             active.setApprDt(LocalDateTime.now());
             active.setApprStatus("APPROVED");
+            needsActiveSave = true;
+        }
+        if (needsActiveSave) {
             actRepository.save(active);
-        });
+        }
     }
 
     /**
-     * 결재 확인일(표시용) — user_id → yyyy-MM-dd.
-     * <ul>
-     *     <li>결재대기 등: {@code appr_yn = 'Y'} 인 행만 (앱에서 도장·결재일자 표시).</li>
-     *     <li>결재완료: 같은 활동의 {@code ACTIVITY_APPROVAL} 알림은 {@code appr_yn} 과 관계없이 포함.
-     *     DB에서 직접 상신 없이 {@code APPROVED} 처리된 경우 등, 알림은 있는데 {@code appr_yn} 이 N 인 행도 상세에 반영.</li>
-     * </ul>
+     * 결재 확인일(표시용) — {@code notif_mst} 에서 {@code appr_yn = 'Y'} 인 행만 사용.
+     * '결재자에 추가되었습니다…' 처럼 {@code appr_yn = 'N'} 인 대기 알림은 제외한다(미결재자 도장 오표시 방지).
      */
-    public Map<String, String> approvalAckDateMapForActivity(Integer actIdx, String apprStatus) {
+    public Map<String, String> approvalAckDateMapForActivity(Integer actIdx) {
         if (actIdx == null) {
             return Map.of();
         }
-        boolean approvedDoc = apprStatus != null && "APPROVED".equalsIgnoreCase(apprStatus.trim());
         List<ActNotifAckDateRow> rows =
-                actMstMapper.selectApprovalAckDateRows(actIdx, TYPE_ACTIVITY_APPROVAL, !approvedDoc);
+                actMstMapper.apprAckDays(actIdx, TYPE_ACTIVITY_APPROVAL, true);
         Map<String, String> out = new LinkedHashMap<>();
         for (ActNotifAckDateRow r : rows) {
-            String uid = r.userId();
-            if (uid == null || uid.isBlank()) {
+            String rowUid = r.userId();
+            if (rowUid == null || rowUid.isBlank()) {
                 continue;
             }
             LocalDate d = r.createDay();
             String day = d != null ? d.toString() : "";
-            out.put(uid.trim(), day);
+            out.put(rowUid.trim(), day);
         }
         return out;
     }
@@ -628,7 +687,7 @@ public class ActService {
         holder.setChkContent(chkContent);
         holder.setBaseScore(baseScore);
         holder.setUseYn(useYn);
-        actMstMapper.insertChkMst(holder);
+        actMstMapper.insChkMst(holder);
         Integer chkIdx = holder.getChkIdx();
         if (chkIdx == null) {
             throw new IllegalStateException("chk_mst INSERT 후 chk_idx를 읽지 못했습니다.");
@@ -647,7 +706,7 @@ public class ActService {
         String brandCd = body.brandCd().trim();
         String chkType = body.chkType().trim();
         String chkContent = body.chkContent().trim();
-        int updated = actMstMapper.updateChkMst(chkIdx, brandCd, chkType, chkContent, baseScore, useYn);
+        int updated = actMstMapper.updChkMst(chkIdx, brandCd, chkType, chkContent, baseScore, useYn);
         if (updated == 0) {
             throw new ResourceNotFoundException("체크리스트", "chkIdx", chkIdx);
         }
@@ -657,11 +716,11 @@ public class ActService {
     public List<ChkMstResponseDto> getChecklists(String brandCd, String chkType) {
         String b = brandCd != null && !brandCd.isBlank() ? brandCd.trim() : null;
         String t = chkType != null && !chkType.isBlank() ? chkType.trim() : null;
-        return actMstMapper.selectChkMstList(b, t);
+        return actMstMapper.chkMstList(b, t);
     }
 
     private ChkMstResponseDto getChecklist(Integer chkIdx) {
-        ChkMstResponseDto row = actMstMapper.selectChkMstOne(chkIdx);
+        ChkMstResponseDto row = actMstMapper.chkMstOne(chkIdx);
         if (row == null) {
             throw new ResourceNotFoundException("체크리스트", "chkIdx", chkIdx);
         }

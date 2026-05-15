@@ -3,6 +3,20 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.yeokjeon.erp.active.mapper.ActMstMapper">
 
+    <!--
+      결재선(active_mst.appr_id)은 콤마 구분 CSV.
+      notif_mst.user_id 가 그 결재선에 포함된 알림만 active 와 연결한다.
+      (단일 결재자만 있을 때는 TRIM(appr_id) = user_id 로도 매칭됨.)
+    -->
+    <sql id="joinActiveAndNotifOnApproverCsv">
+        nm.act_idx = am.act_idx
+        AND (
+            TRIM(COALESCE(am.appr_id, '')) = TRIM(nm.user_id)
+            OR CONCAT(',', REPLACE(TRIM(COALESCE(am.appr_id, '')), ' ', ''), ',')
+               LIKE CONCAT('%,', TRIM(nm.user_id), ',%')
+        )
+    </sql>
+
     <resultMap id="activityStatusPivotRow" type="com.yeokjeon.erp.active.dto.ActivityStatusPivotRowDto">
         <constructor>
             <arg column="store_nm" javaType="java.lang.String"/>
@@ -74,26 +88,50 @@
         </constructor>
     </resultMap>
 
-    <sql id="activeRowColumns">
-        act_idx,
-        store_idx,
-        act_type,
-        act_dt,
-        CAST(create_dt AS TIMESTAMP) AS create_dt,
-        act_notes,
-        memo_txt,
-        sv_id,
-        appr_id,
-        appr_status,
-        CAST(appr_dt AS TIMESTAMP) AS appr_dt,
-        suggestions,
-        sv_notes,
-        appr_notes,
-        r_chk_id,
-        chk_yn
+    <!--
+      목록 응답 chk_yn: 브랜드별 사용 중(chk_mst.use_yn='Y') 문항 수 대비 chk_result_dtl 건수.
+      반드시 FROM active_mst am 인 쿼리에서만 사용.
+    -->
+    <sql id="activeChkYnExpr">
+        (CASE
+             WHEN COALESCE((
+                 SELECT COUNT(*)::bigint
+                 FROM chk_result_dtl crd
+                 WHERE crd.act_idx = am.act_idx
+             ), 0)
+                 >= COALESCE((
+                 SELECT COUNT(*)::bigint
+                 FROM chk_mst cm
+                          INNER JOIN store_mst sm
+                                     ON sm.store_idx = am.store_idx
+                                         AND sm.brand_cd = cm.brand_cd
+                 WHERE cm.use_yn = 'Y'
+             ), 0)
+             THEN 'Y'
+             ELSE 'N'
+            END)
     </sql>
 
-    <select id="selectStatusByStore" resultMap="activityStatusPivotRow">
+    <sql id="activeRowColumns">
+        am.act_idx,
+        am.store_idx,
+        am.act_type,
+        am.act_dt,
+        CAST(am.create_dt AS TIMESTAMP) AS create_dt,
+        am.act_notes,
+        am.memo_txt,
+        am.sv_id,
+        am.appr_id,
+        am.appr_status,
+        CAST(am.appr_dt AS TIMESTAMP) AS appr_dt,
+        am.suggestions,
+        am.sv_notes,
+        am.appr_notes,
+        <include refid="activeChkYnExpr"/> AS chk_yn
+    </sql>
+
+    <!-- ActService.statusByStore — 대시보드: 기간·브랜드별 가맹점당 PENDING/APPROVED 활동 건수 -->
+    <select id="pivotByStore" resultMap="activityStatusPivotRow">
         SELECT sm.store_nm AS store_nm,
                '' AS user_name,
                CAST(NULL AS VARCHAR(100)) AS user_id,
@@ -112,7 +150,8 @@
         ORDER BY sm.store_nm, am.act_dt
     </select>
 
-    <select id="selectStatusBySv" resultMap="activityStatusPivotRow">
+    <!-- ActService.statusBySv — 대시보드: SV(담당)별 활동 건수 (주의: appr_id 전체 CSV와 조인하는 기존 스키마 유지) -->
+    <select id="pivotBySv" resultMap="activityStatusPivotRow">
         SELECT '' AS store_nm,
                um.user_name AS user_name,
                um.user_id AS user_id,
@@ -133,16 +172,19 @@
         ORDER BY um.user_id, am.act_dt
     </select>
 
-    <insert id="insertChkResultDtl">
+    <!-- ActService 체크리스트 저장 — chk_result_dtl INSERT -->
+    <insert id="insChkDtl">
         INSERT INTO chk_result_dtl (act_idx, chk_idx, answer_val, answer_score)
         VALUES (#{actIdx}, #{chkIdx}, #{answerVal}, #{answerScore})
     </insert>
 
-    <delete id="deleteChkResultDtlByActIdx">
+    <!-- 활동 삭제 시 chk_result_dtl 정리 -->
+    <delete id="delChkDtlByAct">
         DELETE FROM chk_result_dtl WHERE act_idx = #{actIdx}
     </delete>
 
-    <select id="selectUserNamesByIds" resultMap="userIdNameRow">
+    <!-- ActService 표시명 — user_id IN (...) -->
+    <select id="userNamesByIds" resultMap="userIdNameRow">
         SELECT user_id, user_name FROM user_mst
         WHERE user_id IN
         <foreach collection="userIds" item="id" open="(" separator="," close=")">
@@ -150,18 +192,21 @@
         </foreach>
     </select>
 
-    <select id="selectWriterAndDept" resultMap="userWriterDeptRow">
+    <!-- 활동 상세 기안자 영역 — user_mst + dept_mst, 단건 -->
+    <select id="writerDept" resultMap="userWriterDeptRow">
         SELECT um.user_name AS user_name, dm.dept_nm AS dept_nm
         FROM user_mst um
                  LEFT JOIN dept_mst dm ON um.dept_idx = dm.dept_idx
         WHERE um.user_id = #{userId}
+        LIMIT 1
     </select>
 
-    <select id="selectUserName" resultType="java.lang.String">
-        SELECT user_name FROM user_mst WHERE user_id = #{userId}
+    <select id="userName" resultType="java.lang.String">
+        SELECT user_name FROM user_mst WHERE user_id = #{userId} LIMIT 1
     </select>
 
-    <select id="selectChkResultsForActivity" resultMap="chkResultRow">
+    <!-- ActService.chkResults — 활동 act_idx 기준 체크리스트 문항·답변 조인 -->
+    <select id="chkResultRows" resultMap="chkResultRow">
         SELECT CM.chk_idx AS chk_idx,
                CM.brand_cd AS brand_cd,
                CM.chk_type AS chk_type,
@@ -181,7 +226,8 @@
         ORDER BY CM.display_order, CM.chk_idx
     </select>
 
-    <insert id="insertChkMst" useGeneratedKeys="true" keyProperty="chkIdx" keyColumn="chk_idx">
+    <!-- ActService 체크리스트 마스터 등록 -->
+    <insert id="insChkMst" useGeneratedKeys="true" keyProperty="chkIdx" keyColumn="chk_idx">
         INSERT INTO chk_mst (brand_cd,
                              chk_type,
                              chk_content,
@@ -196,7 +242,7 @@
                 COALESCE((SELECT MAX(display_order) + 1 FROM chk_mst), 1))
     </insert>
 
-    <update id="updateChkMst">
+    <update id="updChkMst">
         UPDATE chk_mst
         SET brand_cd    = #{brandCd},
             chk_type    = #{chkType},
@@ -207,7 +253,7 @@
         WHERE chk_idx = #{chkIdx}
     </update>
 
-    <select id="selectChkMstList" resultMap="chkMstResponse">
+    <select id="chkMstList" resultMap="chkMstResponse">
         SELECT c.chk_idx,
                c.brand_cd,
                c.chk_type,
@@ -218,7 +264,7 @@
                c.display_order
         FROM chk_mst c
                  LEFT JOIN code_mst cm ON cm.grp_cd = '50' AND cm.code_cd = c.chk_type
-        WHERE 1 = 1 
+        WHERE 1 = 1
         <if test="brandCd != null and brandCd != ''">
             AND c.brand_cd = #{brandCd}
         </if>
@@ -228,7 +274,7 @@
         ORDER BY c.chk_type
     </select>
 
-    <select id="selectChkMstOne" resultMap="chkMstResponse">
+    <select id="chkMstOne" resultMap="chkMstResponse">
         SELECT c.chk_idx,
                c.brand_cd,
                c.chk_type,
@@ -242,48 +288,72 @@
         WHERE c.chk_idx = #{chkIdx}
     </select>
 
-    <select id="selectAllActivities" resultType="com.yeokjeon.erp.active.entity.ActActive">
+    <!--
+      ActService 목록 공통 — ActiveListQuery.mode 분기.
+      결재자 지시사항(EXISTS notif)만 actListApprMemo 유지.
+    -->
+    <select id="actList" resultType="com.yeokjeon.erp.active.entity.ActActive">
         SELECT
         <include refid="activeRowColumns"/>
-        FROM active_mst
-        WHERE appr_status != 'DRAFT'
-        ORDER BY create_dt DESC, act_idx DESC
+        FROM active_mst am
+        <where>
+            <choose>
+                <when test="q.mode == 'ALL_NO_DRAFT'">
+                    am.appr_status != 'DRAFT'
+                </when>
+                <when test="q.mode == 'BY_APPR_STATUS'">
+                    am.appr_status = #{q.apprStatus}
+                </when>
+                <when test="q.mode == 'BY_STORE'">
+                    am.store_idx = #{q.storeIdx}
+                </when>
+                <when test="q.mode == 'BY_CHK_YN'">
+                    (<include refid="activeChkYnExpr"/>) = #{q.chkYn, jdbcType=CHAR}
+                </when>
+                <when test="q.mode == 'BY_DRAFTER_MEMO'">
+                    am.sv_id = #{q.svId}
+                    AND TRIM(COALESCE(am.appr_notes, '')) <![CDATA[<>]]> ''
+                    AND UPPER(TRIM(COALESCE(am.appr_status, ''))) <![CDATA[<>]]> 'PENDING'
+                </when>
+            </choose>
+        </where>
+        <choose>
+            <when test="q.mode == 'BY_STORE'">
+                ORDER BY am.act_dt DESC, am.act_idx DESC
+            </when>
+            <otherwise>
+                ORDER BY am.create_dt DESC, am.act_idx DESC
+            </otherwise>
+        </choose>
     </select>
 
-    <select id="selectActivitiesByApprStatus" resultType="com.yeokjeon.erp.active.entity.ActActive">
+    <!--
+      ActService.listMemoInstructionsForApprover — 활동관리결재 지시사항 탭.
+      active_mst INNER JOIN notif_mst: 본인 알림 + appr_id(CSV)에 본인 포함 (결재선 검증).
+    -->
+    <select id="actListApprMemo" resultType="com.yeokjeon.erp.active.entity.ActActive">
         SELECT
         <include refid="activeRowColumns"/>
-        FROM active_mst
-        WHERE appr_status = #{apprStatus}
-        ORDER BY create_dt DESC, act_idx DESC
+        FROM active_mst am
+        WHERE TRIM(COALESCE(am.appr_notes, '')) <![CDATA[<>]]> ''
+          AND UPPER(TRIM(COALESCE(am.appr_status, ''))) <![CDATA[<>]]> 'PENDING'
+          AND EXISTS (
+            SELECT 1
+            FROM notif_mst nm
+            WHERE nm.act_idx = am.act_idx
+              AND (nm.user_id = #{userId} OR am.sv_id = #{userId})
+              AND nm.notif_typ = #{notifTyp}
+              AND (
+                  TRIM(COALESCE(am.appr_id, '')) = TRIM(nm.user_id)
+                  OR CONCAT(',', REPLACE(TRIM(COALESCE(am.appr_id, '')), ' ', ''), ',')
+                     LIKE CONCAT('%,', TRIM(nm.user_id), ',%')
+              )
+          )
+        ORDER BY am.create_dt DESC, am.act_idx DESC
     </select>
 
-    <select id="selectActivitiesByStoreIdx" resultType="com.yeokjeon.erp.active.entity.ActActive">
-        SELECT
-        <include refid="activeRowColumns"/>
-        FROM active_mst
-        WHERE store_idx = #{storeIdx}
-        ORDER BY act_dt DESC, act_idx DESC
-    </select>
-
-    <select id="selectActivitiesByChkYn" resultType="com.yeokjeon.erp.active.entity.ActActive">
-        SELECT
-        <include refid="activeRowColumns"/>
-        FROM active_mst
-        WHERE chk_yn = #{chkYn, jdbcType=CHAR}
-        ORDER BY create_dt DESC, act_idx DESC
-    </select>
-
-    <select id="selectActivitiesBySvForApprNotes" resultType="com.yeokjeon.erp.active.entity.ActActive">
-        SELECT
-        <include refid="activeRowColumns"/>
-        FROM active_mst
-        WHERE sv_id = #{svId}
-          AND appr_notes IS NOT NULL
-        ORDER BY create_dt DESC, act_idx DESC
-    </select>
-
-    <select id="selectNotifsForUser" resultMap="notifMstDto">
+    <!-- ActService.listForUser — 알림 목록 -->
+    <select id="notifList" resultMap="notifMstDto">
         SELECT notif_idx,
                user_id,
                msg_txt,
@@ -297,43 +367,110 @@
         ORDER BY create_dt DESC, notif_idx DESC
     </select>
 
-    <select id="countUnreadNotifsForUser" resultType="long">
+    <!-- 알림함 미읽음 -->
+    <select id="notifUnreadCnt" resultType="long">
         SELECT COUNT(*)
         FROM notif_mst
         WHERE user_id = #{userId}
           AND read_yn = 'N'
     </select>
 
-    <!-- PostgreSQL: timestamptz → 서울 달력일. H2 등은 databaseId 미일치 시 아래 fallback 사용. -->
-    <select id="selectApprovalAckDateRows" resultMap="actNotifAckDateRow" databaseId="postgresql">
-        SELECT user_id,
-               CAST((create_dt AT TIME ZONE 'Asia/Seoul') AS DATE) AS create_day
-        FROM notif_mst
-        WHERE act_idx = #{actIdx}
-          AND notif_typ = #{notifTyp}
+    <!--
+      ActService.approvalAckDateMapForActivity — 상세 결재도장용.
+      notif_mst 를 active_mst 와 조인해 appr_id 결재선에 수신자가 포함된 알림만 사용.
+      onlyApprY=true 이면 appr_yn 이 실제 'Y' 인 행만(대기 알림 제외).
+    -->
+    <select id="apprAckDays" resultMap="actNotifAckDateRow" databaseId="postgresql">
+        SELECT nm.user_id,
+               CAST((nm.create_dt AT TIME ZONE 'Asia/Seoul') AS DATE) AS create_day
+        FROM notif_mst nm
+                 INNER JOIN active_mst am ON
+            <include refid="joinActiveAndNotifOnApproverCsv"/>
+        WHERE nm.act_idx = #{actIdx}
+          AND nm.notif_typ = #{notifTyp}
         <if test="onlyApprY">
-            AND appr_yn = 'Y'
+            AND UPPER(TRIM(COALESCE(nm.appr_yn, ''))) = 'Y'
         </if>
-        ORDER BY notif_idx ASC
+        ORDER BY nm.notif_idx ASC
     </select>
 
-    <select id="selectApprovalAckDateRows" resultMap="actNotifAckDateRow">
-        SELECT user_id,
-               CAST(create_dt AS DATE) AS create_day
-        FROM notif_mst
-        WHERE act_idx = #{actIdx}
-          AND notif_typ = #{notifTyp}
+    <select id="apprAckDays" resultMap="actNotifAckDateRow">
+        SELECT nm.user_id,
+               CAST(nm.create_dt AS DATE) AS create_day
+        FROM notif_mst nm
+                 INNER JOIN active_mst am ON
+            <include refid="joinActiveAndNotifOnApproverCsv"/>
+        WHERE nm.act_idx = #{actIdx}
+          AND nm.notif_typ = #{notifTyp}
         <if test="onlyApprY">
-            AND appr_yn = 'Y'
+            AND UPPER(TRIM(COALESCE(nm.appr_yn, ''))) = 'Y'
         </if>
-        ORDER BY notif_idx ASC
+        ORDER BY nm.notif_idx ASC
     </select>
 
-    <update id="updateApprYnForUserActivityNotifs">
-        UPDATE notif_mst
+    <!-- ActService.markActivityApprovalAcknowledged — 본인 결재 알림 존재 여부(active 조인으로 결재선 일치) -->
+    <select id="apprNotifCnt" resultType="int">
+        SELECT COUNT(*)
+        FROM notif_mst nm
+                 INNER JOIN active_mst am ON
+            <include refid="joinActiveAndNotifOnApproverCsv"/>
+        WHERE nm.act_idx = #{actIdx}
+          AND nm.user_id = #{userId}
+          AND nm.notif_typ = #{notifTyp}
+    </select>
+
+    <!-- 위 범위 중 아직 결재 전(appr_yn N/공백/null) -->
+    <select id="apprNotifPendingCnt" resultType="int">
+        SELECT COUNT(*)
+        FROM notif_mst nm
+                 INNER JOIN active_mst am ON
+            <include refid="joinActiveAndNotifOnApproverCsv"/>
+        WHERE nm.act_idx = #{actIdx}
+          AND nm.user_id = #{userId}
+          AND nm.notif_typ = #{notifTyp}
+          AND (
+            nm.appr_yn IS NULL
+            OR TRIM(nm.appr_yn) = ''
+            OR UPPER(TRIM(nm.appr_yn)) = 'N'
+        )
+    </select>
+
+    <!-- ActService.markActivityApprovalAcknowledged — 결재하기 시 appr_yn 갱신 (결재선·활동 일치할 때만). PG/H2 공통 EXISTS. -->
+    <update id="apprNotifSetYn">
+        UPDATE notif_mst nm
         SET appr_yn = #{apprYn}
-        WHERE user_id = #{userId}
-          AND act_idx = #{actIdx}
-          AND notif_typ = #{notifTyp}
+        WHERE nm.act_idx = #{actIdx}
+          AND nm.user_id = #{userId}
+          AND nm.notif_typ = #{notifTyp}
+          AND (
+            nm.appr_yn IS NULL
+            OR TRIM(nm.appr_yn) = ''
+            OR UPPER(TRIM(nm.appr_yn)) = 'N'
+        )
+          AND EXISTS (
+            SELECT 1
+            FROM active_mst am
+            WHERE am.act_idx = nm.act_idx
+              AND (
+                TRIM(COALESCE(am.appr_id, '')) = TRIM(nm.user_id)
+                OR CONCAT(',', REPLACE(TRIM(COALESCE(am.appr_id, '')), ' ', ''), ',')
+                   LIKE CONCAT('%,', TRIM(nm.user_id), ',%')
+              )
+        )
     </update>
+
+    <!-- ActService.markActivityApprovalAcknowledged — CSV 결재자 중 notif 상 Y 인 인원 수(다인 완료 판단) -->
+    <select id="apprCsvAckCnt" resultType="int">
+        SELECT COUNT(DISTINCT nm.user_id)
+        FROM notif_mst nm
+                 INNER JOIN active_mst am ON
+            <include refid="joinActiveAndNotifOnApproverCsv"/>
+        WHERE nm.act_idx = #{actIdx}
+          AND nm.notif_typ = #{notifTyp}
+          AND UPPER(TRIM(COALESCE(nm.appr_yn, ''))) = 'Y'
+          AND nm.user_id IN
+        <foreach collection="peerIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
 </mapper>

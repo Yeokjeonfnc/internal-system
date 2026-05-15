@@ -42,7 +42,7 @@ CI(`.github/workflows/ci.yml`)는 `backend` Maven 테스트와 `app_flutter`의 
 | 경로 | 역할 |
 |------|------|
 | `lib/main.dart` | `ProviderScope` + `MaterialApp.router` 진입 |
-| `lib/core/` | 공통 테마·라우터·API·레이아웃·위젯·도메인별 `*_api_json_keys` / `*_write_payload` |
+| `lib/core/` | 공통 테마·라우터·API·레이아웃·위젯·도메인별 `*_api_json_keys` / `*_write_request` |
 | `lib/pages/` | 화면별 기능 모듈 (도메인 하위 폴더) |
 | `lib/pages/active/` | 활동 허브·`act001`~`act003`·공용 `activity_*.dart` |
 | `lib/pages/franchise/str001/` | 가맹점 목록·상세·등록 |

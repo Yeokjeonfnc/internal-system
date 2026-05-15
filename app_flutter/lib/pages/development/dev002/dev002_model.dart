@@ -56,6 +56,7 @@ class Property {
     required this.propStatus,
     required this.ownership,
     required this.areaSqm,
+    required this.parkingCount,
     required this.keyMoney,
     required this.deposit,
     required this.rent,
@@ -141,6 +142,9 @@ class Property {
 
   @JsonKey(name: PropertyMstApiJsonKeys.floor, fromJson: _stringAny)
   final String floor;
+
+  @JsonKey(name: PropertyMstApiJsonKeys.parkingCount, fromJson: _stringAny)
+  final String parkingCount;
 
   @JsonKey(name: PropertyMstApiJsonKeys.propNotes, defaultValue: '')
   final String notes;

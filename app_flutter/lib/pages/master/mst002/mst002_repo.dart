@@ -3,7 +3,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
-import 'package:app_flutter/core/dept/dept_sort_order_write_payload.dart';
+import 'package:app_flutter/core/dept/dept_sort_order_write_request.dart';
 import 'package:app_flutter/pages/master/mst002/mst002_model.dart';
 
 class DepartmentRepository extends BaseRepository {
@@ -19,7 +19,7 @@ class DepartmentRepository extends BaseRepository {
 
   Future<bool> updateSortOrders(List<DepartmentSortOrder> items) async {
     try {
-      final body = DeptSortOrderUpdatePayload.fromItemMaps(
+      final body = DeptSortOrderUpdateRequest.fromItemMaps(
         items.map((e) => e.toJson()),
       );
       final response = await client.put(
