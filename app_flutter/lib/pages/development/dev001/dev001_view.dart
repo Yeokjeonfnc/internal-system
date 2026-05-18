@@ -21,6 +21,8 @@ import 'package:app_flutter/pages/development/dev001/dev001_filter.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_model.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_multi_select.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_controller.dart';
+import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
+import 'package:app_flutter/core/menu/menu_access.dart';
 
 const List<String> _partnerStatusOptions = ['전체', '예비창업자', '가맹점사업자'];
 
@@ -148,7 +150,7 @@ class _PartnerListViewState extends ConsumerState<PartnerListView> {
       children: [
         SearchFilterTextField(
           controller: _keywordCtrl,
-          hint: '성명, 휴대전화, 이메일 검색',
+          hint: '키워드 검색',
           borderRadius: 8,
           prefixIcon: Icon(
             Icons.search_rounded,
@@ -233,11 +235,50 @@ class _PartnerTable extends ConsumerWidget {
   const _PartnerTable({required this.rows});
 
   final List<Partner> rows;
+  Future<void> _confirmAndDelete(
+    BuildContext context,
+    WidgetRef ref,
+    Partner partner,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('예비창업자 삭제'),
+        content: Text('${partner.partnerNm} 데이터를 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.accentRed),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final deleted = await ref
+        .read(partnerApiServiceProvider)
+        .deletePartner(partner.partnerIdx);
+    if (!context.mounted) return;
+
+    if (deleted) {
+      await ref.refresh(partnerDataProvider.future).then<void>((_) {});
+      if (!context.mounted) return;
+      await showAlertDialog(context, '삭제되었습니다.');
+    } else {
+      await showAlertDialog(context, '삭제에 실패했습니다.');
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final regionOptions =
         ref.watch(partnerCodeOptionsProvider(20)).value ?? const <CodeOption>[];
+    final showDelete = context.menuCanDelete(kMenuDev001);
     return ErpDataTable(
       minWidth: 1600,
       tableBuilder: (context, _) => Table(
@@ -253,9 +294,10 @@ class _PartnerTable extends ConsumerWidget {
           6: FlexColumnWidth(0.3),
           7: FixedColumnWidth(130),
           8: FixedColumnWidth(150),
+          9: FixedColumnWidth(130),
         },
         children: [
-          const TableRow(
+          TableRow(
             decoration: BoxDecoration(color: AppTheme.accentRed),
             children: [
               ErpTableHeaderCell('No'), // 0
@@ -266,7 +308,8 @@ class _PartnerTable extends ConsumerWidget {
               ErpTableHeaderCell('이메일'), // 5
               ErpTableHeaderCell('지역'), // 6
               ErpTableHeaderCell('성별'), // 7
-              ErpTableHeaderCell('상세보기'), //8
+              ErpTableHeaderCell('상세보기'),
+              if (showDelete) ErpTableHeaderCell('삭제'),
             ],
           ),
           ...rows.asMap().entries.map(
@@ -333,6 +376,16 @@ class _PartnerTable extends ConsumerWidget {
                     ),
                   ),
                 ),
+                if (showDelete)
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Center(
+                      child: _PartnerDeleteButton(
+                        onPressed: () =>
+                            _confirmAndDelete(context, ref, entry.value),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -359,5 +412,27 @@ class _PartnerTable extends ConsumerWidget {
     return status == PartnerStatus.prospect
         ? const Color(0xFFC2185B)
         : const Color(0xFF7B1FA2);
+  }
+}
+
+class _PartnerDeleteButton extends StatelessWidget {
+  const _PartnerDeleteButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+      label: const Text('삭제'),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 30),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        foregroundColor: AppTheme.accentRed,
+        side: const BorderSide(color: AppTheme.accentRed),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      ),
+    );
   }
 }

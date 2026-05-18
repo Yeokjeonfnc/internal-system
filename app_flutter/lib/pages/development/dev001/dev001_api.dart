@@ -52,4 +52,7 @@ class PartnerApiService extends BaseRepository {
     }
     return null;
   }
+
+  Future<bool> deletePartner(int partnerIdx) =>
+      deleteOk(PartnerMstApiPaths.one(partnerIdx));
 }

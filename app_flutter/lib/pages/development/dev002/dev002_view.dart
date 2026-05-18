@@ -160,7 +160,7 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
       children: [
         SearchFilterTextField(
           controller: _keywordCtrl,
-          hint: '물건명, 주소 검색',
+          hint: '키워드 검색',
           borderRadius: 8,
           prefixIcon: Icon(
             Icons.search_rounded,

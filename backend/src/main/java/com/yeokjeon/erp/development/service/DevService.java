@@ -120,6 +120,14 @@ public class DevService {
         return PartnerMstDto.fromEntity(saved);
     }
 
+    @Transactional
+    public void removePartner(Integer partnerIdx) {
+        Partner partner = partnerRepository.findById(partnerIdx)
+                .orElseThrow(() -> new ResourceNotFoundException("예비창업자", "partnerIdx", partnerIdx));
+        partnerRepository.delete(partner);
+        log.info("예비창업자 삭제 완료: {}", partnerIdx);
+    }
+
     public List<PropertyMstDto> listProperties() {
         return devMstMapper.selectPropertiesOrdered();
     }

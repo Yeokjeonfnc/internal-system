@@ -139,4 +139,37 @@ class AuthProvider extends ChangeNotifier {
 
     notifyListeners();
   }
+
+  /// mst003 등에서 본인 권한을 변경했을 때 로컬 캐시를 갱신한다.
+  /// 권한이 변경된 사원이 현재 로그인 사용자일 때만 [perms]를 반영하고,
+  /// SharedPreferences의 user 캐시도 새 값으로 덮어쓴다.
+  Future<void> applyMenuPermissionsForUser(
+    int userIdx,
+    List<MenuPermission> perms,
+  ) async {
+    final current = _profile;
+    if (current == null || current.userIdx != userIdx) {
+      return;
+    }
+    _profile = AuthProfile(
+      userIdx: current.userIdx,
+      userId: current.userId,
+      userNm: current.userNm,
+      email: current.email,
+      deptIdx: current.deptIdx,
+      userPhone: current.userPhone,
+      deptNm: current.deptNm,
+      positionCd: current.positionCd,
+      positionNm: current.positionNm,
+      svYn: current.svYn,
+      tagYn: current.tagYn,
+      joinDtRaw: current.joinDtRaw,
+      menuPermissions: List<MenuPermission>.unmodifiable(perms),
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user', json.encode(_profile!.toJson()));
+
+    notifyListeners();
+  }
 }

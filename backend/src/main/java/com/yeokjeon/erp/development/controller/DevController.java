@@ -55,6 +55,13 @@ public class DevController {
         return ResponseEntity.ok(ApiResponse.success("예비창업자가 수정되었습니다", updated));
     }
 
+    @DeleteMapping("/partners/{partnerIdx}")
+    public ResponseEntity<ApiResponse<Void>> partnerRemove(@PathVariable Integer partnerIdx) {
+        log.info("예비창업자 삭제 요청: {}", partnerIdx);
+        devService.removePartner(partnerIdx);
+        return ResponseEntity.ok(ApiResponse.success("예비창업자가 삭제되었습니다", null));
+    }
+
     @GetMapping("/properties")
     public ResponseEntity<ApiResponse<List<PropertyMstDto>>> propertiesList() {
         log.info("물건 목록 조회 요청");

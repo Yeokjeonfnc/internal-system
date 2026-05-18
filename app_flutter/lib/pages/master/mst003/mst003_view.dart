@@ -2,7 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart' as provider;
 
+import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/menu/menu_permission.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
@@ -149,6 +151,11 @@ class _MenuPermissionManagementViewState
         context,
       ).showSnackBar(const SnackBar(content: Text('메뉴 권한이 저장되었습니다.')));
       await _loadPermissions(userIdx);
+      if (!mounted) return;
+      // 본인 권한이 변경된 경우, 로컬 AuthProvider 캐시도 즉시 갱신해
+      // 다른 화면(예: dev001 삭제 버튼 노출)이 새 권한을 따르도록 한다.
+      await provider.Provider.of<AuthProvider>(context, listen: false)
+          .applyMenuPermissionsForUser(userIdx, _rows);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
