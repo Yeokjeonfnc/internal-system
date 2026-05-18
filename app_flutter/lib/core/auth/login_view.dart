@@ -98,9 +98,7 @@ class _LoginViewState extends State<LoginView> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         backgroundColor: Colors.white,
         content: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),

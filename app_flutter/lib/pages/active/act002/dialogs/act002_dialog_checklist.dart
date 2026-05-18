@@ -42,9 +42,7 @@ class _ActivityChecklistDetailDialogState
 
   Future<void> _loadChecklistResults() async {
     setState(() => _loading = true);
-    final results = await Act002Api().chkResults(
-      widget.actIdx,
-    );
+    final results = await Act002Api().chkResults(widget.actIdx);
     if (!mounted) return;
     setState(() {
       _items = results;
@@ -57,7 +55,7 @@ class _ActivityChecklistDetailDialogState
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
-        width: 900,
+        width: 1200,
         height: 600,
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -91,8 +89,8 @@ class _ActivityChecklistDetailDialogState
                           border: kErpTableInnerGridBorder,
                           columnWidths: const {
                             0: FlexColumnWidth(0.4),
-                            1: FlexColumnWidth(1.2),
-                            2: FlexColumnWidth(0.5),
+                            1: FlexColumnWidth(2),
+                            2: FlexColumnWidth(0.3),
                             3: FlexColumnWidth(0.4),
                             4: FlexColumnWidth(0.5),
                           },

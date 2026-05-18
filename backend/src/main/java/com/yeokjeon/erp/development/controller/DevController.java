@@ -104,4 +104,5 @@ public class DevController {
         log.info("영업지역 목록 조회 요청(POST)");
         return ResponseEntity.ok(ApiResponse.success(devService.listSalesAreas()));
     }
+
 }

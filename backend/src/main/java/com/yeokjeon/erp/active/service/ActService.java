@@ -264,6 +264,9 @@ public class ActService {
         if (b.getStoreIdx() == null) {
             throw new IllegalArgumentException("storeIdx은(는) 필수입니다.");
         }
+        if (b.getStoreIdx() <= 0) {
+            throw new IllegalArgumentException("storeIdx은(는) 유효한 가맹점이어야 합니다.");
+        }
         return b.getStoreIdx();
     }
 
@@ -292,6 +295,9 @@ public class ActService {
         if (b.isStoreIdxPresent()) {
             if (b.getStoreIdx() == null) {
                 throw new IllegalArgumentException("storeIdx은(는) 필수입니다.");
+            }
+            if (b.getStoreIdx() <= 0) {
+                throw new IllegalArgumentException("storeIdx은(는) 유효한 가맹점이어야 합니다.");
             }
             active.setStoreIdx(b.getStoreIdx());
         }

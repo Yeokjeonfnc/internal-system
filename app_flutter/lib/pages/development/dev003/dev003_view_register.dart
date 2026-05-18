@@ -1,4 +1,4 @@
-// 영업지역 등록(지도·도형 편집 — API 연동 전 골격).
+// 영업지역 등록(도형 편집 — API 연동 전 골격).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -168,9 +168,27 @@ class _RegisterBody extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const SizedBox(width: 240, child: _LeftToolColumn()),
+                        const SizedBox(width: 280, child: _LeftToolColumn()),
                         const SizedBox(width: 12),
-                        const Expanded(child: _MapPlaceholder()),
+                        Expanded(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF3F4F6),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                '영업지역 도형 편집 영역',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF6B7280),
+                                  fontFamilyFallback: AppTheme.koreanFontFallback,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -210,7 +228,9 @@ class _TopFilterStrip extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               TextFormField(
-                initialValue: '(주소 API 연동 예정 · ${row.region})',
+                initialValue: row.mapAddress.isNotEmpty
+                    ? row.mapAddress
+                    : '(주소 없음 · ${row.region})',
                 readOnly: true,
                 style: const TextStyle(
                   fontSize: 14,
@@ -457,92 +477,3 @@ class _LeftToolColumn extends StatelessWidget {
   }
 }
 
-class _MapPlaceholder extends StatelessWidget {
-  const _MapPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _DashedRectPainter(color: const Color(0xFFC9CDD3)),
-      child: SizedBox.expand(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.map_outlined,
-                size: 48,
-                color: AppTheme.accentRed.withValues(alpha: 0.55),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                '지도 API 연동 예정',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: FormStylePalette.textPrimary,
-                  fontFamilyFallback: AppTheme.koreanFontFallback,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  '카카오/네이버 등 맵·도형·거리 측정을 이 영역에 붙입니다.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF6B7280),
-                    fontFamilyFallback: AppTheme.koreanFontFallback,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DashedRectPainter extends CustomPainter {
-  _DashedRectPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      const Radius.circular(AppDimensions.tableRadius),
-    );
-    final path = Path()..addRRect(r);
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    _drawDashedPath(canvas, path, paint, dashWidth: 6, gap: 4);
-  }
-
-  void _drawDashedPath(
-    Canvas canvas,
-    Path path,
-    Paint paint, {
-    required double dashWidth,
-    required double gap,
-  }) {
-    for (final metric in path.computeMetrics()) {
-      var d = 0.0;
-      while (d < metric.length) {
-        final next = (d + dashWidth).clamp(0.0, metric.length);
-        final e = metric.extractPath(d, next);
-        canvas.drawPath(e, paint);
-        d += dashWidth + gap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedRectPainter oldDelegate) =>
-      oldDelegate.color != color;
-}

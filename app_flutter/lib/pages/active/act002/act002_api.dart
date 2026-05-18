@@ -96,6 +96,34 @@ class Act002Api extends BaseRepository {
         relUserId: relUserId,
       );
 
+  /// 결재대기 + 결재완료 — 대시보드 등. `act_dt` 내림차순.
+  Future<List<ActivityRow>> fetchPendingAndApprovedRowsForRelUser(
+    String? relUserId,
+  ) async {
+    final results = await Future.wait([
+      fetchPendingRowsForRelUser(relUserId),
+      fetchApprovedRowsForRelUser(relUserId),
+    ]);
+    final merged = <int, ActivityRow>{};
+    for (final row in [...results[0], ...results[1]]) {
+      final id = row.actIdx;
+      if (id != null) {
+        merged[id] = row;
+      }
+    }
+    final rows = merged.values.toList();
+    rows.sort((a, b) => _activityRowDateDesc(a, b));
+    return rows;
+  }
+
+  static int _activityRowDateDesc(ActivityRow a, ActivityRow b) {
+    final da = a.actDt.trim();
+    final db = b.actDt.trim();
+    final c = db.compareTo(da);
+    if (c != 0) return c;
+    return (b.actIdx ?? 0).compareTo(a.actIdx ?? 0);
+  }
+
   /// 건의사항이 있는 행만.
   Future<List<ActivityRow>> fetchRowsWithSuggestions() =>
       fetchList(hasSuggestions: true);

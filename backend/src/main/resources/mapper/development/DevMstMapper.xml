@@ -38,6 +38,9 @@
             <arg column="is_area_configured" javaType="java.lang.Boolean"/>
             <arg column="is_strategic_opening" javaType="java.lang.Boolean"/>
             <arg column="is_franchise" javaType="java.lang.Boolean"/>
+            <arg column="map_address" javaType="java.lang.String"/>
+            <arg column="latitude" javaType="java.math.BigDecimal"/>
+            <arg column="longitude" javaType="java.math.BigDecimal"/>
         </constructor>
     </resultMap>
 
@@ -111,7 +114,13 @@
                COALESCE(szm.zone_nm, '')                                                                   AS sales_area_nm,
                (sm.store_idx IS NOT NULL AND szm.zone_idx IS NOT NULL)                                     AS is_area_configured,
                (sm.store_idx IS NULL AND szm.zone_idx IS NOT NULL)                                         AS is_strategic_opening,
-               (sm.store_idx IS NOT NULL AND COALESCE(sm.store_type, '') = 'FR') AS is_franchise
+               (sm.store_idx IS NOT NULL AND COALESCE(sm.store_type, '') = 'FR') AS is_franchise,
+               NULLIF(TRIM(CONCAT_WS(' ',
+                   NULLIF(TRIM(COALESCE(sm.address, pm.address, '')), ''),
+                   NULLIF(TRIM(COALESCE(pm.address_detail, '')), '')
+               )), '')                                                                               AS map_address,
+               sm.latitude                                                                             AS latitude,
+               sm.longitude                                                                            AS longitude
         FROM sale_zone_mst szm
                  FULL OUTER JOIN store_mst sm ON szm.zone_idx = sm.zone_idx
                  LEFT OUTER JOIN property_mst pm ON sm.prop_idx = pm.prop_idx
@@ -145,7 +154,13 @@
                ''                                                       AS sales_area_nm,
                FALSE                                                    AS is_area_configured,
                FALSE                                                    AS is_strategic_opening,
-               (COALESCE(sm.store_type, '') = 'FR')                      AS is_franchise
+               (COALESCE(sm.store_type, '') = 'FR')                      AS is_franchise,
+               NULLIF(TRIM(CONCAT_WS(' ',
+                   NULLIF(TRIM(COALESCE(sm.address, pm.address, '')), ''),
+                   NULLIF(TRIM(COALESCE(pm.address_detail, '')), '')
+               )), '')                                                 AS map_address,
+               sm.latitude                                               AS latitude,
+               sm.longitude                                              AS longitude
         FROM store_mst sm
                  LEFT OUTER JOIN property_mst pm ON sm.prop_idx = pm.prop_idx
         ORDER BY sm.store_idx DESC

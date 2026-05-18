@@ -18,6 +18,9 @@ class SalesAreaRow {
     required this.isAreaConfigured,
     required this.isStrategicOpening,
     required this.isFranchise,
+    required this.mapAddress,
+    this.latitude,
+    this.longitude,
   });
 
   /// 백엔드 [SalesAreaDto] JSON — `storeIdx`·`zoneIdx` 기준 목록 키.
@@ -40,7 +43,16 @@ class SalesAreaRow {
       isAreaConfigured: _bool(j['isAreaConfigured']),
       isStrategicOpening: _bool(j['isStrategicOpening']),
       isFranchise: _bool(j['isFranchise']),
+      mapAddress: _str(j['mapAddress']),
+      latitude: _coord(j['latitude']),
+      longitude: _coord(j['longitude']),
     );
+  }
+
+  static double? _coord(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString());
   }
 
   static int _deriveRowId({int? storeIdx, int? zoneIdx}) {
@@ -76,4 +88,17 @@ class SalesAreaRow {
   final bool isAreaConfigured;
   final bool isStrategicOpening;
   final bool isFranchise;
+  final String mapAddress;
+  final double? latitude;
+  final double? longitude;
+
+  String get mapTitle {
+    final store = storeName.trim();
+    if (store.isNotEmpty && store != '-') return store;
+    final prop = propertyName.trim();
+    if (prop.isNotEmpty) return prop;
+    final area = salesAreaName.trim();
+    if (area.isNotEmpty) return area;
+    return '영업지역';
+  }
 }

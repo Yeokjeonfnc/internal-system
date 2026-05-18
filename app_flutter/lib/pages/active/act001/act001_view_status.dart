@@ -774,25 +774,32 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
     ];
   }
 
+  String _assigneeDisplayName(ActivityStatusPivotRow row) {
+    final name = row.userName.trim();
+    if (name.isNotEmpty && name != '0') return name;
+    final id = row.userId.trim();
+    return id.isNotEmpty ? id : name;
+  }
+
   List<_StatusRow> _mapAssigneeStatusRows(List<ActivityStatusPivotRow> rows) {
     final grouped = <String, _MutableStatusRow>{};
 
     // 모든 수퍼바이저를 먼저 추가
     for (final row in rows) {
-      final userName = row.userName;
-      if (userName.isEmpty) continue;
-      grouped.putIfAbsent(userName, () => _MutableStatusRow(userName));
+      final label = _assigneeDisplayName(row);
+      if (label.isEmpty) continue;
+      grouped.putIfAbsent(label, () => _MutableStatusRow(label));
     }
 
     // 활동 데이터가 있는 경우 count 추가
     for (final row in rows) {
-      final userName = row.userName;
+      final label = _assigneeDisplayName(row);
       final actDt = _parseDate(row.actDtRaw);
       final count = row.count;
 
-      if (userName.isEmpty || actDt == null || count <= 0) continue;
+      if (label.isEmpty || actDt == null || count <= 0) continue;
 
-      final target = grouped[userName];
+      final target = grouped[label];
       if (target != null) {
         target.add(_bucketKey(actDt), count);
       }

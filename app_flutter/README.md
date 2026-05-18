@@ -1,8 +1,10 @@
 # 역전 F&C — Flutter ERP 클라이언트 (`app_flutter`)
 
+> 저장소 전체 개요·백엔드·DB·실행 방법은 **[루트 `README.md`](../README.md)** 를 참고하세요.
+
 (주)역전에프앤씨 내부용 ERP의 **웹·데스크톱 우선** Flutter 애플리케이션입니다. Spring Boot 백엔드 REST API와 통신하며, 대시보드·가맹점·창업자·물건·활동·마스터 등 메뉴를 제공합니다.
 
-저장소 전체 규칙·도메인 매핑·백엔드 패키지 대응은 루트 **[`docs/ERP_PROJECT_GUIDE.md`](../docs/ERP_PROJECT_GUIDE.md)** 를 기준으로 합니다.
+저장소 전체 규칙·도메인 매핑·백엔드 패키지 대응은 **[`docs/ERP_PROJECT_GUIDE.md`](../docs/ERP_PROJECT_GUIDE.md)** 를 기준으로 합니다.
 
 ---
 
@@ -98,7 +100,7 @@ UI 토큰·금지 사항(예: 화면별 `textScaler` 조작)은 워크스페이�
 ```bat
 cd /d C:\path\to\yeokjeon\app_flutter
 flutter pub get
-flutter run -d chrome --release --web-port 3000
+flutter run -d chrome --web-port 3000
 ```
 
 Windows 데스크톱 등 다른 디바이스는 `flutter devices` 후 `-d` 로 지정합니다.

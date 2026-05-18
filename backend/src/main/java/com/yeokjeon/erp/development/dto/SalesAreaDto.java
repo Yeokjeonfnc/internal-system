@@ -19,4 +19,7 @@ public record SalesAreaDto(
         String salesAreaName,
         Boolean isAreaConfigured,
         Boolean isStrategicOpening,
-        Boolean isFranchise) {}
+        Boolean isFranchise,
+        String mapAddress,
+        java.math.BigDecimal latitude,
+        java.math.BigDecimal longitude) {}

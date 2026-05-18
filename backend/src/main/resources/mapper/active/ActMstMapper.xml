@@ -150,23 +150,30 @@
         ORDER BY sm.store_nm, am.act_dt
     </select>
 
-    <!-- ActService.statusBySv — 대시보드: SV(담당)별 활동 건수 (주의: appr_id 전체 CSV와 조인하는 기존 스키마 유지) -->
+    <!-- ActService.statusBySv — SV(기안자 sv_id)별 기간 내 방문 가맹점 수. store_idx 0/null 제외. -->
     <select id="pivotBySv" resultMap="activityStatusPivotRow">
         SELECT '' AS store_nm,
                um.user_name AS user_name,
                um.user_id AS user_id,
                am.act_dt AS act_dt,
-               COUNT(DISTINCT am.store_idx) AS cnt
+               COUNT(DISTINCT CASE
+                   WHEN am.store_idx IS NOT NULL AND am.store_idx > 0
+                       THEN am.store_idx
+                   END) AS cnt
         FROM user_mst um
                  LEFT OUTER JOIN active_mst am
-                                 ON um.user_id = am.appr_id
+                                 ON um.user_id = am.sv_id
                                      AND (am.appr_status = 'PENDING' OR am.appr_status = 'APPROVED')
                                      AND am.act_dt BETWEEN #{startDt} AND #{endDt}
         WHERE um.sv_yn = 'Y'
         <if test="brandCd != null and brandCd != ''">
-            AND EXISTS (SELECT 1
-                        FROM store_mst sm
-                        WHERE sm.brand_cd = #{brandCd})
+            AND (
+                am.act_idx IS NULL
+                OR EXISTS (SELECT 1
+                           FROM store_mst sm
+                           WHERE sm.store_idx = am.store_idx
+                             AND sm.brand_cd = #{brandCd})
+            )
         </if>
         GROUP BY um.user_id, am.act_dt, um.user_name
         ORDER BY um.user_id, am.act_dt
