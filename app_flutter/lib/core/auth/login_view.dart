@@ -69,7 +69,8 @@ class _LoginViewState extends State<LoginView> {
       if (!mounted) return;
 
       if (result != null) {
-        await context.read<AuthProvider>().login(
+        final auth = context.read<AuthProvider>();
+        await auth.login(
           result,
           rememberPassword: _rememberPassword,
           userId: userId,
@@ -77,7 +78,12 @@ class _LoginViewState extends State<LoginView> {
         );
 
         if (mounted) {
-          context.go('/');
+          final target = auth.firstAllowedPath;
+          if (auth.usesMenuPermissions && target == null) {
+            _showMessage('접근 가능한 메뉴가 없습니다. 관리자에게 권한을 요청하세요.');
+            return;
+          }
+          context.go(target ?? '/');
         }
       } else {
         _showMessage('아이디 또는 비밀번호가 일치하지 않습니다.');

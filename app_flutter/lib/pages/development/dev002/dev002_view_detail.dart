@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
+import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/address/kakao_postcode_picker.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
@@ -491,11 +492,11 @@ class _PanelHeader extends StatelessWidget {
           ),
         ),
         if (isEditing) ...[
-          SaveActionButton(onPressed: onSave),
+          SaveActionButton(menuCd: kMenuDev002, onPressed: onSave),
           const SizedBox(width: 8),
           CancelActionButton(onPressed: onCancel),
         ] else
-          EditActionButton(onPressed: onEnterEdit),
+          EditActionButton(menuCd: kMenuDev002, onPressed: onEnterEdit),
       ],
     );
   }

@@ -1,8 +1,11 @@
+import 'package:app_flutter/core/menu/menu_permission.dart';
 import 'package:app_flutter/core/utils/json_extensions.dart';
 
 /// 로그인·프로필 API 응답 — 백엔드 `AuthProfileDto` 키와 동일.
 class AuthProfile {
+  static const String jsonKeyUserIdx = 'userIdx';
   static const String jsonKeyUserId = 'userId';
+  static const String jsonKeyMenuPermissions = 'menuPermissions';
   static const String jsonKeyUserNm = 'userNm';
   static const String jsonKeyEmail = 'email';
   static const String jsonKeyDeptIdx = 'deptIdx';
@@ -15,8 +18,10 @@ class AuthProfile {
   static const String jsonKeyJoinDt = 'joinDt';
 
   const AuthProfile({
+    this.userIdx,
     required this.userId,
     required this.userNm,
+    this.menuPermissions = const [],
     required this.email,
     this.deptIdx,
     required this.userPhone,
@@ -28,7 +33,9 @@ class AuthProfile {
     required this.joinDtRaw,
   });
 
+  final int? userIdx;
   final String userId;
+  final List<MenuPermission> menuPermissions;
   final String userNm;
   final String email;
   final int? deptIdx;
@@ -41,7 +48,16 @@ class AuthProfile {
   final String joinDtRaw;
 
   factory AuthProfile.fromJson(Map<String, dynamic> json) {
+    final permsRaw = json[jsonKeyMenuPermissions];
+    final permissions = permsRaw is List
+        ? permsRaw
+            .whereType<Map<String, dynamic>>()
+            .map(MenuPermission.fromJson)
+            .toList()
+        : const <MenuPermission>[];
+
     return AuthProfile(
+      userIdx: asJsonIntOpt(json[jsonKeyUserIdx]),
       userId: json.jsonString(jsonKeyUserId),
       userNm: json.jsonString(jsonKeyUserNm),
       email: json.jsonString(jsonKeyEmail),
@@ -53,10 +69,12 @@ class AuthProfile {
       svYn: json.jsonString(jsonKeySvYn),
       tagYn: json.jsonString(jsonKeyTagYn),
       joinDtRaw: _joinDtString(json[jsonKeyJoinDt]),
+      menuPermissions: permissions,
     );
   }
 
   Map<String, dynamic> toJson() => {
+        if (userIdx != null) jsonKeyUserIdx: userIdx,
         jsonKeyUserId: userId,
         jsonKeyUserNm: userNm,
         jsonKeyEmail: email,
@@ -68,6 +86,8 @@ class AuthProfile {
         jsonKeySvYn: svYn,
         jsonKeyTagYn: tagYn,
         jsonKeyJoinDt: joinDtRaw,
+        jsonKeyMenuPermissions:
+            menuPermissions.map((e) => e.toJson()).toList(),
       };
 
   static String _joinDtString(Object? v) {

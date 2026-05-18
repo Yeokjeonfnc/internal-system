@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.master.mapper.MenuPermissionMapper">
+
+    <select id="selectActiveMenus" resultType="com.yeokjeon.erp.master.dto.MenuMstDto">
+        SELECT menu_cd       AS menuCd,
+               menu_nm       AS menuNm,
+               parent_menu_cd AS parentMenuCd,
+               route_path    AS routePath,
+               menu_type     AS menuType,
+               sort_order    AS sortOrder,
+               use_yn        AS useYn
+        FROM menu_mst
+        WHERE use_yn = 'Y'
+        ORDER BY sort_order, menu_cd
+    </select>
+
+    <select id="selectAllMenusAsGranted" resultType="com.yeokjeon.erp.master.dto.MenuPermissionDto">
+        SELECT m.menu_cd        AS menuCd,
+               m.menu_nm        AS menuNm,
+               m.parent_menu_cd AS parentMenuCd,
+               m.route_path     AS routePath,
+               m.menu_type      AS menuType,
+               m.sort_order     AS sortOrder,
+               CASE WHEN m.menu_type = 'L' THEN TRUE ELSE FALSE END AS canView,
+               CASE WHEN m.menu_type = 'L' THEN TRUE ELSE FALSE END AS canCreate,
+               CASE WHEN m.menu_type = 'L' THEN TRUE ELSE FALSE END AS canUpdate,
+               CASE WHEN m.menu_type = 'L' THEN TRUE ELSE FALSE END AS canDelete
+        FROM menu_mst m
+        WHERE m.use_yn = 'Y'
+        ORDER BY m.sort_order, m.menu_cd
+    </select>
+
+  <select id="selectPermissionsByUserIdx" resultType="com.yeokjeon.erp.master.dto.MenuPermissionDto">
+        SELECT m.menu_cd        AS menuCd,
+               m.menu_nm        AS menuNm,
+               m.parent_menu_cd AS parentMenuCd,
+               m.route_path     AS routePath,
+               m.menu_type      AS menuType,
+               m.sort_order     AS sortOrder,
+               CASE WHEN uma.can_view = 'Y' THEN TRUE ELSE FALSE END AS canView,
+               CASE WHEN uma.can_create = 'Y' THEN TRUE ELSE FALSE END AS canCreate,
+               CASE WHEN uma.can_update = 'Y' THEN TRUE ELSE FALSE END AS canUpdate,
+               CASE WHEN uma.can_delete = 'Y' THEN TRUE ELSE FALSE END AS canDelete
+        FROM menu_mst m
+                 LEFT JOIN user_menu_auth uma
+                           ON uma.menu_cd = m.menu_cd AND uma.user_idx = #{userIdx}
+        WHERE m.use_yn = 'Y'
+        ORDER BY m.sort_order, m.menu_cd
+    </select>
+
+    <delete id="deleteByUserIdx">
+        DELETE FROM user_menu_auth WHERE user_idx = #{userIdx}
+    </delete>
+
+    <insert id="insertUserMenuAuth">
+        INSERT INTO user_menu_auth (user_idx, menu_cd, can_view, can_create, can_update, can_delete)
+        VALUES (#{row.userIdx},
+                #{row.menuCd},
+                #{row.canView},
+                #{row.canCreate},
+                #{row.canUpdate},
+                #{row.canDelete})
+    </insert>
+
+    <select id="selectUserIdxByUserId" resultType="java.lang.Integer">
+        SELECT user_idx FROM user_mst WHERE user_id = #{userId} LIMIT 1
+    </select>
+</mapper>

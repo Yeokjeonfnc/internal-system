@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:app_flutter/core/api/common_code_api_service.dart';
+import 'package:app_flutter/core/menu/menu_access.dart';
+import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
@@ -185,6 +187,7 @@ class _PropertyListViewState extends ConsumerState<PropertyListView> {
       countText: propertiesAsync.isLoading
           ? '조회 중입니다.'
           : '총 ${rows.length}건이 조회되었습니다.',
+      registerMenuCd: kMenuDev002,
       onRegister: () => context.goNamed(AppRouteNames.propertyRegister),
       onRefresh: () {
         n.refresh();
@@ -287,6 +290,7 @@ class _PropertyTable extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final showDelete = context.menuCanDelete(kMenuDev002);
     final regionOptions =
         ref.watch(propertyCodeOptionsProvider(20)).value ??
         const <CodeOption>[];
@@ -312,19 +316,18 @@ class _PropertyTable extends ConsumerWidget {
         children: [
           TableRow(
             decoration: const BoxDecoration(color: AppTheme.accentRed),
-            children: const [
-              ErpTableHeaderCell('조사일자'),
-              ErpTableHeaderCell('물건명'),
-              ErpTableHeaderCell('지역'),
-              ErpTableHeaderCell('구분'),
-              ErpTableHeaderCell('면적(계약㎡)'),
-              ErpTableHeaderCell('권리금'),
-              ErpTableHeaderCell('보증금'),
-              ErpTableHeaderCell('임차료'),
-              // ErpTableHeaderCell('가맹여부'),
-              ErpTableHeaderCell('주소'),
-              ErpTableHeaderCell('상세보기'),
-              ErpTableHeaderCell('삭제'),
+            children: [
+              const ErpTableHeaderCell('조사일자'),
+              const ErpTableHeaderCell('물건명'),
+              const ErpTableHeaderCell('지역'),
+              const ErpTableHeaderCell('구분'),
+              const ErpTableHeaderCell('면적(계약㎡)'),
+              const ErpTableHeaderCell('권리금'),
+              const ErpTableHeaderCell('보증금'),
+              const ErpTableHeaderCell('임차료'),
+              const ErpTableHeaderCell('주소'),
+              const ErpTableHeaderCell('상세보기'),
+              if (showDelete) const ErpTableHeaderCell('삭제'),
             ],
           ),
           ...rows.asMap().entries.map(
@@ -383,15 +386,16 @@ class _PropertyTable extends ConsumerWidget {
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Center(
-                    child: _PropertyDeleteButton(
-                      onPressed: () =>
-                          _confirmAndDelete(context, ref, entry.value),
+                if (showDelete)
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Center(
+                      child: _PropertyDeleteButton(
+                        onPressed: () =>
+                            _confirmAndDelete(context, ref, entry.value),
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

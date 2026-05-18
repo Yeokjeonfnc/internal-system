@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/format/korean_phone_display.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
+import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/core/address/kakao_postcode_picker.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
@@ -20,6 +21,7 @@ import 'package:app_flutter/core/widgets/common/form/common_labeled_form_row.dar
 import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_controller.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_model.dart';
+import 'package:app_flutter/pages/development/dev001/dev001_provider.dart';
 import 'package:app_flutter/core/partner_mst/partner_mst_write_request.dart';
 
 String _phoneDash(String value) {
@@ -88,17 +90,41 @@ class _PartnerInfoPanelState extends ConsumerState<_PartnerInfoPanel> {
   final _formKey = GlobalKey<_PartnerInfoFormState>();
   bool _isEditing = false;
   bool _saving = false;
+  Partner? _displayFounder;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayFounder = widget.founder;
+  }
+
+  @override
+  void didUpdateWidget(covariant _PartnerInfoPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_isEditing) return;
+    final next = widget.founder;
+    if (next == null) return;
+    // 저장 직후 provider가 아직 갱신되지 않았을 때 이전 founder로 덮어쓰지 않는다.
+    if (oldWidget.founder?.partnerIdx != next.partnerIdx) {
+      _displayFounder = next;
+    }
+  }
 
   void beginEdit() => setState(() => _isEditing = true);
 
   void cancelEdit() {
-    setState(() => _isEditing = false);
+    setState(() {
+      _isEditing = false;
+      _displayFounder = widget.founder;
+    });
     _snack('취소되었습니다.');
   }
 
   Future<void> commit() async {
-    final founder = widget.founder;
-    final payload = _formKey.currentState?.payload();
+    final founder = _displayFounder ?? widget.founder;
+    final regionOptions =
+        ref.read(partnerCodeOptionsProvider(20)).value ?? const <CodeOption>[];
+    final payload = _formKey.currentState?.payload(regionOptions);
     if (founder == null || payload == null || !_validate(payload)) return;
 
     setState(() => _saving = true);
@@ -109,6 +135,7 @@ class _PartnerInfoPanelState extends ConsumerState<_PartnerInfoPanel> {
     setState(() {
       _saving = false;
       if (saved != null) {
+        _displayFounder = saved;
         _formKey.currentState?._bindFrom(saved);
         _isEditing = false;
       }
@@ -120,12 +147,17 @@ class _PartnerInfoPanelState extends ConsumerState<_PartnerInfoPanel> {
     }
     ref.invalidate(partnerDataProvider);
     ref.invalidate(partnerDetailProvider(founder.partnerIdx));
-    await showAlertDialog(context, '저장되었습니다.');
-
-    // 저장 후 데이터 새로고침
-    if (mounted) {
-      setState(() {});
+    final refreshed = await ref.read(
+      partnerDetailProvider(founder.partnerIdx).future,
+    );
+    if (mounted && refreshed != null) {
+      setState(() {
+        _displayFounder = refreshed;
+        _formKey.currentState?._bindFrom(refreshed);
+      });
     }
+    if (!mounted) return;
+    await showAlertDialog(context, '저장되었습니다.');
   }
 
   void _snack(String message) {
@@ -172,7 +204,7 @@ class _PartnerInfoPanelState extends ConsumerState<_PartnerInfoPanel> {
                     const SizedBox(height: 16),
                     _PartnerInfoForm(
                       key: _formKey,
-                      founder: widget.founder,
+                      founder: _displayFounder ?? widget.founder,
                       isEditing: _isEditing,
                     ),
                   ],
@@ -232,11 +264,14 @@ class _PanelHeader extends StatelessWidget {
           ),
         ),
         if (isEditing) ...[
-          SaveActionButton(onPressed: isSaving ? () {} : onSave),
+          SaveActionButton(
+            menuCd: kMenuDev001,
+            onPressed: isSaving ? () {} : onSave,
+          ),
           const SizedBox(width: 8),
           CancelActionButton(onPressed: onCancel),
         ] else
-          EditActionButton(onPressed: onEnterEdit),
+          EditActionButton(menuCd: kMenuDev001, onPressed: onEnterEdit),
       ],
     );
   }
@@ -288,8 +323,12 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
   @override
   void didUpdateWidget(covariant _PartnerInfoForm oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.founder != widget.founder) {
-      _bindFrom(widget.founder);
+    if (widget.isEditing) return;
+    final prev = oldWidget.founder;
+    final next = widget.founder;
+    if (next == null) return;
+    if (prev?.partnerIdx != next.partnerIdx) {
+      _bindFrom(next);
     }
   }
 
@@ -318,7 +357,8 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
     _region = partner?.pRegion ?? '';
   }
 
-  PartnerMstWriteRequest payload() {
+  PartnerMstWriteRequest payload(List<CodeOption> regionOptions) {
+    final regionCd = dev001PartnerRegionCode(_region.trim(), regionOptions);
     return PartnerMstWriteRequest.fromMap({
       PartnerMstWriteRequest.jsonKeyPartnerNm: _nameController.text.trim(),
       PartnerMstWriteRequest.jsonKeyPartnerStatus: statusLabelKo(_partnerStatus),
@@ -330,7 +370,7 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
       PartnerMstWriteRequest.jsonKeyPAddress: _addressController.text.trim(),
       PartnerMstWriteRequest.jsonKeyPAddressDetail:
           _addressDetailController.text.trim(),
-      PartnerMstWriteRequest.jsonKeyPRegion: _region,
+      PartnerMstWriteRequest.jsonKeyPRegion: regionCd,
     });
   }
 
@@ -364,10 +404,20 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
     });
   }
 
+  void _syncRegionCode(List<CodeOption> options) {
+    if (options.isEmpty) return;
+    final next = dev001PartnerRegionCode(_region, options);
+    if (next != _region) {
+      _region = next;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final regionOptions =
         ref.watch(partnerCodeOptionsProvider(20)).value ?? const <CodeOption>[];
+    _syncRegionCode(regionOptions);
+    final regionCd = dev001PartnerRegionCode(_region, regionOptions);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -512,11 +562,11 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
           label: '지역',
           child: widget.isEditing
               ? _PartnerRegionDropdown(
-                  value: _region,
+                  value: regionCd,
                   options: regionOptions,
                   onChanged: (v) => setState(() => _region = v ?? ''),
                 )
-              : ReadonlyValue(_regionNm(_region, regionOptions)),
+              : ReadonlyValue(dev001PartnerRegionLabel(regionCd, regionOptions)),
         ),
       ],
     );
@@ -537,13 +587,6 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
     return '${date.year}-${two(date.month)}-${two(date.day)}';
   }
 
-  String _regionNm(String code, List<CodeOption> options) {
-    if (code.isEmpty) return '-';
-    for (final option in options) {
-      if (option.codeCd == code) return option.codeNm;
-    }
-    return code;
-  }
 }
 
 /// 예비창업자 신규 등록 화면.
@@ -646,6 +689,9 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
     if (!_validate()) return;
 
     setState(() => _saving = true);
+    final regionOptions =
+        ref.read(partnerCodeOptionsProvider(20)).value ?? const <CodeOption>[];
+    final regionCd = dev001PartnerRegionCode(_region, regionOptions);
     final saved = await ref.read(partnerApiServiceProvider).create(
           PartnerMstWriteRequest.fromMap({
             PartnerMstWriteRequest.jsonKeyPartnerNm: _nameController.text.trim(),
@@ -664,7 +710,7 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
                 _addressController.text.trim(),
             PartnerMstWriteRequest.jsonKeyPAddressDetail:
                 _addressDetailController.text.trim(),
-            PartnerMstWriteRequest.jsonKeyPRegion: _region,
+            PartnerMstWriteRequest.jsonKeyPRegion: regionCd,
           }),
         );
     if (!mounted) return;
@@ -846,7 +892,7 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
         LabeledFormRow(
           label: '지역',
           child: _PartnerRegionDropdown(
-            value: _region,
+            value: dev001PartnerRegionCode(_region, regionOptions),
             options: regionOptions,
             onChanged: (v) => setState(() => _region = v ?? ''),
           ),
@@ -882,7 +928,10 @@ class _PartnerRegisterPanelHeader extends StatelessWidget {
             ),
           ),
         ),
-        SaveActionButton(onPressed: isSaving ? () {} : onSave),
+        SaveActionButton(
+          menuCd: kMenuDev001,
+          onPressed: isSaving ? () {} : onSave,
+        ),
         const SizedBox(width: 8),
         CancelActionButton(onPressed: onCancel),
       ],
@@ -1064,19 +1113,38 @@ class _PartnerRegionDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedValue = options.any((e) => e.codeCd == value) ? value : null;
-    return DropdownButtonFormField<String?>(
-      initialValue: selectedValue,
-      items: [
-        const DropdownMenuItem<String?>(value: null, child: Text('선택')),
-        for (final option in options)
-          DropdownMenuItem<String?>(
-            value: option.codeCd,
-            child: Text(option.codeNm),
-          ),
-      ],
-      onChanged: onChanged,
+    final codes = options.map((e) => e.codeCd).toSet();
+    final selected = value.isNotEmpty && codes.contains(value) ? value : null;
+    return InputDecorator(
       decoration: _registerDropdownDecor(),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: selected,
+          hint: const Text(
+            '선택',
+            style: TextStyle(
+              fontSize: 14,
+              color: FormStylePalette.textPrimary,
+              fontFamilyFallback: AppTheme.koreanFontFallback,
+            ),
+          ),
+          items: [
+            for (final option in options)
+              DropdownMenuItem<String>(
+                value: option.codeCd,
+                child: Text(
+                  option.codeNm,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontFamilyFallback: AppTheme.koreanFontFallback,
+                  ),
+                ),
+              ),
+          ],
+          onChanged: (v) => onChanged(v),
+        ),
+      ),
     );
   }
 }

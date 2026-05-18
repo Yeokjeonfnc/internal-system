@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:app_flutter/core/menu/menu_access.dart';
 import 'package:app_flutter/core/router/app_data_refresh.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
@@ -50,12 +51,18 @@ class DetailActionButton extends StatelessWidget {
 }
 
 class EditActionButton extends ConsumerWidget {
-  const EditActionButton({super.key, required this.onPressed});
+  const EditActionButton({super.key, required this.onPressed, this.menuCd});
 
   final FutureOr<void> Function() onPressed;
 
+  /// 지정 시 **수정** 권한이 없으면 버튼을 숨긴다.
+  final String? menuCd;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (menuCd != null && !context.menuCanUpdate(menuCd!)) {
+      return const SizedBox.shrink();
+    }
     return DetailActionButton(
       onPressed: () => _runAndRefresh(context, ref, onPressed),
       icon: Icons.edit_rounded,
@@ -67,12 +74,31 @@ class EditActionButton extends ConsumerWidget {
 }
 
 class SaveActionButton extends ConsumerWidget {
-  const SaveActionButton({super.key, required this.onPressed});
+  const SaveActionButton({
+    super.key,
+    required this.onPressed,
+    this.menuCd,
+    this.forCreate = false,
+  });
 
   final FutureOr<void> Function() onPressed;
 
+  /// 지정 시 **등록**([forCreate]) 또는 **수정** 권한이 없으면 숨긴다.
+  final String? menuCd;
+
+  /// 신규 등록 화면이면 `true` → [menuCanCreate], 상세 저장이면 [menuCanUpdate].
+  final bool forCreate;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (menuCd != null) {
+      final allowed = forCreate
+          ? context.menuCanCreate(menuCd!)
+          : context.menuCanUpdate(menuCd!);
+      if (!allowed) {
+        return const SizedBox.shrink();
+      }
+    }
     return DetailActionButton(
       onPressed: () => _runAndRefresh(context, ref, onPressed),
       icon: Icons.check_rounded,

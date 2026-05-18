@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:app_flutter/core/format/korean_phone_display.dart';
+import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
@@ -179,6 +180,7 @@ class _UserListViewState extends ConsumerState<UserListView> {
           countText: '총 ${rows.length}명이 조회되었습니다.',
           onRefresh: () => ref.read(userProvider.notifier).refresh(),
           table: _UserTable(rows: rows),
+          registerMenuCd: kMenuMst001,
           onRegister: () => context.push(AppRoutes.masterUsersRegister),
         );
       },

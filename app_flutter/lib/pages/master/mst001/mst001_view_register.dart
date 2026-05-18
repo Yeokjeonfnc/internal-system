@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/format/korean_phone_display.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
+import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
@@ -337,7 +338,11 @@ class _UserRegisterViewState extends ConsumerState<UserRegisterView> {
                                   ),
                                 ),
                               ),
-                              SaveActionButton(onPressed: _save),
+                              SaveActionButton(
+                                menuCd: kMenuMst001,
+                                forCreate: true,
+                                onPressed: _save,
+                              ),
                               const SizedBox(width: 8),
                               CancelActionButton(onPressed: _cancel),
                             ],

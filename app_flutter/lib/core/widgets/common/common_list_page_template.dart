@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
+import 'package:app_flutter/core/menu/menu_access.dart';
 import 'package:app_flutter/core/widgets/common/common_register_button.dart';
 
 /// 관리 리스트 화면(가맹점/예비창업자/물건 등)을 구성하는 공용 셸.
@@ -21,6 +22,7 @@ class ListPageTemplate extends StatelessWidget {
     required this.countText,
     required this.table,
     this.onRegister,
+    this.registerMenuCd,
     this.onRefresh,
     this.mainSearchFields,
     this.belowMainSearch,
@@ -38,6 +40,10 @@ class ListPageTemplate extends StatelessWidget {
   final String countText;
   final Widget table;
   final VoidCallback? onRegister;
+
+  /// 지정 시 [onRegister] 는 해당 메뉴의 **등록** 권한이 있을 때만 표시.
+  final String? registerMenuCd;
+
   final VoidCallback? onRefresh;
 
   @override
@@ -126,7 +132,9 @@ class ListPageTemplate extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (onRegister != null)
+                        if (onRegister != null &&
+                            (registerMenuCd == null ||
+                                context.menuCanCreate(registerMenuCd!)))
                           RegisterButton(onPressed: onRegister!),
                       ],
                     ),

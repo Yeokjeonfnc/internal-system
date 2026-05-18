@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:app_flutter/core/api/common_code_api_service.dart';
+import 'package:app_flutter/core/menu/menu_access.dart';
+import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
@@ -269,7 +271,8 @@ class _ChecklistListShell extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        RegisterButton(onPressed: onRegister),
+                        if (context.menuCanCreate(kMenuMst004))
+                          RegisterButton(onPressed: onRegister),
                       ],
                     ),
                     const SizedBox(height: 12),

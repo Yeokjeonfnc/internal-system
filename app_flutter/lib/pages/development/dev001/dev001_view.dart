@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:app_flutter/core/api/common_code_api_service.dart';
+import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
@@ -169,6 +170,7 @@ class _PartnerListViewState extends ConsumerState<PartnerListView> {
       countText: partnersAsync.isLoading
           ? '조회 중입니다.'
           : '총 ${rows.length}명이 조회되었습니다.',
+      registerMenuCd: kMenuDev001,
       onRegister: () => context.goNamed(AppRouteNames.founderRegister),
       onRefresh: () {
         n.refresh();

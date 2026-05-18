@@ -106,39 +106,17 @@ public class DevService {
         Partner partner = partnerRepository.findById(partnerIdx)
                 .orElseThrow(() -> new ResourceNotFoundException("예비창업자", "partnerIdx", partnerIdx));
 
-        if (body.isPartnerNmPresent()) {
-            partner.setPartnerNm(trimToNull(body.getPartnerNm()));
-        }
-        if (body.isPartnerStatusPresent()) {
-            partner.setPartnerStatus(trimToNull(body.getPartnerStatus()));
-        }
-        if (body.isPartnerTelPresent()) {
-            partner.setPartnerTel(trimToNull(body.getPartnerTel()));
-        }
-        if (body.isPartnerEmailPresent()) {
-            partner.setPartnerEmail(trimToNull(body.getPartnerEmail()));
-        }
-        if (body.isGenderPresent()) {
-            partner.setGender(trimToNull(body.getGender()));
-        }
-        if (body.isPartnerBirthPresent()) {
-            partner.setPartnerBirth(body.getPartnerBirth());
-        }
-        if (body.isPZipCdPresent()) {
-            partner.setPZipCd(trimToNull(body.getPZipCd()));
-        }
-        if (body.isPAddressPresent()) {
-            partner.setPAddress(trimToNull(body.getPAddress()));
-        }
-        if (body.isPAddressDetailPresent()) {
-            partner.setPAddressDetail(trimToNull(body.getPAddressDetail()));
-        }
-        if (body.isPRegionPresent()) {
-            partner.setPRegion(trimToNull(body.getPRegion()));
+        if (body == null) {
+            throw new IllegalArgumentException("요청 본문이 비어 있습니다.");
         }
 
+        applyPartnerWriteBody(partner, body);
+
         Partner saved = partnerRepository.save(partner);
-        log.info("예비창업자 수정 완료: {}", saved.getPartnerIdx());
+        log.info(
+                "예비창업자 수정 완료: partnerIdx={}, pRegion={}",
+                saved.getPartnerIdx(),
+                saved.getPRegion());
         return PartnerMstDto.fromEntity(saved);
     }
 
@@ -321,6 +299,26 @@ public class DevService {
                     property.setLatitude(coordinates.latitude());
                     property.setLongitude(coordinates.longitude());
                 });
+    }
+
+    private static void applyPartnerWriteBody(Partner partner, PartnerMstWriteRequestDto body) {
+        partner.setPartnerNm(requireNonBlank(body.getPartnerNm(), "partnerNm"));
+        partner.setPartnerStatus(trimToNull(body.getPartnerStatus()));
+        partner.setPartnerTel(requireNonBlank(body.getPartnerTel(), "partnerTel"));
+        partner.setPartnerEmail(trimToNull(body.getPartnerEmail()));
+        partner.setGender(trimToNull(body.getGender()));
+        partner.setPartnerBirth(body.getPartnerBirth());
+        partner.setPZipCd(trimToNull(body.getPZipCd()));
+        partner.setPAddress(trimToNull(body.getPAddress()));
+        partner.setPAddressDetail(trimToNull(body.getPAddressDetail()));
+        partner.setPRegion(trimToNull(body.getPRegion()));
+    }
+
+    private static String requireNonBlank(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(fieldName + "은(는) 필수입니다.");
+        }
+        return value.trim();
     }
 
     private static String trimToNull(String s) {

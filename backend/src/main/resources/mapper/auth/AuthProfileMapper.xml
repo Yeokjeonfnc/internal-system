@@ -4,7 +4,8 @@
 <mapper namespace="com.yeokjeon.erp.auth.mapper.AuthProfileMapper">
 
     <sql id="profileSelect">
-        SELECT um.user_id      AS userId,
+        SELECT um.user_idx     AS userIdx,
+               um.user_id      AS userId,
                um.user_name   AS userNm,
                um.user_email  AS email,
                um.dept_idx     AS deptIdx,
@@ -20,13 +21,13 @@
                  LEFT OUTER JOIN code_mst cm ON um.position_cd = cm.code_cd AND cm.grp_cd = '60'
     </sql>
 
-    <select id="selectByUserIdAndPassword" resultType="com.yeokjeon.erp.auth.dto.AuthProfileDto">
+    <select id="selectByUserIdAndPassword" resultType="com.yeokjeon.erp.auth.dto.AuthProfileRowDto">
         <include refid="profileSelect"/>
         WHERE um.user_id = #{userId}
           AND um.user_password = #{userPassword}
     </select>
 
-    <select id="selectByUserId" resultType="com.yeokjeon.erp.auth.dto.AuthProfileDto">
+    <select id="selectByUserId" resultType="com.yeokjeon.erp.auth.dto.AuthProfileRowDto">
         <include refid="profileSelect"/>
         WHERE um.user_id = #{userId}
     </select>

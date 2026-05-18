@@ -49,7 +49,7 @@
                 u.dept_idx = #{deptIdx}
             </if>
         </where>
-        ORDER BY u.user_idx DESC
+        ORDER BY u.user_name
     </select>
 
     <select id="selectUserEnrichedById" resultMap="mstUserListJdbcRow">

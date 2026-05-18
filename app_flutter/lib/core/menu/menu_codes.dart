@@ -15,8 +15,19 @@ const String kMenuDev002 = 'dev002';
 /// 개발 관리 — 영업지역
 const String kMenuDev003 = 'dev003';
 
-/// 활동관리
+/// 활동관리 — 활동현황
 const String kMenuAct001 = 'act001';
+
+/// 활동관리 — 활동관리
+const String kMenuAct002 = 'act002';
+
+/// 활동관리 — 활동관리결재
+const String kMenuAct003 = 'act003';
+
+/// 사이드바 그룹(폴더) — DB menu_mst.menu_type = G
+const String kMenuGrpDev = 'grp_dev';
+const String kMenuGrpAct = 'grp_act';
+const String kMenuGrpMst = 'grp_mst';
 
 /// 마스터 — 사원
 const String kMenuMst001 = 'mst001';

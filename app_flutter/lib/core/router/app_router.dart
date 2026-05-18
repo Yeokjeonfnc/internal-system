@@ -33,6 +33,7 @@ import 'package:app_flutter/core/property_mst/property_mst_write_request.dart';
 import 'package:app_flutter/core/store_mst/store_mst_write_request.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
+import 'package:app_flutter/core/menu/menu_route_access.dart';
 import 'package:app_flutter/core/auth/login_view.dart';
 import '../layout/main_frame_layout.dart';
 import 'app_data_refresh.dart';
@@ -442,10 +443,36 @@ final appRouter = GoRouter(
 
     // 이미 로그인했는데 로그인 페이지로 가려고 하면 홈으로 리다이렉트
     if (isLoggedIn && isLoginRoute) {
-      return '/';
+      final auth = provider.Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      );
+      final next = auth.firstAllowedPath;
+      if (next != null) return next;
+      if (!auth.usesMenuPermissions) return '/';
+      return null;
     }
 
     final path = state.uri.path;
+    if (isLoggedIn && !isLoginRoute) {
+      final auth = provider.Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      );
+      if (auth.usesMenuPermissions && !auth.canAccessPath(path)) {
+        final menuCd = menuCdForPath(path);
+        if (menuCd != null && isMenuCreatePath(path)) {
+          final list = listRouteForMenuCd(menuCd);
+          if (list != null && list != path) {
+            return list;
+          }
+        }
+        final next = auth.firstAllowedPath;
+        if (next != null && next != path) {
+          return next;
+        }
+      }
+    }
     if ((path.startsWith('${StoreMstApiPaths.root}/') ||
             path.startsWith('${AppRoutes.founders}/') ||
             path.startsWith('${PropertyMstApiPaths.root}/')) &&

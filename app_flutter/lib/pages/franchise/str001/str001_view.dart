@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:app_flutter/core/menu/menu_access.dart';
+import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
@@ -158,6 +160,7 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
                 return ListPageTemplate(
                   activeFilters: _activeFilterChips(filter, n),
                   countText: '총 ${rows.length}개의 가맹점이 조회되었습니다.',
+                  registerMenuCd: kMenuStr001,
                   onRegister: () =>
                       context.goNamed(AppRouteNames.storeRegister),
                   onRefresh: () => n.refresh(),
@@ -401,6 +404,7 @@ class _StoreTable extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final showDelete = context.menuCanDelete(kMenuStr001);
     return ErpDataTable(
       minWidth: 2000,
       tableBuilder: (context, _) => Table(
@@ -421,21 +425,21 @@ class _StoreTable extends ConsumerWidget {
           11: IntrinsicColumnWidth(),
         },
         children: [
-          const TableRow(
-            decoration: BoxDecoration(color: AppTheme.accentRed),
+          TableRow(
+            decoration: const BoxDecoration(color: AppTheme.accentRed),
             children: [
-              ErpTableHeaderCell('No'),
-              ErpTableHeaderCell('브랜드'),
-              ErpTableHeaderCell('가맹점명'),
-              ErpTableHeaderCell('가맹점코드'),
-              ErpTableHeaderCell('계약상태'),
-              ErpTableHeaderCell('가맹점 소유자'),
-              ErpTableHeaderCell('연락처'),
-              ErpTableHeaderCell('주소'),
-              ErpTableHeaderCell('개업일자'),
-              ErpTableHeaderCell('계약 만료일자'),
-              ErpTableHeaderCell('상세보기'),
-              ErpTableHeaderCell('삭제'),
+              const ErpTableHeaderCell('No'),
+              const ErpTableHeaderCell('브랜드'),
+              const ErpTableHeaderCell('가맹점명'),
+              const ErpTableHeaderCell('가맹점코드'),
+              const ErpTableHeaderCell('계약상태'),
+              const ErpTableHeaderCell('가맹점 소유자'),
+              const ErpTableHeaderCell('연락처'),
+              const ErpTableHeaderCell('주소'),
+              const ErpTableHeaderCell('개업일자'),
+              const ErpTableHeaderCell('계약 만료일자'),
+              const ErpTableHeaderCell('상세보기'),
+              if (showDelete) const ErpTableHeaderCell('삭제'),
             ],
           ),
           ...rows.asMap().entries.map(
@@ -483,15 +487,16 @@ class _StoreTable extends ConsumerWidget {
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Center(
-                    child: _StoreDeleteButton(
-                      onPressed: () =>
-                          _confirmAndDelete(context, ref, entry.value),
+                if (showDelete)
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Center(
+                      child: _StoreDeleteButton(
+                        onPressed: () =>
+                            _confirmAndDelete(context, ref, entry.value),
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

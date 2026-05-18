@@ -11,6 +11,7 @@ import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 import '../theme/app_colors.dart';
 import '../theme/shell_tab_chrome.dart';
 import '../auth/auth_provider.dart';
+import '../menu/menu_codes.dart';
 import '../auth/user_profile_dialog.dart';
 import '../widgets/common/common_notification_sheet.dart';
 import 'tab_manager_provider.dart';
@@ -498,6 +499,104 @@ class _SidebarNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = provider.Provider.of<AuthProvider>(context);
+    bool can(String menuCd) => auth.canViewMenu(menuCd);
+
+    final devChildren = <Widget>[
+      if (can(kMenuDev001))
+        _SidebarSubMenuItem(
+          title: '예비창업자 관리',
+          selected:
+              currentPath == AppRoutes.founders ||
+              currentPath.startsWith('${AppRoutes.founders}/'),
+          onTap: () => context.go(AppRoutes.founders),
+        ),
+      if (can(kMenuDev002))
+        _SidebarSubMenuItem(
+          title: '물건 관리',
+          selected:
+              currentPath == AppRoutes.properties ||
+              currentPath.startsWith('${AppRoutes.properties}/'),
+          onTap: () => context.go(AppRoutes.properties),
+        ),
+      if (can(kMenuDev003))
+        _SidebarSubMenuItem(
+          title: '영업지역 관리',
+          selected:
+              currentPath == AppRoutes.salesAreas ||
+              currentPath.startsWith('${AppRoutes.salesAreas}/'),
+          onTap: () => context.go(AppRoutes.salesAreas),
+        ),
+    ];
+
+    final actChildren = <Widget>[
+      if (can(kMenuAct001))
+        _SidebarSubMenuItem(
+          title: '활동현황',
+          selected:
+              currentPath == ActivityRoutes.groupStatus ||
+              currentPath.startsWith('${ActivityRoutes.groupStatus}/') ||
+              currentPath.startsWith('$kActivitiesRoot/status/'),
+          onTap: () => context.go(ActivityRoutes.groupStatus),
+        ),
+      if (can(kMenuAct002))
+        _SidebarSubMenuItem(
+          title: '활동관리',
+          selected:
+              currentPath == ActivityRoutes.groupManage ||
+              currentPath.startsWith('${ActivityRoutes.groupManage}/') ||
+              currentPath.startsWith('${AppRoutes.activities}/manage') ||
+              currentPath == ActivityRoutes.drafts ||
+              currentPath == ActivityRoutes.instructions ||
+              currentPath == ActivityRoutes.checklist,
+          onTap: () => context.go(ActivityRoutes.groupManage),
+        ),
+      if (can(kMenuAct003))
+        _SidebarSubMenuItem(
+          title: '활동관리결재',
+          selected:
+              currentPath == ActivityRoutes.groupApproval ||
+              currentPath.startsWith('${ActivityRoutes.groupApproval}/') ||
+              currentPath.startsWith('$kActivitiesRoot/approval/'),
+          onTap: () => context.go(ActivityRoutes.approvalAll),
+        ),
+    ];
+
+    final mstChildren = <Widget>[
+      if (can(kMenuMst001))
+        _SidebarSubMenuItem(
+          title: '사원관리',
+          selected:
+              currentPath == AppRoutes.masterUsers ||
+              currentPath.startsWith('${AppRoutes.masterUsers}/'),
+          onTap: () => context.go(AppRoutes.masterUsers),
+        ),
+      if (can(kMenuMst002))
+        _SidebarSubMenuItem(
+          title: '부서관리',
+          selected:
+              currentPath == AppRoutes.masterDepartments ||
+              currentPath.startsWith('${AppRoutes.masterDepartments}/'),
+          onTap: () => context.go(AppRoutes.masterDepartments),
+        ),
+      if (can(kMenuMst003))
+        _SidebarSubMenuItem(
+          title: '메뉴권한 관리',
+          selected:
+              currentPath == AppRoutes.masterMenuPermissions ||
+              currentPath.startsWith('${AppRoutes.masterMenuPermissions}/'),
+          onTap: () => context.go(AppRoutes.masterMenuPermissions),
+        ),
+      if (can(kMenuMst004))
+        _SidebarSubMenuItem(
+          title: '체크리스트 관리',
+          selected:
+              currentPath == AppRoutes.masterChecklists ||
+              currentPath.startsWith('${AppRoutes.masterChecklists}/'),
+          onTap: () => context.go(AppRoutes.masterChecklists),
+        ),
+    ];
+
     return Container(
       width: 250,
       color: AppTheme.sidebarBackground,
@@ -506,129 +605,51 @@ class _SidebarNavigation extends StatelessWidget {
         children: [
           const _SidebarBrand(),
           const SizedBox(height: 8),
-          _SidebarMenuItem(
-            icon: Icons.home_filled,
-            title: '홈',
-            selected: currentPath == AppRoutes.dashboard,
-            onTap: () => context.go(AppRoutes.dashboard),
-          ),
-          _SidebarMenuItem(
-            icon: Icons.store_mall_directory,
-            title: '가맹점 관리',
-            selected:
-                currentPath == AppRoutes.stores ||
-                currentPath.startsWith('${AppRoutes.stores}/'),
-            onTap: () => context.go(AppRoutes.stores),
-          ),
-          _SidebarExpandableMenuItem(
-            icon: Icons.architecture_rounded,
-            title: '개발 관리',
-            initiallyExpanded:
-                currentPath == AppRoutes.founders ||
-                currentPath.startsWith('${AppRoutes.founders}/') ||
-                currentPath == AppRoutes.properties ||
-                currentPath.startsWith('${AppRoutes.properties}/') ||
-                currentPath == AppRoutes.salesAreas ||
-                currentPath.startsWith('${AppRoutes.salesAreas}/'),
-            children: [
-              _SidebarSubMenuItem(
-                title: '예비창업자 관리',
-                selected:
-                    currentPath == AppRoutes.founders ||
-                    currentPath.startsWith('${AppRoutes.founders}/'),
-                onTap: () => context.go(AppRoutes.founders),
-              ),
-              _SidebarSubMenuItem(
-                title: '물건 관리',
-                selected:
-                    currentPath == AppRoutes.properties ||
-                    currentPath.startsWith('${AppRoutes.properties}/'),
-                onTap: () => context.go(AppRoutes.properties),
-              ),
-              _SidebarSubMenuItem(
-                title: '영업지역 관리',
-                selected:
-                    currentPath == AppRoutes.salesAreas ||
-                    currentPath.startsWith('${AppRoutes.salesAreas}/'),
-                onTap: () => context.go(AppRoutes.salesAreas),
-              ),
-            ],
-          ),
-          _SidebarExpandableMenuItem(
-            icon: Icons.edit_note,
-            title: '활동관리',
-            initiallyExpanded:
-                currentPath == AppRoutes.activities ||
-                currentPath.startsWith('${AppRoutes.activities}/'),
-            children: [
-              _SidebarSubMenuItem(
-                title: '활동현황',
-                selected:
-                    currentPath == ActivityRoutes.groupStatus ||
-                    currentPath.startsWith('${ActivityRoutes.groupStatus}/') ||
-                    currentPath.startsWith('$kActivitiesRoot/status/'),
-                onTap: () => context.go(ActivityRoutes.groupStatus),
-              ),
-              _SidebarSubMenuItem(
-                title: '활동관리',
-                selected:
-                    currentPath == ActivityRoutes.groupManage ||
-                    currentPath.startsWith('${ActivityRoutes.groupManage}/') ||
-                    currentPath.startsWith('${AppRoutes.activities}/manage') ||
-                    currentPath == ActivityRoutes.drafts ||
-                    currentPath == ActivityRoutes.instructions ||
-                    currentPath == ActivityRoutes.checklist,
-                onTap: () => context.go(ActivityRoutes.groupManage),
-              ),
-              _SidebarSubMenuItem(
-                title: '활동관리결재',
-                selected:
-                    currentPath == ActivityRoutes.groupApproval ||
-                    currentPath.startsWith(
-                      '${ActivityRoutes.groupApproval}/',
-                    ) ||
-                    currentPath.startsWith('$kActivitiesRoot/approval/'),
-                onTap: () => context.go(ActivityRoutes.approvalAll),
-              ),
-            ],
-          ),
-          _SidebarExpandableMenuItem(
-            icon: Icons.people_alt,
-            title: '마스터 관리',
-            initiallyExpanded: currentPath.startsWith('${AppRoutes.master}/'),
-            children: [
-              _SidebarSubMenuItem(
-                title: '사원관리',
-                selected:
-                    currentPath == AppRoutes.masterUsers ||
-                    currentPath.startsWith('${AppRoutes.masterUsers}/'),
-                onTap: () => context.go(AppRoutes.masterUsers),
-              ),
-              _SidebarSubMenuItem(
-                title: '부서관리',
-                selected:
-                    currentPath == AppRoutes.masterDepartments ||
-                    currentPath.startsWith('${AppRoutes.masterDepartments}/'),
-                onTap: () => context.go(AppRoutes.masterDepartments),
-              ),
-              _SidebarSubMenuItem(
-                title: '메뉴권한 관리',
-                selected:
-                    currentPath == AppRoutes.masterMenuPermissions ||
-                    currentPath.startsWith(
-                      '${AppRoutes.masterMenuPermissions}/',
-                    ),
-                onTap: () => context.go(AppRoutes.masterMenuPermissions),
-              ),
-              _SidebarSubMenuItem(
-                title: '체크리스트 관리',
-                selected:
-                    currentPath == AppRoutes.masterChecklists ||
-                    currentPath.startsWith('${AppRoutes.masterChecklists}/'),
-                onTap: () => context.go(AppRoutes.masterChecklists),
-              ),
-            ],
-          ),
+          if (can(kMenuDsh001))
+            _SidebarMenuItem(
+              icon: Icons.home_filled,
+              title: '홈',
+              selected: currentPath == AppRoutes.dashboard,
+              onTap: () => context.go(AppRoutes.dashboard),
+            ),
+          if (can(kMenuStr001))
+            _SidebarMenuItem(
+              icon: Icons.store_mall_directory,
+              title: '가맹점 관리',
+              selected:
+                  currentPath == AppRoutes.stores ||
+                  currentPath.startsWith('${AppRoutes.stores}/'),
+              onTap: () => context.go(AppRoutes.stores),
+            ),
+          if (devChildren.isNotEmpty)
+            _SidebarExpandableMenuItem(
+              icon: Icons.architecture_rounded,
+              title: '개발 관리',
+              initiallyExpanded:
+                  currentPath == AppRoutes.founders ||
+                  currentPath.startsWith('${AppRoutes.founders}/') ||
+                  currentPath == AppRoutes.properties ||
+                  currentPath.startsWith('${AppRoutes.properties}/') ||
+                  currentPath == AppRoutes.salesAreas ||
+                  currentPath.startsWith('${AppRoutes.salesAreas}/'),
+              children: devChildren,
+            ),
+          if (actChildren.isNotEmpty)
+            _SidebarExpandableMenuItem(
+              icon: Icons.edit_note,
+              title: '활동관리',
+              initiallyExpanded:
+                  currentPath == AppRoutes.activities ||
+                  currentPath.startsWith('${AppRoutes.activities}/'),
+              children: actChildren,
+            ),
+          if (mstChildren.isNotEmpty)
+            _SidebarExpandableMenuItem(
+              icon: Icons.people_alt,
+              title: '마스터 관리',
+              initiallyExpanded: currentPath.startsWith('${AppRoutes.master}/'),
+              children: mstChildren,
+            ),
           const _SidebarMenuItem(icon: Icons.lock, title: '출입 관리 (Mobile)'),
           const Spacer(),
           const Divider(height: 1, thickness: 1, color: Colors.white12),

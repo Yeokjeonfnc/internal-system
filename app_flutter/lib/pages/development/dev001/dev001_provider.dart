@@ -14,6 +14,16 @@ String dev001PartnerRegionLabel(String pRegion, List<CodeOption> options) {
   return pRegion;
 }
 
+/// DB에 코드·지역명이 섞여 저장된 경우 공통코드 `codeCd` 로 통일한다.
+String dev001PartnerRegionCode(String pRegion, List<CodeOption> options) {
+  final raw = pRegion.trim();
+  if (raw.isEmpty || options.isEmpty) return raw;
+  for (final o in options) {
+    if (o.codeCd == raw || o.codeNm == raw) return o.codeCd;
+  }
+  return raw;
+}
+
 /// [regionCodeOptions] — `partnerCodeOptionsProvider(20)` 값(로딩 전엔 빈 리스트).
 List<ListFilterRule<PartnerFilter, Partner>> dev001ListRules(
   List<CodeOption> regionCodeOptions,

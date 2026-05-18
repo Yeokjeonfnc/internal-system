@@ -11,6 +11,8 @@ import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
+import 'package:app_flutter/core/menu/menu_access.dart';
+import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/search/erp_activity_row_keyword.dart';
 import 'package:app_flutter/pages/active/act002/act002_api.dart';
 import 'package:app_flutter/pages/active/act002/act002_model.dart';
@@ -107,9 +109,17 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
     }
   }
 
-  bool get _showDelete =>
-      widget.mode == ActivityDraftsTableMode.approvalAll ||
-      widget.mode == ActivityDraftsTableMode.myDrafts;
+  /// 임시보관(act002)·결재 전체(act003) 탭에서만 삭제 열 — 메뉴 삭제 권한 연동.
+  bool _showDeleteColumn(BuildContext context) {
+    switch (widget.mode) {
+      case ActivityDraftsTableMode.myDrafts:
+        return context.menuCanDelete(kMenuAct002);
+      case ActivityDraftsTableMode.approvalAll:
+        return context.menuCanDelete(kMenuAct003);
+      default:
+        return false;
+    }
+  }
 
   void _goDetail(BuildContext context, int actIdx) {
     final path = widget.mode == ActivityDraftsTableMode.myDrafts
@@ -122,11 +132,16 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
     final actIdx = row.actIdx;
     if (actIdx == null) return;
 
+    final isDraft = widget.mode == ActivityDraftsTableMode.myDrafts;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('임시보관 삭제'),
-        content: Text('${_text(row.storeNm)} 임시보관 데이터를 삭제하시겠습니까?'),
+        title: Text(isDraft ? '임시보관 삭제' : '활동 삭제'),
+        content: Text(
+          isDraft
+              ? '${_text(row.storeNm)} 임시보관 데이터를 삭제하시겠습니까?'
+              : '${_text(row.storeNm)} 활동 데이터를 삭제하시겠습니까?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -183,13 +198,14 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
             child: Text(raw.isEmpty ? _emptyMessage : '검색 조건에 맞는 활동이 없습니다.'),
           );
         }
+        final showDelete = _showDeleteColumn(context);
         return ErpDataTable(
           minWidth:
-              AppDimensions.tableMinWidthDefault + (_showDelete ? 180 : 70),
+              AppDimensions.tableMinWidthDefault + (showDelete ? 180 : 70),
           tableBuilder: (context, w) => Table(
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             border: kErpTableInnerGridBorder,
-            columnWidths: !_showDelete
+            columnWidths: !showDelete
                 ? const {
                     0: FlexColumnWidth(0.4),
                     1: FlexColumnWidth(0.5),
@@ -216,7 +232,7 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
             children: [
               TableRow(
                 decoration: const BoxDecoration(color: AppTheme.accentRed),
-                children: !_showDelete
+                children: !showDelete
                     ? [
                         const ErpTableHeaderCell('활동구분'),
                         const ErpTableHeaderCell('활동일자'),
@@ -279,7 +295,7 @@ class _ActivityDraftsTableState extends State<ActivityDraftsTable> {
                         ),
                       ),
                     ),
-                    if (_showDelete)
+                    if (showDelete)
                       Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,

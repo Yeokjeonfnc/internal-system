@@ -1,12 +1,13 @@
 package com.yeokjeon.erp.development.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDate;
 
 /**
- * {@code POST /partners}·{@code PUT /partners/{id}} 공통 요청 — 필드별 {@code present}는 수정 시에만 의미가 있고,
- * 생성({@code POST})은 필수값을 서비스에서 검증한다.
+ * {@code POST /partners}·{@code PUT /partners/{id}} 공통 요청 — setter 호출 시 {@code present}가 켜지며,
+ * 수정({@code PUT})은 서비스에서 요청 본문 전체를 반영한다.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PartnerMstWriteRequestDto {
@@ -119,6 +120,7 @@ public class PartnerMstWriteRequestDto {
         return partnerBirth;
     }
 
+    @JsonProperty("pZipCd")
     public void setPZipCd(String pZipCd) {
         this.pZipCd = pZipCd;
         this.pZipCdPresent = true;
@@ -132,6 +134,7 @@ public class PartnerMstWriteRequestDto {
         return pZipCd;
     }
 
+    @JsonProperty("pAddress")
     public void setPAddress(String pAddress) {
         this.pAddress = pAddress;
         this.pAddressPresent = true;
@@ -145,6 +148,7 @@ public class PartnerMstWriteRequestDto {
         return pAddress;
     }
 
+    @JsonProperty("pAddressDetail")
     public void setPAddressDetail(String pAddressDetail) {
         this.pAddressDetail = pAddressDetail;
         this.pAddressDetailPresent = true;
@@ -158,6 +162,7 @@ public class PartnerMstWriteRequestDto {
         return pAddressDetail;
     }
 
+    @JsonProperty("pRegion")
     public void setPRegion(String pRegion) {
         this.pRegion = pRegion;
         this.pRegionPresent = true;

@@ -52,6 +52,11 @@ server:
       enabled: true
       force: true
 
+menu:
+  permission:
+    # 콤마 구분 — DB 권한 없이 전 메뉴 조회 허용
+    super-admin-user-ids: admin
+
 external:
   kakao:
     rest-api-key: 15c5f01644e0aa8f06fc80b5afd310da
