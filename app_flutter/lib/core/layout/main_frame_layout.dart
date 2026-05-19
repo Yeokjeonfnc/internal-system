@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart' as provider;
 
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
+
 import '../router/app_router.dart';
 import '../router/route_meta.dart';
 import 'package:app_flutter/pages/active/shared/activity_routes.dart';
@@ -44,26 +46,95 @@ class _MainFrameLayoutState extends ConsumerState<MainFrameLayout> {
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
     final meta = resolveRouteMeta(location);
-    return Scaffold(
-      body: Row(
-        children: [
-          _SidebarNavigation(currentPath: location),
-          Expanded(
-            child: ColoredBox(
-              color: AppTheme.appSurface,
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = useCompactErpLayoutForWidth(constraints.maxWidth);
+
+        if (compact) {
+          return Scaffold(
+            drawer: Drawer(
+              width: 280,
+              backgroundColor: AppTheme.sidebarBackground,
               child: SafeArea(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _ShellTabStrip(currentPath: location),
-                    _ShellTopBanner(meta: meta, currentPath: location),
-                    Expanded(child: SelectionArea(child: widget.child)),
-                  ],
+                child: _SidebarNavigation(
+                  currentPath: location,
+                  inDrawer: true,
+                  onAfterNavigate: () {
+                    final nav = Navigator.of(context);
+                    if (nav.canPop()) {
+                      nav.pop();
+                    }
+                  },
                 ),
               ),
             ),
+            body: Builder(
+              builder: (bodyContext) => _MainShellBody(
+                location: location,
+                meta: meta,
+                compact: true,
+                onOpenDrawer: () => Scaffold.of(bodyContext).openDrawer(),
+                child: widget.child,
+              ),
+            ),
+          );
+        }
+
+        return Scaffold(
+          body: Row(
+            children: [
+              _SidebarNavigation(currentPath: location),
+              Expanded(
+                child: _MainShellBody(
+                  location: location,
+                  meta: meta,
+                  compact: false,
+                  child: widget.child,
+                ),
+              ),
+            ],
           ),
-        ],
+        );
+      },
+    );
+  }
+}
+
+/// 상단 탭·배너·본문 영역(데스크톱 Row 오른쪽 / 모바일 Scaffold body).
+class _MainShellBody extends StatelessWidget {
+  const _MainShellBody({
+    required this.location,
+    required this.meta,
+    required this.child,
+    required this.compact,
+    this.onOpenDrawer,
+  });
+
+  final String location;
+  final RouteMeta meta;
+  final Widget child;
+  final bool compact;
+  final VoidCallback? onOpenDrawer;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: AppTheme.appSurface,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!compact) _ShellTabStrip(currentPath: location),
+            _ShellTopBanner(
+              meta: meta,
+              currentPath: location,
+              compact: compact,
+              onOpenDrawer: onOpenDrawer,
+            ),
+            Expanded(child: SelectionArea(child: child)),
+          ],
+        ),
       ),
     );
   }
@@ -347,23 +418,36 @@ class _ShellTabChipState extends State<_ShellTabChip> {
 }
 
 class _ShellTopBanner extends StatelessWidget {
-  const _ShellTopBanner({required this.meta, required this.currentPath});
+  const _ShellTopBanner({
+    required this.meta,
+    required this.currentPath,
+    this.compact = false,
+    this.onOpenDrawer,
+  });
 
   final RouteMeta meta;
   final String currentPath;
+  final bool compact;
+  final VoidCallback? onOpenDrawer;
 
   bool get _isDashboard => currentPath == AppRoutes.dashboard;
 
-  static const double _bannerHeight = 72;
-
   @override
   Widget build(BuildContext context) {
+    final hasSubtitle = meta.subtitle.isNotEmpty;
+    final minBannerHeight = compact ? (hasSubtitle ? 72.0 : 52.0) : 72.0;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
       child: Container(
         width: double.infinity,
-        height: _bannerHeight,
-        padding: const EdgeInsets.fromLTRB(20, 0, 16, 0),
+        constraints: BoxConstraints(minHeight: minBannerHeight),
+        padding: EdgeInsets.fromLTRB(
+          compact ? 8 : 20,
+          compact ? 8 : 10,
+          compact ? 8 : 16,
+          compact ? 8 : 10,
+        ),
         decoration: const BoxDecoration(
           color: AppTheme.accentRed,
           // borderRadius: BorderRadius.only(
@@ -374,6 +458,14 @@ class _ShellTopBanner extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            if (onOpenDrawer != null) ...[
+              _ShellBannerLeadingButton(
+                icon: Icons.menu_rounded,
+                tooltip: '메뉴',
+                onPressed: onOpenDrawer,
+              ),
+              SizedBox(width: compact ? 4 : 10),
+            ],
             _ShellBannerLeadingButton(
               icon: _isDashboard
                   ? Icons.home_rounded
@@ -383,7 +475,7 @@ class _ShellTopBanner extends StatelessWidget {
                   ? null
                   : () => _shellNavigateBack(context, currentPath),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: compact ? 6 : 10),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -392,9 +484,11 @@ class _ShellTopBanner extends StatelessWidget {
                 children: [
                   Text(
                     meta.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 22,
+                      fontSize: compact ? 18 : 22,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.4,
                       height: 1.15,
@@ -402,15 +496,18 @@ class _ShellTopBanner extends StatelessWidget {
                       fontFamilyFallback: AppTheme.koreanFontFallback,
                     ),
                   ),
-                  if (meta.subtitle.isNotEmpty) ...[
-                    const SizedBox(height: 2),
+                  if (hasSubtitle) ...[
+                    SizedBox(height: compact ? 2 : 2),
                     Text(
                       meta.subtitle,
+                      maxLines: compact ? 3 : 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.94),
-                        fontSize: 12,
+                        fontSize: compact ? 11 : 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: -0.1,
+                        height: 1.25,
                         fontFamily: AppTheme.brandFontFamily,
                         fontFamilyFallback: AppTheme.koreanFontFallback,
                       ),
@@ -419,7 +516,7 @@ class _ShellTopBanner extends StatelessWidget {
                 ],
               ),
             ),
-            if (_isDashboard)
+            if (_isDashboard && !compact)
               OutlinedButton.icon(
                 onPressed: () {},
                 icon: const Icon(Icons.refresh_rounded, size: 15),
@@ -493,14 +590,25 @@ void _shellNavigateBack(BuildContext context, String currentPath) {
 }
 
 class _SidebarNavigation extends StatelessWidget {
-  const _SidebarNavigation({required this.currentPath});
+  const _SidebarNavigation({
+    required this.currentPath,
+    this.onAfterNavigate,
+    this.inDrawer = false,
+  });
 
   final String currentPath;
+  final VoidCallback? onAfterNavigate;
+  final bool inDrawer;
 
   @override
   Widget build(BuildContext context) {
     final auth = provider.Provider.of<AuthProvider>(context);
     bool can(String menuCd) => auth.canViewMenu(menuCd);
+
+    void navigate(void Function() action) {
+      action();
+      onAfterNavigate?.call();
+    }
 
     final devChildren = <Widget>[
       if (can(kMenuDev001))
@@ -509,7 +617,7 @@ class _SidebarNavigation extends StatelessWidget {
           selected:
               currentPath == AppRoutes.founders ||
               currentPath.startsWith('${AppRoutes.founders}/'),
-          onTap: () => context.go(AppRoutes.founders),
+          onTap: () => navigate(() => context.go(AppRoutes.founders)),
         ),
       if (can(kMenuDev002))
         _SidebarSubMenuItem(
@@ -517,7 +625,7 @@ class _SidebarNavigation extends StatelessWidget {
           selected:
               currentPath == AppRoutes.properties ||
               currentPath.startsWith('${AppRoutes.properties}/'),
-          onTap: () => context.go(AppRoutes.properties),
+          onTap: () => navigate(() => context.go(AppRoutes.properties)),
         ),
       if (can(kMenuDev003))
         _SidebarSubMenuItem(
@@ -525,7 +633,7 @@ class _SidebarNavigation extends StatelessWidget {
           selected:
               currentPath == AppRoutes.salesAreas ||
               currentPath.startsWith('${AppRoutes.salesAreas}/'),
-          onTap: () => context.go(AppRoutes.salesAreas),
+          onTap: () => navigate(() => context.go(AppRoutes.salesAreas)),
         ),
     ];
 
@@ -537,7 +645,7 @@ class _SidebarNavigation extends StatelessWidget {
               currentPath == ActivityRoutes.groupStatus ||
               currentPath.startsWith('${ActivityRoutes.groupStatus}/') ||
               currentPath.startsWith('$kActivitiesRoot/status/'),
-          onTap: () => context.go(ActivityRoutes.groupStatus),
+          onTap: () => navigate(() => context.go(ActivityRoutes.groupStatus)),
         ),
       if (can(kMenuAct002))
         _SidebarSubMenuItem(
@@ -549,7 +657,7 @@ class _SidebarNavigation extends StatelessWidget {
               currentPath == ActivityRoutes.drafts ||
               currentPath == ActivityRoutes.instructions ||
               currentPath == ActivityRoutes.checklist,
-          onTap: () => context.go(ActivityRoutes.groupManage),
+          onTap: () => navigate(() => context.go(ActivityRoutes.groupManage)),
         ),
       if (can(kMenuAct003))
         _SidebarSubMenuItem(
@@ -558,7 +666,7 @@ class _SidebarNavigation extends StatelessWidget {
               currentPath == ActivityRoutes.groupApproval ||
               currentPath.startsWith('${ActivityRoutes.groupApproval}/') ||
               currentPath.startsWith('$kActivitiesRoot/approval/'),
-          onTap: () => context.go(ActivityRoutes.approvalAll),
+          onTap: () => navigate(() => context.go(ActivityRoutes.approvalAll)),
         ),
     ];
 
@@ -569,7 +677,7 @@ class _SidebarNavigation extends StatelessWidget {
           selected:
               currentPath == AppRoutes.masterUsers ||
               currentPath.startsWith('${AppRoutes.masterUsers}/'),
-          onTap: () => context.go(AppRoutes.masterUsers),
+          onTap: () => navigate(() => context.go(AppRoutes.masterUsers)),
         ),
       if (can(kMenuMst002))
         _SidebarSubMenuItem(
@@ -577,7 +685,7 @@ class _SidebarNavigation extends StatelessWidget {
           selected:
               currentPath == AppRoutes.masterDepartments ||
               currentPath.startsWith('${AppRoutes.masterDepartments}/'),
-          onTap: () => context.go(AppRoutes.masterDepartments),
+          onTap: () => navigate(() => context.go(AppRoutes.masterDepartments)),
         ),
       if (can(kMenuMst003))
         _SidebarSubMenuItem(
@@ -585,7 +693,8 @@ class _SidebarNavigation extends StatelessWidget {
           selected:
               currentPath == AppRoutes.masterMenuPermissions ||
               currentPath.startsWith('${AppRoutes.masterMenuPermissions}/'),
-          onTap: () => context.go(AppRoutes.masterMenuPermissions),
+          onTap: () =>
+              navigate(() => context.go(AppRoutes.masterMenuPermissions)),
         ),
       if (can(kMenuMst004))
         _SidebarSubMenuItem(
@@ -593,68 +702,72 @@ class _SidebarNavigation extends StatelessWidget {
           selected:
               currentPath == AppRoutes.masterChecklists ||
               currentPath.startsWith('${AppRoutes.masterChecklists}/'),
-          onTap: () => context.go(AppRoutes.masterChecklists),
+          onTap: () => navigate(() => context.go(AppRoutes.masterChecklists)),
         ),
     ];
 
-    return Container(
-      width: 250,
-      color: AppTheme.sidebarBackground,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _SidebarBrand(),
-          const SizedBox(height: 8),
-          if (can(kMenuDsh001))
-            _SidebarMenuItem(
-              icon: Icons.home_filled,
-              title: '홈',
-              selected: currentPath == AppRoutes.dashboard,
-              onTap: () => context.go(AppRoutes.dashboard),
-            ),
-          if (can(kMenuStr001))
-            _SidebarMenuItem(
-              icon: Icons.store_mall_directory,
-              title: '가맹점 관리',
-              selected:
-                  currentPath == AppRoutes.stores ||
-                  currentPath.startsWith('${AppRoutes.stores}/'),
-              onTap: () => context.go(AppRoutes.stores),
-            ),
-          if (devChildren.isNotEmpty)
-            _SidebarExpandableMenuItem(
-              icon: Icons.architecture_rounded,
-              title: '개발 관리',
-              initiallyExpanded:
-                  currentPath == AppRoutes.founders ||
-                  currentPath.startsWith('${AppRoutes.founders}/') ||
-                  currentPath == AppRoutes.properties ||
-                  currentPath.startsWith('${AppRoutes.properties}/') ||
-                  currentPath == AppRoutes.salesAreas ||
-                  currentPath.startsWith('${AppRoutes.salesAreas}/'),
-              children: devChildren,
-            ),
-          if (actChildren.isNotEmpty)
-            _SidebarExpandableMenuItem(
-              icon: Icons.edit_note,
-              title: '활동관리',
-              initiallyExpanded:
-                  currentPath == AppRoutes.activities ||
-                  currentPath.startsWith('${AppRoutes.activities}/'),
-              children: actChildren,
-            ),
-          if (mstChildren.isNotEmpty)
-            _SidebarExpandableMenuItem(
-              icon: Icons.people_alt,
-              title: '마스터 관리',
-              initiallyExpanded: currentPath.startsWith('${AppRoutes.master}/'),
-              children: mstChildren,
-            ),
-          const _SidebarMenuItem(icon: Icons.lock, title: '출입 관리 (Mobile)'),
-          const Spacer(),
-          const Divider(height: 1, thickness: 1, color: Colors.white12),
-          const _SidebarUserProfile(),
-        ],
+    return SizedBox(
+      width: inDrawer ? double.infinity : 250,
+      child: ColoredBox(
+        color: AppTheme.sidebarBackground,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _SidebarBrand(),
+            const SizedBox(height: 8),
+            if (can(kMenuDsh001))
+              _SidebarMenuItem(
+                icon: Icons.home_filled,
+                title: '홈',
+                selected: currentPath == AppRoutes.dashboard,
+                onTap: () => navigate(() => context.go(AppRoutes.dashboard)),
+              ),
+            if (can(kMenuStr001))
+              _SidebarMenuItem(
+                icon: Icons.store_mall_directory,
+                title: '가맹점 관리',
+                selected:
+                    currentPath == AppRoutes.stores ||
+                    currentPath.startsWith('${AppRoutes.stores}/'),
+                onTap: () => navigate(() => context.go(AppRoutes.stores)),
+              ),
+            if (devChildren.isNotEmpty)
+              _SidebarExpandableMenuItem(
+                icon: Icons.architecture_rounded,
+                title: '개발 관리',
+                initiallyExpanded:
+                    currentPath == AppRoutes.founders ||
+                    currentPath.startsWith('${AppRoutes.founders}/') ||
+                    currentPath == AppRoutes.properties ||
+                    currentPath.startsWith('${AppRoutes.properties}/') ||
+                    currentPath == AppRoutes.salesAreas ||
+                    currentPath.startsWith('${AppRoutes.salesAreas}/'),
+                children: devChildren,
+              ),
+            if (actChildren.isNotEmpty)
+              _SidebarExpandableMenuItem(
+                icon: Icons.edit_note,
+                title: '활동관리',
+                initiallyExpanded:
+                    currentPath == AppRoutes.activities ||
+                    currentPath.startsWith('${AppRoutes.activities}/'),
+                children: actChildren,
+              ),
+            if (mstChildren.isNotEmpty)
+              _SidebarExpandableMenuItem(
+                icon: Icons.people_alt,
+                title: '마스터 관리',
+                initiallyExpanded: currentPath.startsWith(
+                  '${AppRoutes.master}/',
+                ),
+                children: mstChildren,
+              ),
+            const _SidebarMenuItem(icon: Icons.lock, title: '출입 관리 (Mobile)'),
+            const Spacer(),
+            const Divider(height: 1, thickness: 1, color: Colors.white12),
+            const _SidebarUserProfile(),
+          ],
+        ),
       ),
     );
   }

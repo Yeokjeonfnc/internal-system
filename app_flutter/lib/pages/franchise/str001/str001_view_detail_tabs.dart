@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import 'package:app_flutter/core/api/common_code_api_service.dart';
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/format/display_date.dart';
@@ -12,9 +13,8 @@ import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_detail_action_buttons.dart';
-import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_loading_indicator.dart';
-import 'package:app_flutter/core/widgets/common/erp_popup_list_stripes.dart';
+import 'package:app_flutter/pages/franchise/str001/dialogs/str001_dialog_lookup.dart';
 import 'package:app_flutter/core/widgets/common/form/common_accent_outline_button.dart';
 import 'package:app_flutter/core/widgets/common/form/common_date_input_with_picker.dart';
 import 'package:app_flutter/core/widgets/common/form/common_form_field_block.dart';
@@ -191,9 +191,13 @@ Widget _storeDetailOutlineTextField(
   String? hintText,
   TextInputAction? textInputAction,
   ValueChanged<String>? onSubmitted,
+  bool readOnly = false,
+  VoidCallback? onTap,
 }) {
   return TextField(
     controller: controller,
+    readOnly: readOnly,
+    onTap: readOnly ? onTap : null,
     keyboardType: keyboardType,
     textInputAction: textInputAction,
     onSubmitted: onSubmitted,
@@ -313,10 +317,14 @@ String _formatMoneyInput(Object? value) {
   final digits = value?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '';
   if (digits.isEmpty) return '0';
 
+  final n = int.tryParse(digits) ?? 0;
+  if (n == 0) return '0';
+
+  final raw = n.toString();
   final buffer = StringBuffer();
-  for (var i = 0; i < digits.length; i++) {
-    final remaining = digits.length - i;
-    buffer.write(digits[i]);
+  for (var i = 0; i < raw.length; i++) {
+    final remaining = raw.length - i;
+    buffer.write(raw[i]);
     if (remaining > 1 && remaining % 3 == 1) buffer.write(',');
   }
   return buffer.toString();
@@ -404,6 +412,58 @@ String _managerReadonlyDash(Store? s, {required bool contract}) {
   return v.isEmpty ? '-' : v;
 }
 
+String _userPickDisplayName(User user) {
+  final nm = user.name.trim();
+  return nm.isNotEmpty ? nm : user.userId.trim();
+}
+
+/// 사원 조회 전용 — [displayController]에는 이름, 저장은 별도 ID 필드.
+Widget _storeDetailManagerLookupField({
+  required TextEditingController displayController,
+  required VoidCallback onLookup,
+  String hintText = '사원 검색',
+}) {
+  return _storeDetailOutlineTextField(
+    displayController,
+    hintText: hintText,
+    readOnly: true,
+    onTap: onLookup,
+    textInputAction: TextInputAction.search,
+    onSubmitted: (_) => onLookup(),
+  );
+}
+
+Widget _storeDetailManagerLookupRow({
+  required TextEditingController displayController,
+  required VoidCallback onLookup,
+  required String tooltip,
+  String hintText = '사원 검색',
+}) {
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Expanded(
+        child: _storeDetailManagerLookupField(
+          displayController: displayController,
+          onLookup: onLookup,
+          hintText: hintText,
+        ),
+      ),
+      const SizedBox(width: 8),
+      IconButton.outlined(
+        onPressed: onLookup,
+        icon: const Icon(Icons.search, size: 18),
+        tooltip: tooltip,
+        style: IconButton.styleFrom(
+          foregroundColor: FormStylePalette.accent,
+          side: const BorderSide(color: FormStylePalette.accent),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        ),
+      ),
+    ],
+  );
+}
+
 /// 가맹점 등록 화면에서 탭 간 입력값을 공유하기 위한 임시 상태.
 class StoreRegisterDraft {
   final storeAreaController = TextEditingController();
@@ -433,6 +493,12 @@ class StoreRegisterDraft {
   final contManagerController = TextEditingController();
   final eduManagerController = TextEditingController();
   final supervisorController = TextEditingController();
+
+  /// `store_mst.cont_manager` 저장용. [contManagerController]는 표시용.
+  String contManagerId = '';
+
+  /// `store_mst.edu_manager` 저장용. [eduManagerController]는 표시용.
+  String eduManagerId = '';
 
   /// `store_mst.sv_id` 저장용. [supervisorController]는 표시용([_supervisorDisplay]와 동일).
   String svId = '';
@@ -487,7 +553,9 @@ class StoreRegisterDraft {
     eduFeeController.text = _formatMoneyInput(store.eduFee);
     insuDepositController.text = _formatMoneyInput(store.insuDeposit);
     contDepositController.text = _formatMoneyInput(store.contDeposit);
+    contManagerId = store.contManager;
     contManagerController.text = _contManagerDisplay(store);
+    eduManagerId = store.eduManager;
     eduManagerController.text = _eduManagerDisplay(store);
     svId = store.svId;
     supervisorController.text = _supervisorDisplay(store);
@@ -817,7 +885,7 @@ class _CommonStoreInfoSectionState
       StoreMstWriteRequest.jsonKeyContEndDt: _emptyToNull(store.contEndDt),
       StoreMstWriteRequest.jsonKeyAutoRenewalYn: true,
       StoreMstWriteRequest.jsonKeyStoreType: _effType(),
-      StoreMstWriteRequest.jsonKeySvId: store.svId,
+      StoreMstWriteRequest.jsonKeySvId: _emptyToNull(draft?.svId ?? store.svId),
       StoreMstWriteRequest.jsonKeyAdressDetail: store.addressDetail,
       StoreMstWriteRequest.jsonKeyZipCd: store.zipCd,
       StoreMstWriteRequest.jsonKeyBrandCd: _effBrand(),
@@ -829,8 +897,12 @@ class _CommonStoreInfoSectionState
       StoreMstWriteRequest.jsonKeyEduFee: _numberToNull(store.eduFee),
       StoreMstWriteRequest.jsonKeyInsuDeposit: _numberToNull(store.insuDeposit),
       StoreMstWriteRequest.jsonKeyContDeposit: _numberToNull(store.contDeposit),
-      StoreMstWriteRequest.jsonKeyContManager: store.contManager,
-      StoreMstWriteRequest.jsonKeyEduManager: store.eduManager,
+      StoreMstWriteRequest.jsonKeyContManager: _emptyToNull(
+        draft?.contManagerId ?? store.contManager,
+      ),
+      StoreMstWriteRequest.jsonKeyEduManager: _emptyToNull(
+        draft?.eduManagerId ?? store.eduManager,
+      ),
       StoreMstWriteRequest.jsonKeyContArea: _numberToNull(store.contArea),
       StoreMstWriteRequest.jsonKeyRealArea: _numberToNull(store.realArea),
       StoreMstWriteRequest.jsonKeyFloor: store.floor,
@@ -1386,33 +1458,89 @@ class DocumentsFilterRow extends StatelessWidget {
   final TextEditingController searchController;
   final VoidCallback onSearch;
 
+  Widget _typeDropdown({bool expanded = false}) {
+    final dropdown = ReadonlyInputShell(
+      child: DropdownButton<String>(
+        value: typeValue,
+        isExpanded: true,
+        isDense: true,
+        dropdownColor: Colors.white,
+        underline: const SizedBox.shrink(),
+        iconEnabledColor: FormStylePalette.textSecondary,
+        style: FormStylePalette.valueStyle,
+        items: typeOptions
+            .map((o) => DropdownMenuItem<String>(value: o, child: Text(o)))
+            .toList(),
+        onChanged: onTypeChanged,
+      ),
+    );
+    if (expanded) {
+      return Expanded(child: dropdown);
+    }
+    return SizedBox(width: 160, child: dropdown);
+  }
+
+  Widget _searchButton() {
+    return FilledButton(
+      onPressed: onSearch,
+      style: FilledButton.styleFrom(
+        backgroundColor: FormStylePalette.accent,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+      child: const Text(
+        '검색',
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
+
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const _DocumentsFieldLabel('유형'),
+              const SizedBox(width: 8),
+              _typeDropdown(expanded: true),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const _DocumentsFieldLabel('파일명'),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _DocumentsTextField(
+                  controller: searchController,
+                  hintText: '',
+                  onSubmitted: (_) => onSearch(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _searchButton(),
+            ],
+          ),
+        ],
+      );
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         const _DocumentsFieldLabel('유형'),
         const SizedBox(width: 8),
-        SizedBox(
-          width: 160,
-          child: ReadonlyInputShell(
-            child: DropdownButton<String>(
-              value: typeValue,
-              isExpanded: true,
-              isDense: true,
-              dropdownColor: Colors.white,
-              underline: const SizedBox.shrink(),
-              iconEnabledColor: FormStylePalette.textSecondary,
-              style: FormStylePalette.valueStyle,
-              items: typeOptions
-                  .map(
-                    (o) => DropdownMenuItem<String>(value: o, child: Text(o)),
-                  )
-                  .toList(),
-              onChanged: onTypeChanged,
-            ),
-          ),
-        ),
+        _typeDropdown(),
         const SizedBox(width: 24),
         const _DocumentsFieldLabel('파일명'),
         const SizedBox(width: 8),
@@ -1424,25 +1552,7 @@ class DocumentsFilterRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        FilledButton(
-          onPressed: onSearch,
-          style: FilledButton.styleFrom(
-            backgroundColor: FormStylePalette.accent,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(6),
-            ),
-          ),
-          child: const Text(
-            '검색',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              fontFamilyFallback: AppTheme.koreanFontFallback,
-            ),
-          ),
-        ),
+        _searchButton(),
       ],
     );
   }
@@ -1535,24 +1645,36 @@ class DocumentsSelectedRowBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fileName = ReadonlyInputShell(
+      child: Text(
+        selectedFileName,
+        style: FormStylePalette.valueStyle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+    final actions = Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        _DocumentsActionButton(label: '미리보기', onPressed: onPreview),
+        _DocumentsActionButton(label: '다운로드', onPressed: onDownload),
+        _DocumentsActionButton(label: '문서이력', onPressed: onHistory),
+      ],
+    );
+
+    if (useCompactErpLayout(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [fileName, const SizedBox(height: 8), actions],
+      );
+    }
+
     return Row(
       children: [
-        Expanded(
-          child: ReadonlyInputShell(
-            child: Text(
-              selectedFileName,
-              style: FormStylePalette.valueStyle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ),
+        Expanded(child: fileName),
         const SizedBox(width: 8),
-        _DocumentsActionButton(label: '미리보기', onPressed: onPreview),
-        const SizedBox(width: 6),
-        _DocumentsActionButton(label: '다운로드', onPressed: onDownload),
-        const SizedBox(width: 6),
-        _DocumentsActionButton(label: '문서이력', onPressed: onHistory),
+        actions,
       ],
     );
   }
@@ -1590,37 +1712,50 @@ class DocumentsTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uploadButton = FilledButton.icon(
+      onPressed: onUpload,
+      icon: const Icon(Icons.upload_file_rounded, size: 16),
+      label: const Text(
+        '문서 업로드',
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
+      ),
+      style: FilledButton.styleFrom(
+        backgroundColor: FormStylePalette.accent,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+    );
+    const hint = Text(
+      '• 문서 업로드 파일 크기는 50MB까지 가능합니다.',
+      style: TextStyle(
+        color: FormStylePalette.textSecondary,
+        fontSize: 12,
+        fontFamilyFallback: AppTheme.koreanFontFallback,
+      ),
+    );
+
+    if (useCompactErpLayout(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(alignment: Alignment.centerLeft, child: uploadButton),
+          const SizedBox(height: 8),
+          hint,
+        ],
+      );
+    }
+
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FilledButton.icon(
-          onPressed: onUpload,
-          icon: const Icon(Icons.upload_file_rounded, size: 16),
-          label: const Text(
-            '문서 업로드',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              fontFamilyFallback: AppTheme.koreanFontFallback,
-            ),
-          ),
-          style: FilledButton.styleFrom(
-            backgroundColor: FormStylePalette.accent,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(6),
-            ),
-          ),
-        ),
+        uploadButton,
         const SizedBox(width: 10),
-        const Text(
-          '• 문서 업로드 파일 크기는 50MB까지 가능합니다.',
-          style: TextStyle(
-            color: FormStylePalette.textSecondary,
-            fontSize: 12,
-            fontFamilyFallback: AppTheme.koreanFontFallback,
-          ),
-        ),
+        const Expanded(child: hint),
       ],
     );
   }
@@ -1930,7 +2065,7 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
 
     final selected = await showDialog<Property>(
       context: context,
-      builder: (dialogContext) => _PropertyLookupDialog(
+      builder: (dialogContext) => PropertyLookupDialog(
         // 캐시된 빈 목록·구형 파싱 실패를 피하고, 열 때마다 API에서 다시 받는다.
         propertiesFuture: ref.read(propertyRepositoryProvider).all(),
       ),
@@ -2111,21 +2246,17 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
         LabeledFormRow(
           label: '물건명',
           requiredField: true,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: widget.panelEditing
-                    ? _storeDetailOutlineTextField(_storeNameController)
-                    : ReadonlyInputShell(
-                        child: Text(
-                          _store?.storeNm ?? '-',
-                          style: FormStylePalette.valueStyle,
-                        ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final field = widget.panelEditing
+                  ? _storeDetailOutlineTextField(_storeNameController)
+                  : ReadonlyInputShell(
+                      child: Text(
+                        _store?.storeNm ?? '-',
+                        style: FormStylePalette.valueStyle,
                       ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
+                    );
+              final lookupBtn = OutlinedButton(
                 onPressed: _openPropertyLookup,
                 style: accentOutlineButtonStyle(iconOnly: false),
                 child: const Text(
@@ -2136,8 +2267,27 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
                     fontFamilyFallback: AppTheme.koreanFontFallback,
                   ),
                 ),
-              ),
-            ],
+              );
+              if (useCompactErpLayoutForWidth(constraints.maxWidth) &&
+                  constraints.maxWidth < 360) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    field,
+                    const SizedBox(height: 8),
+                    Align(alignment: Alignment.centerLeft, child: lookupBtn),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: field),
+                  const SizedBox(width: 8),
+                  lookupBtn,
+                ],
+              );
+            },
           ),
         ),
         const SizedBox(height: 12),
@@ -2146,8 +2296,10 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   SizedBox(
                     width: 112,
@@ -2160,7 +2312,6 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
                             ),
                           ),
                   ),
-                  const SizedBox(width: 10),
                   AccentOutlinedButton(
                     label: '지도보기/영업지역',
                     onPressed: () => _snack('지도보기는 추후 연결됩니다.'),
@@ -2434,282 +2585,6 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
   }
 }
 
-InputDecoration _lookupSearchDecoration(String hint) {
-  return InputDecoration(
-    hintText: hint,
-    hintStyle: const TextStyle(
-      color: FormStylePalette.textMuted,
-      fontSize: 13,
-      fontFamilyFallback: AppTheme.koreanFontFallback,
-    ),
-    isDense: true,
-    filled: true,
-    fillColor: FormStylePalette.inputBg,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-    prefixIcon: const Icon(
-      Icons.search_rounded,
-      size: 20,
-      color: FormStylePalette.textSecondary,
-    ),
-    prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: FormStylePalette.panelBorder),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: FormStylePalette.panelBorder),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: AppTheme.accentRed, width: 1.2),
-    ),
-  );
-}
-
-class _PropertyLookupDialog extends StatefulWidget {
-  const _PropertyLookupDialog({required this.propertiesFuture});
-
-  final Future<List<Property>> propertiesFuture;
-
-  @override
-  State<_PropertyLookupDialog> createState() => _PropertyLookupDialogState();
-}
-
-class _PropertyLookupDialogState extends State<_PropertyLookupDialog> {
-  final _keywordController = TextEditingController();
-
-  @override
-  void dispose() {
-    _keywordController.dispose();
-    super.dispose();
-  }
-
-  List<Property> _filter(List<Property> rows) {
-    final q = _keywordController.text.trim().toLowerCase();
-    if (q.isEmpty) return rows;
-    return rows.where((property) {
-      final address = _propertyAddress(property);
-      return property.name.toLowerCase().contains(q) ||
-          address.toLowerCase().contains(q) ||
-          property.propIdx.toString().contains(q);
-    }).toList();
-  }
-
-  String _propertyAddress(Property property) {
-    final detail = property.addressDetail.trim();
-    if (detail.isEmpty) return property.address;
-    return '${property.address} $detail';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(28),
-      child: ErpDialogFrame(
-        title: '물건 상세정보 조회',
-        maxWidth: 1000,
-        maxHeight: 640,
-        child: SizedBox(
-          height: 520,
-          child: FutureBuilder<List<Property>>(
-            future: widget.propertiesFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const CommonLoadingIndicator();
-              }
-              if (snapshot.hasError) {
-                return Center(
-                  child: Text(
-                    '물건 목록을 불러오지 못했습니다.',
-                    style: FormStylePalette.valueStyle,
-                  ),
-                );
-              }
-
-              final properties = _filter(snapshot.data ?? const <Property>[]);
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextField(
-                    controller: _keywordController,
-                    onChanged: (_) => setState(() {}),
-                    style: FormStylePalette.valueStyle,
-                    decoration: _lookupSearchDecoration('물건명, 주소, 번호 검색'),
-                  ),
-                  const SizedBox(height: 12),
-                  const _PropertyLookupHeader(),
-                  const SizedBox(height: 6),
-                  Expanded(
-                    child: properties.isEmpty
-                        ? Center(
-                            child: Text(
-                              '조회된 물건이 없습니다.',
-                              style: FormStylePalette.valueStyle,
-                            ),
-                          )
-                        : ListView.separated(
-                            itemCount: properties.length,
-                            separatorBuilder: (_, _) => const Divider(
-                              height: 1,
-                              color: Color(0xFFE5E7EB),
-                            ),
-                            itemBuilder: (context, index) {
-                              final property = properties[index];
-                              return _PropertyLookupRow(
-                                stripeIndex: index,
-                                property: property,
-                                displayNo: index + 1,
-                              );
-                            },
-                          ),
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('닫기'),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PropertyLookupHeader extends StatelessWidget {
-  const _PropertyLookupHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: FormStylePalette.accent,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: const Row(
-        children: [
-          SizedBox(width: 70, child: _PropertyLookupHeaderText('NO')),
-          Expanded(flex: 2, child: _PropertyLookupHeaderText('물건명')),
-          Expanded(flex: 3, child: _PropertyLookupHeaderText('주소')),
-          SizedBox(width: 100, child: _PropertyLookupHeaderText('보증금')),
-          SizedBox(width: 100, child: _PropertyLookupHeaderText('임차료')),
-          SizedBox(width: 100, child: _PropertyLookupHeaderText('권리금')),
-        ],
-      ),
-    );
-  }
-}
-
-class _PropertyLookupHeaderText extends StatelessWidget {
-  const _PropertyLookupHeaderText(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      textAlign: TextAlign.center,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        fontFamilyFallback: AppTheme.koreanFontFallback,
-      ),
-    );
-  }
-}
-
-class _PropertyLookupRow extends StatelessWidget {
-  const _PropertyLookupRow({
-    required this.stripeIndex,
-    required this.property,
-    required this.displayNo,
-  });
-
-  final int stripeIndex;
-  final Property property;
-  final int displayNo;
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: erpPopupListRowBackground(stripeIndex),
-      child: InkWell(
-        onTap: () => Navigator.of(context).pop(property),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              SizedBox(width: 60, child: _PropertyLookupCell('$displayNo')),
-              Expanded(flex: 2, child: _PropertyLookupCell(property.name)),
-              Expanded(
-                flex: 3,
-                child: _PropertyLookupCell(_propertyAddress(property)),
-              ),
-              SizedBox(
-                width: 100,
-                child: _PropertyLookupCell(property.surveyor),
-              ),
-              SizedBox(
-                width: 100,
-                child: _PropertyLookupCell(_formatWon(property.rent)),
-              ),
-              SizedBox(
-                width: 100,
-                child: _PropertyLookupCell(_formatWon(property.keyMoney)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _propertyAddress(Property property) {
-    final detail = property.addressDetail.trim();
-    if (detail.isEmpty) return property.address;
-    return '${property.address} $detail';
-  }
-
-  String _formatWon(int value) {
-    if (value == 0) return '-';
-    final raw = value.toString();
-    final buffer = StringBuffer();
-    for (var i = 0; i < raw.length; i++) {
-      final remaining = raw.length - i;
-      buffer.write(raw[i]);
-      if (remaining > 1 && remaining % 3 == 1) buffer.write(',');
-    }
-    return buffer.toString();
-  }
-}
-
-class _PropertyLookupCell extends StatelessWidget {
-  const _PropertyLookupCell(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      textAlign: TextAlign.center,
-      text.isEmpty ? '-' : text,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: FormStylePalette.valueStyle,
-    );
-  }
-}
-
 // ---------------------------------------------------------------------------
 // 계약정보 탭
 // ---------------------------------------------------------------------------
@@ -2742,9 +2617,28 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
   late TextEditingController _contManagerController;
   late TextEditingController _eduManagerController;
   late TextEditingController _supervisorController;
+  late String _contManagerId;
+  late String _eduManagerId;
   String _supervisorSvId = '';
 
   Store? get _store => widget.store;
+
+  /// 저장 전 담당자 ID·표시명 불일치 검사. 문제 없으면 null.
+  String? validateManagerFieldsForSave() {
+    if (_contManagerController.text.trim().isNotEmpty &&
+        _contManagerId.trim().isEmpty) {
+      return '가맹계약 담당자는 사원 조회에서 선택해 주세요.';
+    }
+    if (_eduManagerController.text.trim().isNotEmpty &&
+        _eduManagerId.trim().isEmpty) {
+      return '기본교육 담당자는 사원 조회에서 선택해 주세요.';
+    }
+    if (_supervisorController.text.trim().isNotEmpty &&
+        _supervisorSvId.trim().isEmpty) {
+      return '담당 수퍼바이저는 사원 조회에서 선택해 주세요.';
+    }
+    return null;
+  }
 
   StoreMstWriteRequest toUpdatePayload() {
     return StoreMstWriteRequest.fromMap({
@@ -2761,9 +2655,8 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
       StoreMstWriteRequest.jsonKeyContDeposit: _numberToNull(
         _contDepositController.text,
       ),
-      StoreMstWriteRequest.jsonKeyContManager: _contManagerController.text
-          .trim(),
-      StoreMstWriteRequest.jsonKeyEduManager: _eduManagerController.text.trim(),
+      StoreMstWriteRequest.jsonKeyContManager: _emptyToNull(_contManagerId),
+      StoreMstWriteRequest.jsonKeyEduManager: _emptyToNull(_eduManagerId),
       StoreMstWriteRequest.jsonKeySvId: _emptyToNull(_supervisorSvId),
     });
   }
@@ -2787,44 +2680,66 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
     return trimmed.isEmpty ? null : trimmed;
   }
 
-  Future<void> _openUserLookup(TextEditingController target) async {
+  Future<void> _pickManagerUser({
+    required TextEditingController displayController,
+    required void Function(String userId, String displayName) onPicked,
+  }) async {
     if (!widget.panelEditing) return;
     final selected = await showDialog<User>(
       context: context,
       builder: (dialogCtx) => UserLookupDialog(
         usersFuture: ref.read(userRepositoryProvider).all(),
-        initialSearchKeyword: target.text.trim(),
+        initialSearchKeyword: displayController.text.trim(),
       ),
     );
     if (!mounted || selected == null) return;
-    final text = selected.name.trim().isNotEmpty
-        ? selected.name.trim()
-        : selected.userId.trim();
-    setState(() => target.text = text);
+    onPicked(selected.userId.trim(), _userPickDisplayName(selected));
   }
 
-  Future<void> _openSupervisorLookup() async {
-    if (!widget.panelEditing) return;
-    final selected = await showDialog<User>(
-      context: context,
-      builder: (dialogCtx) => UserLookupDialog(
-        usersFuture: ref.read(userRepositoryProvider).all(),
-        initialSearchKeyword: _supervisorController.text.trim(),
-      ),
-    );
-    if (!mounted || selected == null) return;
-    final id = selected.userId.trim();
-    final nm = selected.name.trim().isNotEmpty ? selected.name.trim() : id;
-    setState(() {
-      _supervisorSvId = id;
-      _supervisorController.text = nm;
-      final d = widget.registerDraft;
-      if (d != null) {
-        d.svId = id;
-        d.supervisorController.text = nm;
-      }
-    });
-  }
+  Future<void> _openContManagerLookup() => _pickManagerUser(
+    displayController: _contManagerController,
+    onPicked: (id, display) {
+      setState(() {
+        _contManagerId = id;
+        _contManagerController.text = display;
+        final d = widget.registerDraft;
+        if (d != null) {
+          d.contManagerId = id;
+          d.contManagerController.text = display;
+        }
+      });
+    },
+  );
+
+  Future<void> _openEduManagerLookup() => _pickManagerUser(
+    displayController: _eduManagerController,
+    onPicked: (id, display) {
+      setState(() {
+        _eduManagerId = id;
+        _eduManagerController.text = display;
+        final d = widget.registerDraft;
+        if (d != null) {
+          d.eduManagerId = id;
+          d.eduManagerController.text = display;
+        }
+      });
+    },
+  );
+
+  Future<void> _openSupervisorLookup() => _pickManagerUser(
+    displayController: _supervisorController,
+    onPicked: (id, display) {
+      setState(() {
+        _supervisorSvId = id;
+        _supervisorController.text = display;
+        final d = widget.registerDraft;
+        if (d != null) {
+          d.svId = id;
+          d.supervisorController.text = display;
+        }
+      });
+    },
+  );
 
   @override
   void initState() {
@@ -2846,12 +2761,14 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
         TextEditingController(
           text: _formatMoneyInput(_store?.contDeposit ?? '0'),
         );
+    _contManagerId = draft?.contManagerId ?? _store?.contManager ?? '';
+    _eduManagerId = draft?.eduManagerId ?? _store?.eduManager ?? '';
     _contManagerController =
         draft?.contManagerController ??
-        TextEditingController(text: _store?.contManagerNm ?? '');
+        TextEditingController(text: _contManagerDisplay(_store));
     _eduManagerController =
         draft?.eduManagerController ??
-        TextEditingController(text: _store?.eduManagerNm ?? '');
+        TextEditingController(text: _eduManagerDisplay(_store));
     _supervisorSvId = draft?.svId ?? _store?.svId ?? '';
     _supervisorController =
         draft?.supervisorController ??
@@ -2869,8 +2786,10 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
       _eduFeeController.text = _formatMoneyInput(_store?.eduFee);
       _insuDepositController.text = _formatMoneyInput(_store?.insuDeposit);
       _contDepositController.text = _formatMoneyInput(_store?.contDeposit);
-      _contManagerController.text = _store?.contManagerNm ?? '';
-      _eduManagerController.text = _store?.eduManagerNm ?? '';
+      _contManagerId = _store?.contManager ?? '';
+      _eduManagerId = _store?.eduManager ?? '';
+      _contManagerController.text = _contManagerDisplay(_store);
+      _eduManagerController.text = _eduManagerDisplay(_store);
       final d = widget.registerDraft;
       _supervisorSvId = d?.svId ?? _store?.svId ?? '';
       _supervisorController.text =
@@ -3094,73 +3013,20 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
             requiredField: true,
             label: '가맹계약 담당자',
             child: widget.panelEditing
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: _storeDetailOutlineTextField(
-                          _contManagerController,
-                          hintText: '사원 검색',
-                          textInputAction: TextInputAction.search,
-                          onSubmitted: (_) {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            _openUserLookup(_contManagerController);
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.outlined(
-                        onPressed: () =>
-                            _openUserLookup(_contManagerController),
-                        icon: const Icon(Icons.search, size: 18),
-                        tooltip: '가맹계약 담당자 조회',
-                        style: IconButton.styleFrom(
-                          foregroundColor: FormStylePalette.accent,
-                          side: const BorderSide(
-                            color: FormStylePalette.accent,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                      ),
-                    ],
+                ? _storeDetailManagerLookupRow(
+                    displayController: _contManagerController,
+                    onLookup: _openContManagerLookup,
+                    tooltip: '가맹계약 담당자 조회',
                   )
-                : ReadonlyValue(_store?.contManagerNm ?? ''),
+                : ReadonlyValue(_managerReadonlyDash(_store, contract: true)),
           ),
           b: FormFieldBlock(
             label: '기본교육 담당자',
             child: widget.panelEditing
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: _storeDetailOutlineTextField(
-                          _eduManagerController,
-                          hintText: '사원 검색',
-                          textInputAction: TextInputAction.search,
-                          onSubmitted: (_) {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            _openUserLookup(_eduManagerController);
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.outlined(
-                        onPressed: () => _openUserLookup(_eduManagerController),
-                        icon: const Icon(Icons.search, size: 18),
-                        tooltip: '기본교육 담당자 조회',
-                        style: IconButton.styleFrom(
-                          foregroundColor: FormStylePalette.accent,
-                          side: const BorderSide(
-                            color: FormStylePalette.accent,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                      ),
-                    ],
+                ? _storeDetailManagerLookupRow(
+                    displayController: _eduManagerController,
+                    onLookup: _openEduManagerLookup,
+                    tooltip: '기본교육 담당자 조회',
                   )
                 : ReadonlyValue(_managerReadonlyDash(_store, contract: false)),
           ),
@@ -3168,36 +3034,10 @@ class _ContractInfoTabState extends ConsumerState<ContractInfoTab> {
             requiredField: true,
             label: '담당 수퍼바이저',
             child: widget.panelEditing
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: _storeDetailOutlineTextField(
-                          _supervisorController,
-                          hintText: '사원 검색',
-                          textInputAction: TextInputAction.search,
-                          onSubmitted: (_) {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            _openSupervisorLookup();
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.outlined(
-                        onPressed: _openSupervisorLookup,
-                        icon: const Icon(Icons.search, size: 18),
-                        tooltip: '담당 수퍼바이저 조회',
-                        style: IconButton.styleFrom(
-                          foregroundColor: FormStylePalette.accent,
-                          side: const BorderSide(
-                            color: FormStylePalette.accent,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                      ),
-                    ],
+                ? _storeDetailManagerLookupRow(
+                    displayController: _supervisorController,
+                    onLookup: _openSupervisorLookup,
+                    tooltip: '담당 수퍼바이저 조회',
                   )
                 : ReadonlyValue(_supervisorReadonlyDash(_store)),
           ),
@@ -3362,16 +3202,52 @@ class _DocumentsTabState extends ConsumerState<DocumentsTab> {
 // 히스토리 탭
 // ---------------------------------------------------------------------------
 
-class HistoryTab extends ConsumerWidget {
+class HistoryTab extends ConsumerStatefulWidget {
   const HistoryTab({super.key, this.store});
 
   final Store? store;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final entriesAsync = store == null
-        ? const AsyncValue<List<HistoryEntry>>.data(<HistoryEntry>[])
-        : ref.watch(storeHistoriesProvider(store!.storeIdx));
+  ConsumerState<HistoryTab> createState() => _HistoryTabState();
+}
+
+class _HistoryTabState extends ConsumerState<HistoryTab> {
+  @override
+  void initState() {
+    super.initState();
+    final idx = widget.store?.storeIdx;
+    if (idx != null && idx > 0) {
+      Future.microtask(() => ref.invalidate(storeHistoriesProvider(idx)));
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant HistoryTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final idx = widget.store?.storeIdx;
+    final oldIdx = oldWidget.store?.storeIdx;
+    if (idx != null && idx > 0 && idx != oldIdx) {
+      ref.invalidate(storeHistoriesProvider(idx));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final storeIdx = widget.store?.storeIdx;
+    if (storeIdx == null || storeIdx <= 0) {
+      return const Center(
+        child: Text(
+          '가맹점 정보를 불러온 뒤 다시 시도해주세요.',
+          style: TextStyle(
+            color: FormStylePalette.textMuted,
+            fontSize: 13,
+            fontFamilyFallback: AppTheme.koreanFontFallback,
+          ),
+        ),
+      );
+    }
+
+    final entriesAsync = ref.watch(storeHistoriesProvider(storeIdx));
 
     return entriesAsync.when(
       data: (entries) => _HistoryTable(entries: entries),
@@ -3389,6 +3265,41 @@ class _HistoryTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (entries.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: Text(
+            '표시할 히스토리가 없습니다.',
+            style: TextStyle(
+              color: FormStylePalette.textMuted,
+              fontSize: 13,
+              fontFamilyFallback: AppTheme.koreanFontFallback,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (useCompactErpLayout(context)) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: FormStylePalette.panelBg,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: FormStylePalette.panelBorder),
+        ),
+        child: ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: entries.length,
+          separatorBuilder: (_, _) =>
+              const Divider(height: 1, color: FormStylePalette.rowDivider),
+          itemBuilder: (context, index) =>
+              _HistoryCompactRow(entry: entries[index]),
+        ),
+      );
+    }
+
     return _AlwaysVisibleHorizontalScroll(
       minWidth: 900,
       child: DecoratedBox(
@@ -3400,22 +3311,54 @@ class _HistoryTable extends StatelessWidget {
         child: Column(
           children: [
             const _HistoryTableHeader(),
-            if (entries.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Text(
-                  '표시할 히스토리가 없습니다.',
-                  style: TextStyle(
-                    color: FormStylePalette.textMuted,
-                    fontSize: 13,
-                    fontFamilyFallback: AppTheme.koreanFontFallback,
-                  ),
-                ),
-              )
-            else
-              for (final entry in entries) _HistoryTableRow(entry: entry),
+            for (final entry in entries) _HistoryTableRow(entry: entry),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _HistoryCompactRow extends StatelessWidget {
+  const _HistoryCompactRow({required this.entry});
+
+  final HistoryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            entry.chgDt,
+            style: const TextStyle(
+              color: FormStylePalette.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              fontFamilyFallback: AppTheme.koreanFontFallback,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            entry.content,
+            style: const TextStyle(
+              color: FormStylePalette.textPrimary,
+              fontSize: 13,
+              fontFamilyFallback: AppTheme.koreanFontFallback,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '수정자: ${entry.chgUserId.isEmpty ? '-' : entry.chgUserId}',
+            style: const TextStyle(
+              color: FormStylePalette.textMuted,
+              fontSize: 12,
+              fontFamilyFallback: AppTheme.koreanFontFallback,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3486,8 +3429,10 @@ class _HistoryTableRow extends StatelessWidget {
       child: Row(
         children: [
           _HistoryValueCell(text: entry.chgDt),
-          _HistoryValueCell(text: '${entry.content} 정보가 수정되었습니다.', flex: 3),
-          _HistoryValueCell(text: entry.chgUserId),
+          _HistoryValueCell(text: entry.content, flex: 3),
+          _HistoryValueCell(
+            text: entry.chgUserId.isEmpty ? '-' : entry.chgUserId,
+          ),
         ],
       ),
     );
@@ -3693,12 +3638,25 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
         _snack('계약정보 입력값을 확인할 수 없습니다.');
         return;
       }
+      final err = contractInfo.validateManagerFieldsForSave();
+      if (err != null) {
+        _snack(err);
+        return;
+      }
       payload = payload.merge(contractInfo.toUpdatePayload());
     }
     if (!mergedFullBasic) {
       final basicInfo = _basicInfoKey.currentState;
       if (basicInfo != null) {
         payload = payload.merge(basicInfo.toGeoUpdatePayload());
+      }
+    }
+
+    if (draft != null) {
+      final err = _validateRegisterDraftManagers(draft);
+      if (err != null) {
+        _snack(err);
+        return;
       }
     }
 
@@ -3755,12 +3713,25 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
         _snack('계약정보 입력값을 확인할 수 없습니다.');
         return;
       }
+      final err = contractInfo.validateManagerFieldsForSave();
+      if (err != null) {
+        _snack(err);
+        return;
+      }
       payload = payload.merge(contractInfo.toUpdatePayload());
     }
     if (!mergedFullBasic) {
       final basicInfo = _basicInfoKey.currentState;
       if (basicInfo != null) {
         payload = payload.merge(basicInfo.toGeoUpdatePayload());
+      }
+    }
+
+    if (draft != null) {
+      final err = _validateRegisterDraftManagers(draft);
+      if (err != null) {
+        _snack(err);
+        return;
       }
     }
 
@@ -3833,6 +3804,22 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
     });
   }
 
+  String? _validateRegisterDraftManagers(StoreRegisterDraft draft) {
+    if (draft.contManagerController.text.trim().isNotEmpty &&
+        draft.contManagerId.trim().isEmpty) {
+      return '가맹계약 담당자는 사원 조회에서 선택해 주세요.';
+    }
+    if (draft.eduManagerController.text.trim().isNotEmpty &&
+        draft.eduManagerId.trim().isEmpty) {
+      return '기본교육 담당자는 사원 조회에서 선택해 주세요.';
+    }
+    if (draft.supervisorController.text.trim().isNotEmpty &&
+        draft.svId.trim().isEmpty) {
+      return '담당 수퍼바이저는 사원 조회에서 선택해 주세요.';
+    }
+    return null;
+  }
+
   StoreMstWriteRequest _contractDraftPayload(StoreRegisterDraft draft) {
     return StoreMstWriteRequest.fromMap({
       StoreMstWriteRequest.jsonKeyFirstContDt:
@@ -3857,11 +3844,9 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
         draft.contDepositController.text,
       ),
       StoreMstWriteRequest.jsonKeyContManager: _emptyToNull(
-        draft.contManagerController.text,
+        draft.contManagerId,
       ),
-      StoreMstWriteRequest.jsonKeyEduManager: _emptyToNull(
-        draft.eduManagerController.text,
-      ),
+      StoreMstWriteRequest.jsonKeyEduManager: _emptyToNull(draft.eduManagerId),
       StoreMstWriteRequest.jsonKeySvId: _emptyToNull(draft.svId),
     });
   }

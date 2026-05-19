@@ -20,8 +20,8 @@ class DetailButton extends StatelessWidget {
       icon: const Icon(Icons.description_outlined, size: 18),
       label: Text(label),
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 30),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: const Size(0, 24),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         side: const BorderSide(color: Color(0xFFD1D5DB)),
         textStyle: const TextStyle(
           fontSize: 13,

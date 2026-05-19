@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 
@@ -22,8 +23,45 @@ class LabeledFormRow extends StatelessWidget {
   final bool requiredField;
   final double labelWidth;
 
+  Widget _labelText() {
+    return Text.rich(
+      TextSpan(
+        style: const TextStyle(
+          color: FormStylePalette.textSecondary,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
+        children: [
+          if (requiredField)
+            const TextSpan(
+              text: '*',
+              style: TextStyle(
+                color: FormStylePalette.danger,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          TextSpan(text: label),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
+
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _labelText(),
+          const SizedBox(height: 8),
+          child,
+        ],
+      );
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -31,27 +69,7 @@ class LabeledFormRow extends StatelessWidget {
           width: labelWidth,
           child: Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: Text.rich(
-              TextSpan(
-                style: const TextStyle(
-                  color: FormStylePalette.textSecondary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  fontFamilyFallback: AppTheme.koreanFontFallback,
-                ),
-                children: [
-                  if (requiredField)
-                    const TextSpan(
-                      text: '*',
-                      style: TextStyle(
-                        color: FormStylePalette.danger,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  TextSpan(text: label),
-                ],
-              ),
-            ),
+            child: _labelText(),
           ),
         ),
         Expanded(child: child),

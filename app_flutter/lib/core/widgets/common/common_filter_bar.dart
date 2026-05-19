@@ -59,35 +59,34 @@ class FilterStringOptionsSlot extends FilterSlotConfig {
   /// true이면 옵션 개수와 관계없이 항상 드롭다운(예: 지역).
   final bool forceDropdown;
 
-  @override
-  SearchFilterItemData toItem() {
+  /// 라벨 없이 값 영역만 (시트 등에서 [Consumer]로 감쌀 때).
+  Widget buildField() {
     if (!forceDropdown && options.length <= kFilterStringChipMaxCount) {
-      return SearchFilterItemData(
-        label: label,
-        child: _StringChoiceChipsRow(
-          options: options,
-          selected: value,
-          onSelected: onSelected,
-        ),
+      return FilterStringChoiceChipsRow(
+        options: options,
+        selected: value,
+        onSelected: onSelected,
       );
     }
-    return SearchFilterItemData(
-      label: label,
-      child: SearchFilterDropdownField<String>(
-        fieldLabel: label,
-        value: value,
-        items: [
-          for (final e in options)
-            DropdownMenuItem<String?>(
-              value: e,
-              child: Text(e, style: kSearchFilterValueTextStyle),
-            ),
-        ],
-        onChanged: (v) {
-          if (v != null) onSelected(v);
-        },
-      ),
+    return SearchFilterDropdownField<String>(
+      fieldLabel: label,
+      value: value,
+      items: [
+        for (final e in options)
+          DropdownMenuItem<String?>(
+            value: e,
+            child: Text(e, style: kSearchFilterValueTextStyle),
+          ),
+      ],
+      onChanged: (v) {
+        if (v != null) onSelected(v);
+      },
     );
+  }
+
+  @override
+  SearchFilterItemData toItem() {
+    return SearchFilterItemData(label: label, child: buildField());
   }
 }
 
@@ -132,8 +131,10 @@ class FilterRowConfig {
   final FilterSlotConfig right;
 }
 
-class _StringChoiceChipsRow extends StatelessWidget {
-  const _StringChoiceChipsRow({
+/// 문자열 옵션 가로 칩(단일 선택).
+class FilterStringChoiceChipsRow extends StatelessWidget {
+  const FilterStringChoiceChipsRow({
+    super.key,
     required this.options,
     required this.selected,
     required this.onSelected,
@@ -167,7 +168,9 @@ class _StringChoiceChipsRow extends StatelessWidget {
               ),
             ),
             selected: selected == o,
-            onSelected: (_) => onSelected(o),
+            onSelected: (picked) {
+              if (picked) onSelected(o);
+            },
             showCheckmark: false,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: VisualDensity.compact,

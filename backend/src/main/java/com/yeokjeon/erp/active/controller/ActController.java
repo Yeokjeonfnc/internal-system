@@ -60,6 +60,13 @@ public class ActController {
         return ResponseEntity.ok(ApiResponse.success(actService.listByStore(storeIdx)));
     }
 
+    @GetMapping("/activities/list/by-store-appr-note")
+    public ResponseEntity<ApiResponse<List<ActiveMstResponseDto>>> listByStoreApprNote(
+            @RequestParam Integer storeIdx) {
+        log.info("활동관리 목록 조회: 가맹점 지시사항 storeIdx={}", storeIdx);
+        return ResponseEntity.ok(ApiResponse.success(actService.listByStoreApprMemo(storeIdx)));
+    }
+
     @GetMapping("/activities/list/by-appr-note")
     public ResponseEntity<ApiResponse<List<ActiveMstResponseDto>>> listByApprNote(
             @RequestParam String svId) {

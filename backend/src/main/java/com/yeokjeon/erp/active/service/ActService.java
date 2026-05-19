@@ -139,6 +139,21 @@ public class ActService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 가맹점 지시사항 다이얼로그 — {@code store_idx} 일치, {@code appr_status=APPROVED},
+     * {@code appr_notes} 비어 있지 않음.
+     */
+    public List<ActiveMstResponseDto> listByStoreApprMemo(int storeIdx) {
+        Store store = storeRepository.findByStoreIdx(storeIdx)
+                .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeIdx", storeIdx));
+        List<ActActive> rows = actMstMapper.actList(ActiveListQuery.byStoreApprMemo(storeIdx));
+        Map<String, String> userNames = loadUserNames(rows);
+
+        return rows.stream()
+                .map(active -> toActiveResponse(active, store, userNames.get(active.getSvId()), null))
+                .collect(Collectors.toList());
+    }
+
     public List<ActiveMstResponseDto> listByChkYn(Character chkYn) {
         List<ActActive> rows = actMstMapper.actList(ActiveListQuery.byChkYn(chkYn));
         Map<Integer, Store> stores = storesByIdx(rows);

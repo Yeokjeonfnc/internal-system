@@ -72,12 +72,10 @@ final storeDetailProvider = FutureProvider.family<Store?, int>((
   return await ref.watch(storeRepositoryProvider).find(storeIdx);
 });
 
-final storeHistoriesProvider = FutureProvider.family<List<HistoryEntry>, int>((
-  ref,
-  storeIdx,
-) async {
+final storeHistoriesProvider = FutureProvider.autoDispose
+    .family<List<HistoryEntry>, int>((ref, storeIdx) async {
   if (storeIdx <= 0) return const <HistoryEntry>[];
-  return await ref.watch(storeApiServiceProvider).getStoreHistories(storeIdx);
+  return ref.read(storeApiServiceProvider).getStoreHistories(storeIdx);
 });
 
 abstract class DocumentRepository {

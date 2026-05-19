@@ -3,14 +3,15 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.yeokjeon.erp.franchise.mapper.StoreHistoryMapper">
 
+    <!-- SELECT 열 순서 = StoreHistoryJdbcRow record 컴포넌트 선언 순서 -->
     <select id="selectHistoriesByStoreIdx" resultType="com.yeokjeon.erp.franchise.dto.StoreHistoryJdbcRow">
-        SELECT his_idx         AS hisIdx,
-               store_idx       AS storeIdx,
-               chg_type        AS chgType,
-               CAST(chg_dt AS TIMESTAMP) AS chgDt,
-               chg_user_id     AS chgUserId,
-               store_nm        AS storeNm,
-               chg_content::text AS chgContentRaw
+        SELECT his_idx           AS hisIdx,
+               store_idx         AS storeIdx,
+               chg_type          AS chgType,
+               store_nm          AS storeNm,
+               chg_content::text AS chgContentRaw,
+               chg_user_id       AS chgUserId,
+               CAST(chg_dt AS TIMESTAMP) AS chgDt
         FROM store_history
         WHERE store_idx = #{storeIdx}
         ORDER BY chg_dt DESC, his_idx DESC

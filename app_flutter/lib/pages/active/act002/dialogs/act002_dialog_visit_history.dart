@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:app_flutter/core/active_mst/active_mst_api_json_keys.dart';
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
@@ -107,17 +108,48 @@ class _VisitHistoryDialogState extends State<VisitHistoryDialog> {
                       children: [
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _readonlyField('브랜드', widget.brandNm),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                flex: 2,
-                                child: _readonlyField('가맹점명', widget.storeNm),
-                              ),
-                            ],
+                          child: Builder(
+                            builder: (context) {
+                              final compact = useCompactErpLayout(context);
+                              if (compact) {
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    _readonlyField(
+                                      context,
+                                      '브랜드',
+                                      widget.brandNm,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _readonlyField(
+                                      context,
+                                      '가맹점명',
+                                      widget.storeNm,
+                                    ),
+                                  ],
+                                );
+                              }
+                              return Row(
+                                children: [
+                                  Expanded(
+                                    child: _readonlyField(
+                                      context,
+                                      '브랜드',
+                                      widget.brandNm,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    flex: 2,
+                                    child: _readonlyField(
+                                      context,
+                                      '가맹점명',
+                                      widget.storeNm,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         ),
                         Expanded(
@@ -246,7 +278,9 @@ String _dateText(dynamic value) {
 String _checklistLabel(dynamic value) =>
     value?.toString().trim().toUpperCase() == 'Y' ? '작성' : '미작성';
 
-Widget _readonlyField(String label, String value) {
+Widget _readonlyField(BuildContext context, String label, String value) {
+  final compact = useCompactErpLayout(context);
+  final display = value.trim().isEmpty ? '-' : value.trim();
   return DecoratedBox(
     decoration: BoxDecoration(
       color: FormStylePalette.inputBg,
@@ -256,6 +290,7 @@ Widget _readonlyField(String label, String value) {
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '$label ',
@@ -265,18 +300,18 @@ Widget _readonlyField(String label, String value) {
               color: FormStylePalette.textPrimary,
               fontFamilyFallback: AppTheme.koreanFontFallback,
             ),
-            textAlign: TextAlign.center,
           ),
           Expanded(
             child: Text(
-              value.trim().isEmpty ? '-' : value.trim(),
-              overflow: TextOverflow.ellipsis,
+              display,
+              maxLines: compact ? 3 : 1,
+              overflow: compact ? TextOverflow.visible : TextOverflow.ellipsis,
+              softWrap: compact,
               style: const TextStyle(
                 fontSize: 14,
                 color: FormStylePalette.textPrimary,
                 fontFamilyFallback: AppTheme.koreanFontFallback,
               ),
-              textAlign: TextAlign.center,
             ),
           ),
         ],

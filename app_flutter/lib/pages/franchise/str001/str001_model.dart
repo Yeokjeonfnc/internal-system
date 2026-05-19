@@ -76,21 +76,34 @@ class Store {
   @JsonKey(name: 'storeIdx', fromJson: _intAny)
   final int storeIdx;
 
+  @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String storeNm;
+
+  @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String brandCd;
 
-  @JsonKey(fromJson: _stringAny)
+  @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String brandNm;
 
-  @JsonKey(fromJson: _stringAny)
+  @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String storeCd;
+
+  @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String storeStatus;
+
+  @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String storeStatusNm;
 
-  @JsonKey(fromJson: _stringAny)
+  @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String ownerNm;
+
+  @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String storeTel;
+
+  @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String zipCd;
+
+  @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String address;
 
   @JsonKey(name: 'adressDetail', defaultValue: '')
@@ -230,7 +243,7 @@ class HistoryEntry {
   @JsonKey(name: 'chgContent', fromJson: storeHistoryChgContentEncode)
   final String chgContent;
 
-  @JsonKey(name: 'content', defaultValue: '')
+  @JsonKey(name: 'content', fromJson: _stringAny, defaultValue: '')
   final String plainApiContent;
 
   @JsonKey(fromJson: _stringAny)

@@ -69,48 +69,89 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
     )) {
       if (def.id == CommonSearchFieldId.brandCd) {
         items.add(
-          FilterStringOptionsSlot(
+          SearchFilterItemData(
             label: def.label,
-            value: filter.brandCd,
-            options: brands,
-            onSelected: n.setBrand,
-          ).toItem(),
+            child: Consumer(
+              builder: (context, ref, _) {
+                final brandFilter = ref.watch(storeProvider);
+                return FilterStringOptionsSlot(
+                  label: def.label,
+                  value: brandFilter.brandCd,
+                  options: brands,
+                  onSelected: ref.read(storeProvider.notifier).setBrand,
+                ).buildField();
+              },
+            ),
+          ),
         );
       } else if (def.id == CommonSearchFieldId.storeStatus) {
         items.add(
-          _StoreContractStatusMultiSlot(
-            filter: filter,
-            notifier: n,
-            availableStatuses: const ['신규계약', '재계약', '양수도'],
+          const _StoreContractStatusMultiSlot(
+            availableStatuses: ['신규계약', '재계약', '양수도'],
           ).toItem(),
         );
       } else if (def.id == CommonSearchFieldId.regionCd) {
         items.add(
           SearchFilterItemData(
             label: def.label,
-            child: SearchFilterMultiSelectField(
-              summaryText: searchFilterMultiSelectSummary(
-                filter.regionNms,
-                formatMultiple: searchFilterMultiSelectSummarySortedPreview,
-              ),
-              onTap: () => showDialogWithRef(
-                context: context,
-                options: regionOpts,
-                bindings: (ref) => SearchFilterMultiPickBindings(
-                  selected: ref.watch(storeProvider).regionNms,
-                  onToggle: ref.read(storeProvider.notifier).toggleRegion,
-                ),
-                title: '지역 검색',
-                searchHint: '지역명을 검색해주세요',
-                emptyOptionsMessage: '등록된 지역이 없습니다.',
-                emptySearchMessage: '검색 결과가 없습니다.',
-              ),
+            child: Consumer(
+              builder: (context, ref, _) {
+                final regionFilter = ref.watch(storeProvider);
+                return SearchFilterMultiSelectField(
+                  summaryText: searchFilterMultiSelectSummary(
+                    regionFilter.regionNms,
+                    formatMultiple: searchFilterMultiSelectSummarySortedPreview,
+                  ),
+                  onTap: () => showDialogWithRef(
+                    context: context,
+                    options: regionOpts,
+                    bindings: (ref) => SearchFilterMultiPickBindings(
+                      selected: ref.watch(storeProvider).regionNms,
+                      onToggle: ref.read(storeProvider.notifier).toggleRegion,
+                    ),
+                    title: '지역 검색',
+                    searchHint: '지역명을 검색해주세요',
+                    emptyOptionsMessage: '등록된 지역이 없습니다.',
+                    emptySearchMessage: '검색 결과가 없습니다.',
+                  ),
+                );
+              },
             ),
           ),
         );
       }
     }
     return items;
+  }
+
+  Widget _buildMainSearchColumn(
+    BuildContext context,
+    WidgetRef watchRef,
+    List<String> brands,
+    List<String> regions,
+  ) {
+    final filter = watchRef.watch(storeProvider);
+    final n = watchRef.read(storeProvider.notifier);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SearchFilterTextField(
+          controller: _keywordCtrl,
+          hint: '키워드 검색',
+          borderRadius: 8,
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: Colors.grey.shade500,
+            size: 22,
+          ),
+          onChanged: n.setStoreKeyword,
+        ),
+        const SizedBox(height: 8),
+        SearchFilterStackedItems(
+          items: _mainFilterItems(context, filter, brands, regions, n),
+        ),
+      ],
+    );
   }
 
   @override
@@ -130,33 +171,6 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
                 // 로드된 데이터로 필터링
                 final rows = n.getFilteredList();
 
-                final mainFields = Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SearchFilterTextField(
-                      controller: _keywordCtrl,
-                      hint: '키워드 검색',
-                      borderRadius: 8,
-                      prefixIcon: Icon(
-                        Icons.search_rounded,
-                        color: Colors.grey.shade500,
-                        size: 22,
-                      ),
-                      onChanged: n.setStoreKeyword,
-                    ),
-                    const SizedBox(height: 8),
-                    SearchFilterStackedItems(
-                      items: _mainFilterItems(
-                        context,
-                        filter,
-                        brands,
-                        regions,
-                        n,
-                      ),
-                    ),
-                  ],
-                );
-
                 return ListPageTemplate(
                   activeFilters: _activeFilterChips(filter, n),
                   countText: '총 ${rows.length}개의 가맹점이 조회되었습니다.',
@@ -165,7 +179,20 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
                       context.goNamed(AppRouteNames.storeRegister),
                   onRefresh: () => n.refresh(),
                   table: _StoreTable(rows: rows),
-                  mainSearchFields: mainFields,
+                  mainSearchFields: _buildMainSearchColumn(
+                    context,
+                    ref,
+                    brands,
+                    regions,
+                  ),
+                  filterSheetBuilder: (sheetCtx) => Consumer(
+                    builder: (_, sheetRef, _) => _buildMainSearchColumn(
+                      sheetCtx,
+                      sheetRef,
+                      brands,
+                      regions,
+                    ),
+                  ),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -276,84 +303,87 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
 
 /// 계약상태: [FilterChip] 으로 중복 선택.
 class _StoreContractStatusMultiSlot implements FilterSlotConfig {
-  _StoreContractStatusMultiSlot({
-    required this.filter,
-    required this.notifier,
-    required this.availableStatuses,
-  });
+  const _StoreContractStatusMultiSlot({required this.availableStatuses});
 
-  final StoreFilter filter;
-  final StoreNotifier notifier;
   final List<String> availableStatuses;
 
   @override
   SearchFilterItemData toItem() {
     return SearchFilterItemData(
       label: '계약상태',
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          FilterChip(
-            showCheckmark: false,
-            label: Text(
-              '전체',
-              style: TextStyle(
-                fontSize: kSearchFilterFontSize,
-                fontWeight: filter.storeStatus.isEmpty
-                    ? FontWeight.w700
-                    : FontWeight.w500,
-                color: filter.storeStatus.isEmpty
-                    ? AppTheme.accentRed
-                    : kSearchFilterTextColor,
-                fontFamilyFallback: AppTheme.koreanFontFallback,
-              ),
-            ),
-            selected: filter.storeStatus.isEmpty,
-            onSelected: (_) => notifier.clearContractStatuses(),
-            selectedColor: const Color(0xFFFFF1F2),
-            backgroundColor: Colors.white,
-            side: BorderSide(
-              color: filter.storeStatus.isEmpty
-                  ? AppTheme.accentRed
-                  : const Color(0xFFE5E7EB),
-              width: filter.storeStatus.isEmpty ? 1.4 : 1,
-            ),
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
-          ),
-          for (final s in availableStatuses)
-            FilterChip(
-              showCheckmark: false,
-              label: Text(
-                s,
-                style: TextStyle(
-                  fontSize: kSearchFilterFontSize,
-                  fontWeight: filter.storeStatus.contains(s)
-                      ? FontWeight.w700
-                      : FontWeight.w500,
-                  color: filter.storeStatus.contains(s)
-                      ? AppTheme.accentRed
-                      : kSearchFilterTextColor,
-                  fontFamilyFallback: AppTheme.koreanFontFallback,
+      child: Consumer(
+        builder: (context, ref, _) {
+          final filter = ref.watch(storeProvider);
+          final notifier = ref.read(storeProvider.notifier);
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilterChip(
+                showCheckmark: false,
+                label: Text(
+                  '전체',
+                  style: TextStyle(
+                    fontSize: kSearchFilterFontSize,
+                    fontWeight: filter.storeStatus.isEmpty
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                    color: filter.storeStatus.isEmpty
+                        ? AppTheme.accentRed
+                        : kSearchFilterTextColor,
+                    fontFamilyFallback: AppTheme.koreanFontFallback,
+                  ),
                 ),
+                selected: filter.storeStatus.isEmpty,
+                onSelected: (_) => notifier.clearContractStatuses(),
+                selectedColor: const Color(0xFFFFF1F2),
+                backgroundColor: Colors.white,
+                side: BorderSide(
+                  color: filter.storeStatus.isEmpty
+                      ? AppTheme.accentRed
+                      : const Color(0xFFE5E7EB),
+                  width: filter.storeStatus.isEmpty ? 1.4 : 1,
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
               ),
-              selected: filter.storeStatus.contains(s),
-              onSelected: (_) => notifier.toggleContractStatus(s),
-              selectedColor: const Color(0xFFFFF1F2),
-              backgroundColor: Colors.white,
-              side: BorderSide(
-                color: filter.storeStatus.contains(s)
-                    ? AppTheme.accentRed
-                    : const Color(0xFFE5E7EB),
-                width: filter.storeStatus.contains(s) ? 1.4 : 1,
-              ),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
-            ),
-        ],
+              for (final s in availableStatuses)
+                FilterChip(
+                  showCheckmark: false,
+                  label: Text(
+                    s,
+                    style: TextStyle(
+                      fontSize: kSearchFilterFontSize,
+                      fontWeight: filter.storeStatus.contains(s)
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: filter.storeStatus.contains(s)
+                          ? AppTheme.accentRed
+                          : kSearchFilterTextColor,
+                      fontFamilyFallback: AppTheme.koreanFontFallback,
+                    ),
+                  ),
+                  selected: filter.storeStatus.contains(s),
+                  onSelected: (_) => notifier.toggleContractStatus(s),
+                  selectedColor: const Color(0xFFFFF1F2),
+                  backgroundColor: Colors.white,
+                  side: BorderSide(
+                    color: filter.storeStatus.contains(s)
+                        ? AppTheme.accentRed
+                        : const Color(0xFFE5E7EB),
+                    width: filter.storeStatus.contains(s) ? 1.4 : 1,
+                  ),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 0,
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -469,7 +499,7 @@ class _StoreTable extends ConsumerWidget {
                 ErpTableBodyCell(entry.value.contStartDt, center: true),
                 ErpTableBodyCell(entry.value.contEndDt, center: true),
                 Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(1),
                   child: Center(
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -518,8 +548,8 @@ class _StoreDeleteButton extends StatelessWidget {
       icon: const Icon(Icons.delete_outline_rounded, size: 18),
       label: const Text('삭제'),
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 30),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: const Size(0, 24),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         foregroundColor: AppTheme.accentRed,
         side: const BorderSide(color: AppTheme.accentRed),
         textStyle: const TextStyle(

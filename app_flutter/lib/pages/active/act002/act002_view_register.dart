@@ -7,14 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
-import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_loading_indicator.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
-import 'package:app_flutter/core/widgets/common/erp_popup_list_stripes.dart';
 import 'package:app_flutter/core/widgets/common/form/common_date_input_with_picker.dart'
     show CalendarPickButton, showAccentDatePicker;
 import 'package:app_flutter/core/active_mst/active_mst_write_request.dart';
@@ -25,6 +24,7 @@ import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_approval_l
 import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_instructions.dart';
 import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_visit_history.dart';
 import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_electronic_signature.dart';
+import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_lookup.dart';
 import 'package:app_flutter/pages/active/act002/act002_model_checklist.dart';
 import 'package:app_flutter/core/notifications/notification_api_service.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
@@ -67,7 +67,7 @@ Widget _fieldShell(Widget child) {
 }
 
 /// 가맹점 기본정보: API 연동 전 표시용 읽기 전용 (칸 너비는 내용 + 상한, 한 줄·세로 가운데).
-Widget _roVal(String? text) {
+Widget _roVal(String? text, {bool expand = false}) {
   final empty = text == null || text.trim().isEmpty;
   final s = empty
       ? kActivityFormValueStyle.copyWith(
@@ -75,6 +75,25 @@ Widget _roVal(String? text) {
         )
       : kActivityFormValueStyle;
   final display = empty ? '' : text.trim();
+  final valueText = Text(
+    display,
+    maxLines: expand ? 3 : 1,
+    overflow: expand ? TextOverflow.visible : TextOverflow.ellipsis,
+    softWrap: expand,
+    strutStyle: StrutStyle(
+      fontSize: s.fontSize,
+      height: s.height,
+      fontFamily: s.fontFamily,
+      fontFamilyFallback: s.fontFamilyFallback,
+      leadingDistribution: TextLeadingDistribution.even,
+    ),
+    style: s,
+  );
+
+  if (expand) {
+    return _fieldShell(_StoreFieldLineContent(child: valueText));
+  }
+
   return Align(
     alignment: Alignment.centerLeft,
     child: ConstrainedBox(
@@ -83,23 +102,7 @@ Widget _roVal(String? text) {
         maxWidth: _kStoreReadonlyMaxWidth,
       ),
       child: IntrinsicWidth(
-        child: _fieldShell(
-          _StoreFieldLineContent(
-            child: Text(
-              display,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              strutStyle: StrutStyle(
-                fontSize: s.fontSize,
-                height: s.height,
-                fontFamily: s.fontFamily,
-                fontFamilyFallback: s.fontFamilyFallback,
-                leadingDistribution: TextLeadingDistribution.even,
-              ),
-              style: s,
-            ),
-          ),
-        ),
+        child: _fieldShell(_StoreFieldLineContent(child: valueText)),
       ),
     ),
   );
@@ -172,24 +175,39 @@ class _ActivityFormDateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onPick,
-              borderRadius: BorderRadius.circular(8),
-              child: _fieldShell(
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(labelText, style: kActivityFormValueStyle),
-                ),
-              ),
+    final dateField = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPick,
+        borderRadius: BorderRadius.circular(8),
+        child: _fieldShell(
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              labelText,
+              style: kActivityFormValueStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),
+      ),
+    );
+
+    if (useCompactErpLayout(context)) {
+      return Row(
+        children: [
+          Expanded(child: dateField),
+          const SizedBox(width: 4),
+          CalendarPickButton(onPressed: onPick),
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(child: dateField),
         const SizedBox(width: 8),
         CalendarPickButton(onPressed: onPick),
       ],
@@ -267,6 +285,14 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   bool get _isApprovalWorkflowView {
     final s = _loadedApprStatus?.trim().toUpperCase();
     return s == 'PENDING' || s == 'APPROVED';
+  }
+
+  /// 임시보관·자동 임시저장 건을 상신(PENDING)할 때 — 활동일자를 오늘로 맞춘다.
+  bool get _isSubmittingFromDraft {
+    if (_loadedApprStatus?.trim().toUpperCase() == 'DRAFT') return true;
+    if (_draftActIdx != null) return true;
+    // 임시보관 상세 진입 직후(로드 전) 포함
+    return widget.actIdx != null && !_isApprovalWorkflowView;
   }
 
   /// 결재하기 버튼은 결재대기에서만 표시 (완료 후 재클릭 방지).
@@ -566,7 +592,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   Future<void> _openStoreLookup() async {
     final selected = await showDialog<Store>(
       context: context,
-      builder: (dialogContext) => const _StoreLookupDialog(),
+      builder: (dialogContext) => const StoreLookupDialog(),
     );
     if (!mounted || selected == null) return;
     final detail =
@@ -715,6 +741,11 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
       return;
     }
 
+    // 임시저장 건 상신 시 활동일자는 상신일(오늘)로 반영
+    if (apprStatus == 'PENDING' && _isSubmittingFromDraft) {
+      setState(() => _activityDate = _today);
+    }
+
     // 상신 시 결재자(본인 제외) 및 체크리스트 검증
     if (apprStatus == 'PENDING') {
       final approvers = _peerApproverIds();
@@ -823,6 +854,94 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     setState(() => _electronicSignaturePng = bytes);
   }
 
+  static const TextStyle _signatureLabelStyle = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    color: FormStylePalette.textPrimary,
+    fontFamilyFallback: AppTheme.koreanFontFallback,
+  );
+
+  static final TextStyle _signatureDisclaimerStyle = GoogleFonts.notoSansKr(
+    fontSize: 14,
+    color: AppTheme.accentRed,
+    height: 1.4,
+    fontWeight: FontWeight.w600,
+  );
+
+  Widget _buildSignatureBox() {
+    return Container(
+      width: 200,
+      height: 120,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: FormStylePalette.panelBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _isApprovalWorkflowView
+              ? null
+              : _openElectronicSignatureDialog,
+          child: Center(
+            child: _electronicSignaturePng != null
+                ? Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Image.memory(
+                      _electronicSignaturePng!,
+                      fit: BoxFit.contain,
+                      alignment: Alignment.center,
+                      filterQuality: FilterQuality.medium,
+                    ),
+                  )
+                : Text(
+                    '(서명)',
+                    style: TextStyle(
+                      color: FormStylePalette.textMuted,
+                      fontSize: 14,
+                      fontFamilyFallback: AppTheme.koreanFontFallback,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildElectronicSignatureSection(BuildContext context) {
+    final compact = useCompactErpLayout(context);
+    const disclaimer =
+        '* 전자서명을 저장하면 입력된 내용 수정 불가하며 자동 상신됩니다.\n'
+        '   저장 전에 활동관리 작성을 완료하세요.';
+
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('전자 서명', style: _signatureLabelStyle),
+          const SizedBox(height: 8),
+          Align(alignment: Alignment.centerLeft, child: _buildSignatureBox()),
+          const SizedBox(height: 8),
+          Text(disclaimer, style: _signatureDisclaimerStyle),
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(
+          width: FormStylePalette.labelWidth,
+          child: Text('전자 서명', style: _signatureLabelStyle),
+        ),
+        _buildSignatureBox(),
+        const SizedBox(width: 16),
+        Expanded(child: Text(disclaimer, style: _signatureDisclaimerStyle)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
@@ -848,87 +967,52 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                     children: [
                       const _SectionTitle('결재 정보'),
                       const SizedBox(height: 20),
-                      Align(
-                        alignment: Alignment.center,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 550),
-                          child: _ApprovalTable(
-                            approvalStampSlots: _approvalLineStampSlots
-                                .take(kActivityApprovalLineSlotCount)
-                                .toList(),
-                            rankStampSlots: _rankLineStampSlots
-                                .take(kActivityApprovalLineSlotCount)
-                                .toList(),
-                            approvalUserIds: List<String>.from(
-                              _approvalLineUserIds.take(
-                                kActivityApprovalLineSlotCount,
-                              ),
-                            ),
-                            apprAckUserIds: _apprAckUserIds,
-                            apprAckDateByUserId: _apprAckDateByUserId,
-                            documentWrittenAt: _docWrittenAtDisplay,
-                            writerSealDate: _writerSealDateDisplay,
-                            loadedApprStatus: _loadedApprStatus,
-                            deptNm: _deptNm,
-                            drafterNm: _drafterNm,
+                      _ApprovalTable(
+                        approvalStampSlots: _approvalLineStampSlots
+                            .take(kActivityApprovalLineSlotCount)
+                            .toList(),
+                        rankStampSlots: _rankLineStampSlots
+                            .take(kActivityApprovalLineSlotCount)
+                            .toList(),
+                        approvalUserIds: List<String>.from(
+                          _approvalLineUserIds.take(
+                            kActivityApprovalLineSlotCount,
                           ),
                         ),
+                        apprAckUserIds: _apprAckUserIds,
+                        apprAckDateByUserId: _apprAckDateByUserId,
+                        documentWrittenAt: _docWrittenAtDisplay,
+                        writerSealDate: _writerSealDateDisplay,
+                        loadedApprStatus: _loadedApprStatus,
+                        deptNm: _deptNm,
+                        drafterNm: _drafterNm,
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: useCompactErpLayout(context) ? 8 : 12),
                 Text(
                   '• 모바일 앱에서 가맹점출입관리 실행 후 태깅을 진행해주세요.\n'
                   '내용 입력 후 상신하기 버튼을 클릭하여 태그 이력을 선택해 주세요.\n'
                   '• 태그 이력은 다음날 12시전에 활동관리를 상신해야 실적으로 인정됩니다.',
-                  textAlign: TextAlign.right,
+                  textAlign: useCompactErpLayout(context)
+                      ? TextAlign.left
+                      : TextAlign.right,
                   style: GoogleFonts.notoSansKr(
-                    fontSize: 13,
+                    fontSize: useCompactErpLayout(context) ? 12 : 13,
                     color: AppTheme.accentRed,
                     fontWeight: FontWeight.w600,
-                    height: 1.45,
+                    height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: useCompactErpLayout(context) ? 8 : 16),
                 _PanelCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      /// 셸/탭에 제목이 있으면 본문에서 제목 중복 생략. 안내는 검색·입력 제목 **옆**에 배치.
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          const _SectionTitle('검색·입력'),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              '(* 가맹점을 먼저 선택해 주세요.)',
-                              textAlign: TextAlign.right,
-                              style: GoogleFonts.notoSansKr(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.accentRed,
-                                height: 1.35,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          FilledButton(
-                            onPressed: _isApprovalWorkflowView
-                                ? null
-                                : _openApprovers,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppTheme.accentRed,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
-                              ),
-                            ),
-                            child: const Text('결재라인'),
-                          ),
-                        ],
+                      _SearchInputSectionHeader(
+                        isApprovalWorkflowView: _isApprovalWorkflowView,
+                        onOpenApprovers: _openApprovers,
                       ),
                       SizedBox(height: 12),
                       _TwoColRow(
@@ -1112,77 +1196,9 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(
-                      width: FormStylePalette.labelWidth,
-                      child: Text(
-                        '전자 서명',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: FormStylePalette.textPrimary,
-                          fontFamilyFallback: AppTheme.koreanFontFallback,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      width: 200,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: FormStylePalette.panelBorder),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _isApprovalWorkflowView
-                              ? null
-                              : _openElectronicSignatureDialog,
-                          child: Center(
-                            child: _electronicSignaturePng != null
-                                ? Padding(
-                                    padding: const EdgeInsets.all(6),
-                                    child: Image.memory(
-                                      _electronicSignaturePng!,
-                                      fit: BoxFit.contain,
-                                      alignment: Alignment.center,
-                                      filterQuality: FilterQuality.medium,
-                                    ),
-                                  )
-                                : Text(
-                                    '(서명)',
-                                    style: TextStyle(
-                                      color: FormStylePalette.textMuted,
-                                      fontSize: 14,
-                                      fontFamilyFallback:
-                                          AppTheme.koreanFontFallback,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        '* 전자서명을 저장하면 입력된 내용 수정 불가하며 자동 상신됩니다.\n'
-                        '   저장 전에 활동관리 작성을 완료하세요.',
-                        style: GoogleFonts.notoSansKr(
-                          fontSize: 14,
-                          color: AppTheme.accentRed,
-                          height: 1.4,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
+                SizedBox(height: useCompactErpLayout(context) ? 12 : 20),
+                _buildElectronicSignatureSection(context),
+                SizedBox(height: useCompactErpLayout(context) ? 8 : 10),
                 _PanelCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1265,262 +1281,6 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   }
 }
 
-class _StoreLookupDialog extends StatefulWidget {
-  const _StoreLookupDialog();
-
-  @override
-  State<_StoreLookupDialog> createState() => _StoreLookupDialogState();
-}
-
-class _StoreLookupDialogState extends State<_StoreLookupDialog> {
-  final _keywordController = TextEditingController();
-  late Future<List<Store>> _storesFuture;
-  Store? _selected;
-
-  @override
-  void initState() {
-    super.initState();
-    _storesFuture = StoreApiService().getAllStores();
-    _keywordController.addListener(() => setState(() {}));
-  }
-
-  @override
-  void dispose() {
-    _keywordController.dispose();
-    super.dispose();
-  }
-
-  List<Store> _matchStores(List<Store> rows) {
-    final q = _keywordController.text.trim();
-    if (q.isEmpty) return rows;
-    return rows
-        .where(
-          (s) =>
-              s.storeNm.contains(q) ||
-              s.storeCd.contains(q) ||
-              s.brandNm.contains(q) ||
-              s.ownerNm.contains(q),
-        )
-        .toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(28),
-      child: ErpDialogFrame(
-        title: '가맹점 검색',
-        maxWidth: 980,
-        maxHeight: 680,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _keywordController,
-              style: kActivityFormValueStyle,
-              decoration: _inputDeco('키워드 검색'),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: FutureBuilder<List<Store>>(
-                future: _storesFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const CommonLoadingIndicator();
-                  }
-                  final rows = _matchStores(snapshot.data ?? const <Store>[]);
-                  if (rows.isEmpty) {
-                    return const Center(child: Text('검색 결과가 없습니다.'));
-                  }
-                  return DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: FormStylePalette.panelBorder),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      children: [
-                        const ColoredBox(
-                          color: AppTheme.accentRed,
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 9,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: _StoreLookupHeaderCell(
-                                    '가맹점명',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: _StoreLookupHeaderCell(
-                                    '브랜드',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: _StoreLookupHeaderCell(
-                                    '가맹점코드',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: _StoreLookupHeaderCell(
-                                    '사업자명',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: _StoreLookupHeaderCell(
-                                    '담당수퍼바이저',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: ListView.separated(
-                            itemCount: rows.length,
-                            separatorBuilder: (_, _) =>
-                                const Divider(height: 1),
-                            itemBuilder: (context, index) {
-                              final store = rows[index];
-                              final selected =
-                                  _selected?.storeIdx == store.storeIdx;
-                              return Material(
-                                color: erpPopupListRowBackgroundSelectable(
-                                  index,
-                                  selected: selected,
-                                ),
-                                child: InkWell(
-                                  onTap: () =>
-                                      setState(() => _selected = store),
-                                  onDoubleTap: () =>
-                                      Navigator.of(context).pop(store),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          flex: 3,
-                                          child: Text(
-                                            textAlign: TextAlign.center,
-                                            store.storeNm,
-                                            style: kActivityFormValueStyle
-                                                .copyWith(
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 2,
-                                          child: Text(
-                                            textAlign: TextAlign.center,
-                                            store.brandNm,
-                                            style: kActivityFormValueStyle,
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 2,
-                                          child: Text(
-                                            textAlign: TextAlign.center,
-                                            store.storeCd,
-                                            style: kActivityFormValueStyle,
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 2,
-                                          child: Text(
-                                            textAlign: TextAlign.center,
-                                            store.ownerNm,
-                                            style: kActivityFormValueStyle,
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 2,
-                                          child: Text(
-                                            textAlign: TextAlign.center,
-                                            store.svNm,
-                                            style: kActivityFormValueStyle,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('취소'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: _selected == null
-                      ? null
-                      : () => Navigator.of(context).pop(_selected),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.accentRed,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('선택'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StoreLookupHeaderCell extends StatelessWidget {
-  const _StoreLookupHeaderCell(this.text, {this.textAlign = TextAlign.start});
-
-  final String text;
-  final TextAlign textAlign;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      textAlign: textAlign,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        fontFamilyFallback: AppTheme.koreanFontFallback,
-      ),
-    );
-  }
-}
-
 class _PanelCard extends StatelessWidget {
   const _PanelCard({required this.child});
 
@@ -1535,6 +1295,64 @@ class _PanelCard extends StatelessWidget {
         border: Border.all(color: FormStylePalette.panelBorder),
       ),
       child: Padding(padding: const EdgeInsets.all(16), child: child),
+    );
+  }
+}
+
+class _SearchInputSectionHeader extends StatelessWidget {
+  const _SearchInputSectionHeader({
+    required this.isApprovalWorkflowView,
+    required this.onOpenApprovers,
+  });
+
+  final bool isApprovalWorkflowView;
+  final VoidCallback onOpenApprovers;
+
+  @override
+  Widget build(BuildContext context) {
+    final hint = Text(
+      '(* 가맹점을 먼저 선택해 주세요.)',
+      style: GoogleFonts.notoSansKr(
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        color: AppTheme.accentRed,
+        height: 1.35,
+      ),
+    );
+    final lineButton = FilledButton(
+      onPressed: isApprovalWorkflowView ? null : onOpenApprovers,
+      style: FilledButton.styleFrom(
+        backgroundColor: AppTheme.accentRed,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      ),
+      child: const Text('결재라인'),
+    );
+
+    if (useCompactErpLayout(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _SectionTitle('검색·입력'),
+          const SizedBox(height: 8),
+          hint,
+          const SizedBox(height: 8),
+          Align(alignment: Alignment.centerRight, child: lineButton),
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const _SectionTitle('검색·입력'),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Align(alignment: Alignment.centerRight, child: hint),
+        ),
+        const SizedBox(width: 12),
+        lineButton,
+      ],
     );
   }
 }
@@ -1602,6 +1420,7 @@ class _StoreBasicInfoPanel extends StatelessWidget {
                     : () {
                         showActivityInstructionsDialog(
                           context,
+                          storeIdx: store!.storeIdx,
                           brandNm: store!.brandNm,
                           storeNm: store!.storeNm,
                         );
@@ -1628,143 +1447,7 @@ class _StoreBasicInfoPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          _TwoColRow(
-            left: _LabeledField(
-              label: '가맹점 사업자 성명',
-              valignWithField: true,
-              labelWidth: _kStoreLabelWidth,
-              labelMaxLines: 2,
-              child: _roVal(store?.ownerNm),
-            ),
-            right: _LabeledField(
-              label: '가맹계약 담당자',
-              valignWithField: true,
-              labelWidth: _kStoreLabelWidth,
-              labelMaxLines: 2,
-              child: _roVal(store?.contManager),
-            ),
-          ),
-          const SizedBox(height: 8),
-          _TwoColRow(
-            left: _LabeledField(
-              label: '최초 가맹계약 체결일자',
-              valignWithField: true,
-              labelWidth: _kStoreLabelWidth,
-              labelMaxLines: 2,
-              child: _roVal(store?.firstContDt),
-            ),
-            right: _LabeledField(
-              label: '현재 가맹계약 기간',
-              valignWithField: true,
-              labelWidth: _kStoreLabelWidth,
-              labelMaxLines: 2,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _roVal(store?.contStartDt),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text('—', style: kActivityFormValueStyle),
-                  ),
-                  _roVal(store?.contEndDt),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _LabeledField(
-                  label: '임대차보증금',
-                  valignWithField: true,
-                  labelWidth: _kStoreLabelWidthTight,
-                  labelMaxLines: 2,
-                  child: _roUnit(_moneyText(store?.rentDeposit), '원'),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _LabeledField(
-                  label: '권리금',
-                  valignWithField: true,
-                  labelWidth: _kStoreLabelWidthTight,
-                  labelMaxLines: 2,
-                  child: _roUnit(_moneyText(store?.premiumFee), '원'),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _LabeledField(
-                  label: '임차료(정액)',
-                  valignWithField: true,
-                  labelWidth: _kStoreLabelWidthTight,
-                  labelMaxLines: 2,
-                  child: _roUnit(_moneyText(store?.monthlyRent), '원'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: _LabeledField(
-                  label: '층수',
-                  valignWithField: true,
-                  labelWidth: _kStoreLabelWidthTight,
-                  labelMaxLines: 2,
-                  child: _roUnit(_intText(store?.floor), '층'),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                flex: 4,
-                child: _LabeledField(
-                  label: '면적(계약㎡)',
-                  valignWithField: true,
-                  labelWidth: _kStoreLabelWidthTight,
-                  labelMaxLines: 2,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _roUnit(_decimalText(store?.contArea), 'm²'),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _roUnit(_pyeongText(store?.contArea), '평'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                flex: 4,
-                child: _LabeledField(
-                  label: '면적(실㎡)',
-                  valignWithField: true,
-                  labelWidth: _kStoreLabelWidthTight,
-                  labelMaxLines: 2,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _roUnit(_decimalText(store?.realArea), 'm²'),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _roUnit(_pyeongText(store?.realArea), '평'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+          _StoreBasicInfoFields(store: store),
         ],
       ),
     );
@@ -1799,19 +1482,291 @@ class _StoreBasicInfoPanel extends StatelessWidget {
   }
 }
 
-class _TwoColRow extends StatelessWidget {
-  const _TwoColRow({required this.left, required this.right});
+class _StoreBasicInfoFields extends StatelessWidget {
+  const _StoreBasicInfoFields({required this.store});
 
-  final Widget left;
-  final Widget right;
+  final Store? store;
 
   @override
   Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
+    final labelW = compact ? 132.0 : _kStoreLabelWidth;
+    final labelTight = compact ? 96.0 : _kStoreLabelWidthTight;
+
+    final ownerRow = _LabeledField(
+      label: compact ? '사업자 성명' : '가맹점 사업자 성명',
+      valignWithField: !compact,
+      labelWidth: labelW,
+      labelMaxLines: 2,
+      stacked: compact,
+      child: _roVal(store?.ownerNm, expand: compact),
+    );
+    final managerRow = _LabeledField(
+      label: compact ? '계약 담당자' : '가맹계약 담당자',
+      valignWithField: !compact,
+      labelWidth: labelW,
+      labelMaxLines: 2,
+      stacked: compact,
+      child: _roVal(store?.contManager, expand: compact),
+    );
+    final contPeriodValue = Row(
+      children: [
+        Expanded(child: _roVal(store?.contStartDt, expand: true)),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text('—', style: kActivityFormValueStyle),
+        ),
+        Expanded(child: _roVal(store?.contEndDt, expand: true)),
+      ],
+    );
+
+    final firstContRow = _LabeledField(
+      label: compact ? '최초 체결일' : '최초 가맹계약 체결일자',
+      valignWithField: !compact,
+      labelWidth: labelW,
+      labelMaxLines: 2,
+      stacked: compact,
+      child: _roVal(store?.firstContDt, expand: compact),
+    );
+    final contPeriodRow = _LabeledField(
+      label: compact ? '현재 계약기간' : '현재 가맹계약 기간',
+      valignWithField: !compact,
+      labelWidth: labelW,
+      labelMaxLines: 2,
+      stacked: compact,
+      child: compact
+          ? contPeriodValue
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _roVal(store?.contStartDt),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6),
+                  child: Text('—', style: kActivityFormValueStyle),
+                ),
+                _roVal(store?.contEndDt),
+              ],
+            ),
+    );
+
+    final depositRow = _LabeledField(
+      label: '임대차보증금',
+      valignWithField: !compact,
+      labelWidth: labelTight,
+      labelMaxLines: 2,
+      stacked: compact,
+      child: _roUnit(_StoreBasicInfoPanel._moneyText(store?.rentDeposit), '원'),
+    );
+    final premiumRow = _LabeledField(
+      label: '권리금',
+      valignWithField: !compact,
+      labelWidth: labelTight,
+      labelMaxLines: 2,
+      stacked: compact,
+      child: _roUnit(_StoreBasicInfoPanel._moneyText(store?.premiumFee), '원'),
+    );
+    final rentRow = _LabeledField(
+      label: '임차료(정액)',
+      valignWithField: !compact,
+      labelWidth: labelTight,
+      labelMaxLines: 2,
+      stacked: compact,
+      child: _roUnit(_StoreBasicInfoPanel._moneyText(store?.monthlyRent), '원'),
+    );
+    final floorRow = _LabeledField(
+      label: '층수',
+      valignWithField: !compact,
+      labelWidth: labelTight,
+      labelMaxLines: 2,
+      stacked: compact,
+      child: _roUnit(_StoreBasicInfoPanel._intText(store?.floor), '층'),
+    );
+    final contAreaRow = _LabeledField(
+      label: '면적(계약㎡)',
+      valignWithField: !compact,
+      labelWidth: labelTight,
+      labelMaxLines: 2,
+      stacked: compact,
+      child: _roUnit(_StoreBasicInfoPanel._decimalText(store?.contArea), 'm²'),
+    );
+    final contPyeongRow = _LabeledField(
+      label: '면적(계약평)',
+      valignWithField: !compact,
+      labelWidth: labelTight,
+      labelMaxLines: 2,
+      stacked: compact,
+      child: _roUnit(_StoreBasicInfoPanel._pyeongText(store?.contArea), '평'),
+    );
+    final realAreaRow = _LabeledField(
+      label: '면적(실㎡)',
+      valignWithField: !compact,
+      labelWidth: labelTight,
+      labelMaxLines: 2,
+      stacked: compact,
+      child: _roUnit(_StoreBasicInfoPanel._decimalText(store?.realArea), 'm²'),
+    );
+    final realPyeongRow = _LabeledField(
+      label: '면적(실평)',
+      valignWithField: !compact,
+      labelWidth: labelTight,
+      labelMaxLines: 2,
+      stacked: compact,
+      child: _roUnit(_StoreBasicInfoPanel._pyeongText(store?.realArea), '평'),
+    );
+
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _TwoColRow(keepRowOnCompact: true, left: ownerRow, right: managerRow),
+          const SizedBox(height: 8),
+          _TwoColRow(
+            keepRowOnCompact: true,
+            left: firstContRow,
+            right: contPeriodRow,
+          ),
+          const SizedBox(height: 8),
+          _TwoColRow(
+            keepRowOnCompact: true,
+            left: depositRow,
+            right: premiumRow,
+          ),
+          const SizedBox(height: 8),
+          _TwoColRow(keepRowOnCompact: true, left: rentRow, right: floorRow),
+          const SizedBox(height: 8),
+          _TwoColRow(
+            keepRowOnCompact: true,
+            left: contAreaRow,
+            right: contPyeongRow,
+          ),
+          const SizedBox(height: 8),
+          _TwoColRow(
+            keepRowOnCompact: true,
+            left: realAreaRow,
+            right: realPyeongRow,
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _TwoColRow(left: ownerRow, right: managerRow),
+        const SizedBox(height: 8),
+        _TwoColRow(left: firstContRow, right: contPeriodRow),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: depositRow),
+            const SizedBox(width: 16),
+            Expanded(child: premiumRow),
+            const SizedBox(width: 16),
+            Expanded(child: rentRow),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 2, child: floorRow),
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 4,
+              child: _LabeledField(
+                label: '면적(계약㎡)',
+                valignWithField: true,
+                labelWidth: labelTight,
+                labelMaxLines: 2,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _roUnit(
+                        _StoreBasicInfoPanel._decimalText(store?.contArea),
+                        'm²',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _roUnit(
+                        _StoreBasicInfoPanel._pyeongText(store?.contArea),
+                        '평',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 4,
+              child: _LabeledField(
+                label: '면적(실㎡)',
+                valignWithField: true,
+                labelWidth: labelTight,
+                labelMaxLines: 2,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _roUnit(
+                        _StoreBasicInfoPanel._decimalText(store?.realArea),
+                        'm²',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _roUnit(
+                        _StoreBasicInfoPanel._pyeongText(store?.realArea),
+                        '평',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _TwoColRow extends StatelessWidget {
+  const _TwoColRow({
+    required this.left,
+    required this.right,
+    this.keepRowOnCompact = false,
+  });
+
+  final Widget left;
+  final Widget right;
+  final bool keepRowOnCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
+    if (compact && !keepRowOnCompact) {
+      final children = <Widget>[left];
+      if (right is! _FormColSpacer) {
+        children.addAll([const SizedBox(height: 12), right]);
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      );
+    }
+
+    if (right is _FormColSpacer) {
+      return left;
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(child: left),
-        const SizedBox(width: 12),
+        SizedBox(width: compact ? 8 : 12),
         Expanded(child: right),
       ],
     );
@@ -1828,6 +1783,7 @@ class _LabeledField extends StatelessWidget {
     this.valignWithField = false,
     this.labelWidth = 118,
     this.labelMaxLines = 2,
+    this.stacked = false,
   });
 
   final String label;
@@ -1836,9 +1792,47 @@ class _LabeledField extends StatelessWidget {
   final bool valignWithField;
   final double labelWidth;
   final int labelMaxLines;
+  final bool stacked;
+
+  Widget _labelText() {
+    return Text.rich(
+      TextSpan(
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: FormStylePalette.textPrimary,
+          height: 1.3,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
+        children: [
+          if (requiredMark)
+            const TextSpan(
+              text: '* ',
+              style: TextStyle(
+                color: AppTheme.accentRed,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          TextSpan(text: label),
+        ],
+      ),
+      maxLines: labelMaxLines,
+      softWrap: true,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final useStacked = stacked || useCompactErpLayout(context);
+
+    if (useStacked) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [_labelText(), const SizedBox(height: 6), child],
+      );
+    }
+
     return Row(
       crossAxisAlignment: valignWithField
           ? CrossAxisAlignment.center
@@ -1848,31 +1842,7 @@ class _LabeledField extends StatelessWidget {
           width: labelWidth,
           child: Padding(
             padding: EdgeInsets.only(top: valignWithField ? 0 : 8),
-            child: Text.rich(
-              TextSpan(
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: FormStylePalette.textPrimary,
-                  height: 1.3,
-                  fontFamilyFallback: AppTheme.koreanFontFallback,
-                ),
-                children: [
-                  if (requiredMark)
-                    const TextSpan(
-                      text: '* ',
-                      style: TextStyle(
-                        color: AppTheme.accentRed,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  TextSpan(text: label),
-                ],
-              ),
-              maxLines: labelMaxLines,
-              softWrap: true,
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: _labelText(),
           ),
         ),
         const SizedBox(width: 4),
@@ -1965,6 +1935,9 @@ class _ApprovalTable extends StatelessWidget {
   final String drafterNm;
 
   static const double _labelW = 95;
+  static const double _slotMinW = 72;
+  static const double _tableMinWidth =
+      _labelW + kActivityApprovalLineSlotCount * _slotMinW;
   static const double _rowSingleH = 40;
   static const double _rowDeptH = 30;
   static const double _rowRankGridH = 40;
@@ -2052,7 +2025,7 @@ class _ApprovalTable extends StatelessWidget {
     const edge = FormStylePalette.approvalTableBorder;
     final ranks = _paddedRank;
     final names = _paddedApprovalNames;
-    return ClipRRect(
+    final table = ClipRRect(
       borderRadius: BorderRadius.circular(5),
       child: Container(
         width: double.infinity,
@@ -2077,6 +2050,27 @@ class _ApprovalTable extends StatelessWidget {
             _sealGridRow(names, edge),
             _dateGridRow(edge),
           ],
+        ),
+      ),
+    );
+
+    if (!useCompactErpLayout(context)) {
+      return Align(
+        alignment: Alignment.center,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 550),
+          child: table,
+        ),
+      );
+    }
+
+    // 가로 ScrollView는 세로 maxHeight가 무한이면 뷰포트만큼 늘어남 → IntrinsicHeight로 본문 높이만 사용.
+    return IntrinsicHeight(
+      child: Scrollbar(
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(width: _tableMinWidth, child: table),
         ),
       ),
     );
@@ -2284,7 +2278,7 @@ class _ApprovalTable extends StatelessWidget {
         child: Text(
           t.trim(),
           textAlign: TextAlign.center,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
             color: FormStylePalette.textPrimary,
@@ -2333,7 +2327,7 @@ class _ApprovalTable extends StatelessWidget {
                 child: Text(
                   name,
                   textAlign: TextAlign.center,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: FormStylePalette.textPrimary,
@@ -2356,7 +2350,7 @@ class _ApprovalTable extends StatelessWidget {
                 child: Text(
                   name,
                   textAlign: TextAlign.center,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: nameTextStyle,
                 ),
@@ -2385,6 +2379,8 @@ class _ApprovalTable extends StatelessWidget {
             ? Text(
                 date,
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: FormStylePalette.textPrimary,
                   fontSize: 11,
@@ -2591,143 +2587,170 @@ class _ChecklistBlockState extends State<_ChecklistBlock> {
             ),
           ),
           const SizedBox(height: 4),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(color: FormStylePalette.panelBorder),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Table(
-              columnWidths: const {
-                0: FixedColumnWidth(44),
-                1: FixedColumnWidth(90),
-                2: FlexColumnWidth(1.0),
-                3: FixedColumnWidth(140),
-              },
-              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-              border: kErpTableInnerGridBorder,
-              children: [
-                const TableRow(
-                  decoration: BoxDecoration(
-                    color: FormStylePalette.tableHeaderBg,
-                  ),
-                  children: [
-                    _ChHdr('번호'),
-                    _ChHdr('구분'),
-                    _ChHdr('체크항목'),
-                    _ChHdr('체크결과'),
-                  ],
+          _ChecklistTable(
+            items: _items,
+            results: _result,
+            readOnly: widget.readOnly,
+            onTapY: (i) {
+              setState(() {
+                _result[i] = _result[i] == 'Y' ? '미평가' : 'Y';
+              });
+            },
+            onTapN: (i) {
+              setState(() {
+                _result[i] = _result[i] == 'N' ? '미평가' : 'N';
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChecklistTable extends StatelessWidget {
+  const _ChecklistTable({
+    required this.items,
+    required this.results,
+    required this.readOnly,
+    required this.onTapY,
+    required this.onTapN,
+  });
+
+  final List<ChecklistItem> items;
+  final List<String> results;
+  final bool readOnly;
+  final ValueChanged<int> onTapY;
+  final ValueChanged<int> onTapN;
+
+  static const double _minTableWidth = 560;
+  static const Map<int, TableColumnWidth> _columnWidths = {
+    0: FixedColumnWidth(44),
+    1: FixedColumnWidth(88),
+    2: FlexColumnWidth(1.6),
+    3: FixedColumnWidth(148),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
+    final table = Table(
+      columnWidths: _columnWidths,
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      border: kErpTableInnerGridBorder,
+      children: [
+        const TableRow(
+          decoration: BoxDecoration(color: FormStylePalette.tableHeaderBg),
+          children: [
+            _ChHdr('번호'),
+            _ChHdr('구분'),
+            _ChHdr('체크항목'),
+            _ChHdr('체크결과'),
+          ],
+        ),
+        for (var i = 0; i < items.length; i++)
+          TableRow(
+            children: [
+              _ChCell('${i + 1}'),
+              _ChCell(items[i].chkTypeNm),
+              _ChCell(items[i].chkContent, left: true, wrap: true),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: _ChecklistResultCell(
+                  yChecked: results[i] == 'Y',
+                  nChecked: results[i] == 'N',
+                  readOnly: readOnly,
+                  onTapY: () => onTapY(i),
+                  onTapN: () => onTapN(i),
                 ),
-                for (var i = 0; i < _items.length; i++)
-                  TableRow(
-                    children: [
-                      _ChCell('${i + 1}'),
-                      _ChCell(_items[i].chkTypeNm),
-                      _ChCell(_items[i].chkContent, left: true),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            InkWell(
-                              onTap: widget.readOnly
-                                  ? null
-                                  : () {
-                                      setState(() {
-                                        _result[i] = _result[i] == 'Y'
-                                            ? '미평가'
-                                            : 'Y';
-                                      });
-                                    },
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: Checkbox(
-                                      value: _result[i] == 'Y',
-                                      onChanged: widget.readOnly
-                                          ? null
-                                          : (v) {
-                                              setState(() {
-                                                _result[i] = _result[i] == 'Y'
-                                                    ? '미평가'
-                                                    : 'Y';
-                                              });
-                                            },
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Text(
-                                    '적합',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: FormStylePalette.textPrimary,
-                                      fontFamilyFallback:
-                                          AppTheme.koreanFontFallback,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            InkWell(
-                              onTap: widget.readOnly
-                                  ? null
-                                  : () {
-                                      setState(() {
-                                        _result[i] = _result[i] == 'N'
-                                            ? '미평가'
-                                            : 'N';
-                                      });
-                                    },
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: Checkbox(
-                                      value: _result[i] == 'N',
-                                      onChanged: widget.readOnly
-                                          ? null
-                                          : (v) {
-                                              setState(() {
-                                                _result[i] = _result[i] == 'N'
-                                                    ? '미평가'
-                                                    : 'N';
-                                              });
-                                            },
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Text(
-                                    '미적합',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: FormStylePalette.textPrimary,
-                                      fontFamilyFallback:
-                                          AppTheme.koreanFontFallback,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
+              ),
+            ],
+          ),
+      ],
+    );
+
+    final bordered = DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: FormStylePalette.panelBorder),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: table,
+    );
+
+    if (!compact) return bordered;
+
+    return Scrollbar(
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(width: _minTableWidth, child: bordered),
+      ),
+    );
+  }
+}
+
+class _ChecklistResultCell extends StatelessWidget {
+  const _ChecklistResultCell({
+    required this.yChecked,
+    required this.nChecked,
+    required this.readOnly,
+    required this.onTapY,
+    required this.onTapN,
+  });
+
+  final bool yChecked;
+  final bool nChecked;
+  final bool readOnly;
+  final VoidCallback onTapY;
+  final VoidCallback onTapN;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _checkOption(
+          label: '적합',
+          checked: yChecked,
+          onTap: readOnly ? null : onTapY,
+        ),
+        const SizedBox(width: 10),
+        _checkOption(
+          label: '미적합',
+          checked: nChecked,
+          onTap: readOnly ? null : onTapN,
+        ),
+      ],
+    );
+  }
+
+  Widget _checkOption({
+    required String label,
+    required bool checked,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: Checkbox(
+              value: checked,
+              onChanged: onTap == null ? null : (_) => onTap(),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: FormStylePalette.textPrimary,
+              fontFamilyFallback: AppTheme.koreanFontFallback,
             ),
           ),
         ],
@@ -2760,10 +2783,11 @@ class _ChHdr extends StatelessWidget {
 }
 
 class _ChCell extends StatelessWidget {
-  const _ChCell(this.t, {this.left = false});
+  const _ChCell(this.t, {this.left = false, this.wrap = false});
 
   final String t;
   final bool left;
+  final bool wrap;
 
   @override
   Widget build(BuildContext context) {
@@ -2776,9 +2800,11 @@ class _ChCell extends StatelessWidget {
           fontSize: 14,
           color: FormStylePalette.textPrimary,
           fontFamilyFallback: AppTheme.koreanFontFallback,
+          height: 1.35,
         ),
-        maxLines: 3,
-        overflow: TextOverflow.ellipsis,
+        maxLines: wrap ? null : 3,
+        overflow: wrap ? TextOverflow.visible : TextOverflow.ellipsis,
+        softWrap: wrap,
       ),
     );
   }

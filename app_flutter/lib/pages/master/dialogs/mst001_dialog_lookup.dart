@@ -2,11 +2,10 @@
 
 import 'package:flutter/material.dart';
 
-import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_loading_indicator.dart';
-import 'package:app_flutter/core/widgets/common/erp_popup_list_stripes.dart';
+import 'package:app_flutter/core/widgets/common/erp_lookup_dialog.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
 
 /// 성명·부서·직급·연락처로 필터해 [User](user_mst) 한 명을 고른다.
@@ -60,7 +59,7 @@ class _UserLookupDialogState extends State<UserLookupDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(28),
+      insetPadding: erpLookupDialogInset(context),
       child: ErpDialogFrame(
         title: '사원 조회',
         maxWidth: 820,
@@ -91,12 +90,33 @@ class _UserLookupDialogState extends State<UserLookupDialog> {
                     controller: _keywordController,
                     onChanged: (_) => setState(() {}),
                     style: FormStylePalette.valueStyle,
-                    decoration: _userLookupSearchDecoration(
+                    decoration: erpLookupSearchDecoration(
                       '성명, 부서, 직급, 연락처, 아이디 검색',
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const _UserLookupHeader(),
+                  ErpLookupHeaderBar(
+                    minTableWidth: kErpLookupTableMinWidthUser,
+                    children: const [
+                      SizedBox(
+                        width: kErpLookupNoWidth,
+                        child: ErpLookupHeaderText('NO'),
+                      ),
+                      SizedBox(
+                        width: 88,
+                        child: ErpLookupHeaderText('성명'),
+                      ),
+                      SizedBox(
+                        width: 80,
+                        child: ErpLookupHeaderText('부서'),
+                      ),
+                      SizedBox(
+                        width: 72,
+                        child: ErpLookupHeaderText('직급'),
+                      ),
+                      Expanded(child: ErpLookupHeaderText('아이디')),
+                    ],
+                  ),
                   const SizedBox(height: 6),
                   Expanded(
                     child: users.isEmpty
@@ -113,22 +133,38 @@ class _UserLookupDialogState extends State<UserLookupDialog> {
                               color: Color(0xFFE5E7EB),
                             ),
                             itemBuilder: (context, index) {
-                              return _UserLookupRow(
+                              final user = users[index];
+                              return ErpLookupListRow(
                                 stripeIndex: index,
-                                displayNo: index + 1,
-                                user: users[index],
+                                minTableWidth: kErpLookupTableMinWidthUser,
+                                onTap: () => Navigator.of(context).pop(user),
+                                children: [
+                                  SizedBox(
+                                    width: kErpLookupNoWidth,
+                                    child: ErpLookupBodyText('${index + 1}'),
+                                  ),
+                                  SizedBox(
+                                    width: 88,
+                                    child: ErpLookupBodyText(user.name),
+                                  ),
+                                  SizedBox(
+                                    width: 80,
+                                    child: ErpLookupBodyText(user.department),
+                                  ),
+                                  SizedBox(
+                                    width: 72,
+                                    child: ErpLookupBodyText(user.positionNm),
+                                  ),
+                                  Expanded(
+                                    child: ErpLookupBodyText(user.userId),
+                                  ),
+                                ],
                               );
                             },
                           ),
                   ),
                   const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('닫기'),
-                    ),
-                  ),
+                  erpLookupDialogCloseFooter(context),
                 ],
               );
             },
@@ -137,138 +173,4 @@ class _UserLookupDialogState extends State<UserLookupDialog> {
       ),
     );
   }
-}
-
-class _UserLookupHeader extends StatelessWidget {
-  const _UserLookupHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: FormStylePalette.accent,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: const Row(
-        children: [
-          SizedBox(width: 56, child: _UserLookupHeaderText('NO')),
-          Expanded(flex: 1, child: _UserLookupHeaderText('성명')),
-          Expanded(flex: 1, child: _UserLookupHeaderText('부서')),
-          Expanded(flex: 1, child: _UserLookupHeaderText('직급')),
-          Expanded(flex: 2, child: _UserLookupHeaderText('아이디')),
-        ],
-      ),
-    );
-  }
-}
-
-class _UserLookupHeaderText extends StatelessWidget {
-  const _UserLookupHeaderText(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      textAlign: TextAlign.center,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        fontFamilyFallback: AppTheme.koreanFontFallback,
-      ),
-    );
-  }
-}
-
-class _UserLookupRow extends StatelessWidget {
-  const _UserLookupRow({
-    required this.stripeIndex,
-    required this.displayNo,
-    required this.user,
-  });
-
-  final int stripeIndex;
-  final int displayNo;
-  final User user;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: erpPopupListRowBackground(stripeIndex),
-      child: InkWell(
-        onTap: () => Navigator.of(context).pop(user),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              SizedBox(width: 56, child: _UserLookupCell('$displayNo')),
-              Expanded(flex: 1, child: _UserLookupCell(user.name)),
-              Expanded(
-                flex: 1,
-                child: _UserLookupCell(user.department),
-              ),
-              Expanded(
-                flex: 1,
-                child: _UserLookupCell(user.positionNm),
-              ),
-              Expanded(flex: 2, child: _UserLookupCell(user.userId)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _UserLookupCell extends StatelessWidget {
-  const _UserLookupCell(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text.isEmpty ? '-' : text,
-      textAlign: TextAlign.center,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: FormStylePalette.valueStyle,
-    );
-  }
-}
-
-InputDecoration _userLookupSearchDecoration(String hint) {
-  return InputDecoration(
-    hintText: hint,
-    hintStyle: const TextStyle(
-      color: FormStylePalette.textMuted,
-      fontSize: 13,
-      fontFamilyFallback: AppTheme.koreanFontFallback,
-    ),
-    isDense: true,
-    filled: true,
-    fillColor: FormStylePalette.inputBg,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-    prefixIcon: const Icon(
-      Icons.search_rounded,
-      size: 20,
-      color: FormStylePalette.textSecondary,
-    ),
-    prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: FormStylePalette.panelBorder),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: FormStylePalette.panelBorder),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: AppTheme.accentRed, width: 1.2),
-    ),
-  );
 }

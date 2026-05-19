@@ -9,9 +9,14 @@ import 'package:app_flutter/core/theme/form_style_palette.dart';
 
 Future<void> showListFilterEndSheet(
   BuildContext context, {
-  required Widget child,
+  Widget? child,
+  WidgetBuilder? builder,
   String title = '검색 조건',
 }) {
+  assert(
+    child != null || builder != null,
+    'child 또는 builder 중 하나는 필수입니다.',
+  );
   final mq = MediaQuery.sizeOf(context);
   final width = math.min(440.0, mq.width * 0.92);
 
@@ -62,7 +67,7 @@ Future<void> showListFilterEndSheet(
                   Expanded(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                      child: child,
+                      child: builder != null ? Builder(builder: builder) : child!,
                     ),
                   ),
                 ],

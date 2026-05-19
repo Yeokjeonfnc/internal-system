@@ -160,6 +160,30 @@ class Act002Api extends BaseRepository {
   }) =>
       fetchList(storeIdx: storeIdx, apprStatus: apprStatusCsv);
 
+  /// 가맹점 지시사항 다이얼로그 — `APPROVED` + `appr_notes` + `store_idx`.
+  Future<List<ActivityRow>> fetchRowsForStoreInstructions(int storeIdx) async {
+    try {
+      final maps = await getDataListMap(
+        ActiveMstApiPaths.listByStoreApprNote,
+        queryParameters: {ActiveMstApiJsonKeys.storeIdx: storeIdx},
+      );
+      final rows = maps.map(ActivityRow.fromJson).toList();
+      return rows
+          .where(
+            (r) =>
+                r.storeIdx == storeIdx &&
+                r.apprNotes.trim().isNotEmpty &&
+                r.apprStatus.trim().toUpperCase() ==
+                    ActiveMstListApprStatus.approved,
+          )
+          .toList()
+        ..sort(_activityRowDateDesc);
+    } catch (e) {
+      debugPrint('Error fetching store instructions: $e');
+    }
+    return const [];
+  }
+
   Future<ActivityDetail?> fetchOne(int actIdx) async {
     try {
       final m = await getDataMapOrNull('${ActiveMstApiPaths.root}/$actIdx');

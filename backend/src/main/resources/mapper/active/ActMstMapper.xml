@@ -322,10 +322,15 @@
                     AND TRIM(COALESCE(am.appr_notes, '')) <![CDATA[<>]]> ''
                     AND UPPER(TRIM(COALESCE(am.appr_status, ''))) <![CDATA[<>]]> 'PENDING'
                 </when>
+                <when test="q.mode == 'BY_STORE_APPR_MEMO'">
+                    am.store_idx = #{q.storeIdx}
+                    AND UPPER(TRIM(COALESCE(am.appr_status, ''))) = 'APPROVED'
+                    AND TRIM(COALESCE(am.appr_notes, '')) <![CDATA[<>]]> ''
+                </when>
             </choose>
         </where>
         <choose>
-            <when test="q.mode == 'BY_STORE'">
+            <when test="q.mode == 'BY_STORE' or q.mode == 'BY_STORE_APPR_MEMO'">
                 ORDER BY am.act_dt DESC, am.act_idx DESC
             </when>
             <otherwise>

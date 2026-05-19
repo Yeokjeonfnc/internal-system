@@ -5,6 +5,8 @@ abstract final class ActiveMstApiPaths {
   /// `GET` 목록 — 레거시는 [root] 단일 쿼리; 신규는 아래 `list/*`.
   static const String listAll = '$root/list/all';
   static const String listByStore = '$root/list/by-store';
+  /// 가맹점 지시사항 다이얼로그 — APPROVED + appr_notes + store_idx.
+  static const String listByStoreApprNote = '$root/list/by-store-appr-note';
   static const String listByApprNote = '$root/list/by-appr-note';
   /// 활동관리결재 > 지시사항 — `notif_mst` 조인·결재선 포함.
   static const String listByMemoNotifForApprover = '$root/list/by-memo-notif';

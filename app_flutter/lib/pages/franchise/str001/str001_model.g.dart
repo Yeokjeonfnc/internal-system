@@ -8,16 +8,17 @@ part of 'str001_model.dart';
 
 Store _$StoreFromJson(Map<String, dynamic> json) => Store(
   storeIdx: _intAny(json['storeIdx']),
-  storeNm: json['storeNm'] as String,
-  brandCd: json['brandCd'] as String,
+  storeNm: json['storeNm'] == null ? '' : _stringAny(json['storeNm']),
+  brandCd: json['brandCd'] == null ? '' : _stringAny(json['brandCd']),
   brandNm: _stringAny(json['brandNm']),
   storeCd: _stringAny(json['storeCd']),
-  storeStatus: json['storeStatus'] as String,
-  storeStatusNm: json['storeStatusNm'] as String,
+  storeStatus: json['storeStatus'] == null ? '' : _stringAny(json['storeStatus']),
+  storeStatusNm:
+      json['storeStatusNm'] == null ? '' : _stringAny(json['storeStatusNm']),
   ownerNm: _stringAny(json['ownerNm']),
-  storeTel: json['storeTel'] as String,
-  zipCd: json['zipCd'] as String,
-  address: json['address'] as String,
+  storeTel: json['storeTel'] == null ? '' : _stringAny(json['storeTel']),
+  zipCd: json['zipCd'] == null ? '' : _stringAny(json['zipCd']),
+  address: json['address'] == null ? '' : _stringAny(json['address']),
   addressDetail: json['adressDetail'] as String? ?? '',
   contStartDt: _stringAny(json['contStartDt']),
   contEndDt: _stringAny(json['contEndDt']),
@@ -99,6 +100,6 @@ Map<String, dynamic> _$StoreToJson(Store instance) => <String, dynamic>{
 HistoryEntry _$HistoryEntryFromJson(Map<String, dynamic> json) => HistoryEntry(
   chgDt: storeHistoryChgDtFromJson(json['chgDt']),
   chgContent: storeHistoryChgContentEncode(json['chgContent']),
-  plainApiContent: json['content'] as String? ?? '',
+  plainApiContent: _stringAny(json['content']),
   chgUserId: _stringAny(json['chgUserId']),
 );

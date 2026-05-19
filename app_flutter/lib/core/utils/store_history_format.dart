@@ -18,8 +18,27 @@ String storeHistoryChgDtFormat(String raw) {
       '${two(parsed.hour)}:${two(parsed.minute)}:${two(parsed.second)}';
 }
 
-String storeHistoryChgDtFromJson(Object? v) =>
-    storeHistoryChgDtFormat(v?.toString() ?? '');
+int? _historyPart(Object? v) {
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  return int.tryParse(v?.toString() ?? '');
+}
+
+String storeHistoryChgDtFromJson(Object? v) {
+  if (v is List && v.length >= 3) {
+    final y = _historyPart(v[0]);
+    final m = _historyPart(v[1]);
+    final d = _historyPart(v[2]);
+    if (y != null && m != null && d != null) {
+      final h = v.length > 3 ? (_historyPart(v[3]) ?? 0) : 0;
+      final min = v.length > 4 ? (_historyPart(v[4]) ?? 0) : 0;
+      final sec = v.length > 5 ? (_historyPart(v[5]) ?? 0) : 0;
+      String two(int n) => n.toString().padLeft(2, '0');
+      return '$y-${two(m)}-${two(d)} ${two(h)}:${two(min)}:${two(sec)}';
+    }
+  }
+  return storeHistoryChgDtFormat(v?.toString() ?? '');
+}
 
 /// [chgContentJson]은 [storeHistoryChgContentEncode]와 동일 규칙(또는 API 원본을 encode한 값).
 String storeHistoryDisplayFromEncoded(

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/core/theme/app_dimensions.dart';
 
 /// 관리 리스트의 테이블 헤더 셀. 빨강 배경 + 흰색 굵은 텍스트.
 class ErpTableHeaderCell extends StatelessWidget {
@@ -13,7 +14,10 @@ class ErpTableHeaderCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppDimensions.tableCellPaddingH,
+        vertical: AppDimensions.tableCellPaddingV,
+      ),
       child: Center(
         child: Text(
           text,
@@ -21,6 +25,7 @@ class ErpTableHeaderCell extends StatelessWidget {
             color: Colors.white,
             fontSize: 14,
             fontWeight: FontWeight.w600,
+            height: 1.2,
             fontFamilyFallback: AppTheme.koreanFontFallback,
           ),
         ),
@@ -53,7 +58,10 @@ class ErpTableBodyCell extends StatelessWidget {
         ? TextAlign.right
         : (center ? TextAlign.center : TextAlign.left);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppDimensions.tableCellPaddingH,
+        vertical: AppDimensions.tableCellPaddingV,
+      ),
       child: Align(
         alignment: alignRight
             ? Alignment.centerRight
@@ -62,6 +70,7 @@ class ErpTableBodyCell extends StatelessWidget {
           text,
           style: const TextStyle(
             fontSize: 14,
+            height: 1.2,
             color: Color(0xFF212529),
             fontFamilyFallback: AppTheme.koreanFontFallback,
           ),

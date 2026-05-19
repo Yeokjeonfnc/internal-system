@@ -11,6 +11,8 @@ public final class ActiveListQuery {
     public static final String MODE_BY_STORE = "BY_STORE";
     public static final String MODE_BY_CHK_YN = "BY_CHK_YN";
     public static final String MODE_BY_DRAFTER_MEMO = "BY_DRAFTER_MEMO";
+    /** 가맹점 지시사항 다이얼로그 — APPROVED + appr_notes + store_idx */
+    public static final String MODE_BY_STORE_APPR_MEMO = "BY_STORE_APPR_MEMO";
 
     private final String mode;
     private final String apprStatus;
@@ -44,6 +46,10 @@ public final class ActiveListQuery {
 
     public static ActiveListQuery byDrafterMemo(String svId) {
         return new ActiveListQuery(MODE_BY_DRAFTER_MEMO, null, null, null, svId);
+    }
+
+    public static ActiveListQuery byStoreApprMemo(int storeIdx) {
+        return new ActiveListQuery(MODE_BY_STORE_APPR_MEMO, null, storeIdx, null, null);
     }
 
     public String getMode() {

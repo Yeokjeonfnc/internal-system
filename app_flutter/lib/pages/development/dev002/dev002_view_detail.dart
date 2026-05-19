@@ -1321,10 +1321,15 @@ String _detailMoneyFieldInitialText({
 String _formatMoneyInput(Object? value) {
   final digits = value?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '';
   if (digits.isEmpty) return '0';
+
+  final n = int.tryParse(digits) ?? 0;
+  if (n == 0) return '0';
+
+  final raw = n.toString();
   final buffer = StringBuffer();
-  for (var i = 0; i < digits.length; i++) {
-    final tail = digits.length - i;
-    buffer.write(digits[i]);
+  for (var i = 0; i < raw.length; i++) {
+    final tail = raw.length - i;
+    buffer.write(raw[i]);
     if (tail > 1 && tail % 3 == 1) {
       buffer.write(',');
     }

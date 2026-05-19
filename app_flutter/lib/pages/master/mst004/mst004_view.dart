@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:app_flutter/core/api/common_code_api_service.dart';
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/menu/menu_access.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
@@ -409,17 +410,20 @@ Future<bool?> showMasterChecklistDialog(
   return showDialog<bool>(
     context: context,
     barrierColor: const Color(0x66000000),
-    builder: (dialogContext) => Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      child: _ChecklistCreateDialog(
+    builder: (dialogContext) {
+      final compact = useCompactErpLayout(dialogContext);
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.all(compact ? 12 : 20),
+        child: _ChecklistCreateDialog(
         brandOptions: brandOptions,
         checklistTypeOptions: checklistTypeOptions,
         initialBrandCd: initialBrandCd,
         initialChkType: initialChkType,
         item: item,
-      ),
-    ),
+        ),
+      );
+    },
   );
 }
 
@@ -561,90 +565,114 @@ class _ChecklistCreateDialogState extends State<_ChecklistCreateDialog> {
     );
   }
 
+  Widget _brandField() {
+    return _DialogField(
+      label: '브랜드',
+      requiredMark: true,
+      child: _DialogDropdown(
+        value: _brandCd,
+        options: widget.brandOptions,
+        decoration: _inputDeco(),
+        onChanged: (value) {
+          if (value != null) setState(() => _brandCd = value);
+        },
+      ),
+    );
+  }
+
+  Widget _typeField() {
+    return _DialogField(
+      label: '구분',
+      requiredMark: true,
+      child: _DialogDropdown(
+        value: _chkType,
+        options: widget.checklistTypeOptions,
+        decoration: _inputDeco(),
+        onChanged: (value) {
+          if (value != null) setState(() => _chkType = value);
+        },
+      ),
+    );
+  }
+
+  Widget _scoreField() {
+    return _DialogField(
+      label: '배점',
+      child: TextField(
+        controller: _scoreCtrl,
+        enabled: !_saving,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        style: kSearchFilterValueTextStyle,
+        decoration: _inputDeco(),
+      ),
+    );
+  }
+
+  Widget _useYnField() {
+    return _DialogField(
+      label: '사용여부',
+      requiredMark: true,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Checkbox(
+          value: _required,
+          materialTapTargetSize: MaterialTapTargetSize.padded,
+          visualDensity: VisualDensity.compact,
+          onChanged: (value) {
+            setState(() {
+              _required = value ?? false;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
     return ErpDialogFrame(
       title: widget.item == null ? '체크리스트 등록' : '체크리스트 수정',
-      maxWidth: 620,
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+      maxWidth: compact ? double.infinity : 620,
+      padding: EdgeInsets.fromLTRB(
+        compact ? 14 : 18,
+        14,
+        compact ? 14 : 18,
+        compact ? 14 : 18,
+      ),
       onClose: _saving ? null : () => Navigator.of(context).pop(),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _DialogField(
-                  label: '브랜드',
-                  requiredMark: true,
-                  child: _DialogDropdown(
-                    value: _brandCd,
-                    options: widget.brandOptions,
-                    decoration: _inputDeco(),
-                    onChanged: (value) {
-                      if (value != null) setState(() => _brandCd = value);
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: _DialogField(
-                  label: '구분',
-                  requiredMark: true,
-                  child: _DialogDropdown(
-                    value: _chkType,
-                    options: widget.checklistTypeOptions,
-                    decoration: _inputDeco(),
-                    onChanged: (value) {
-                      if (value != null) setState(() => _chkType = value);
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
+          if (compact) ...[
+            _brandField(),
+            const SizedBox(height: 12),
+            _typeField(),
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _brandField()),
+                const SizedBox(width: 14),
+                Expanded(child: _typeField()),
+              ],
+            ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 160,
-                child: _DialogField(
-                  label: '배점',
-                  child: TextField(
-                    controller: _scoreCtrl,
-                    enabled: !_saving,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    style: kSearchFilterValueTextStyle,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 140),
-              Expanded(
-                child: _DialogField(
-                  label: '사용여부',
-                  requiredMark: true,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Checkbox(
-                      value: _required,
-                      materialTapTargetSize: MaterialTapTargetSize.padded,
-                      visualDensity: VisualDensity.compact,
-                      onChanged: (value) {
-                        setState(() {
-                          _required = value ?? false;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          if (compact) ...[
+            _scoreField(),
+            const SizedBox(height: 12),
+            _useYnField(),
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: 160, child: _scoreField()),
+                const SizedBox(width: 24),
+                Expanded(child: _useYnField()),
+              ],
+            ),
           const SizedBox(height: 12),
           _DialogField(
             label: '체크항목',
@@ -657,36 +685,62 @@ class _ChecklistCreateDialogState extends State<_ChecklistCreateDialog> {
               decoration: _inputDeco(hint: '체크항목 내용을 입력하세요.'),
             ),
           ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              OutlinedButton(
-                onPressed: _saving ? null : _reset,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.accentRed,
-                  side: const BorderSide(color: AppTheme.accentRed),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
+          SizedBox(height: compact ? 14 : 18),
+          if (compact)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FilledButton(
+                  onPressed: _saving ? null : _save,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.accentRed,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
+                  child: Text(_saving ? '저장 중...' : '저장'),
                 ),
-                child: const Text('초기화'),
-              ),
-              const Spacer(),
-              FilledButton(
-                onPressed: _saving ? null : _save,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.accentRed,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 22,
-                    vertical: 12,
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: _saving ? null : _reset,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.accentRed,
+                    side: const BorderSide(color: AppTheme.accentRed),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
+                  child: const Text('초기화'),
                 ),
-                child: Text(_saving ? '저장 중...' : '저장'),
-              ),
-            ],
-          ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                OutlinedButton(
+                  onPressed: _saving ? null : _reset,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.accentRed,
+                    side: const BorderSide(color: AppTheme.accentRed),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text('초기화'),
+                ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: _saving ? null : _save,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.accentRed,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 22,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: Text(_saving ? '저장 중...' : '저장'),
+                ),
+              ],
+            ),
         ],
       ),
     );

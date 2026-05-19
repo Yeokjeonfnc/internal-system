@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
@@ -42,9 +43,10 @@ Future<ActivityApprovalLineResult?> showActivityApprovalLineDialog(
     context: context,
     barrierColor: const Color(0x66000000),
     builder: (ctx) {
+      final compact = useCompactErpLayout(ctx);
       return Dialog(
         backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        insetPadding: EdgeInsets.all(compact ? 12 : 20),
         child: _ApprovalLineDialog(
           initialNames: _padToSlots(initialNames),
           initialTitles: _padToSlots(initialTitles),
@@ -225,11 +227,12 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final h = MediaQuery.sizeOf(context).height * 0.86;
+    final compact = useCompactErpLayout(context);
+    final h = MediaQuery.sizeOf(context).height * (compact ? 0.92 : 0.86);
     return ConstrainedBox(
       constraints: BoxConstraints(
-        maxWidth: 1000,
-        maxHeight: h.clamp(420.0, 760.0),
+        maxWidth: compact ? double.infinity : 1000,
+        maxHeight: h.clamp(compact ? 360.0 : 420.0, compact ? 820.0 : 760.0),
       ),
       child: Material(
         color: FormStylePalette.panelBg,
@@ -264,19 +267,9 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: _OrgTreePanel(
-                          selectedDeptId: _selectedDeptId,
-                          onSelect: _onDeptSelect,
-                          departments: _departments,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _UserTablePanel(
+                  child: compact
+                      ? _UserTablePanel(
+                          compact: true,
                           users: _visibleUsers,
                           checked: _rowChecked,
                           onToggle: (id, v) {
@@ -288,10 +281,35 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
                               }
                             });
                           },
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: _OrgTreePanel(
+                                selectedDeptId: _selectedDeptId,
+                                onSelect: _onDeptSelect,
+                                departments: _departments,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _UserTablePanel(
+                                users: _visibleUsers,
+                                checked: _rowChecked,
+                                onToggle: (id, v) {
+                                  setState(() {
+                                    if (v) {
+                                      _rowChecked.add(id);
+                                    } else {
+                                      _rowChecked.remove(id);
+                                    }
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
             Padding(
@@ -317,36 +335,61 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  FilledButton(
-                    onPressed: _onApply,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.accentRed,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
+              child: compact
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FilledButton(
+                          onPressed: _onApply,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.accentRed,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text('결재라인 설정'),
+                        ),
+                        const SizedBox(height: 8),
+                        FilledButton(
+                          onPressed: _onReset,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.accentRed,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text('결재라인 초기화'),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        FilledButton(
+                          onPressed: _onApply,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.accentRed,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                          ),
+                          child: const Text('결재라인 설정'),
+                        ),
+                        const SizedBox(width: 10),
+                        FilledButton(
+                          onPressed: _onReset,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.accentRed,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                          ),
+                          child: const Text('결재라인 초기화'),
+                        ),
+                      ],
                     ),
-                    child: const Text('결재라인 설정'),
-                  ),
-                  const SizedBox(width: 10),
-                  FilledButton(
-                    onPressed: _onReset,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.accentRed,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: const Text('결재라인 초기화'),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
@@ -503,16 +546,18 @@ class _UserTablePanel extends StatelessWidget {
     required this.users,
     required this.checked,
     required this.onToggle,
+    this.compact = false,
   });
 
   final List<User> users;
   final Set<int> checked;
   final void Function(int id, bool isChecked) onToggle;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return ErpDataTable(
-      minWidth: 480,
+      minWidth: compact ? 300 : 480,
       tableBuilder: (context, width) {
         return Table(
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
@@ -543,8 +588,7 @@ class _UserTablePanel extends StatelessWidget {
                 children: [
                   _CheckboxTableCell(
                     isChecked: checked.contains(users[i].userIdx),
-                    onChanged: (v) =>
-                        onToggle(users[i].userIdx, v ?? false),
+                    onChanged: (v) => onToggle(users[i].userIdx, v ?? false),
                   ),
                   ErpTableBodyCell(users[i].department),
                   ErpTableBodyCell(users[i].positionNm, center: true),

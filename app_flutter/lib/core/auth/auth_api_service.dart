@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
@@ -22,6 +23,9 @@ class AuthApiService extends BaseRepository {
       if (response.statusCode == 200 && response.data != null) {
         return parseDataOrNull(response.data, AuthProfile.fromJson);
       }
+    } on DioException catch (e) {
+      debugPrint('로그인 에러: $e');
+      rethrow;
     } catch (e) {
       debugPrint('로그인 에러: $e');
     }

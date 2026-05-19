@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
+
 /// 한 행에 두 개의 필드 블록을 가로로 균등 배치하는 레이아웃.
 class FormRowTwo extends StatelessWidget {
   const FormRowTwo({
@@ -17,6 +19,16 @@ class FormRowTwo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (useCompactErpLayout(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          left,
+          SizedBox(height: spacing),
+          right,
+        ],
+      );
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -45,6 +57,18 @@ class FormRowThree extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (useCompactErpLayout(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          a,
+          SizedBox(height: spacing),
+          b,
+          SizedBox(height: spacing),
+          c,
+        ],
+      );
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

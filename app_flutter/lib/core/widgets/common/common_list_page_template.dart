@@ -1,10 +1,13 @@
 // 가맹점·물건 등 목록 화면의 공통 카드 레이아웃(칩·검색·테이블)이다.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
+import 'package:app_flutter/core/widgets/common/common_filter_side_drawer.dart';
 import 'package:app_flutter/core/menu/menu_access.dart';
 import 'package:app_flutter/core/widgets/common/common_register_button.dart';
 
@@ -25,7 +28,9 @@ class ListPageTemplate extends StatelessWidget {
     this.registerMenuCd,
     this.onRefresh,
     this.mainSearchFields,
+    this.filterSheetBuilder,
     this.belowMainSearch,
+    this.filterSheetTitle = '검색 조건',
   });
 
   /// 메인에 표시할 칩(비어 있으면 안내 문구만).
@@ -33,6 +38,10 @@ class ListPageTemplate extends StatelessWidget {
 
   /// 칩 행 아래·건수 행 위에 붙는 인라인 검색 영역(가맹점 목록 등).
   final Widget? mainSearchFields;
+
+  /// 모바일 필터 시트 본문. 지정 시 [ref.watch] 등으로 상태 변경 시 시트 UI가 갱신된다.
+  /// 미지정 시 [mainSearchFields] 스냅샷을 사용한다.
+  final WidgetBuilder? filterSheetBuilder;
 
   /// [mainSearchFields] 아래·조회 건수 텍스트 위에 넣는 보조 블록(집계 바 등).
   final Widget? belowMainSearch;
@@ -46,15 +55,21 @@ class ListPageTemplate extends StatelessWidget {
 
   final VoidCallback? onRefresh;
 
+  /// [showListFilterEndSheet] 제목(모바일·좁은 화면).
+  final String filterSheetTitle;
+
   @override
   Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
+    final hPad = compact ? 8.0 : AppDimensions.listScreenHPadding;
+
     return ColoredBox(
       color: AppTheme.appSurface,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppDimensions.listScreenHPadding,
+        padding: EdgeInsets.fromLTRB(
+          hPad,
           0,
-          AppDimensions.listScreenHPadding,
+          hPad,
           AppDimensions.listScreenBottomPadding,
         ),
         child: Center(
@@ -80,6 +95,44 @@ class ListPageTemplate extends StatelessWidget {
                           child: ActiveFilterChipsBar(chips: activeFilters),
                         ),
                         const SizedBox(width: 8),
+                        if (compact && mainSearchFields != null) ...[
+                          OutlinedButton.icon(
+                            onPressed: () => showListFilterEndSheet(
+                              context,
+                              title: filterSheetTitle,
+                              builder: (sheetCtx) => Consumer(
+                                builder: (context, ref, _) {
+                                  if (filterSheetBuilder != null) {
+                                    return filterSheetBuilder!(sheetCtx);
+                                  }
+                                  return mainSearchFields!;
+                                },
+                              ),
+                            ),
+                            icon: const Icon(Icons.tune_rounded, size: 18),
+                            label: Text(
+                              activeFilters.isEmpty
+                                  ? '검색·필터'
+                                  : '검색·필터 (${activeFilters.length})',
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.accentRed,
+                              side: const BorderSide(
+                                color: Color(0xFFE5E7EB),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                fontFamilyFallback: AppTheme.koreanFontFallback,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                         if (onRefresh != null) ...[
                           FilledButton.tonalIcon(
                             onPressed: onRefresh,
@@ -111,11 +164,11 @@ class ListPageTemplate extends StatelessWidget {
                         ],
                       ],
                     ),
-                    if (mainSearchFields != null) ...[
+                    if (!compact && mainSearchFields != null) ...[
                       const SizedBox(height: 12),
                       mainSearchFields!,
                     ],
-                    if (belowMainSearch != null) ...[
+                    if (!compact && belowMainSearch != null) ...[
                       const SizedBox(height: 12),
                       belowMainSearch!,
                     ],

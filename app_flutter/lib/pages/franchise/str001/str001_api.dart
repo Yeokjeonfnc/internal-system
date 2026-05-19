@@ -26,9 +26,25 @@ class StoreApiService extends BaseRepository {
   /// 모든 가맹점 목록 조회
   Future<List<Store>> getAllStores() async {
     try {
-      return await getDataList(StoreMstApiPaths.root, fromJson: Store.fromJson);
-    } catch (e) {
-      debugPrint('Error fetching stores: $e');
+      final maps = await getDataListMap(StoreMstApiPaths.root);
+      final out = <Store>[];
+      for (final m in maps) {
+        try {
+          out.add(Store.fromJson(m));
+        } catch (e, st) {
+          debugPrint(
+            'Store.fromJson skip storeIdx=${m['storeIdx']}: $e\n$st',
+          );
+        }
+      }
+      if (out.length != maps.length) {
+        debugPrint(
+          'getAllStores: parsed ${out.length} of ${maps.length} rows',
+        );
+      }
+      return out;
+    } catch (e, st) {
+      debugPrint('Error fetching stores: $e\n$st');
       return [];
     }
   }
@@ -204,13 +220,44 @@ class StoreApiService extends BaseRepository {
   /// 가맹점 히스토리 조회
   Future<List<HistoryEntry>> getStoreHistories(int storeIdx) async {
     try {
-      return await getDataList(
-        StoreMstApiPaths.histories(storeIdx),
-        fromJson: HistoryEntry.fromJson,
-      );
+      final r = await client.get(StoreMstApiPaths.histories(storeIdx));
+      if (r.statusCode != 200 || r.data == null) {
+        debugPrint(
+          'getStoreHistories: HTTP ${r.statusCode} storeIdx=$storeIdx',
+        );
+        return const [];
+      }
+      final root = responseMap(r);
+      if (root['success'] != true) {
+        final msg = envelopeMessage(r.data) ?? '히스토리 조회에 실패했습니다.';
+        throw StateError(msg);
+      }
+      final data = root['data'];
+      if (data is! List) {
+        debugPrint('getStoreHistories: data is not List ($data)');
+        return const [];
+      }
+
+      final entries = <HistoryEntry>[];
+      for (final raw in data) {
+        if (raw is! Map) continue;
+        try {
+          entries.add(
+            HistoryEntry.fromJson(Map<String, dynamic>.from(raw)),
+          );
+        } catch (e) {
+          debugPrint('히스토리 행 파싱 실패: $e / raw=$raw');
+        }
+      }
+      if (kDebugMode) {
+        debugPrint(
+          'getStoreHistories: storeIdx=$storeIdx raw=${data.length} parsed=${entries.length}',
+        );
+      }
+      return entries;
     } catch (e) {
       debugPrint('Error fetching store histories: $e');
+      rethrow;
     }
-    return [];
   }
 }

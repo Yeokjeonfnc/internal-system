@@ -2,17 +2,22 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
+import 'package:app_flutter/core/widgets/common/common_loading_indicator.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
+import 'package:app_flutter/pages/active/act002/act002_api.dart';
+import 'package:app_flutter/pages/active/act002/act002_model.dart';
 
 /// [지시사항 보기] — 가맹점 등록·상세 등에서 공통 사용.
 Future<void> showActivityInstructionsDialog(
   BuildContext context, {
+  required int storeIdx,
   required String brandNm,
   required String storeNm,
 }) {
@@ -20,10 +25,12 @@ Future<void> showActivityInstructionsDialog(
     context: context,
     barrierColor: const Color(0x66000000),
     builder: (ctx) {
+      final compact = useCompactErpLayout(ctx);
       return Dialog(
         backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        insetPadding: EdgeInsets.all(compact ? 12 : 24),
         child: _InstructionsDialog(
+          storeIdx: storeIdx,
           initialBrand: brandNm,
           initialStoreName: storeNm,
         ),
@@ -32,35 +39,39 @@ Future<void> showActivityInstructionsDialog(
   );
 }
 
-class _InstructionRow {
-  const _InstructionRow(
-    this.activity,
-    this.date,
-    this.memo,
-    this.supervisor,
-    this.drafter,
-    this.confirmed,
-    this.checklist,
-  );
+/// `yyyy-MM-dd` 가 잘리지 않도록 활동일자 열 고정.
+const double _kInstructionActDateColW = 112;
+const double _kInstructionActTypeColW = 72;
 
-  final String activity;
-  final String date;
-  final String memo;
-  final String supervisor;
-  final String drafter;
-  final String confirmed;
-  final String checklist;
+Map<int, TableColumnWidth> _instructionTableColumnWidths() {
+  return {
+    0: const FixedColumnWidth(_kInstructionActTypeColW),
+    1: const FixedColumnWidth(_kInstructionActDateColW),
+    2: const FlexColumnWidth(2.2),
+    3: const FixedColumnWidth(96),
+    4: const FixedColumnWidth(72),
+    5: const FixedColumnWidth(84),
+    6: const FixedColumnWidth(72),
+  };
 }
 
-/// API 연동 전: 빈 목록(스크린샷과 동일하게 본문 안내).
-const _instructionRows = <_InstructionRow>[];
+double get _instructionTableMinWidth =>
+    _kInstructionActTypeColW +
+    _kInstructionActDateColW +
+    96 +
+    72 +
+    84 +
+    72 +
+    240;
 
 class _InstructionsDialog extends StatefulWidget {
   const _InstructionsDialog({
+    required this.storeIdx,
     required this.initialBrand,
     required this.initialStoreName,
   });
 
+  final int storeIdx;
   final String initialBrand;
   final String initialStoreName;
 
@@ -91,12 +102,18 @@ class ReadonlyValue extends StatelessWidget {
 class _InstructionsDialogState extends State<_InstructionsDialog> {
   late final TextEditingController _brand;
   late final TextEditingController _store;
+  late final Future<List<ActivityRow>> _future;
 
   @override
   void initState() {
     super.initState();
     _brand = TextEditingController(text: widget.initialBrand);
     _store = TextEditingController(text: widget.initialStoreName);
+    _future = _load();
+  }
+
+  Future<List<ActivityRow>> _load() async {
+    return Act002Api().fetchRowsForStoreInstructions(widget.storeIdx);
   }
 
   @override
@@ -106,14 +123,42 @@ class _InstructionsDialogState extends State<_InstructionsDialog> {
     super.dispose();
   }
 
-  int get _totalCount => _instructionRows.length;
+  static String _cell(String value) {
+    final text = value.trim();
+    return text.isEmpty ? '-' : text;
+  }
+
+  static String _ymd(String value) {
+    final t = _cell(value);
+    if (t == '-') return t;
+    return t.split('T').first;
+  }
+
+  static String _chkLabel(String value) {
+    final str = value.trim().toUpperCase();
+    if (str.isEmpty) return '—';
+    if (str == 'Y') return '작성';
+    if (str == 'N') return '미작성';
+    return str;
+  }
+
+  static String _apprStatusLabel(String value) {
+    return switch (value.trim().toUpperCase()) {
+      'PENDING' => '결재대기',
+      'APPROVED' => '결재완료',
+      'DRAFT' => '임시저장',
+      '' => '-',
+      _ => value.trim(),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
     final h = MediaQuery.sizeOf(context).height * 0.82;
     return ConstrainedBox(
       constraints: BoxConstraints(
-        maxWidth: 1100,
+        maxWidth: compact ? double.infinity : 1100,
         maxHeight: h.clamp(400.0, 720.0),
       ),
       child: Material(
@@ -128,123 +173,142 @@ class _InstructionsDialogState extends State<_InstructionsDialog> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(
-                    width: 48,
-                    child: Text(
-                      '브랜드',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: FormStylePalette.textPrimary,
-                        fontFamilyFallback: AppTheme.koreanFontFallback,
+              child: Builder(
+                builder: (context) {
+                  final brandVal =
+                      _brand.text.trim().isEmpty ? '-' : _brand.text;
+                  final storeVal =
+                      _store.text.trim().isEmpty ? '-' : _store.text;
+                  if (compact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _instructionReadonlyField(context, '브랜드', brandVal),
+                        const SizedBox(height: 8),
+                        _instructionReadonlyField(
+                          context,
+                          '가맹점명',
+                          storeVal,
+                        ),
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const SizedBox(
+                        width: 48,
+                        child: Text(
+                          '브랜드',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: FormStylePalette.textPrimary,
+                            fontFamilyFallback: AppTheme.koreanFontFallback,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  Expanded(
-                    child: ReadonlyValue(
-                      _brand.text.trim().isEmpty ? '-' : _brand.text,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const SizedBox(
-                    width: 64,
-                    child: Text(
-                      '가맹점명',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: FormStylePalette.textPrimary,
-                        fontFamilyFallback: AppTheme.koreanFontFallback,
+                      Expanded(child: ReadonlyValue(brandVal)),
+                      const SizedBox(width: 12),
+                      const SizedBox(
+                        width: 64,
+                        child: Text(
+                          '가맹점명',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: FormStylePalette.textPrimary,
+                            fontFamilyFallback: AppTheme.koreanFontFallback,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: ReadonlyValue(
-                      _store.text.trim().isEmpty ? '-' : _store.text,
-                    ),
-                  ),
-                ],
+                      Expanded(flex: 2, child: ReadonlyValue(storeVal)),
+                    ],
+                  );
+                },
               ),
             ),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: _totalCount == 0
-                    ? const _InstructionsEmptyTable()
-                    : ErpDataTable(
-                        minWidth: 1050,
-                        tableBuilder: (context, width) {
-                          return Table(
-                            defaultVerticalAlignment:
-                                TableCellVerticalAlignment.middle,
-                            border: kErpTableInnerGridBorder,
-                            columnWidths: {
-                              0: const FlexColumnWidth(0.3),
-                              1: const FlexColumnWidth(0.4),
-                              2: const FlexColumnWidth(1.2),
-                              3: const FlexColumnWidth(0.45),
-                              4: const FlexColumnWidth(0.4),
-                              5: const FlexColumnWidth(0.35),
-                              6: const FlexColumnWidth(0.4),
-                            },
-                            children: [
+                child: FutureBuilder<List<ActivityRow>>(
+                  future: _future,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const CommonLoadingIndicator();
+                    }
+                    final rows = snapshot.data ?? const <ActivityRow>[];
+                    if (rows.isEmpty) {
+                      return const _InstructionsEmptyTable();
+                    }
+                    return ErpDataTable(
+                      minWidth: compact
+                          ? _instructionTableMinWidth
+                          : 1050,
+                      tableBuilder: (context, width) {
+                        return Table(
+                          defaultVerticalAlignment:
+                              TableCellVerticalAlignment.middle,
+                          border: kErpTableInnerGridBorder,
+                          columnWidths: _instructionTableColumnWidths(),
+                          children: [
+                            const TableRow(
+                              decoration: BoxDecoration(
+                                color: AppTheme.accentRed,
+                              ),
+                              children: [
+                                ErpTableHeaderCell('활동구분'),
+                                ErpTableHeaderCell('활동일자'),
+                                ErpTableHeaderCell('지시사항(결재특이사항)'),
+                                ErpTableHeaderCell('담당수퍼바이저'),
+                                ErpTableHeaderCell('기안자'),
+                                ErpTableHeaderCell('결재상태'),
+                                ErpTableHeaderCell('체크리스트'),
+                              ],
+                            ),
+                            for (var i = 0; i < rows.length; i++)
                               TableRow(
-                                decoration: const BoxDecoration(
-                                  color: AppTheme.accentRed,
+                                decoration: BoxDecoration(
+                                  color: i.isEven
+                                      ? AppTheme.tableRowOdd
+                                      : AppTheme.tableRowEven,
                                 ),
-                                children: const [
-                                  ErpTableHeaderCell('활동구분'),
-                                  ErpTableHeaderCell('활동일자'),
-                                  ErpTableHeaderCell('주요상담내용'),
-                                  ErpTableHeaderCell('담당수퍼바이저'),
-                                  ErpTableHeaderCell('기안자'),
-                                  ErpTableHeaderCell('확인여부'),
-                                  ErpTableHeaderCell('체크리스트'),
+                                children: [
+                                  ErpTableBodyCell(
+                                    _cell(rows[i].actType),
+                                    center: true,
+                                  ),
+                                  ErpTableBodyCell(
+                                    _ymd(rows[i].actDt),
+                                    center: true,
+                                  ),
+                                  ErpTableBodyCell(_cell(rows[i].apprNotes)),
+                                  ErpTableBodyCell(
+                                    _cell(rows[i].ssvNm.isNotEmpty
+                                        ? rows[i].ssvNm
+                                        : rows[i].svNm),
+                                    center: true,
+                                  ),
+                                  ErpTableBodyCell(
+                                    _cell(rows[i].svNm),
+                                    center: true,
+                                  ),
+                                  ErpTableBodyCell(
+                                    _apprStatusLabel(rows[i].apprStatus),
+                                    center: true,
+                                  ),
+                                  ErpTableBodyCell(
+                                    _chkLabel(rows[i].chkYn),
+                                    center: true,
+                                  ),
                                 ],
                               ),
-                              for (var i = 0; i < _instructionRows.length; i++)
-                                TableRow(
-                                  decoration: BoxDecoration(
-                                    color: i.isEven
-                                        ? AppTheme.tableRowOdd
-                                        : AppTheme.tableRowEven,
-                                  ),
-                                  children: [
-                                    ErpTableBodyCell(
-                                      _instructionRows[i].activity,
-                                      center: true,
-                                    ),
-                                    ErpTableBodyCell(
-                                      _instructionRows[i].date,
-                                      center: true,
-                                    ),
-                                    ErpTableBodyCell(_instructionRows[i].memo),
-                                    ErpTableBodyCell(
-                                      _instructionRows[i].supervisor,
-                                      center: true,
-                                    ),
-                                    ErpTableBodyCell(
-                                      _instructionRows[i].drafter,
-                                      center: true,
-                                    ),
-                                    ErpTableBodyCell(
-                                      _instructionRows[i].confirmed,
-                                      center: true,
-                                    ),
-                                    ErpTableBodyCell(
-                                      _instructionRows[i].checklist,
-                                      center: true,
-                                    ),
-                                  ],
-                                ),
-                            ],
-                          );
-                        },
-                      ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ),
           ],
@@ -254,40 +318,78 @@ class _InstructionsDialogState extends State<_InstructionsDialog> {
   }
 }
 
+Widget _instructionReadonlyField(
+  BuildContext context,
+  String label,
+  String value,
+) {
+  final compact = useCompactErpLayout(context);
+  return DecoratedBox(
+    decoration: BoxDecoration(
+      color: FormStylePalette.inputBg,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: FormStylePalette.panelBorder),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$label ',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: FormStylePalette.textPrimary,
+              fontFamilyFallback: AppTheme.koreanFontFallback,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: compact ? 3 : 1,
+              overflow: compact ? TextOverflow.visible : TextOverflow.ellipsis,
+              softWrap: compact,
+              style: const TextStyle(
+                fontSize: 14,
+                color: FormStylePalette.textPrimary,
+                fontFamilyFallback: AppTheme.koreanFontFallback,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 /// 헤더만 있는 표 + 본문 안내(데이터 없음) — [ErpDataTable] 톤 맞춤.
 class _InstructionsEmptyTable extends StatelessWidget {
   const _InstructionsEmptyTable();
 
   @override
   Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ErpDataTable(
-          minWidth: 1050,
+          minWidth: compact ? _instructionTableMinWidth : 1050,
           tableBuilder: (context, width) {
             return Table(
               defaultVerticalAlignment: TableCellVerticalAlignment.middle,
               border: kErpTableInnerGridBorder,
-              columnWidths: {
-                0: const FlexColumnWidth(0.3),
-                1: const FlexColumnWidth(0.4),
-                2: const FlexColumnWidth(1.2),
-                3: const FlexColumnWidth(0.45),
-                4: const FlexColumnWidth(0.4),
-                5: const FlexColumnWidth(0.35),
-                6: const FlexColumnWidth(0.4),
-              },
+              columnWidths: _instructionTableColumnWidths(),
               children: const [
                 TableRow(
                   decoration: BoxDecoration(color: AppTheme.accentRed),
                   children: [
                     ErpTableHeaderCell('활동구분'),
                     ErpTableHeaderCell('활동일자'),
-                    ErpTableHeaderCell('주요상담내용'),
+                    ErpTableHeaderCell('지시사항(결재특이사항)'),
                     ErpTableHeaderCell('담당수퍼바이저'),
                     ErpTableHeaderCell('기안자'),
-                    ErpTableHeaderCell('확인여부'),
+                    ErpTableHeaderCell('결재상태'),
                     ErpTableHeaderCell('체크리스트'),
                   ],
                 ),
@@ -307,7 +409,7 @@ class _InstructionsEmptyTable extends StatelessWidget {
             ),
             child: const Center(
               child: Text(
-                '조회된 데이터가 없습니다.',
+                '조회된 지시사항이 없습니다.',
                 style: TextStyle(
                   fontSize: 14,
                   color: FormStylePalette.textSecondary,

@@ -76,7 +76,7 @@ class DashboardScreen extends ConsumerWidget {
                 final statCards = [
                   _StatAccentCard(
                     value: '${data.recentNotifs.length} 건',
-                    label: '결재 대기 알림',
+                    label: '결재 알림',
                     sublabel: '',
                     background: _DashPalette.coral,
                     foreground: Colors.white,

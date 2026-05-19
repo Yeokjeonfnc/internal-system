@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart' as provider;
 
 import 'package:app_flutter/core/auth/auth_provider.dart';
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/menu/menu_permission.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
@@ -209,8 +210,27 @@ class _MenuPermissionManagementViewState
     });
   }
 
+  Widget _buildMainPanels(BuildContext context) {
+    final compact = useCompactErpLayout(context);
+    if (!compact) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(width: 280, child: _buildUserPicker()),
+          const SizedBox(width: 16),
+          Expanded(child: _buildPermissionMatrix(compact: false)),
+        ],
+      );
+    }
+    if (_selectedUserIdx == null) {
+      return _buildUserPicker();
+    }
+    return _buildPermissionMatrix(compact: true);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
     return ColoredBox(
       color: AppTheme.appSurface,
       child: Align(
@@ -229,10 +249,10 @@ class _MenuPermissionManagementViewState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
+                Text(
                   '메뉴권한 관리',
                   style: TextStyle(
-                    fontSize: 25,
+                    fontSize: compact ? 20 : 25,
                     fontWeight: FontWeight.w900,
                     color: FormStylePalette.textPrimary,
                     fontFamilyFallback: AppTheme.koreanFontFallback,
@@ -260,16 +280,7 @@ class _MenuPermissionManagementViewState
                       ),
                     ),
                   ),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(width: 280, child: _buildUserPicker()),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildPermissionMatrix()),
-                    ],
-                  ),
-                ),
+                Expanded(child: _buildMainPanels(context)),
               ],
             ),
           ),
@@ -425,7 +436,34 @@ class _MenuPermissionManagementViewState
     );
   }
 
-  Widget _buildPermissionMatrix() {
+  Widget _buildPermissionMatrix({required bool compact}) {
+    final bulkActions = <Widget>[
+      if (_selectedUserIdx != null && !_loadingPerms) ...[
+        _bulkPermButton(
+          label: '모두 선택',
+          enabled: !_saving,
+          onPressed: () => _setAllPermissions(true),
+        ),
+        _bulkPermButton(
+          label: '모두 취소',
+          enabled: !_saving,
+          onPressed: () => _setAllPermissions(false),
+        ),
+      ],
+      FilledButton(
+        onPressed: _selectedUserIdx == null || _saving || _loadingPerms
+            ? null
+            : _save,
+        child: _saving
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Text('저장'),
+      ),
+    ];
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -435,53 +473,115 @@ class _MenuPermissionManagementViewState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (compact) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 8, 8, 0),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: '사원 다시 선택',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () {
+                      setState(() {
+                        _selectedUserIdx = null;
+                        _rows = [];
+                      });
+                    },
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                  ),
+                  Expanded(
+                    child: _selectedUser == null
+                        ? const SizedBox.shrink()
+                        : _SelectedUserChip(
+                            user: _selectedUser!,
+                            onClear: () {
+                              setState(() {
+                                _selectedUserIdx = null;
+                                _rows = [];
+                              });
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    '메뉴별 권한',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 20,
-                      fontFamilyFallback: AppTheme.koreanFontFallback,
-                    ),
+            child: compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        '메뉴별 권한',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: compact ? 16 : 20,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.end,
+                        children: bulkActions,
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '메뉴별 권한',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 20,
+                            fontFamilyFallback: AppTheme.koreanFontFallback,
+                          ),
+                        ),
+                      ),
+                      if (_selectedUserIdx != null && !_loadingPerms) ...[
+                        _bulkPermButton(
+                          label: '모두 선택',
+                          enabled: !_saving,
+                          onPressed: () => _setAllPermissions(true),
+                        ),
+                        const SizedBox(width: 8),
+                        _bulkPermButton(
+                          label: '모두 취소',
+                          enabled: !_saving,
+                          onPressed: () => _setAllPermissions(false),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      FilledButton(
+                        onPressed:
+                            _selectedUserIdx == null || _saving || _loadingPerms
+                            ? null
+                            : _save,
+                        child: _saving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('저장'),
+                      ),
+                    ],
                   ),
-                ),
-                if (_selectedUserIdx != null && !_loadingPerms) ...[
-                  _bulkPermButton(
-                    label: '모두 선택',
-                    enabled: !_saving,
-                    onPressed: () => _setAllPermissions(true),
-                  ),
-                  const SizedBox(width: 8),
-                  _bulkPermButton(
-                    label: '모두 취소',
-                    enabled: !_saving,
-                    onPressed: () => _setAllPermissions(false),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                FilledButton(
-                  onPressed:
-                      _selectedUserIdx == null || _saving || _loadingPerms
-                      ? null
-                      : _save,
-                  child: _saving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('저장'),
-                ),
-              ],
-            ),
           ),
           const SizedBox(height: 8),
           if (_selectedUserIdx == null)
-            const Expanded(child: Center(child: Text('왼쪽에서 사원을 검색해 선택하세요.')))
+            Expanded(
+              child: Center(
+                child: Text(
+                  compact
+                      ? '사원을 검색해 선택하세요.'
+                      : '왼쪽에서 사원을 검색해 선택하세요.',
+                ),
+              ),
+            )
           else if (_loadingPerms)
             const Expanded(child: Center(child: CircularProgressIndicator()))
           else
@@ -489,7 +589,7 @@ class _MenuPermissionManagementViewState
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                 child: ErpDataTable(
-                  minWidth: 720,
+                  minWidth: compact ? 520 : 720,
                   tableBuilder: (context, width) => _PermissionTable(
                     rows: _rows,
                     onChanged: _setFlag,

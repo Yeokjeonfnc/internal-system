@@ -8,6 +8,9 @@ class AppDimensions {
   /// 본문 컨테이너(카드) 최대 너비. 너무 넓은 모니터에서도 가독성 유지.
   static const double contentMaxWidth = 1680;
 
+  /// 이보다 좁으면 사이드바를 Drawer 로 숨기고 본문 전체 폭을 쓴다.
+  static const double shellCompactMaxWidth = 840;
+
   /// 관리 리스트 화면 바깥 여백.
   static const double listScreenHPadding = 18;
   static const double listScreenBottomPadding = 20;
@@ -26,4 +29,8 @@ class AppDimensions {
   /// 카드/테이블 모서리 둥글기.
   static const double cardRadius = 10;
   static const double tableRadius = 8;
+
+  /// ERP 목록 테이블 셀 안쪽 여백.
+  static const double tableCellPaddingH = 2;
+  static const double tableCellPaddingV = 6;
 }

@@ -1,8 +1,11 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:app_flutter/core/api/api_client.dart';
 import 'package:app_flutter/core/auth/auth_api_service.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
@@ -88,6 +91,20 @@ class _LoginViewState extends State<LoginView> {
       } else {
         _showMessage('아이디 또는 비밀번호가 일치하지 않습니다.');
       }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      final isConnection = e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout;
+      final baseHint = kDebugMode
+          ? '\n(${ApiClient.resolveBaseUrl()})'
+          : '';
+      _showMessage(
+        isConnection
+            ? '서버에 연결할 수 없습니다.\nPC에서 백엔드를 실행했는지 확인하세요.$baseHint'
+            : '로그인 중 오류가 발생했습니다.',
+      );
     } catch (e) {
       if (mounted) {
         _showMessage('로그인 중 오류가 발생했습니다.');
@@ -132,11 +149,12 @@ class _LoginViewState extends State<LoginView> {
                   ),
                   elevation: 0,
                 ),
-                child: Text(
+                child: const Text(
                   '확인',
-                  style: GoogleFonts.notoSansKr(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -367,11 +385,12 @@ class _LoginViewState extends State<LoginView> {
                                 ),
                               ),
                             )
-                          : Text(
+                          : const Text(
                               '로그인',
-                              style: GoogleFonts.notoSansKr(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
+                                color: Colors.white,
                               ),
                             ),
                     ),
