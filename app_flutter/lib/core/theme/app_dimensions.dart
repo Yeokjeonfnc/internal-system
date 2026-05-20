@@ -31,6 +31,6 @@ class AppDimensions {
   static const double tableRadius = 8;
 
   /// ERP 목록 테이블 셀 안쪽 여백.
-  static const double tableCellPaddingH = 2;
+  static const double tableCellPaddingH = 5;
   static const double tableCellPaddingV = 6;
 }

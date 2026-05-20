@@ -262,11 +262,11 @@ class _DepartmentViewState extends State<DepartmentView> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        RegisterButton(
-                          onPressed: () {
-                            _showSnackBar('부서 등록 화면은 추후 연동 예정입니다.');
-                          },
-                        ),
+                        // RegisterButton(
+                        //   onPressed: () {
+                        //     _showSnackBar('부서 등록 화면은 추후 연동 예정입니다.');
+                        //   },
+                        // ),
                       ],
                     ),
                     const SizedBox(height: 6),
