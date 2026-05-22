@@ -102,3 +102,119 @@ class _ErpDataTableState extends State<ErpDataTable> {
     );
   }
 }
+
+const TableBorder _kErpVirtualDataTableRowBorder = TableBorder(
+  verticalInside: BorderSide(color: Color(0xFFE2E5EB), width: 1),
+  bottom: BorderSide(color: Color(0xFFE2E5EB), width: 1),
+);
+
+class ErpVirtualDataTable extends StatefulWidget {
+  const ErpVirtualDataTable({
+    super.key,
+    required this.columnWidths,
+    required this.headerRow,
+    required this.rowCount,
+    required this.rowBuilder,
+    this.minWidth = AppDimensions.tableMinWidthDefault,
+  });
+
+  final Map<int, TableColumnWidth> columnWidths;
+  final TableRow headerRow;
+  final int rowCount;
+  final TableRow Function(BuildContext context, int index) rowBuilder;
+  final double minWidth;
+
+  @override
+  State<ErpVirtualDataTable> createState() => _ErpVirtualDataTableState();
+}
+
+class _ErpVirtualDataTableState extends State<ErpVirtualDataTable> {
+  final ScrollController _horizontalController = ScrollController();
+  final ScrollController _verticalController = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontalController.dispose();
+    _verticalController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppDimensions.tableRadius),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: const Border(
+            left: BorderSide(color: Color(0xFFE2E5EB)),
+            right: BorderSide(color: Color(0xFFE2E5EB)),
+            bottom: BorderSide(color: Color(0xFFE2E5EB)),
+          ),
+          borderRadius: BorderRadius.circular(AppDimensions.tableRadius),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxW = constraints.maxWidth;
+            final viewportW = maxW.isFinite ? maxW : widget.minWidth;
+            final width = viewportW > widget.minWidth
+                ? viewportW
+                : widget.minWidth;
+
+            return Scrollbar(
+              controller: _horizontalController,
+              thumbVisibility: true,
+              trackVisibility: true,
+              interactive: true,
+              notificationPredicate: (notification) =>
+                  notification.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
+                controller: _horizontalController,
+                scrollDirection: Axis.horizontal,
+                primary: false,
+                child: SizedBox(
+                  width: width,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Table(
+                        defaultVerticalAlignment:
+                            TableCellVerticalAlignment.middle,
+                        border: _kErpVirtualDataTableRowBorder,
+                        columnWidths: widget.columnWidths,
+                        children: [widget.headerRow],
+                      ),
+                      Expanded(
+                        child: Scrollbar(
+                          controller: _verticalController,
+                          thumbVisibility: true,
+                          trackVisibility: true,
+                          interactive: true,
+                          notificationPredicate: (notification) =>
+                              notification.metrics.axis == Axis.vertical,
+                          child: ListView.builder(
+                            controller: _verticalController,
+                            primary: false,
+                            itemCount: widget.rowCount,
+                            itemBuilder: (context, index) {
+                              return Table(
+                                defaultVerticalAlignment:
+                                    TableCellVerticalAlignment.middle,
+                                border: _kErpVirtualDataTableRowBorder,
+                                columnWidths: widget.columnWidths,
+                                children: [widget.rowBuilder(context, index)],
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}

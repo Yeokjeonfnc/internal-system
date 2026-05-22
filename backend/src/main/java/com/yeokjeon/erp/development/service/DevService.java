@@ -11,6 +11,8 @@ import com.yeokjeon.erp.development.mapper.DevMstMapper;
 import com.yeokjeon.erp.development.repository.PartnerRepository;
 import com.yeokjeon.erp.development.repository.PropertyRepository;
 import com.yeokjeon.erp.exception.ResourceNotFoundException;
+import com.yeokjeon.erp.franchise.entity.Store;
+import com.yeokjeon.erp.franchise.repository.StoreRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,9 +30,11 @@ public class DevService {
 
     /** DB/API 문자열 — 앱 [PartnerStatus.franchisee]·한글 라벨 `가맹점사업자`와 동일. */
     public static final String PARTNER_STATUS_FRANCHISEE = "가맹점사업자";
+    private static final int STORE_NOTES_MAX_LENGTH = 500;
 
     private final PartnerRepository partnerRepository;
     private final PropertyRepository propertyRepository;
+    private final StoreRepository storeRepository;
     private final DevMstMapper devMstMapper;
     private final AddressGeocodingService addressGeocodingService;
 
@@ -192,6 +196,7 @@ public class DevService {
                 .build();
         applyCoordinates(property, body, true);
         Property saved = propertyRepository.save(property);
+        createLinkedStoreFromProperty(saved);
         log.info("물건 생성 완료: {}", saved.getPropIdx());
         return PropertyMstDto.fromEntity(saved);
     }
@@ -335,5 +340,51 @@ public class DevService {
         }
         String t = s.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    private void createLinkedStoreFromProperty(Property property) {
+        Integer propIdx = property.getPropIdx();
+        if (propIdx == null || storeRepository.findByPropIdx(propIdx).isPresent()) {
+            return;
+        }
+
+        Store store = Store.builder()
+                .storeNm(property.getPropNm())
+                .zipCd(property.getZipCd())
+                .address(property.getAddress())
+                .adressDetail(property.getAddressDetail())
+                .latitude(property.getLatitude())
+                .longitude(property.getLongitude())
+                .regionCd(property.getRegion())
+                .storeStatus("new")
+                .contArea(property.getContArea())
+                .realArea(property.getRealArea())
+                .floor(property.getFloor())
+                .rentDeposit(toInteger(property.getRentDeposit(), "rentDeposit"))
+                .monthlyRent(toInteger(property.getMonthlyRent(), "monthlyRent"))
+                .premiumFee(toInteger(property.getPremiumFee(), "premiumFee"))
+                .notes(trimToMax(property.getPropNotes(), STORE_NOTES_MAX_LENGTH))
+                .propIdx(propIdx)
+                .build();
+
+        Store savedStore = storeRepository.save(store);
+        log.info("물건 생성 후 가맹점 연동 완료: propIdx={}, storeIdx={}", propIdx, savedStore.getStoreIdx());
+    }
+
+    private static Integer toInteger(Long value, String fieldName) {
+        if (value == null) {
+            return null;
+        }
+        if (value > Integer.MAX_VALUE || value < Integer.MIN_VALUE) {
+            throw new IllegalArgumentException(fieldName + " value is out of integer range.");
+        }
+        return value.intValue();
+    }
+
+    private static String trimToMax(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 }

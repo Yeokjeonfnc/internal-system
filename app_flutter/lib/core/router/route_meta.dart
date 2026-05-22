@@ -28,6 +28,9 @@ RouteMeta resolveRouteMeta(String path) {
   if (path == AppRoutes.salesAreas) {
     return const RouteMeta(title: '영업지역 관리', parentPath: AppRoutes.dashboard);
   }
+  if (path == AppRoutes.salesAreaSearch) {
+    return const RouteMeta(title: '영업지역 검색', parentPath: AppRoutes.salesAreas);
+  }
   if (path.startsWith('${AppRoutes.salesAreas}/register/')) {
     return const RouteMeta(title: '영업지역 등록', parentPath: AppRoutes.salesAreas);
   }

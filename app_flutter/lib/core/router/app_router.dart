@@ -25,6 +25,7 @@ import 'package:app_flutter/pages/development/dev001/dev001_view_detail.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_view.dart';
 import 'package:app_flutter/pages/development/dev003/dev003_view.dart';
 import 'package:app_flutter/pages/development/dev003/dev003_view_register.dart';
+import 'package:app_flutter/pages/development/dev003/dev003_search_view.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_view_detail_tabs.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_view.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_view_register.dart';
@@ -53,6 +54,7 @@ class AppRoutes {
       '${PropertyMstApiPaths.root}/:propertyNo';
   static const String activities = ActiveMstApiPaths.root;
   static const String salesAreas = '/sales-areas';
+  static const String salesAreaSearch = '$salesAreas/search';
 
   /// SPA 전용 — REST `/users` 등과 경로가 다름.
   static const String master = '/master';
@@ -89,6 +91,7 @@ class AppRouteNames {
   static const String propertyDetail = 'propertyDetail';
   static const String activities = 'activities';
   static const String salesAreas = 'salesAreas';
+  static const String salesAreaSearch = 'salesAreaSearch';
   static const String salesAreaRegister = 'salesAreaRegister';
   static const String masterUsers = 'masterUsers';
   static const String masterUsersRegister = 'masterUsersRegister';
@@ -255,6 +258,7 @@ List<RouteBase> _shellChildRoutes() {
   };
   const salesAreaNested = {
     AppRouteNames.salesAreas,
+    AppRouteNames.salesAreaSearch,
     AppRouteNames.salesAreaRegister,
   };
   return [
@@ -294,6 +298,12 @@ List<RouteBase> _shellChildRoutes() {
       pageBuilder: (context, state) =>
           const NoTransitionPage(child: SalesAreaListView()),
       routes: [
+        GoRoute(
+          path: 'search',
+          name: AppRouteNames.salesAreaSearch,
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: SalesAreaSearchView()),
+        ),
         GoRoute(
           path: 'register/:rowId',
           name: AppRouteNames.salesAreaRegister,

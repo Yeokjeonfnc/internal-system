@@ -295,112 +295,89 @@ class _PropertyTable extends ConsumerWidget {
         ref.watch(propertyCodeOptionsProvider(20)).value ??
         const <CodeOption>[];
 
-    return ErpDataTable(
+    return ErpVirtualDataTable(
       minWidth: 2200,
-      tableBuilder: (context, _) => Table(
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        border: kErpTableInnerGridBorder,
-        columnWidths: const {
-          0: FixedColumnWidth(110),
-          1: FlexColumnWidth(1.35),
-          2: FixedColumnWidth(92),
-          3: FixedColumnWidth(110),
-          4: FixedColumnWidth(100),
-          5: FlexColumnWidth(0.8),
-          6: FlexColumnWidth(0.8),
-          7: FlexColumnWidth(0.8),
-          8: FlexColumnWidth(1.5), // 주소
-          9: FixedColumnWidth(140),
-          10: FixedColumnWidth(100),
-        },
+      columnWidths: const {
+        0: FixedColumnWidth(110),
+        1: FlexColumnWidth(1.35),
+        2: FixedColumnWidth(92),
+        3: FixedColumnWidth(110),
+        4: FixedColumnWidth(100),
+        5: FlexColumnWidth(0.8),
+        6: FlexColumnWidth(0.8),
+        7: FlexColumnWidth(0.8),
+        8: FlexColumnWidth(1.5), // 주소
+        9: FixedColumnWidth(140),
+        10: FixedColumnWidth(100),
+      },
+      headerRow: TableRow(
+        decoration: const BoxDecoration(color: AppTheme.accentRed),
         children: [
-          TableRow(
-            decoration: const BoxDecoration(color: AppTheme.accentRed),
-            children: [
-              const ErpTableHeaderCell('조사일자'),
-              const ErpTableHeaderCell('물건명'),
-              const ErpTableHeaderCell('지역'),
-              const ErpTableHeaderCell('구분'),
-              const ErpTableHeaderCell('면적(계약㎡)'),
-              const ErpTableHeaderCell('권리금'),
-              const ErpTableHeaderCell('보증금'),
-              const ErpTableHeaderCell('임차료'),
-              const ErpTableHeaderCell('주소'),
-              const ErpTableHeaderCell('상세보기'),
-              if (showDelete) const ErpTableHeaderCell('삭제'),
-            ],
-          ),
-          ...rows.asMap().entries.map(
-            (entry) => TableRow(
-              decoration: BoxDecoration(
-                color: entry.key.isEven
-                    ? AppTheme.tableRowOdd
-                    : AppTheme.tableRowEven,
-              ),
-              children: [
-                ErpTableBodyCell(entry.value.surveyDate, center: true),
-                ErpTableBodyCell(entry.value.name, center: true),
-                ErpTableBodyCell(
-                  _propertyRegionLabel(entry.value.region, regionOptions),
-                  center: true,
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Center(
-                    child: _PropertyStatusChip(status: entry.value.propStatus),
-                  ),
-                ),
-                ErpTableBodyCell(
-                  _formatArea(entry.value.areaSqm),
-                  center: true,
-                ),
-                ErpTableBodyCell(
-                  _formatMoney(entry.value.keyMoney),
-                  alignRight: true,
-                ),
-                ErpTableBodyCell(
-                  _formatMoney(entry.value.deposit),
-                  alignRight: true,
-                ),
-                ErpTableBodyCell(
-                  _formatMoney(entry.value.rent),
-                  alignRight: true,
-                ),
-                // Padding(
-                //   padding: const EdgeInsets.all(8),
-                //   child: Center(
-                //     child: _FranchiseFlagChip(flag: entry.value.franchiseFlag),
-                //   ),
-                // ),
-                ErpTableBodyCell(entry.value.address),
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Center(
-                    child: DetailButton(
-                      onPressed: () => context.goNamed(
-                        AppRouteNames.propertyDetail,
-                        pathParameters: {
-                          'propertyNo': '${entry.value.propIdx}',
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-                if (showDelete)
-                  Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Center(
-                      child: _PropertyDeleteButton(
-                        onPressed: () =>
-                            _confirmAndDelete(context, ref, entry.value),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          const ErpTableHeaderCell('조사일자'),
+          const ErpTableHeaderCell('물건명'),
+          const ErpTableHeaderCell('지역'),
+          const ErpTableHeaderCell('구분'),
+          const ErpTableHeaderCell('면적(계약㎡)'),
+          const ErpTableHeaderCell('권리금'),
+          const ErpTableHeaderCell('보증금'),
+          const ErpTableHeaderCell('임차료'),
+          const ErpTableHeaderCell('주소'),
+          const ErpTableHeaderCell('상세보기'),
+          if (showDelete) const ErpTableHeaderCell('삭제'),
         ],
       ),
+      rowCount: rows.length,
+      rowBuilder: (rowContext, index) {
+        final row = rows[index];
+        return TableRow(
+          decoration: BoxDecoration(
+            color: index.isEven ? AppTheme.tableRowOdd : AppTheme.tableRowEven,
+          ),
+          children: [
+            ErpTableBodyCell(row.surveyDate, center: true),
+            ErpTableBodyCell(row.name, center: true),
+            ErpTableBodyCell(
+              _propertyRegionLabel(row.region, regionOptions),
+              center: true,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Center(child: _PropertyStatusChip(status: row.propStatus)),
+            ),
+            ErpTableBodyCell(_formatArea(row.areaSqm), center: true),
+            ErpTableBodyCell(_formatMoney(row.keyMoney), alignRight: true),
+            ErpTableBodyCell(_formatMoney(row.deposit), alignRight: true),
+            ErpTableBodyCell(_formatMoney(row.rent), alignRight: true),
+            // Padding(
+            //   padding: const EdgeInsets.all(8),
+            //   child: Center(
+            //     child: _FranchiseFlagChip(flag: entry.value.franchiseFlag),
+            //   ),
+            // ),
+            ErpTableBodyCell(row.address),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Center(
+                child: DetailButton(
+                  onPressed: () => context.goNamed(
+                    AppRouteNames.propertyDetail,
+                    pathParameters: {'propertyNo': '${row.propIdx}'},
+                  ),
+                ),
+              ),
+            ),
+            if (showDelete)
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Center(
+                  child: _PropertyDeleteButton(
+                    onPressed: () => _confirmAndDelete(context, ref, row),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

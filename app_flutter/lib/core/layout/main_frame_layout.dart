@@ -632,8 +632,14 @@ class _SidebarNavigation extends StatelessWidget {
           title: '영업지역 관리',
           selected:
               currentPath == AppRoutes.salesAreas ||
-              currentPath.startsWith('${AppRoutes.salesAreas}/'),
+              currentPath.startsWith('${AppRoutes.salesAreas}/register/'),
           onTap: () => navigate(() => context.go(AppRoutes.salesAreas)),
+        ),
+      if (can(kMenuDev003))
+        _SidebarSubMenuItem(
+          title: '영업지역 검색',
+          selected: currentPath == AppRoutes.salesAreaSearch,
+          onTap: () => navigate(() => context.go(AppRoutes.salesAreaSearch)),
         ),
     ];
 

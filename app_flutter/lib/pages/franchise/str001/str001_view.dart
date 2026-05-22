@@ -435,103 +435,94 @@ class _StoreTable extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final showDelete = context.menuCanDelete(kMenuStr001);
-    return ErpDataTable(
+    return ErpVirtualDataTable(
       minWidth: 2000,
-      tableBuilder: (context, _) => Table(
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        border: kErpTableInnerGridBorder,
-        columnWidths: const {
-          0: IntrinsicColumnWidth(),
-          1: IntrinsicColumnWidth(),
-          2: IntrinsicColumnWidth(),
-          3: IntrinsicColumnWidth(),
-          4: IntrinsicColumnWidth(),
-          5: IntrinsicColumnWidth(),
-          6: IntrinsicColumnWidth(),
-          7: IntrinsicColumnWidth(),
-          8: IntrinsicColumnWidth(),
-          9: IntrinsicColumnWidth(),
-          10: IntrinsicColumnWidth(),
-          11: IntrinsicColumnWidth(),
-        },
+      columnWidths: const {
+        0: FixedColumnWidth(70),
+        1: FixedColumnWidth(130),
+        2: FlexColumnWidth(1.25),
+        3: FixedColumnWidth(150),
+        4: FixedColumnWidth(120),
+        5: FixedColumnWidth(130),
+        6: FixedColumnWidth(140),
+        7: FlexColumnWidth(1.9),
+        8: FixedColumnWidth(130),
+        9: FixedColumnWidth(130),
+        10: FixedColumnWidth(110),
+        11: FixedColumnWidth(90),
+      },
+      headerRow: TableRow(
+        decoration: const BoxDecoration(color: AppTheme.accentRed),
         children: [
-          TableRow(
-            decoration: const BoxDecoration(color: AppTheme.accentRed),
-            children: [
-              const ErpTableHeaderCell('No'),
-              const ErpTableHeaderCell('브랜드'),
-              const ErpTableHeaderCell('가맹점명'),
-              const ErpTableHeaderCell('가맹점코드'),
-              const ErpTableHeaderCell('계약상태'),
-              const ErpTableHeaderCell('가맹점 소유자'),
-              const ErpTableHeaderCell('연락처'),
-              const ErpTableHeaderCell('주소'),
-              const ErpTableHeaderCell('개업일자'),
-              const ErpTableHeaderCell('계약 만료일자'),
-              const ErpTableHeaderCell('상세보기'),
-              if (showDelete) const ErpTableHeaderCell('삭제'),
-            ],
-          ),
-          ...rows.asMap().entries.map(
-            (entry) => TableRow(
-              decoration: BoxDecoration(
-                color: entry.key.isEven
-                    ? AppTheme.tableRowOdd
-                    : AppTheme.tableRowEven,
-              ),
-              children: [
-                ErpTableBodyCell('${entry.key + 1}', center: true),
-                ErpTableBodyCell(entry.value.brandNm, center: true),
-                ErpTableBodyCell(entry.value.storeNm, center: true),
-                ErpTableBodyCell(entry.value.storeCd, center: true),
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Center(
-                    child: _StatusChip(
-                      storeStatus: entry.value.storeStatus,
-                      storeStatusNm: entry.value.storeStatusNm,
-                    ),
-                  ),
-                ),
-                ErpTableBodyCell(entry.value.ownerNm, center: true),
-                ErpTableBodyCell(entry.value.storeTel, center: true),
-                ErpTableBodyCell(entry.value.address),
-                ErpTableBodyCell(entry.value.contStartDt, center: true),
-                ErpTableBodyCell(entry.value.contEndDt, center: true),
-                Padding(
-                  padding: const EdgeInsets.all(1),
-                  child: Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        DetailButton(
-                          onPressed: () => context.goNamed(
-                            AppRouteNames.storeDetail,
-                            pathParameters: {
-                              'storeIdx': '${entry.value.storeIdx}',
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                    ),
-                  ),
-                ),
-                if (showDelete)
-                  Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Center(
-                      child: _StoreDeleteButton(
-                        onPressed: () =>
-                            _confirmAndDelete(context, ref, entry.value),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          const ErpTableHeaderCell('No'),
+          const ErpTableHeaderCell('브랜드'),
+          const ErpTableHeaderCell('가맹점명'),
+          const ErpTableHeaderCell('가맹점코드'),
+          const ErpTableHeaderCell('계약상태'),
+          const ErpTableHeaderCell('가맹점 소유자'),
+          const ErpTableHeaderCell('연락처'),
+          const ErpTableHeaderCell('주소'),
+          const ErpTableHeaderCell('개업일자'),
+          const ErpTableHeaderCell('계약 만료일자'),
+          const ErpTableHeaderCell('상세보기'),
+          if (showDelete) const ErpTableHeaderCell('삭제'),
         ],
       ),
+      rowCount: rows.length,
+      rowBuilder: (rowContext, index) {
+        final row = rows[index];
+        return TableRow(
+          decoration: BoxDecoration(
+            color: index.isEven ? AppTheme.tableRowOdd : AppTheme.tableRowEven,
+          ),
+          children: [
+            ErpTableBodyCell('${index + 1}', center: true),
+            ErpTableBodyCell(row.brandNm, center: true),
+            ErpTableBodyCell(row.storeNm, center: true),
+            ErpTableBodyCell(row.storeCd, center: true),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Center(
+                child: _StatusChip(
+                  storeStatus: row.storeStatus,
+                  storeStatusNm: row.storeStatusNm,
+                ),
+              ),
+            ),
+            ErpTableBodyCell(row.ownerNm, center: true),
+            ErpTableBodyCell(row.storeTel, center: true),
+            ErpTableBodyCell(row.address),
+            ErpTableBodyCell(row.contStartDt, center: true),
+            ErpTableBodyCell(row.contEndDt, center: true),
+            Padding(
+              padding: const EdgeInsets.all(1),
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DetailButton(
+                      onPressed: () => context.goNamed(
+                        AppRouteNames.storeDetail,
+                        pathParameters: {'storeIdx': '${row.storeIdx}'},
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                ),
+              ),
+            ),
+            if (showDelete)
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Center(
+                  child: _StoreDeleteButton(
+                    onPressed: () => _confirmAndDelete(context, ref, row),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

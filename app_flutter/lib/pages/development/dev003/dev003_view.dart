@@ -433,79 +433,69 @@ class _SalesAreaTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ErpDataTable(
+    return ErpVirtualDataTable(
       minWidth: 1280,
-      tableBuilder: (context, _) => Table(
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        border: kErpTableInnerGridBorder,
-        columnWidths: const {
-          0: FixedColumnWidth(110),
-          1: FlexColumnWidth(1.1),
-          2: FixedColumnWidth(80),
-          3: FixedColumnWidth(80),
-          4: FlexColumnWidth(1.4),
-          5: FixedColumnWidth(120),
-          6: FixedColumnWidth(100),
-          7: FlexColumnWidth(1.2),
-        },
-        children: [
-          TableRow(
-            decoration: const BoxDecoration(color: AppTheme.accentRed),
-            children: const [
-              ErpTableHeaderCell('설정일자'),
-              ErpTableHeaderCell('물건명'),
-              ErpTableHeaderCell('지역'),
-              ErpTableHeaderCell('가맹여부'),
-              ErpTableHeaderCell('가맹점명'),
-              ErpTableHeaderCell('브랜드'),
-              ErpTableHeaderCell('영업지역설정'),
-              ErpTableHeaderCell('영업지역명'),
-            ],
-          ),
-          ...rows.asMap().entries.map((entry) {
-            final e = entry.value;
-            void open() => onRowDoubleTap(e);
-            return TableRow(
-              decoration: BoxDecoration(
-                color: entry.key.isEven
-                    ? AppTheme.tableRowOdd
-                    : AppTheme.tableRowEven,
-              ),
-              children: [
-                _cell(
-                  ErpTableBodyCell(e.settingDateYmd, center: true),
-                  onDoubleTap: open,
-                ),
-                _cell(
-                  ErpTableBodyCell(e.propertyName, center: true),
-                  onDoubleTap: open,
-                ),
-                _cell(
-                  ErpTableBodyCell(
-                    _regionNm(e.region, regionOptions),
-                    center: true,
-                  ),
-                  onDoubleTap: open,
-                ),
-                _cell(
-                  ErpTableBodyCell(e.franchiseLabel, center: true),
-                  onDoubleTap: open,
-                ),
-                _cell(ErpTableBodyCell(e.storeName), onDoubleTap: open),
-                _cell(
-                  ErpTableBodyCell(e.brand, center: true),
-                  onDoubleTap: open,
-                ),
-                _cell(
-                  ErpTableBodyCell(e.areaSettingLabel, center: true),
-                  onDoubleTap: open,
-                ),
-                _cell(ErpTableBodyCell(e.salesAreaName), onDoubleTap: open),
-              ],
-            );
-          }),
+      columnWidths: const {
+        0: FixedColumnWidth(110),
+        1: FlexColumnWidth(1.1),
+        2: FixedColumnWidth(80),
+        3: FixedColumnWidth(80),
+        4: FlexColumnWidth(1.4),
+        5: FixedColumnWidth(120),
+        6: FixedColumnWidth(100),
+        7: FlexColumnWidth(1.2),
+      },
+      headerRow: TableRow(
+        decoration: const BoxDecoration(color: AppTheme.accentRed),
+        children: const [
+          ErpTableHeaderCell('설정일자'),
+          ErpTableHeaderCell('물건명'),
+          ErpTableHeaderCell('지역'),
+          ErpTableHeaderCell('가맹여부'),
+          ErpTableHeaderCell('가맹점명'),
+          ErpTableHeaderCell('브랜드'),
+          ErpTableHeaderCell('영업지역설정'),
+          ErpTableHeaderCell('영업지역명'),
         ],
       ),
+      rowCount: rows.length,
+      rowBuilder: (rowContext, index) {
+        final e = rows[index];
+        void open() => onRowDoubleTap(e);
+        return TableRow(
+          decoration: BoxDecoration(
+            color: index.isEven ? AppTheme.tableRowOdd : AppTheme.tableRowEven,
+          ),
+          children: [
+            _cell(
+              ErpTableBodyCell(e.settingDateYmd, center: true),
+              onDoubleTap: open,
+            ),
+            _cell(
+              ErpTableBodyCell(e.propertyName, center: true),
+              onDoubleTap: open,
+            ),
+            _cell(
+              ErpTableBodyCell(
+                _regionNm(e.region, regionOptions),
+                center: true,
+              ),
+              onDoubleTap: open,
+            ),
+            _cell(
+              ErpTableBodyCell(e.franchiseLabel, center: true),
+              onDoubleTap: open,
+            ),
+            _cell(ErpTableBodyCell(e.storeName), onDoubleTap: open),
+            _cell(ErpTableBodyCell(e.brand, center: true), onDoubleTap: open),
+            _cell(
+              ErpTableBodyCell(e.areaSettingLabel, center: true),
+              onDoubleTap: open,
+            ),
+            _cell(ErpTableBodyCell(e.salesAreaName), onDoubleTap: open),
+          ],
+        );
+      },
     );
   }
 }

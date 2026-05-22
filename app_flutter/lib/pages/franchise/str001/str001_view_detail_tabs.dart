@@ -2052,6 +2052,23 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
     return (sqm / 3.305785).toStringAsFixed(1);
   }
 
+  String _statusText() {
+    final code = (widget.registerDraft?.status ?? _store?.storeStatus ?? '')
+        .trim()
+        .toLowerCase();
+    final codeLabel = switch (code) {
+      'new' => '신규계약',
+      'transfer' => '양수도',
+      'renewal' => '재계약',
+      _ => '',
+    };
+    if (codeLabel.isNotEmpty) return codeLabel;
+
+    final storeStatusName = _store?.storeStatusNm.trim() ?? '';
+    if (storeStatusName.isNotEmpty) return storeStatusName;
+    return code.isEmpty ? '-' : code;
+  }
+
   void _snack(String message) {
     if (!mounted) return;
     showAlertDialog(context, message);
@@ -2241,6 +2258,14 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
                     _formatPhoneNumberOrDash(_store?.storeTel ?? ''),
                   ),
           ),
+        ),
+        const SizedBox(height: 12),
+        FormRowTwo(
+          left: FormFieldBlock(
+            label: '상태',
+            child: ReadonlyValue(_statusText()),
+          ),
+          right: const FormFieldBlock(label: ' ', child: SizedBox.shrink()),
         ),
         const SizedBox(height: 12),
         LabeledFormRow(

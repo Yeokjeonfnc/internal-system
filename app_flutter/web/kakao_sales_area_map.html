@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>영업지역 검색</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      font-family: "Pretendard", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #1f2933;
+      background: #f4f6f8;
+    }
+
+    #map {
+      position: fixed;
+      inset: 0;
+    }
+
+    .toolbar {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 10px 28px rgba(17, 24, 39, 0.12);
+      backdrop-filter: blur(8px);
+    }
+
+    .toolbar input {
+      width: min(340px, calc(100vw - 190px));
+      height: 36px;
+      box-sizing: border-box;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 0 12px;
+      font-size: 14px;
+      outline: none;
+      background: #fff;
+    }
+
+    .toolbar input:focus {
+      border-color: #b4232a;
+      box-shadow: 0 0 0 3px rgba(180, 35, 42, 0.14);
+    }
+
+    .toolbar button {
+      height: 36px;
+      border: 0;
+      border-radius: 6px;
+      padding: 0 12px;
+      color: #fff;
+      font-weight: 700;
+      background: #b4232a;
+      cursor: pointer;
+    }
+
+    .toolbar button:hover {
+      background: #971b22;
+    }
+
+    .stats {
+      position: fixed;
+      right: 14px;
+      top: 14px;
+      z-index: 5;
+      min-width: 154px;
+      padding: 10px 12px;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 10px 28px rgba(17, 24, 39, 0.12);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .stats strong {
+      display: block;
+      margin-bottom: 2px;
+      color: #b4232a;
+      font-size: 18px;
+      line-height: 1.1;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(244, 246, 248, 0.92);
+    }
+
+    .overlay.hidden {
+      display: none;
+    }
+
+    .message {
+      max-width: 520px;
+      border: 1px solid #d9dee7;
+      border-radius: 8px;
+      padding: 18px 20px;
+      background: #fff;
+      box-shadow: 0 12px 36px rgba(17, 24, 39, 0.14);
+      line-height: 1.55;
+    }
+
+    .message h1 {
+      margin: 0 0 8px;
+      color: #111827;
+      font-size: 18px;
+    }
+
+    .message p {
+      margin: 0;
+      color: #52606d;
+      font-size: 14px;
+    }
+
+    .info-window {
+      min-width: 160px;
+      padding: 8px 10px;
+      color: #1f2933;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .info-window strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #111827;
+      font-size: 14px;
+    }
+
+    @media (max-width: 700px) {
+      .toolbar {
+        right: 14px;
+        flex-wrap: wrap;
+      }
+
+      .toolbar input {
+        width: 100%;
+      }
+
+      .stats {
+        top: auto;
+        right: 14px;
+        bottom: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="map" aria-label="영업지역 지도"></div>
+  <div class="toolbar">
+    <input id="keyword" type="search" placeholder="가맹점명 검색" autocomplete="off">
+    <button id="reset" type="button">전체</button>
+  </div>
+  <div class="stats" aria-live="polite">
+    <strong id="visibleCount">0</strong>
+    <span id="totalCount">전체 0개점</span><br>
+    <span id="vertexCount">영역 좌표 0개</span>
+  </div>
+  <div id="overlay" class="overlay">
+    <div class="message">
+      <h1 id="overlayTitle">지도를 준비하고 있습니다.</h1>
+      <p id="overlayBody">매장 위치와 영업지역 좌표를 불러오는 중입니다.</p>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_KAKAO_APP_KEY = '';
+    const DATA_URL = new URL('assets/assets/data/store_map_points.json', document.baseURI).toString();
+    const SEOUL = { lat: 36.5, lng: 127.8 };
+
+    let map;
+    let clusterer;
+    let allStores = [];
+    let markers = [];
+    let polygons = [];
+    let activeInfoWindow = null;
+    let renderTimer = null;
+
+    const overlay = document.getElementById('overlay');
+    const overlayTitle = document.getElementById('overlayTitle');
+    const overlayBody = document.getElementById('overlayBody');
+    const keyword = document.getElementById('keyword');
+    const reset = document.getElementById('reset');
+    const visibleCount = document.getElementById('visibleCount');
+    const totalCount = document.getElementById('totalCount');
+    const vertexCount = document.getElementById('vertexCount');
+
+    function getKakaoAppKey() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('appkey')
+        || window.localStorage.getItem('YJ_KAKAO_MAP_APP_KEY')
+        || window.YJ_KAKAO_MAP_APP_KEY
+        || DEFAULT_KAKAO_APP_KEY;
+    }
+
+    function showMessage(title, body) {
+      overlayTitle.textContent = title;
+      overlayBody.textContent = body;
+      overlay.classList.remove('hidden');
+    }
+
+    function hideMessage() {
+      overlay.classList.add('hidden');
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      })[char]);
+    }
+
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+
+    async function loadKakao() {
+      if (window.kakao && window.kakao.maps) {
+        return;
+      }
+      const appKey = getKakaoAppKey();
+      if (!appKey) {
+        throw new Error('KAKAO_MAP_KEY_EMPTY');
+      }
+      const sdkUrl = 'https://dapi.kakao.com/v2/maps/sdk.js'
+        + `?appkey=${encodeURIComponent(appKey)}&autoload=false&libraries=clusterer`;
+      await loadScript(sdkUrl);
+      await new Promise((resolve) => kakao.maps.load(resolve));
+    }
+
+    async function loadStores() {
+      const res = await fetch(DATA_URL, { cache: 'no-cache' });
+      if (!res.ok) {
+        throw new Error(`store_map_points.json ${res.status}`);
+      }
+      const data = await res.json();
+      allStores = (data.stores || []).filter((store) =>
+        Number.isFinite(Number(store.lat)) && Number.isFinite(Number(store.lng))
+      );
+      totalCount.textContent = `전체 ${allStores.length.toLocaleString('ko-KR')}개점`;
+      vertexCount.textContent =
+        `영역 좌표 ${(data.polygonVertexCount || 0).toLocaleString('ko-KR')}개`;
+    }
+
+    function clearMapObjects() {
+      if (clusterer) {
+        clusterer.clear();
+      }
+      markers.forEach((marker) => marker.setMap(null));
+      polygons.forEach((polygon) => polygon.setMap(null));
+      markers = [];
+      polygons = [];
+      if (activeInfoWindow) {
+        activeInfoWindow.close();
+        activeInfoWindow = null;
+      }
+    }
+
+    function openInfo(position, store) {
+      if (activeInfoWindow) {
+        activeInfoWindow.close();
+      }
+      activeInfoWindow = new kakao.maps.InfoWindow({
+        position,
+        content: `<div class="info-window"><strong>${escapeHtml(store.name)}</strong>`
+          + `영역 좌표 ${Number(store.polygon?.length || 0).toLocaleString('ko-KR')}개</div>`,
+      });
+      activeInfoWindow.open(map);
+    }
+
+    function renderStores() {
+      const term = keyword.value.trim().toLowerCase();
+      const visibleStores = term
+        ? allStores.filter((store) => String(store.name || '').toLowerCase().includes(term))
+        : allStores;
+      clearMapObjects();
+      visibleCount.textContent = visibleStores.length.toLocaleString('ko-KR');
+
+      if (!visibleStores.length) {
+        map.setCenter(new kakao.maps.LatLng(SEOUL.lat, SEOUL.lng));
+        map.setLevel(13);
+        return;
+      }
+
+      const bounds = new kakao.maps.LatLngBounds();
+      visibleStores.forEach((store) => {
+        const markerPosition = new kakao.maps.LatLng(Number(store.lat), Number(store.lng));
+        const marker = new kakao.maps.Marker({
+          position: markerPosition,
+          title: store.name || '',
+        });
+        kakao.maps.event.addListener(marker, 'click', () => openInfo(markerPosition, store));
+        markers.push(marker);
+        bounds.extend(markerPosition);
+
+        const path = (store.polygon || [])
+          .map((point) => new kakao.maps.LatLng(Number(point.lat), Number(point.lng)))
+          .filter((point) => Number.isFinite(point.getLat()) && Number.isFinite(point.getLng()));
+        if (path.length >= 3) {
+          const polygon = new kakao.maps.Polygon({
+            path,
+            strokeWeight: 2,
+            strokeColor: '#b4232a',
+            strokeOpacity: 0.78,
+            fillColor: '#e0474c',
+            fillOpacity: 0.12,
+          });
+          polygon.setMap(map);
+          kakao.maps.event.addListener(polygon, 'click', () => openInfo(markerPosition, store));
+          polygons.push(polygon);
+          path.forEach((point) => bounds.extend(point));
+        }
+      });
+
+      clusterer.addMarkers(markers);
+      map.setBounds(bounds);
+    }
+
+    function scheduleRender() {
+      window.clearTimeout(renderTimer);
+      renderTimer = window.setTimeout(renderStores, 140);
+    }
+
+    async function boot() {
+      try {
+        await Promise.all([loadKakao(), loadStores()]);
+        map = new kakao.maps.Map(document.getElementById('map'), {
+          center: new kakao.maps.LatLng(SEOUL.lat, SEOUL.lng),
+          level: 13,
+        });
+        clusterer = new kakao.maps.MarkerClusterer({
+          map,
+          averageCenter: true,
+          minLevel: 7,
+          gridSize: 60,
+        });
+        keyword.addEventListener('input', scheduleRender);
+        reset.addEventListener('click', () => {
+          keyword.value = '';
+          renderStores();
+          keyword.focus();
+        });
+        renderStores();
+        hideMessage();
+      } catch (error) {
+        console.error(error);
+        const keyMissing = error && error.message === 'KAKAO_MAP_KEY_EMPTY';
+        showMessage(
+          '지도를 불러오지 못했습니다.',
+          keyMissing
+            ? 'Kakao Maps JavaScript 키가 설정되지 않았습니다.'
+            : 'Kakao Maps JavaScript 키 또는 지도 데이터 경로를 확인해야 합니다.'
+        );
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>
