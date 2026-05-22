@@ -9,13 +9,12 @@
 
 ## Recommended access method
 
-Use Cloudflare Tunnel.
+Use Cloudflare DNS proxy with an Origin Rule.
 
-This keeps FortiGate inbound `80/443` untouched. The Windows server opens an outbound tunnel to Cloudflare, and users still access the service with normal HTTPS:
+This keeps FortiGate inbound `80/443` untouched. Users access the service with normal HTTPS, and Cloudflare forwards `test.yeokjeon.com` traffic to the origin on port `8080`.
 
 ```text
 https://test.yeokjeon.com/#/login
-https://yeokjeon.com/#/login
 ```
 
 Do not create FortiGate VIPs for Y-ON `80` or `443`.
@@ -27,7 +26,7 @@ Do not expose PostgreSQL `5432` to the public internet.
 - Production backend: `127.0.0.1:3011`, DB `yj_db_prod`
 - Local field web gateway: `127.0.0.1:8080`
 - Local production web gateway: `127.0.0.1:8180`
-- Cloudflare Tunnel routes public HTTPS hostnames to the local web gateways.
+- Cloudflare Origin Rule routes `https://test.yeokjeon.com` to origin port `8080`.
 
 ## Field test account
 
@@ -53,24 +52,35 @@ https://yeokjeon.com
 
 1. Add `yeokjeon.com` to Cloudflare.
 2. Change the WHOIS nameservers to the two nameservers Cloudflare gives you.
-3. In Cloudflare Zero Trust, create a Cloudflare Tunnel for the Windows server.
-4. Install `cloudflared` as a Windows service with the token shown by Cloudflare.
-5. Add a Public Hostname:
+3. In Cloudflare DNS, add the field test record:
 
 ```text
-Hostname: test.yeokjeon.com
-Service:  http://localhost:8080
+Type: A
+Name: test
+IPv4 address: 203.234.249.145
+Proxy status: Proxied
+TTL: Auto
 ```
 
-Later, for production, add:
+4. In Cloudflare, create an Origin Rule:
 
 ```text
-Hostname: yeokjeon.com
-Service:  http://localhost:8180
+Rules > Origin Rules > Create rule
+Name: YON field test origin port
+If incoming requests match: Hostname equals test.yeokjeon.com
+Destination Port: Rewrite to 8080
 ```
 
-6. Install Java 17, PostgreSQL, Flutter build dependencies, Caddy, and cloudflared.
-7. Build backend:
+5. In Cloudflare SSL/TLS, set encryption mode to `Flexible` for this field test setup, because the origin server listens with HTTP on port `8080`.
+6. On FortiGate, create only this VIP and policy:
+
+```text
+External: 203.234.249.145:8080
+Internal: 192.168.30.30:8080
+```
+
+7. Install Java 17, PostgreSQL, Flutter build dependencies, and Caddy.
+8. Build backend:
 
 ```powershell
 cd C:\y-on\internal-system\backend
@@ -79,14 +89,14 @@ $env:Path="$env:JAVA_HOME\bin;C:\tmp\apache-maven-3.9.16\bin;$env:Path"
 mvn -DskipTests package
 ```
 
-8. Build frontend:
+9. Build frontend:
 
 ```powershell
 cd C:\y-on\internal-system\app_flutter
-flutter build web --no-pub --dart-define=KAKAO_MAP_JAVASCRIPT_KEY=3649c96a39bc8cff269119d8cffbe4e0
+flutter build web --no-pub --dart-define=API_BASE_URL=https://test.yeokjeon.com/api --dart-define=KAKAO_MAP_JAVASCRIPT_KEY=3649c96a39bc8cff269119d8cffbe4e0
 ```
 
-9. Create field backend env:
+10. Create field backend env:
 
 ```powershell
 Copy-Item C:\y-on\internal-system\deploy\field\backend.env.example C:\y-on\internal-system\deploy\field\backend.env
@@ -95,20 +105,20 @@ notepad C:\y-on\internal-system\deploy\field\backend.env
 
 Set the real PostgreSQL password in `DB_PASSWORD`.
 
-10. Start field backend and the local tunnel gateway:
+11. Start field backend and the local web gateway:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\y-on\internal-system\deploy\field\start-backend.ps1
-powershell -ExecutionPolicy Bypass -File C:\y-on\internal-system\deploy\server\start-caddy-tunnel.ps1
+powershell -ExecutionPolicy Bypass -File C:\y-on\internal-system\deploy\field\start-web.ps1
 ```
 
-11. Test locally on the server:
+12. Test locally on the server:
 
 ```text
 http://localhost:8080/#/login
 ```
 
-12. Test from outside:
+13. Test from outside:
 
 ```text
 https://test.yeokjeon.com/#/login
