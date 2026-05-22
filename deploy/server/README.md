@@ -5,28 +5,29 @@
 - Field/development test: `test.yeokjeon.com`
 - Production: `yeokjeon.com`
 - Public server IP: `203.234.249.145`
+- Current constraint: public `80/tcp` and `443/tcp` cannot be used by this server.
 
-Create these DNS records at WHOIS/DNS:
+## Recommended access method
+
+Use Cloudflare Tunnel.
+
+This keeps FortiGate inbound `80/443` untouched. The Windows server opens an outbound tunnel to Cloudflare, and users still access the service with normal HTTPS:
 
 ```text
-test.yeokjeon.com  A  203.234.249.145
-yeokjeon.com       A  203.234.249.145
+https://test.yeokjeon.com/#/login
+https://yeokjeon.com/#/login
 ```
 
-## Ports
-
-Open inbound ports on the server and router/firewall:
-
-- `80/tcp`: Let's Encrypt HTTP validation and HTTP to HTTPS redirect
-- `443/tcp`: HTTPS user traffic
-
+Do not create FortiGate VIPs for Y-ON `80` or `443`.
 Do not expose PostgreSQL `5432` to the public internet.
 
 ## Runtime layout
 
 - Field backend: `127.0.0.1:3001`, DB `yj_db_test`
 - Production backend: `127.0.0.1:3011`, DB `yj_db_prod`
-- Public HTTPS: Caddy serves Flutter Web and proxies `/api/*` to the matching backend.
+- Local field web gateway: `127.0.0.1:8080`
+- Local production web gateway: `127.0.0.1:8180`
+- Cloudflare Tunnel routes public HTTPS hostnames to the local web gateways.
 
 ## Field test account
 
@@ -48,10 +49,28 @@ https://test.yeokjeon.com
 https://yeokjeon.com
 ```
 
-## First setup
+## First setup for field test
 
-1. Install Java 17, PostgreSQL, Flutter build dependencies, and Caddy.
-2. Build backend:
+1. Add `yeokjeon.com` to Cloudflare.
+2. Change the WHOIS nameservers to the two nameservers Cloudflare gives you.
+3. In Cloudflare Zero Trust, create a Cloudflare Tunnel for the Windows server.
+4. Install `cloudflared` as a Windows service with the token shown by Cloudflare.
+5. Add a Public Hostname:
+
+```text
+Hostname: test.yeokjeon.com
+Service:  http://localhost:8080
+```
+
+Later, for production, add:
+
+```text
+Hostname: yeokjeon.com
+Service:  http://localhost:8180
+```
+
+6. Install Java 17, PostgreSQL, Flutter build dependencies, Caddy, and cloudflared.
+7. Build backend:
 
 ```powershell
 cd C:\y-on\internal-system\backend
@@ -60,14 +79,14 @@ $env:Path="$env:JAVA_HOME\bin;C:\tmp\apache-maven-3.9.16\bin;$env:Path"
 mvn -DskipTests package
 ```
 
-3. Build frontend:
+8. Build frontend:
 
 ```powershell
 cd C:\y-on\internal-system\app_flutter
 flutter build web --no-pub --dart-define=KAKAO_MAP_JAVASCRIPT_KEY=3649c96a39bc8cff269119d8cffbe4e0
 ```
 
-4. Create field backend env:
+9. Create field backend env:
 
 ```powershell
 Copy-Item C:\y-on\internal-system\deploy\field\backend.env.example C:\y-on\internal-system\deploy\field\backend.env
@@ -76,14 +95,20 @@ notepad C:\y-on\internal-system\deploy\field\backend.env
 
 Set the real PostgreSQL password in `DB_PASSWORD`.
 
-5. Start field backend and Caddy:
+10. Start field backend and the local tunnel gateway:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\y-on\internal-system\deploy\field\start-backend.ps1
-powershell -ExecutionPolicy Bypass -File C:\y-on\internal-system\deploy\server\start-caddy.ps1
+powershell -ExecutionPolicy Bypass -File C:\y-on\internal-system\deploy\server\start-caddy-tunnel.ps1
 ```
 
-6. Test:
+11. Test locally on the server:
+
+```text
+http://localhost:8080/#/login
+```
+
+12. Test from outside:
 
 ```text
 https://test.yeokjeon.com/#/login
