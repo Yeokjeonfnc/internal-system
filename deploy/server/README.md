@@ -28,6 +28,26 @@ Do not expose PostgreSQL `5432` to the public internet.
 - Production backend: `127.0.0.1:3011`, DB `yj_db_prod`
 - Public HTTPS: Caddy serves Flutter Web and proxies `/api/*` to the matching backend.
 
+## Field test account
+
+Use this account for field testing:
+
+```text
+ID: admin
+PW: admin123
+```
+
+The test seed file `deploy\db\002_seed_test.sql` creates this account. The application treats `admin` as a super admin through `backend\src\main\resources\application.yml`.
+
+## Kakao Maps domain settings
+
+Add both domains to Kakao Developers > JavaScript SDK domain:
+
+```text
+https://test.yeokjeon.com
+https://yeokjeon.com
+```
+
 ## First setup
 
 1. Install Java 17, PostgreSQL, Flutter build dependencies, and Caddy.
