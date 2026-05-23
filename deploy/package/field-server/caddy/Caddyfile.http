@@ -1,0 +1,11 @@
+:8080 {
+	encode gzip zstd
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:3001
+	}
+
+	root * "{$YON_APP_HOME}\web"
+	try_files {path} /index.html
+	file_server
+}
