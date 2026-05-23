@@ -97,7 +97,11 @@ try {
     }
 
     $exists = & $PsqlPath -h $DbHost -p $DbPort -U $DbUser -d postgres -t -A -c "SELECT 1 FROM pg_database WHERE datname = '$DbName';"
-    if ($exists.Trim() -ne '1') {
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to check database: $DbName"
+    }
+    $existsValue = if ($null -eq $exists) { '' } else { "$exists".Trim() }
+    if ($existsValue -ne '1') {
         if (Test-Path -LiteralPath $createdbPath) {
             & $createdbPath -h $DbHost -p $DbPort -U $DbUser -E UTF8 $DbName
         } else {
