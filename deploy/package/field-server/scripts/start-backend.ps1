@@ -13,6 +13,40 @@ function Import-EnvFile {
     }
 }
 
+function Resolve-Java {
+    if ($env:JAVA_HOME) {
+        $candidate = Join-Path $env:JAVA_HOME 'bin\java.exe'
+        if (Test-Path -LiteralPath $candidate) {
+            return $candidate
+        }
+    }
+
+    $cmd = Get-Command java.exe -ErrorAction SilentlyContinue
+    if ($cmd) {
+        return $cmd.Source
+    }
+
+    $roots = @(
+        'C:\Program Files\Eclipse Adoptium',
+        'C:\Program Files\Java',
+        'C:\Program Files\Microsoft'
+    )
+    foreach ($root in $roots) {
+        if (-not (Test-Path -LiteralPath $root)) {
+            continue
+        }
+        $found = Get-ChildItem -LiteralPath $root -Recurse -Filter java.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\bin\\java\.exe$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+        if ($found) {
+            return $found.FullName
+        }
+    }
+
+    throw 'java.exe not found. Install Java 17, then run this script again. Recommended: winget install -e --id EclipseAdoptium.Temurin.17.JDK'
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $appHome = Split-Path -Parent $scriptDir
 $envFile = Join-Path $appHome 'config\backend.env'
@@ -37,16 +71,7 @@ if ($existing) {
     throw "Port $port is already in use. PID=$($existing.OwningProcess -join ',')"
 }
 
-$java = $null
-if ($env:JAVA_HOME) {
-    $candidate = Join-Path $env:JAVA_HOME 'bin\java.exe'
-    if (Test-Path -LiteralPath $candidate) {
-        $java = $candidate
-    }
-}
-if (-not $java) {
-    $java = (Get-Command java.exe -ErrorAction Stop).Source
-}
+$java = Resolve-Java
 
 $out = Join-Path $logDir 'backend.out.log'
 $err = Join-Path $logDir 'backend.err.log'

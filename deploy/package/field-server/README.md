@@ -25,6 +25,12 @@ PostgreSQL은 16 설치를 권장합니다. 서버에 `postgresql-9.4`가 이미
 
 중요: `admin / admin123`은 프로그램 로그인 계정입니다. PostgreSQL DB 비밀번호가 아닙니다.
 
+Java 17도 필요합니다. 서버에서 `java.exe not found`가 나오면 아래 명령으로 설치하세요.
+
+```powershell
+winget install -e --id EclipseAdoptium.Temurin.17.JDK
+```
+
 PostgreSQL 16 설치 중 `postgres` 비밀번호를 하나 정합니다. 그 비밀번호가 DB 접속 비밀번호입니다.
 
 만약 기존 PostgreSQL 9.4가 5432 포트를 쓰고 있으면 PostgreSQL 16은 5433으로 설치하세요. 이 경우 아래 명령에 `-DbPort 5433`을 붙입니다.
