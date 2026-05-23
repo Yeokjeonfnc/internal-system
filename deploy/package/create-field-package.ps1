@@ -67,6 +67,7 @@ if ($Build) {
 $jarPath = Join-Path $repoRoot 'backend\target\erp-backend-1.0.0.jar'
 $webPath = Join-Path $repoRoot 'app_flutter\build\web'
 $templatePath = Join-Path $scriptDir 'field-server'
+$dbSourcePath = Join-Path $repoRoot 'deploy\db'
 
 if (-not (Test-Path -LiteralPath $jarPath)) {
     throw "Backend jar not found: $jarPath. Run this script with -Build first."
@@ -77,6 +78,9 @@ if (-not (Test-Path -LiteralPath (Join-Path $webPath 'index.html'))) {
 if (-not (Test-Path -LiteralPath $templatePath)) {
     throw "Package template not found: $templatePath"
 }
+if (-not (Test-Path -LiteralPath $dbSourcePath)) {
+    throw "DB scripts not found: $dbSourcePath"
+}
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $packageDir = Join-Path $OutputRoot "$PackageName-$stamp"
@@ -86,10 +90,12 @@ New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $packageDir 'backend') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $packageDir 'web') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $packageDir 'logs') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $packageDir 'db') | Out-Null
 
 Copy-Item -LiteralPath $jarPath -Destination (Join-Path $packageDir 'backend\erp-backend-1.0.0.jar') -Force
 Copy-Item -Path (Join-Path $webPath '*') -Destination (Join-Path $packageDir 'web') -Recurse -Force
 Copy-Item -Path (Join-Path $templatePath '*') -Destination $packageDir -Recurse -Force
+Copy-Item -Path (Join-Path $dbSourcePath '*') -Destination (Join-Path $packageDir 'db') -Recurse -Force
 
 if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force

@@ -1,6 +1,6 @@
 # Y-ON field server package
 
-This package contains only runtime files. It does not require the full Git repository.
+이 패키지는 서버 PC에서 실행할 빌드 결과물만 포함합니다. Git 프로젝트 전체를 서버로 옮길 필요가 없습니다.
 
 ## Layout
 
@@ -8,50 +8,72 @@ This package contains only runtime files. It does not require the full Git repos
 backend\erp-backend-1.0.0.jar
 web\
 config\backend.env.example
+db\
 scripts\
 logs\
 ```
 
-## First run on the server PC
+## Server PC first run
 
-Unzip this package to:
+압축을 아래 경로에 풉니다.
 
 ```text
 C:\y-on\yon-field-server
 ```
 
-Create the backend config:
+PostgreSQL은 16 설치를 권장합니다. 서버에 `postgresql-9.4`가 이미 있더라도 이 프로젝트용 DB로 쓰지 않는 것이 안전합니다.
+
+중요: `admin / admin123`은 프로그램 로그인 계정입니다. PostgreSQL DB 비밀번호가 아닙니다.
+
+PostgreSQL 16 설치 중 `postgres` 비밀번호를 하나 정합니다. 그 비밀번호가 DB 접속 비밀번호입니다.
+
+만약 기존 PostgreSQL 9.4가 5432 포트를 쓰고 있으면 PostgreSQL 16은 5433으로 설치하세요. 이 경우 아래 명령에 `-DbPort 5433`을 붙입니다.
+
+테스트 DB를 초기화합니다. 실행하면 DB 비밀번호를 물어보고, `config\backend.env`도 자동으로 맞춥니다.
 
 ```powershell
-Copy-Item C:\y-on\yon-field-server\config\backend.env.example C:\y-on\yon-field-server\config\backend.env
+powershell -ExecutionPolicy Bypass -File C:\y-on\yon-field-server\scripts\init-db.ps1
+```
+
+PostgreSQL 16을 5433 포트로 설치한 경우:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\y-on\yon-field-server\scripts\init-db.ps1 -DbPort 5433
+```
+
+`config\backend.env`를 확인해야 하면 아래처럼 엽니다.
+
+```powershell
 notepad C:\y-on\yon-field-server\config\backend.env
 ```
 
-Set the real PostgreSQL password:
+필요하면 값은 아래 기준입니다.
 
 ```text
-DB_PASSWORD=CHANGE_ME
+DB_NAME=yj_db_test
+DB_USER=postgres
+DB_PASSWORD=PostgreSQL 설치 때 정한 비밀번호
 ```
 
-Open Windows firewall for local field web gateway:
+Windows 방화벽을 엽니다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\y-on\yon-field-server\scripts\install-firewall-rule.ps1
 ```
 
-Start the server:
+서버를 시작합니다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\y-on\yon-field-server\scripts\start-all.ps1
 ```
 
-Stop the server:
+서버를 중지합니다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\y-on\yon-field-server\scripts\stop-all.ps1
 ```
 
-Health check:
+상태를 확인합니다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\y-on\yon-field-server\scripts\health-check.ps1
@@ -59,19 +81,19 @@ powershell -ExecutionPolicy Bypass -File C:\y-on\yon-field-server\scripts\health
 
 ## URLs
 
-Local server check:
+서버 PC 내부 확인:
 
 ```text
 http://localhost:8080/#/login
 ```
 
-External field test:
+외부 필드 테스트:
 
 ```text
 https://test.yeokjeon.com/#/login
 ```
 
-## Field test account
+## Login account
 
 ```text
 ID: admin
