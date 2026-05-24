@@ -122,6 +122,13 @@ Origin Rule: Hostname equals test.yeokjeon.com, Destination Port = 8080
 SSL/TLS mode: Flexible
 ```
 
+The frontend calls `/api` on the same host. This means both local and external URLs use the same web gateway:
+
+```text
+http://localhost:8080/api
+https://test.yeokjeon.com/api
+```
+
 FortiGate:
 
 ```text

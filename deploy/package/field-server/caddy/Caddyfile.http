@@ -5,7 +5,9 @@
 		reverse_proxy 127.0.0.1:3001
 	}
 
-	root * "{$YON_APP_HOME}\web"
-	try_files {path} /index.html
-	file_server
+	handle {
+		root * "{$YON_APP_HOME}\web"
+		try_files {path} /index.html
+		file_server
+	}
 }

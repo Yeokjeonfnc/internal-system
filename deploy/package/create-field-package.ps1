@@ -1,7 +1,7 @@
 param(
     [string]$OutputRoot = 'C:\y-on\release',
     [string]$PackageName = 'yon-field-server',
-    [string]$ApiBaseUrl = 'https://test.yeokjeon.com/api',
+    [string]$ApiBaseUrl = '/api',
     [string]$KakaoMapJavaScriptKey = '3649c96a39bc8cff269119d8cffbe4e0',
     [switch]$Build
 )
