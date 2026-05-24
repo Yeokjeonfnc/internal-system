@@ -1,5 +1,39 @@
 $ErrorActionPreference = 'Stop'
 
+function Resolve-Caddy {
+    if ($env:CADDY_PATH -and (Test-Path -LiteralPath $env:CADDY_PATH)) {
+        return $env:CADDY_PATH
+    }
+
+    $cmd = Get-Command caddy.exe -ErrorAction SilentlyContinue
+    if ($cmd) {
+        return $cmd.Source
+    }
+
+    $roots = @(
+        (Join-Path $appHome 'bin'),
+        'C:\Program Files\Caddy',
+        'C:\Program Files',
+        'C:\Program Files (x86)'
+    )
+    if ($env:LOCALAPPDATA) {
+        $roots += (Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Packages')
+    }
+    foreach ($root in $roots) {
+        if (-not $root -or -not (Test-Path -LiteralPath $root)) {
+            continue
+        }
+        $found = Get-ChildItem -LiteralPath $root -Recurse -Filter caddy.exe -ErrorAction SilentlyContinue |
+            Sort-Object FullName |
+            Select-Object -First 1
+        if ($found) {
+            return $found.FullName
+        }
+    }
+
+    throw 'caddy.exe not found. Install Caddy first: winget install -e --id CaddyServer.Caddy'
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $appHome = Split-Path -Parent $scriptDir
 $logDir = Join-Path $appHome 'logs\web'
@@ -20,7 +54,7 @@ if ($existing) {
     throw "Port 8080 is already in use. PID=$($existing.OwningProcess -join ',')"
 }
 
-$caddy = (Get-Command caddy.exe -ErrorAction Stop).Source
+$caddy = Resolve-Caddy
 $out = Join-Path $logDir 'web.out.log'
 $err = Join-Path $logDir 'web.err.log'
 $env:YON_APP_HOME = $appHome

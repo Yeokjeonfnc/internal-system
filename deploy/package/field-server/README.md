@@ -31,6 +31,12 @@ Java 17도 필요합니다. 서버에서 `java.exe not found`가 나오면 아�
 winget install -e --id EclipseAdoptium.Temurin.17.JDK
 ```
 
+Caddy도 필요합니다. 서버에서 `caddy.exe not found`가 나오면 아래 명령으로 설치하세요.
+
+```powershell
+winget install -e --id CaddyServer.Caddy
+```
+
 PostgreSQL 16 설치 중 `postgres` 비밀번호를 하나 정합니다. 그 비밀번호가 DB 접속 비밀번호입니다.
 
 만약 기존 PostgreSQL 9.4가 5432 포트를 쓰고 있으면 PostgreSQL 16은 5433으로 설치하세요. 이 경우 아래 명령에 `-DbPort 5433`을 붙입니다.
