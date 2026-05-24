@@ -1,6 +1,11 @@
 :8080 {
 	encode gzip zstd
 
+	@app_shell {
+		path / /index.html /main.dart.js /flutter.js /flutter_bootstrap.js /version.json /manifest.json
+	}
+	header @app_shell Cache-Control "no-store, no-cache, must-revalidate"
+
 	handle /api/* {
 		reverse_proxy 127.0.0.1:3001
 	}

@@ -129,6 +129,8 @@ http://localhost:8080/api
 https://test.yeokjeon.com/api
 ```
 
+The app shell files are served with `Cache-Control: no-store` so browsers do not keep an old API base URL after a field package update.
+
 FortiGate:
 
 ```text
