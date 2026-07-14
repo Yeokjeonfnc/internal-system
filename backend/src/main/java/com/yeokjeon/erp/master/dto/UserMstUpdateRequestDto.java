@@ -34,8 +34,8 @@ public class UserMstUpdateRequestDto {
     private String positionCd;
     private boolean positionCdPresent;
 
-    private String tagYn;
-    private boolean tagYnPresent;
+    private String ownerYn;
+    private boolean ownerYnPresent;
 
     private LocalDate joinDt;
     private boolean joinDtPresent;
@@ -139,17 +139,17 @@ public class UserMstUpdateRequestDto {
         return positionCd;
     }
 
-    public void setTagYn(String tagYn) {
-        this.tagYn = tagYn;
-        this.tagYnPresent = true;
+    public void setOwnerYn(String ownerYn) {
+        this.ownerYn = ownerYn;
+        this.ownerYnPresent = true;
     }
 
-    public boolean isTagYnPresent() {
-        return tagYnPresent;
+    public boolean isOwnerYnPresent() {
+        return ownerYnPresent;
     }
 
-    public String getTagYn() {
-        return tagYn;
+    public String getOwnerYn() {
+        return ownerYn;
     }
 
     public void setJoinDt(LocalDate joinDt) {

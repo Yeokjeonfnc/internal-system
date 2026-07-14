@@ -1,0 +1,118 @@
+package com.yeokjeon.erp.master.service;
+
+import com.yeokjeon.erp.exception.ResourceNotFoundException;
+import com.yeokjeon.erp.master.dto.OwnerUserListJdbcRow;
+import com.yeokjeon.erp.master.dto.OwnerUserMstCreateRequestDto;
+import com.yeokjeon.erp.master.dto.OwnerUserMstDto;
+import com.yeokjeon.erp.master.dto.OwnerUserMstUpdateRequestDto;
+import com.yeokjeon.erp.master.entity.MstUser;
+import com.yeokjeon.erp.master.mapper.MstOwnerUserMapper;
+import com.yeokjeon.erp.master.repository.MstUserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class OwnerUserService {
+
+    private final MstUserRepository mstUserRepository;
+    private final MstOwnerUserMapper mstOwnerUserMapper;
+
+    public List<OwnerUserMstDto> getAll() {
+        return mstOwnerUserMapper.selectOwnerUsers().stream()
+                .map(OwnerUserMstDto::fromJdbcRow)
+                .collect(Collectors.toList());
+    }
+
+    public OwnerUserMstDto get(int userIdx) {
+        OwnerUserListJdbcRow row = mstOwnerUserMapper.selectOwnerUserById(userIdx);
+        if (row == null) {
+            throw new ResourceNotFoundException("가맹점주", "userIdx", userIdx);
+        }
+        return OwnerUserMstDto.fromJdbcRow(row);
+    }
+
+    @Transactional
+    public OwnerUserMstDto save(OwnerUserMstCreateRequestDto body) {
+        MstUser user = MstUser.builder()
+                .userName(body.userName().trim())
+                .userId(trimToNull(body.userId()))
+                .userPassword(body.userPassword())
+                .userPhone(trimToNull(body.userPhone()))
+                .userEmail(trimToNull(body.userEmail()))
+                .ownerYn('Y')
+                .svYn('N')
+                .storeIdx(body.storeIdx())
+                .build();
+        MstUser saved = mstUserRepository.save(user);
+        log.info("가맹점주 생성 완료: userIdx={}", saved.getUserIdx());
+        return loadDtoAfterSave(saved.getUserIdx());
+    }
+
+    @Transactional
+    public OwnerUserMstDto save(int userIdx, OwnerUserMstUpdateRequestDto body) {
+        MstUser user = findOwnerOrThrow(userIdx);
+        if (body.isUserNamePresent()) {
+            user.setUserName(trimToNull(body.getUserName()));
+        }
+        if (body.isUserIdPresent()) {
+            user.setUserId(trimToNull(body.getUserId()));
+        }
+        String pw = body.getUserPassword();
+        if (pw != null && !pw.isBlank()) {
+            user.setUserPassword(pw);
+        }
+        if (body.isUserPhonePresent()) {
+            user.setUserPhone(trimToNull(body.getUserPhone()));
+        }
+        if (body.isUserEmailPresent()) {
+            user.setUserEmail(trimToNull(body.getUserEmail()));
+        }
+        if (body.isStoreIdxPresent()) {
+            user.setStoreIdx(body.getStoreIdx());
+        }
+        user.setOwnerYn('Y');
+        MstUser saved = mstUserRepository.save(user);
+        log.info("가맹점주 수정 완료: userIdx={}", saved.getUserIdx());
+        return loadDtoAfterSave(saved.getUserIdx());
+    }
+
+    @Transactional
+    public void remove(int userIdx) {
+        MstUser user = findOwnerOrThrow(userIdx);
+        mstUserRepository.delete(user);
+        log.info("가맹점주 삭제 완료: userIdx={}", userIdx);
+    }
+
+    private MstUser findOwnerOrThrow(int userIdx) {
+        MstUser user = mstUserRepository.findById(userIdx)
+                .orElseThrow(() -> new ResourceNotFoundException("가맹점주", "userIdx", userIdx));
+        if (user.getOwnerYn() == null || user.getOwnerYn() != 'Y') {
+            throw new ResourceNotFoundException("가맹점주", "userIdx", userIdx);
+        }
+        return user;
+    }
+
+    private OwnerUserMstDto loadDtoAfterSave(int userIdx) {
+        OwnerUserListJdbcRow row = mstOwnerUserMapper.selectOwnerUserById(userIdx);
+        if (row == null) {
+            throw new ResourceNotFoundException("가맹점주", "userIdx", userIdx);
+        }
+        return OwnerUserMstDto.fromJdbcRow(row);
+    }
+
+    private static String trimToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+}

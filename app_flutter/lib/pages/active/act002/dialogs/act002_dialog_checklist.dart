@@ -125,7 +125,7 @@ class _ActivityChecklistDetailDialogState
                                     center: true,
                                   ),
                                   ErpTableBodyCell(
-                                    _formatResult(_items[i].answerScore),
+                                    _formatScore(_items[i]),
                                     center: true,
                                   ),
                                   ErpTableBodyCell(
@@ -142,19 +142,37 @@ class _ActivityChecklistDetailDialogState
             const SizedBox(height: 16),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppTheme.accentRed,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '점수 합계  :  $_totalAnswerScore',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade800,
+                      fontFamilyFallback: AppTheme.koreanFontFallback,
+                    ),
                   ),
-                ),
-                child: const Text(
-                  '닫기',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                ),
+                  const SizedBox(width: 16),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppTheme.accentRed,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text(
+                      '닫기',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -163,16 +181,28 @@ class _ActivityChecklistDetailDialogState
     );
   }
 
+  int get _totalAnswerScore => _items.fold<int>(
+    0,
+    (sum, row) => sum + (_isUnevaluated(row.answerVal) ? 0 : row.answerScore),
+  );
+
   String _text(Object value) {
     final s = value.toString().trim();
     return s.isEmpty ? '—' : s;
   }
 
-  String _formatResult(Object value) {
-    final val = value.toString().trim();
+  bool _isUnevaluated(String answerVal) => answerVal.trim().isEmpty;
+
+  String _formatScore(ChkResultRow row) {
+    if (_isUnevaluated(row.answerVal)) return '미평가';
+    return '${row.answerScore}';
+  }
+
+  String _formatResult(String answerVal) {
+    final val = answerVal.trim();
     if (val.isEmpty) return '미평가';
-    if (val == 'Y' || val == '1') return '적합';
-    if (val == 'N' || val == '0') return '미적합';
+    if (val == 'Y' || val == '1' || val == '적합') return '적합';
+    if (val == 'N' || val == '0' || val == '미적합') return '미적합';
     return val;
   }
 }

@@ -67,4 +67,8 @@
     <select id="selectUserIdxByUserId" resultType="java.lang.Integer">
         SELECT user_idx FROM user_mst WHERE user_id = #{userId} LIMIT 1
     </select>
+
+    <select id="selectAdminYnByUserId" resultType="java.lang.String">
+        SELECT CAST(admin_yn AS VARCHAR) FROM user_mst WHERE user_id = #{userId} LIMIT 1
+    </select>
 </mapper>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.master.mapper.MstOwnerUserMapper">
+
+    <resultMap id="ownerUserListJdbcRow" type="com.yeokjeon.erp.master.dto.OwnerUserListJdbcRow">
+        <constructor>
+            <arg column="user_idx" javaType="java.lang.Integer"/>
+            <arg column="user_name" javaType="java.lang.String"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="user_phone" javaType="java.lang.String"/>
+            <arg column="user_email" javaType="java.lang.String"/>
+            <arg column="store_idx" javaType="java.lang.Integer"/>
+            <arg column="store_nm" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="ownerUserSelect">
+        SELECT u.user_idx,
+               u.user_name,
+               u.user_id,
+               u.user_phone,
+               u.user_email,
+               u.store_idx,
+               sm.store_nm AS store_nm
+        FROM user_mst u
+                 LEFT JOIN store_mst sm ON sm.store_idx = u.store_idx
+        WHERE COALESCE(CAST(u.owner_yn AS VARCHAR), 'N') = 'Y'
+    </sql>
+
+    <select id="selectOwnerUsers" resultMap="ownerUserListJdbcRow">
+        <include refid="ownerUserSelect"/>
+        ORDER BY u.user_name, u.user_idx
+    </select>
+
+    <select id="selectOwnerUserById" resultMap="ownerUserListJdbcRow">
+        <include refid="ownerUserSelect"/>
+          AND u.user_idx = #{userIdx}
+    </select>
+</mapper>

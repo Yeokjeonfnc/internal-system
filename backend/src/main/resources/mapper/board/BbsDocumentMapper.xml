@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.board.mapper.BbsDocumentMapper">
+
+    <sql id="bbsDocumentSelect">
+        SELECT bbs_doc_idx AS bbsDocIdx,
+               post_idx    AS postIdx,
+               file_name   AS fileName,
+               stored_name AS storedName,
+               file_size   AS fileSize,
+               content_type AS contentType,
+               attached_at AS attachedAt
+        FROM bbs_doc
+    </sql>
+
+    <select id="selectByPostIdx" resultType="com.yeokjeon.erp.board.dto.BbsDocumentJdbcRow">
+        <include refid="bbsDocumentSelect"/>
+        WHERE post_idx = #{postIdx}
+          AND deleted_yn = false
+        ORDER BY bbs_doc_idx
+    </select>
+
+    <select id="selectByDocIdxAndPostIdx" resultType="com.yeokjeon.erp.board.dto.BbsDocumentJdbcRow">
+        <include refid="bbsDocumentSelect"/>
+        WHERE bbs_doc_idx = #{bbsDocIdx}
+          AND post_idx = #{postIdx}
+          AND deleted_yn = false
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="bbsDocIdx" keyColumn="bbs_doc_idx">
+        INSERT INTO bbs_doc (post_idx, file_name, stored_name, file_size, content_type, modified_by)
+        VALUES (
+            #{postIdx},
+            #{fileName},
+            #{storedName},
+            #{fileSize},
+            #{contentType},
+            #{modifiedBy}
+        )
+    </insert>
+
+    <update id="markDeleted">
+        UPDATE bbs_doc
+        SET deleted_yn = true,
+            modified_at = CURRENT_TIMESTAMP
+        WHERE bbs_doc_idx = #{bbsDocIdx}
+          AND post_idx = #{postIdx}
+    </update>
+</mapper>

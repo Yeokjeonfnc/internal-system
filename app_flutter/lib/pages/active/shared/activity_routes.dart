@@ -27,6 +27,7 @@ abstract final class ActivityRoutes {
   static String manageDetail(int actIdx) => '$_b/manage/$actIdx';
   static String get instructions => '$_b/instructions';
   static String get checklist => '$_b/checklist';
+  static String get calendar => '$_b/calendar';
   static String get approvalAll => '$_b/approval/all';
   static String get approvalPending => '$_b/approval/pending';
   static String get approvalActive => '$_b/approval/active';
@@ -85,7 +86,8 @@ String actParent(String path) {
       path == ActivityRoutes.manageRegister ||
       path.startsWith('${ActivityRoutes.manage}/') ||
       path == ActivityRoutes.instructions ||
-      path == ActivityRoutes.checklist) {
+      path == ActivityRoutes.checklist ||
+      path == ActivityRoutes.calendar) {
     return ActivityRoutes.groupManage;
   }
   if (path == ActivityRoutes.approvalAll) {
@@ -116,6 +118,7 @@ final Map<String, String> _activityTitles = {
   ActivityRoutes.manageRegister: '활동관리 등록',
   ActivityRoutes.instructions: '지시사항(결재특이사항)',
   ActivityRoutes.checklist: '체크리스트',
+  ActivityRoutes.calendar: '활동 계획',
   ActivityRoutes.approvalAll: '전체활동관리',
   ActivityRoutes.approvalPending: '결재대기',
   ActivityRoutes.approvalActive: '결재완료',

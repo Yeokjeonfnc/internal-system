@@ -64,9 +64,12 @@ class ErpDialogHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(color: AppTheme.accentRed),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: AppTheme.hairline)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 10, 8, 10),
+        padding: const EdgeInsets.fromLTRB(18, 12, 8, 12),
         child: Row(
           children: [
             Expanded(
@@ -75,23 +78,24 @@ class ErpDialogHeader extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+                  color: AppTheme.textPrimary,
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
                   fontFamilyFallback: AppTheme.koreanFontFallback,
                 ),
               ),
             ),
             IconButton(
               onPressed: onClose,
-              icon: const Icon(Icons.close_rounded, size: 22),
-              color: Colors.white,
+              icon: const Icon(Icons.close_rounded, size: 20),
+              color: AppTheme.textMuted,
               tooltip: '닫기',
               style: IconButton.styleFrom(
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 minimumSize: const Size(34, 34),
                 padding: EdgeInsets.zero,
-                hoverColor: Colors.white.withValues(alpha: 0.14),
+                hoverColor: Colors.black.withValues(alpha: 0.04),
               ),
             ),
           ],

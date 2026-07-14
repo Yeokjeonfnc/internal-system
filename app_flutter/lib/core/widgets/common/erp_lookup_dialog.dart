@@ -7,6 +7,56 @@ import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/erp_popup_list_stripes.dart';
 
+class _ErpLookupHorizontalSync extends InheritedWidget {
+  const _ErpLookupHorizontalSync({
+    required this.offsetNotifier,
+    required super.child,
+  });
+
+  final ValueNotifier<double> offsetNotifier;
+
+  static ValueNotifier<double>? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<_ErpLookupHorizontalSync>()
+        ?.offsetNotifier;
+  }
+
+  @override
+  bool updateShouldNotify(_ErpLookupHorizontalSync oldWidget) {
+    return !identical(offsetNotifier, oldWidget.offsetNotifier);
+  }
+}
+
+/// 조회 팝업 가로 스크롤을 헤더/본문 행 전체에서 동기화한다.
+class ErpLookupHorizontalSyncScope extends StatefulWidget {
+  const ErpLookupHorizontalSyncScope({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<ErpLookupHorizontalSyncScope> createState() =>
+      _ErpLookupHorizontalSyncScopeState();
+}
+
+class _ErpLookupHorizontalSyncScopeState
+    extends State<ErpLookupHorizontalSyncScope> {
+  final ValueNotifier<double> _offsetNotifier = ValueNotifier<double>(0);
+
+  @override
+  void dispose() {
+    _offsetNotifier.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ErpLookupHorizontalSync(
+      offsetNotifier: _offsetNotifier,
+      child: widget.child,
+    );
+  }
+}
+
 /// NO 열 기본 폭.
 const double kErpLookupNoWidth = 40;
 
@@ -14,7 +64,7 @@ const double kErpLookupNoWidth = 40;
 const double kErpLookupTelWidth = 124;
 
 /// 금액·코드 등 좁은 고정 열.
-const double kErpLookupMoneyColWidth = 88;
+const double kErpLookupMoneyColWidth = 100;
 
 /// 사원 조회 등 중간 테이블 최소 가로.
 const double kErpLookupTableMinWidthUser = 520;
@@ -29,8 +79,8 @@ const double kErpLookupTableMinWidthProperty = 680;
 const double kErpLookupTableMinWidthStore = 720;
 
 /// 물건 조회 — 물건명·주소 열.
-const double kErpLookupPropertyNameWidth = 120;
-const double kErpLookupPropertyAddressWidth = 220;
+const double kErpLookupPropertyNameWidth = 140;
+const double kErpLookupPropertyAddressWidth = 380;
 
 /// 가맹점 조회 — NO 제외 데이터 열.
 const double kErpLookupStoreBrandWidth = 100;
@@ -87,7 +137,7 @@ Widget erpLookupDialogCloseFooter(BuildContext context) {
 }
 
 /// [minTableWidth] 미만이면 [child](Row)를 가로 스크롤한다.
-class ErpLookupTableBand extends StatelessWidget {
+class ErpLookupTableBand extends StatefulWidget {
   const ErpLookupTableBand({
     super.key,
     required this.minTableWidth,
@@ -98,16 +148,75 @@ class ErpLookupTableBand extends StatelessWidget {
   final Widget child;
 
   @override
+  State<ErpLookupTableBand> createState() => _ErpLookupTableBandState();
+}
+
+class _ErpLookupTableBandState extends State<ErpLookupTableBand> {
+  late final ScrollController _controller;
+  ValueNotifier<double>? _offsetNotifier;
+  bool _syncingFromNotifier = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ScrollController();
+    _controller.addListener(_handleControllerScroll);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = _ErpLookupHorizontalSync.maybeOf(context);
+    if (!identical(_offsetNotifier, next)) {
+      _offsetNotifier?.removeListener(_handleSharedOffsetChanged);
+      _offsetNotifier = next;
+      _offsetNotifier?.addListener(_handleSharedOffsetChanged);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _jumpToOffsetIfNeeded(_offsetNotifier?.value ?? 0);
+      });
+    }
+  }
+
+  void _handleControllerScroll() {
+    if (_syncingFromNotifier) return;
+    _offsetNotifier?.value = _controller.offset;
+  }
+
+  void _handleSharedOffsetChanged() {
+    _jumpToOffsetIfNeeded(_offsetNotifier?.value ?? 0);
+  }
+
+  void _jumpToOffsetIfNeeded(double target) {
+    if (!_controller.hasClients) return;
+    final max = _controller.position.maxScrollExtent;
+    final clamped = target.clamp(0, max).toDouble();
+    if ((_controller.offset - clamped).abs() < 0.5) return;
+    _syncingFromNotifier = true;
+    _controller.jumpTo(clamped);
+    _syncingFromNotifier = false;
+  }
+
+  @override
+  void dispose() {
+    _offsetNotifier?.removeListener(_handleSharedOffsetChanged);
+    _controller
+      ..removeListener(_handleControllerScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (!constraints.hasBoundedWidth ||
-            constraints.maxWidth >= minTableWidth) {
-          return child;
+            constraints.maxWidth >= widget.minTableWidth) {
+          return widget.child;
         }
         return SingleChildScrollView(
+          controller: _controller,
           scrollDirection: Axis.horizontal,
-          child: SizedBox(width: minTableWidth, child: child),
+          child: SizedBox(width: widget.minTableWidth, child: widget.child),
         );
       },
     );
@@ -153,7 +262,7 @@ class ErpLookupHeaderText extends StatelessWidget {
       textAlign: TextAlign.center,
       style: const TextStyle(
         color: Colors.white,
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: FontWeight.w700,
         fontFamilyFallback: AppTheme.koreanFontFallback,
       ),
@@ -177,8 +286,10 @@ class ErpLookupBodyText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = style ?? FormStylePalette.valueStyle.copyWith(fontSize: 13);
-    final resolved = fontWeight != null ? base.copyWith(fontWeight: fontWeight) : base;
+    final base = style ?? FormStylePalette.valueStyle.copyWith(fontSize: 14);
+    final resolved = fontWeight != null
+        ? base.copyWith(fontWeight: fontWeight)
+        : base;
     return Text(
       text.isEmpty ? '-' : text,
       textAlign: textAlign,

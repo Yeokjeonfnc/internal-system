@@ -48,6 +48,8 @@ if (-not (Test-Path -LiteralPath (Join-Path $appHome 'web\index.html'))) {
 }
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+# Caddy 접근(감사) 로그 폴더 — Caddyfile 의 log 블록이 사용한다.
+New-Item -ItemType Directory -Force -Path (Join-Path $appHome 'logs\caddy') | Out-Null
 
 $existing = Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue
 if ($existing) {

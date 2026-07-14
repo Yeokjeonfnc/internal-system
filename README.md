@@ -131,8 +131,11 @@ mvn spring-boot:run
 ```bash
 cd app_flutter
 flutter pub get
-flutter run -d chrome --web-port 3000
+cp dart_defines.local.example.json dart_defines.local.json   # Windows: copy dart_defines.local.example.json dart_defines.local.json
+flutter run -d chrome --web-port 3000 --dart-define-from-file=dart_defines.local.json
 ```
+
+`/sales-areas/search` 지도는 **`KAKAO_MAP_JAVASCRIPT_KEY`** 가 컴파일 시 필요합니다. 서버는 `flutter build web --dart-define=...` 로 포함되고, 로컬은 `dart_defines.local.json`(git 제외)으로 맞춥니다. 루트 `run_flutter_web.bat` 이 파일이 있으면 자동 적용합니다.
 
 웹에서 `Too many active WebGL contexts` 가 나오면 **Chrome의 localhost 탭을 모두 닫은 뒤** 앱을 완전히 재실행하세요(Hot Restart만으로는 WebGL 컨텍스트가 남을 수 있음).
 

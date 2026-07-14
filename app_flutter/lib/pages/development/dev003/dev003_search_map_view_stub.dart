@@ -1,7 +1,28 @@
 import 'package:flutter/material.dart';
 
-class SalesAreaSearchMapFrame extends StatelessWidget {
-  const SalesAreaSearchMapFrame({super.key});
+import 'package:app_flutter/pages/development/dev003/dev003_search_map_model.dart';
+
+import 'package:app_flutter/pages/development/dev003/map/sales_area_search_view_options.dart';
+
+class SalesAreaSearchMapFrame extends StatefulWidget {
+  const SalesAreaSearchMapFrame({
+    super.key,
+    this.viewOptions = kSalesAreaSearchViewDefaults,
+    this.onStats,
+    this.onMapError,
+  });
+
+  final SalesAreaSearchViewOptions viewOptions;
+  final ValueChanged<SalesAreaMapStats>? onStats;
+  final ValueChanged<String>? onMapError;
+
+  @override
+  State<SalesAreaSearchMapFrame> createState() => SalesAreaSearchMapFrameState();
+}
+
+class SalesAreaSearchMapFrameState extends State<SalesAreaSearchMapFrame> {
+  void filterKeyword(String keyword) {}
+  void searchAddress(String keyword) {}
 
   @override
   Widget build(BuildContext context) {

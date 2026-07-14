@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.board.mapper.BbsPostMapper">
+
+    <resultMap id="bbsPostListRow" type="com.yeokjeon.erp.board.dto.BbsPostListJdbcRow">
+        <constructor>
+            <arg column="post_idx" javaType="java.lang.Integer"/>
+            <arg column="folder_idx" javaType="java.lang.Integer"/>
+            <arg column="folder_nm" javaType="java.lang.String"/>
+            <arg column="store_idx" javaType="java.lang.Integer"/>
+            <arg column="store_nm" javaType="java.lang.String"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="private_yn" javaType="java.lang.String"/>
+            <arg column="notice_yn" javaType="java.lang.String"/>
+            <arg column="view_cnt" javaType="java.lang.Integer"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="author_nm" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="has_attachment" javaType="java.lang.Boolean"/>
+            <arg column="thumb_content_type" javaType="java.lang.String"/>
+            <arg column="thumb_doc_idx" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="bbsPostDetailRow" type="com.yeokjeon.erp.board.dto.BbsPostDetailJdbcRow">
+        <constructor>
+            <arg column="post_idx" javaType="java.lang.Integer"/>
+            <arg column="folder_idx" javaType="java.lang.Integer"/>
+            <arg column="folder_nm" javaType="java.lang.String"/>
+            <arg column="store_idx" javaType="java.lang.Integer"/>
+            <arg column="store_nm" javaType="java.lang.String"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="body_txt" javaType="java.lang.String"/>
+            <arg column="private_yn" javaType="java.lang.String"/>
+            <arg column="notice_yn" javaType="java.lang.String"/>
+            <arg column="view_cnt" javaType="java.lang.Integer"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="author_nm" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="has_attachment" javaType="java.lang.Boolean"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="postFrom">
+        FROM bbs_post p
+                 INNER JOIN bbs_folder f ON f.folder_idx = p.folder_idx
+                 LEFT JOIN store_mst sm ON sm.store_idx = p.store_idx
+                 LEFT JOIN user_mst um ON um.user_id = p.created_by
+    </sql>
+
+    <sql id="postVisibility">
+        p.deleted_yn = false
+        AND (
+            COALESCE(CAST(p.private_yn AS VARCHAR), 'N') &lt;&gt; 'Y'
+            OR p.created_by = #{viewerUserId}
+            OR #{viewerIsOwner} = false
+        )
+    </sql>
+
+    <sql id="folderVisibility">
+        (
+            <!-- 사원/관리자: 모든 폴더의 글 조회. 가맹점주: owner_view_yn = 'Y' 폴더만. -->
+            #{viewerIsOwner} = false
+            OR COALESCE(CAST(f.owner_view_yn AS VARCHAR), 'Y') = 'Y'
+        )
+    </sql>
+
+    <select id="selectPosts" resultMap="bbsPostListRow">
+        SELECT p.post_idx,
+               p.folder_idx,
+               f.folder_nm,
+               p.store_idx,
+               sm.store_nm,
+               p.title,
+               CAST(p.private_yn AS VARCHAR) AS private_yn,
+               CAST(p.notice_yn AS VARCHAR) AS notice_yn,
+               p.view_cnt,
+               p.created_by,
+               COALESCE(um.user_name, p.created_by, '') AS author_nm,
+               p.created_at,
+               p.updated_at,
+               EXISTS (
+                   SELECT 1 FROM bbs_doc d
+                   WHERE d.post_idx = p.post_idx AND d.deleted_yn = false
+               ) AS has_attachment,
+               (
+                   SELECT d.content_type
+                   FROM bbs_doc d
+                   WHERE d.post_idx = p.post_idx
+                     AND d.deleted_yn = false
+                     AND (
+                         COALESCE(d.content_type, '') ILIKE 'image/%'
+                         OR lower(d.file_name) ~ '\.(jpg|jpeg|png|gif|bmp|webp)$'
+                     )
+                   ORDER BY d.bbs_doc_idx
+                   LIMIT 1
+               ) AS thumb_content_type,
+               (
+                   SELECT d.bbs_doc_idx
+                   FROM bbs_doc d
+                   WHERE d.post_idx = p.post_idx
+                     AND d.deleted_yn = false
+                     AND (
+                         COALESCE(d.content_type, '') ILIKE 'image/%'
+                         OR lower(d.file_name) ~ '\.(jpg|jpeg|png|gif|bmp|webp)$'
+                     )
+                   ORDER BY d.bbs_doc_idx
+                   LIMIT 1
+               ) AS thumb_doc_idx
+        <include refid="postFrom"/>
+        WHERE <include refid="postVisibility"/>
+          AND <include refid="folderVisibility"/>
+        <if test="folderIdx != null">
+            AND p.folder_idx = #{folderIdx}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                p.title ILIKE CONCAT('%', #{keyword}, '%')
+                OR COALESCE(p.body_txt, '') ILIKE CONCAT('%', #{keyword}, '%')
+                OR COALESCE(um.user_name, '') ILIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        ORDER BY
+            CASE WHEN COALESCE(CAST(p.notice_yn AS VARCHAR), 'N') = 'Y' THEN 0 ELSE 1 END,
+            p.created_at DESC
+    </select>
+
+    <select id="selectPostById" resultMap="bbsPostDetailRow">
+        SELECT p.post_idx,
+               p.folder_idx,
+               f.folder_nm,
+               p.store_idx,
+               sm.store_nm,
+               p.title,
+               p.body_txt,
+               CAST(p.private_yn AS VARCHAR) AS private_yn,
+               CAST(p.notice_yn AS VARCHAR) AS notice_yn,
+               p.view_cnt,
+               p.created_by,
+               COALESCE(um.user_name, p.created_by, '') AS author_nm,
+               p.created_at,
+               p.updated_at,
+               EXISTS (
+                   SELECT 1 FROM bbs_doc d
+                   WHERE d.post_idx = p.post_idx AND d.deleted_yn = false
+               ) AS has_attachment
+        <include refid="postFrom"/>
+        WHERE p.post_idx = #{postIdx}
+          AND p.deleted_yn = false
+    </select>
+
+    <insert id="insertPost" useGeneratedKeys="true" keyProperty="postIdx" keyColumn="post_idx">
+        INSERT INTO bbs_post (
+            folder_idx, store_idx, title, body_txt, private_yn, notice_yn, created_by, updated_at
+        ) VALUES (
+            #{folderIdx},
+            #{storeIdx},
+            TRIM(#{title}),
+            #{bodyTxt},
+            COALESCE(NULLIF(TRIM(#{privateYn}), ''), 'N'),
+            COALESCE(NULLIF(TRIM(#{noticeYn}), ''), 'N'),
+            #{userId},
+            CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <update id="updatePost">
+        UPDATE bbs_post
+        SET folder_idx = #{body.folderIdx},
+            store_idx = #{storeIdx},
+            title = TRIM(#{body.title}),
+            body_txt = #{body.bodyTxt},
+            private_yn = COALESCE(NULLIF(TRIM(#{body.privateYn}), ''), private_yn),
+            notice_yn = COALESCE(NULLIF(TRIM(#{body.noticeYn}), ''), notice_yn),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE post_idx = #{postIdx}
+          AND deleted_yn = false
+    </update>
+
+    <update id="softDeletePost">
+        UPDATE bbs_post
+        SET deleted_yn = true,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE post_idx = #{postIdx}
+    </update>
+
+    <update id="incrementViewCnt">
+        UPDATE bbs_post SET view_cnt = view_cnt + 1 WHERE post_idx = #{postIdx}
+    </update>
+
+    <select id="countAllByFolder" resultType="long">
+        SELECT COUNT(*)
+        FROM bbs_post
+        WHERE folder_idx = #{folderIdx}
+          AND deleted_yn = false
+    </select>
+</mapper>

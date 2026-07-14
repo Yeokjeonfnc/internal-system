@@ -12,6 +12,7 @@ Future<void> showListFilterEndSheet(
   Widget? child,
   WidgetBuilder? builder,
   String title = '검색 조건',
+  bool useRootNavigator = false,
 }) {
   assert(
     child != null || builder != null,
@@ -22,6 +23,7 @@ Future<void> showListFilterEndSheet(
 
   return showGeneralDialog<void>(
     context: context,
+    useRootNavigator: useRootNavigator,
     barrierDismissible: true,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     barrierColor: Colors.black38,

@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.chat.mapper.ChatMapper">
+
+    <resultMap id="chatRoomRow" type="com.yeokjeon.erp.chat.dto.ChatRoomRow">
+        <constructor>
+            <arg column="room_idx" javaType="java.lang.Integer"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="is_group" javaType="java.lang.Boolean"/>
+            <arg column="last_text" javaType="java.lang.String"/>
+            <arg column="last_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="unread_count" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="chatMemberRow" type="com.yeokjeon.erp.chat.dto.ChatMemberRow">
+        <constructor>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="user_name" javaType="java.lang.String"/>
+            <arg column="dept_nm" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="chatMessageRow" type="com.yeokjeon.erp.chat.dto.ChatMessageRow">
+        <constructor>
+            <arg column="message_idx" javaType="java.lang.Long"/>
+            <arg column="room_idx" javaType="java.lang.Integer"/>
+            <arg column="sender_id" javaType="java.lang.String"/>
+            <arg column="sender_name" javaType="java.lang.String"/>
+            <arg column="text" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="msg_type" javaType="java.lang.String"/>
+            <arg column="file_name" javaType="java.lang.String"/>
+            <arg column="stored_name" javaType="java.lang.String"/>
+            <arg column="content_type" javaType="java.lang.String"/>
+            <arg column="file_size" javaType="java.lang.Long"/>
+            <arg column="deleted" javaType="java.lang.Boolean"/>
+        </constructor>
+    </resultMap>
+
+    <!-- 대화목록 미리보기: 첨부는 '사진'/파일명으로 대체. -->
+    <sql id="lastTextExpr">
+        CASE
+            WHEN lm.msg_type = 'image' THEN '사진'
+            WHEN lm.msg_type = 'file'  THEN COALESCE(NULLIF(lm.file_name, ''), '파일')
+            ELSE lm.msg_txt
+        END
+    </sql>
+
+    <sql id="messageColumns">
+        m.message_idx                     AS message_idx,
+        m.room_idx                        AS room_idx,
+        m.sender_id                       AS sender_id,
+        COALESCE(u.user_name, m.sender_id) AS sender_name,
+        m.msg_txt                         AS text,
+        m.created_at                      AS created_at,
+        m.msg_type                        AS msg_type,
+        m.file_name                       AS file_name,
+        m.stored_name                     AS stored_name,
+        m.content_type                    AS content_type,
+        m.file_size                       AS file_size,
+        (m.deleted_at IS NOT NULL)        AS deleted
+    </sql>
+
+    <select id="selectRoomsForUser" resultMap="chatRoomRow">
+        SELECT r.room_idx                  AS room_idx,
+               r.title                     AS title,
+               r.is_group                  AS is_group,
+               <include refid="lastTextExpr"/> AS last_text,
+               lm.created_at               AS last_at,
+               COALESCE(uc.cnt, 0)         AS unread_count
+        FROM chat_room r
+                 JOIN chat_room_member cm
+                      ON cm.room_idx = r.room_idx AND cm.user_id = #{userId}
+                 LEFT JOIN LATERAL (
+            SELECT m.msg_txt, m.created_at, m.msg_type, m.file_name
+            FROM chat_message m
+            WHERE m.room_idx = r.room_idx
+              AND m.deleted_at IS NULL
+            ORDER BY m.created_at DESC, m.message_idx DESC
+            LIMIT 1
+            ) lm ON true
+                 LEFT JOIN LATERAL (
+            SELECT COUNT(*) AS cnt
+            FROM chat_message m2
+            WHERE m2.room_idx = r.room_idx
+              AND m2.sender_id &lt;&gt; #{userId}
+              AND m2.deleted_at IS NULL
+              AND m2.created_at > COALESCE(cm.last_read_at, TIMESTAMPTZ '1970-01-01')
+            ) uc ON true
+        ORDER BY COALESCE(lm.created_at, r.created_at) DESC
+    </select>
+
+    <select id="selectRoom" resultMap="chatRoomRow">
+        SELECT r.room_idx                  AS room_idx,
+               r.title                     AS title,
+               r.is_group                  AS is_group,
+               <include refid="lastTextExpr"/> AS last_text,
+               lm.created_at               AS last_at,
+               COALESCE(uc.cnt, 0)         AS unread_count
+        FROM chat_room r
+                 JOIN chat_room_member cm
+                      ON cm.room_idx = r.room_idx AND cm.user_id = #{userId}
+                 LEFT JOIN LATERAL (
+            SELECT m.msg_txt, m.created_at, m.msg_type, m.file_name
+            FROM chat_message m
+            WHERE m.room_idx = r.room_idx
+              AND m.deleted_at IS NULL
+            ORDER BY m.created_at DESC, m.message_idx DESC
+            LIMIT 1
+            ) lm ON true
+                 LEFT JOIN LATERAL (
+            SELECT COUNT(*) AS cnt
+            FROM chat_message m2
+            WHERE m2.room_idx = r.room_idx
+              AND m2.sender_id &lt;&gt; #{userId}
+              AND m2.deleted_at IS NULL
+              AND m2.created_at > COALESCE(cm.last_read_at, TIMESTAMPTZ '1970-01-01')
+            ) uc ON true
+        WHERE r.room_idx = #{roomIdx}
+    </select>
+
+    <select id="selectMembers" resultMap="chatMemberRow">
+        SELECT cm.user_id                       AS user_id,
+               COALESCE(u.user_name, cm.user_id) AS user_name,
+               d.dept_nm                        AS dept_nm
+        FROM chat_room_member cm
+                 LEFT JOIN user_mst u ON u.user_id = cm.user_id
+                 LEFT JOIN dept_mst d ON d.dept_idx = u.dept_idx
+        WHERE cm.room_idx = #{roomIdx}
+        ORDER BY user_name
+    </select>
+
+    <!-- 삭제된 메시지도 함께 반환(프론트에서 '삭제된 메시지입니다' 로 표시). -->
+    <select id="selectMessages" resultMap="chatMessageRow">
+        SELECT <include refid="messageColumns"/>
+        FROM chat_message m
+                 LEFT JOIN user_mst u ON u.user_id = m.sender_id
+        WHERE m.room_idx = #{roomIdx}
+        ORDER BY m.created_at, m.message_idx
+    </select>
+
+    <select id="selectMessage" resultMap="chatMessageRow">
+        SELECT <include refid="messageColumns"/>
+        FROM chat_message m
+                 LEFT JOIN user_mst u ON u.user_id = m.sender_id
+        WHERE m.message_idx = #{messageIdx}
+    </select>
+
+    <select id="selectDirectory" resultMap="chatMemberRow">
+        SELECT u.user_id   AS user_id,
+               u.user_name AS user_name,
+               d.dept_nm   AS dept_nm
+        FROM user_mst u
+                 LEFT JOIN dept_mst d ON d.dept_idx = u.dept_idx
+        WHERE u.user_id &lt;&gt; #{userId}
+          AND COALESCE(CAST(u.owner_yn AS VARCHAR), 'N') &lt;&gt; 'Y'
+        ORDER BY u.user_name
+    </select>
+
+    <select id="findDirectRoom" resultType="java.lang.Integer">
+        SELECT r.room_idx
+        FROM chat_room r
+        WHERE r.is_group = false
+          AND (SELECT COUNT(*) FROM chat_room_member cm WHERE cm.room_idx = r.room_idx) = 2
+          AND EXISTS (SELECT 1 FROM chat_room_member a
+                      WHERE a.room_idx = r.room_idx AND a.user_id = #{userId})
+          AND EXISTS (SELECT 1 FROM chat_room_member b
+                      WHERE b.room_idx = r.room_idx AND b.user_id = #{otherId})
+        LIMIT 1
+    </select>
+
+    <insert id="insertRoom" useGeneratedKeys="true" keyProperty="roomIdx" keyColumn="room_idx">
+        INSERT INTO chat_room (title, is_group, created_by, updated_at)
+        VALUES (NULLIF(TRIM(#{title}), ''),
+                COALESCE(#{group}, false),
+                #{createdBy},
+                now())
+    </insert>
+
+    <insert id="insertMember">
+        INSERT INTO chat_room_member (room_idx, user_id, last_read_at)
+        VALUES (#{roomIdx}, #{userId}, now())
+        ON CONFLICT (room_idx, user_id) DO NOTHING
+    </insert>
+
+    <insert id="insertMessage" useGeneratedKeys="true" keyProperty="messageIdx" keyColumn="message_idx">
+        INSERT INTO chat_message (room_idx, sender_id, msg_txt, msg_type,
+                                  file_name, stored_name, content_type, file_size)
+        VALUES (#{roomIdx},
+                #{senderId},
+                #{msgTxt},
+                COALESCE(NULLIF(TRIM(#{msgType}), ''), 'text'),
+                #{fileName},
+                #{storedName},
+                #{contentType},
+                #{fileSize})
+    </insert>
+
+    <update id="touchRoom">
+        UPDATE chat_room SET updated_at = now() WHERE room_idx = #{roomIdx}
+    </update>
+
+    <update id="markRead">
+        UPDATE chat_room_member
+        SET last_read_at = now()
+        WHERE room_idx = #{roomIdx}
+          AND user_id = #{userId}
+    </update>
+
+    <!-- 채팅방 나가기: 본인 멤버십을 제거해 목록에서 영구히 제외(새 메시지가 와도 다시 보이지 않음). -->
+    <delete id="hideRoom">
+        DELETE FROM chat_room_member
+        WHERE room_idx = #{roomIdx}
+          AND user_id = #{userId}
+    </delete>
+
+    <!-- 본인이 보낸 메시지만 소프트 삭제. -->
+    <update id="deleteMessage">
+        UPDATE chat_message
+        SET deleted_at = now()
+        WHERE message_idx = #{messageIdx}
+          AND sender_id = #{senderId}
+          AND deleted_at IS NULL
+    </update>
+
+    <select id="countMembership" resultType="int">
+        SELECT COUNT(*)
+        FROM chat_room_member
+        WHERE room_idx = #{roomIdx}
+          AND user_id = #{userId}
+    </select>
+</mapper>

@@ -7,15 +7,26 @@ export 'package:app_flutter/core/api/code_option.dart';
 
 class CommonCodeApiService extends BaseRepository {
   Future<List<CodeOption>> getCodes(int grpCd) async {
-    try {
-      return await getDataList(
-        CodeMstApiPaths.root,
-        queryParameters: {CodeMstQueryParamKeys.grpCd: grpCd},
-        fromJson: CodeOption.fromJson,
+    final r = await client.get(
+      CodeMstApiPaths.root,
+      queryParameters: {CodeMstQueryParamKeys.grpCd: grpCd},
+    );
+    if (r.statusCode != 200 || r.data == null) {
+      debugPrint(
+        'GET /codes failed: grpCd=$grpCd status=${r.statusCode}',
       );
-    } catch (e) {
-      debugPrint('Error fetching common codes: $e');
+      throw StateError('공통코드 조회 실패 (grpCd=$grpCd, HTTP ${r.statusCode})');
     }
-    return const [];
+    final rows = parseDataListMap(r.data);
+    final out = <CodeOption>[];
+    for (final row in rows) {
+      try {
+        final opt = CodeOption.fromJson(row);
+        if (opt.codeCd.isNotEmpty) out.add(opt);
+      } catch (e, st) {
+        debugPrint('CodeOption parse skip grpCd=$grpCd row=$row: $e\n$st');
+      }
+    }
+    return out;
   }
 }

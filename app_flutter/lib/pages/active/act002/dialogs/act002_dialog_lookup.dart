@@ -59,9 +59,10 @@ class _StoreLookupDialogState extends State<StoreLookupDialog> {
         maxHeight: 680,
         child: SizedBox(
           height: 520,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+          child: ErpLookupHorizontalSyncScope(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               TextField(
                 controller: _keywordController,
                 style: FormStylePalette.valueStyle,
@@ -169,7 +170,8 @@ class _StoreLookupDialogState extends State<StoreLookupDialog> {
               ),
               const SizedBox(height: 12),
               erpLookupDialogCloseFooter(context),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -61,7 +61,7 @@ class ListPageTemplate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = useCompactErpLayout(context);
-    final hPad = compact ? 8.0 : AppDimensions.listScreenHPadding;
+    final hPad = compact ? 6.0 : AppDimensions.listScreenHPadding;
 
     return ColoredBox(
       color: AppTheme.appSurface,
@@ -81,20 +81,25 @@ class ListPageTemplate extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-                border: Border.all(color: const Color(0xFFE2E5EB)),
+                border: Border.all(color: AppTheme.hairline),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(AppDimensions.listCardPadding),
+                padding: EdgeInsets.all(
+                  compact ? 8 : AppDimensions.listCardPadding,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: ActiveFilterChipsBar(chips: activeFilters),
-                        ),
-                        const SizedBox(width: 8),
+                        if (!compact) ...[
+                          Expanded(
+                            child: ActiveFilterChipsBar(chips: activeFilters),
+                          ),
+                          const SizedBox(width: 8),
+                        ] else
+                          const Spacer(),
                         if (compact && mainSearchFields != null) ...[
                           OutlinedButton.icon(
                             onPressed: () => showListFilterEndSheet(
@@ -118,7 +123,7 @@ class ListPageTemplate extends StatelessWidget {
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppTheme.accentRed,
                               side: const BorderSide(
-                                color: Color(0xFFE5E7EB),
+                                color: AppTheme.inputBorder,
                               ),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
@@ -134,28 +139,26 @@ class ListPageTemplate extends StatelessWidget {
                           const SizedBox(width: 8),
                         ],
                         if (onRefresh != null) ...[
-                          FilledButton.tonalIcon(
+                          OutlinedButton.icon(
                             onPressed: onRefresh,
-                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            icon: const Icon(Icons.refresh_rounded, size: 15),
                             label: const Text('새로고침'),
-                            style: FilledButton.styleFrom(
-                              foregroundColor: const Color(0xFF059669),
-                              backgroundColor: const Color(0xFFD1FAE5),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.textSecondary,
+                              backgroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
+                                horizontal: 13,
                                 vertical: 10,
                               ),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(8),
                                 side: const BorderSide(
-                                  color: Color(0xFFA7F3D0),
+                                  color: AppTheme.tableHeaderBorder,
                                 ),
                               ),
-                              elevation: 0,
                               textStyle: const TextStyle(
                                 fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                letterSpacing: -0.1,
+                                fontSize: 12,
                                 fontFamilyFallback: AppTheme.koreanFontFallback,
                               ),
                             ),
@@ -179,8 +182,9 @@ class ListPageTemplate extends StatelessWidget {
                           child: Text(
                             countText,
                             style: const TextStyle(
-                              color: Color(0xFF6B7280),
-                              fontSize: 14,
+                              color: AppTheme.textMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
                               fontFamilyFallback: AppTheme.koreanFontFallback,
                             ),
                           ),

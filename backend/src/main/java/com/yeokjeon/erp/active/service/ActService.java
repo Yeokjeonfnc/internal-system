@@ -21,6 +21,7 @@ import com.yeokjeon.erp.active.repository.ActRepository;
 import com.yeokjeon.erp.exception.ResourceNotFoundException;
 import com.yeokjeon.erp.franchise.entity.Store;
 import com.yeokjeon.erp.franchise.repository.StoreRepository;
+import com.yeokjeon.erp.franchise.service.StoreHistoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,8 @@ public class ActService {
     private final ActNotifRepository actNotifRepository;
     private final StoreRepository storeRepository;
     private final ActMstMapper actMstMapper;
+    private final StoreHistoryService storeHistoryService;
+    private final ActSignatureService actSignatureService;
 
     public List<ActivityStatusPivotRowDto> statusByStore(LocalDate startDt, LocalDate endDt, String brandCd) {
         return actMstMapper.pivotByStore(startDt, endDt, brandCd);
@@ -229,7 +232,7 @@ public class ActService {
                 .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeIdx", storeIdx));
         ActActive active = entityFromWrite(body);
         normalizeForSave(active);
-
+        String storeNm = store.getStoreNm() == null ? "" : store.getStoreNm().trim();
         ActActive saved = actRepository.save(active);
 
         List<ChkResultDtlSaveDto> checklistRows = body.checklistResultsOrEmpty();
@@ -241,7 +244,8 @@ public class ActService {
             }
         }
 
-        maybeNotifyPendingApprovers(saved, body.getApprUserIds(), null);
+        maybeNotifyPendingApprovers(saved, body.getApprUserIds(), storeNm, null);
+        maybeRecordActivityStoreHistory(saved, store, null);
 
         log.info("활동관리 생성 완료: {}", saved.getActIdx());
         return toActiveResponse(saved, store);
@@ -270,7 +274,9 @@ public class ActService {
         Store store = storeRepository.findByStoreIdx(active.getStoreIdx())
                 .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeIdx", active.getStoreIdx()));
         ActActive saved = actRepository.save(active);
-        maybeNotifyPendingApprovers(saved, body.getApprUserIds(), previousApprStatus);
+        String storeNm = store.getStoreNm() == null ? "" : store.getStoreNm().trim();
+        maybeNotifyPendingApprovers(saved, body.getApprUserIds(), storeNm, previousApprStatus);
+        maybeRecordActivityStoreHistory(saved, store, previousApprStatus);
         log.info("활동관리 수정 완료: {}", saved.getActIdx());
         return toActiveResponse(saved, store);
     }
@@ -303,6 +309,7 @@ public class ActService {
                 .svNotes(trimToNull(b.getSvNotes()))
                 .chkYn(b.getChkYn())
                 .apprNotes(trimToNull(b.getApprNotes()))
+                .usageLogIdx(b.getUsageLogIdx())
                 .build();
     }
 
@@ -352,6 +359,9 @@ public class ActService {
         if (b.isApprUserIdsPresent()) {
             active.setApprId(joinCsvDistinct(b.getApprUserIds()));
         }
+        if (b.isUsageLogIdxPresent()) {
+            active.setUsageLogIdx(b.getUsageLogIdx());
+        }
     }
 
     private static String trimToNull(String s) {
@@ -392,6 +402,38 @@ public class ActService {
 
         actRepository.delete(active);
         log.info("활동관리 삭제 완료: {}", actIdx);
+    }
+
+    private void maybeRecordActivityStoreHistory(
+            ActActive active, Store store, String previousApprStatus) {
+        if (active == null || store == null) {
+            return;
+        }
+        boolean nowApproved = STATUS_APPROVED.equals(active.getApprStatus());
+        boolean wasApproved = previousApprStatus != null
+                && STATUS_APPROVED.equals(previousApprStatus.trim());
+        if (nowApproved && !wasApproved) {
+            recordActivityStoreHistory(active, store);
+        }
+    }
+
+    private void recordActivityStoreHistory(ActActive active, Store store) {
+        storeHistoryService.recordActivityVisitOnApproval(
+                active.getStoreIdx(),
+                store.getStoreNm(),
+                resolveSvDisplayName(active.getSvId()),
+                active.getApprDt());
+    }
+
+    private String resolveSvDisplayName(String svId) {
+        if (svId == null || svId.isBlank()) {
+            return "system";
+        }
+        String name = loadUserName(svId.trim());
+        if (name != null && !name.isBlank()) {
+            return name.trim();
+        }
+        return svId.trim();
     }
 
     private void normalizeForSave(ActActive active) {
@@ -435,6 +477,7 @@ public class ActService {
                 svDeptNm,
                 ssvNm,
                 splitApprUserIdsCsv(active.getApprId()),
+                actSignatureService.hasSignature(active),
                 null,
                 null);
     }
@@ -450,8 +493,7 @@ public class ActService {
                 .toList();
     }
 
-    private void maybeNotifyPendingApprovers(ActActive saved, List<String> apprUserIdsFromDto,
-                                             String previousApprStatus) {
+    private void maybeNotifyPendingApprovers(ActActive saved, List<String> apprUserIdsFromDto, String storeNm, String previousApprStatus) {
         if (saved.getApprStatus() == null
                 || !STATUS_PENDING.equalsIgnoreCase(saved.getApprStatus().trim())) {
             return;
@@ -468,11 +510,15 @@ public class ActService {
         if (ids == null || ids.isEmpty()) {
             return;
         }
-        notifyActivityApprovers(saved.getActIdx(), ids);
+        notifyActivityApprovers(saved.getActIdx(), ids, storeNm );
     }
     
-    /** 실제 insert 된 체크리스트 행 수({@code chkIdx} 가 있는 항목만). */
+    /**
+     * 체크리스트 결과 저장 — 동일 {@code act_idx} 기존 행을 먼저 삭제한 뒤 전체를 다시 INSERT.
+     * (임시저장·자동저장마다 INSERT만 하면 중복 누적됨)
+     */
     private int saveChecklistResults(Integer actIdx, List<ChkResultDtlSaveDto> results) {
+        deleteChecklistResults(actIdx);
         int inserted = 0;
         for (ChkResultDtlSaveDto result : results) {
             if (result.chkIdx() == null) {
@@ -575,6 +621,14 @@ public class ActService {
     }
 
     @Transactional(readOnly = false)
+    public int markAllRead(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return 0;
+        }
+        return actMstMapper.notifMarkAllRead(userId.trim());
+    }
+
+    @Transactional(readOnly = false)
     public void markActivityApprovalAcknowledged(String userId, Integer actIdx, String apprNotes) {
         if (userId == null || userId.isBlank() || actIdx == null) {
             return;
@@ -624,13 +678,21 @@ public class ActService {
         }
 
         int ackedDistinct = actMstMapper.apprCsvAckCnt(actIdx, TYPE_ACTIVITY_APPROVAL, peers);
+        boolean fullyApproved = false;
         if (ackedDistinct >= peers.size()) {
             active.setApprDt(LocalDateTime.now());
-            active.setApprStatus("APPROVED");
+            active.setApprStatus(STATUS_APPROVED);
             needsActiveSave = true;
+            fullyApproved = true;
         }
         if (needsActiveSave) {
             actRepository.save(active);
+        }
+        if (fullyApproved) {
+            Store store = storeRepository.findByStoreIdx(active.getStoreIdx()).orElse(null);
+            if (store != null) {
+                recordActivityStoreHistory(active, store);
+            }
         }
     }
 
@@ -658,7 +720,7 @@ public class ActService {
     }
 
     @Transactional(readOnly = false)
-    public void notifyActivityApprovers(Integer actIdx, List<String> apprUserIds) {
+    public void notifyActivityApprovers(Integer actIdx, List<String> apprUserIds, String storeNm) {
         if (actIdx == null || apprUserIds == null || apprUserIds.isEmpty()) {
             return;
         }
@@ -676,7 +738,7 @@ public class ActService {
             return;
         }
 
-        String msg = "결재자에 추가되었습니다. 결재 대기 중인 활동내역이 있습니다.";
+        String msg = (storeNm != null ? storeNm + " " : "") + "의 활동 결재자에 추가되었습니다. 결재 대기 중인 활동내역이 있습니다.";
         for (String uid : distinct) {
             ActNotif n = ActNotif.builder()
                     .userId(uid)
@@ -738,6 +800,19 @@ public class ActService {
         String b = brandCd != null && !brandCd.isBlank() ? brandCd.trim() : null;
         String t = chkType != null && !chkType.isBlank() ? chkType.trim() : null;
         return actMstMapper.chkMstList(b, t);
+    }
+
+    @Transactional
+    public void deleteChecklist(Integer chkIdx) {
+        ChkMstResponseDto row = actMstMapper.chkMstOne(chkIdx);
+        if (row == null) {
+            throw new ResourceNotFoundException("체크리스트", "chkIdx", chkIdx);
+        }
+        actMstMapper.delChkDtlByChkIdx(chkIdx);
+        int deleted = actMstMapper.delChkMst(chkIdx);
+        if (deleted == 0) {
+            throw new ResourceNotFoundException("체크리스트", "chkIdx", chkIdx);
+        }
     }
 
     private ChkMstResponseDto getChecklist(Integer chkIdx) {

@@ -162,7 +162,8 @@ class _PartnerLookupDialogState extends State<PartnerLookupDialog> {
 
 
 
-              return Column(
+              return ErpLookupHorizontalSyncScope(
+                child: Column(
 
                 crossAxisAlignment: CrossAxisAlignment.stretch,
 
@@ -307,7 +308,7 @@ class _PartnerLookupDialogState extends State<PartnerLookupDialog> {
                   erpLookupDialogCloseFooter(context),
 
                 ],
-
+                ),
               );
 
             },

@@ -2,6 +2,11 @@ spring:
   application:
     name: yeokjeon-erp-backend
   
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 55MB
+  
   devtools:
     livereload:
       enabled: false
@@ -45,6 +50,11 @@ mybatis:
 
 server:
   port: 3001
+  # 대용량 목록(가맹점 1,000+건 등) JSON 응답 압축 — 전송량 5~10배 절감.
+  compression:
+    enabled: true
+    mime-types: application/json,text/plain,text/html
+    min-response-size: 2048
   servlet:
     context-path: /api
     encoding:
@@ -60,6 +70,19 @@ menu:
 external:
   kakao:
     rest-api-key: 15c5f01644e0aa8f06fc80b5afd310da
+
+daou:
+  office:
+    api-base-url: https://api.daouoffice.com
+    client-id: ${DAOU_CLIENT_ID:}
+    client-secret: ${DAOU_CLIENT_SECRET:}
+    form-code: ${DAOU_FORM_CODE:yeokjeon_eap01}
+    callback-url: ${DAOU_CALLBACK_URL:http://localhost:3001/api/eap/status}
+
+yon:
+  file:
+    storage-root: ${FILE_STORAGE_ROOT:./storage}
+    max-size-bytes: ${FILE_MAX_SIZE:52428800}
 
 logging:
   # 콘솔: Windows 기본 MS949(YeokjeonErpApplication). UTF-8 터미널은 LOGGING_CHARSET_CONSOLE=UTF-8

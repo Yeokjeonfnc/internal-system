@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>좌표 지정</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif; }
+    #root { display: grid; grid-template-rows: auto 1fr auto; height: 100%; }
+    .toolbar { display: flex; gap: 8px; align-items: center; padding: 10px; border-bottom: 1px solid #e5e7eb; }
+    .toolbar input { flex: 1; min-width: 220px; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 10px; font-size: 14px; }
+    .btn { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 8px 12px; font-size: 13px; cursor: pointer; }
+    .btn.primary { border-color: #b91c1c; background: #b91c1c; color: #fff; font-weight: 600; }
+    #map { width: 100%; height: 100%; }
+    .footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px; border-top: 1px solid #e5e7eb; background: #fff; }
+    .meta { font-size: 12px; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</head>
+<body>
+<div id="root">
+  <div class="toolbar">
+    <input id="q" type="text" placeholder="주소/역명 검색" />
+    <button id="searchBtn" class="btn">검색</button>
+    <button id="applyBtnTop" class="btn primary">적용</button>
+    <button id="closeBtnTop" class="btn">닫기</button>
+  </div>
+  <div id="map"></div>
+  <div class="footer">
+    <div id="meta" class="meta">지도를 클릭해 좌표를 선택하세요.</div>
+    <div>
+      <button id="applyBtn" class="btn primary">적용</button>
+      <button id="closeBtn" class="btn">닫기</button>
+    </div>
+  </div>
+</div>
+<script>
+  const MSG_PREFIX = 'yj_cp_v1|';
+  const SEOUL = { lat: 37.5665, lng: 126.9780 };
+  let map = null;
+  let geocoder = null;
+  let places = null;
+  let marker = null;
+  let selected = null;
+
+  const qEl = document.getElementById('q');
+  const metaEl = document.getElementById('meta');
+
+  const params = new URLSearchParams(window.location.search);
+  const appkey = params.get('appkey') || window.localStorage.getItem('YJ_KAKAO_MAP_APP_KEY') || '';
+  const initLat = Number(params.get('lat'));
+  const initLng = Number(params.get('lng'));
+  const initAddress = params.get('address') || '';
+  if (initAddress) qEl.value = initAddress;
+
+  function post(obj) {
+    try { window.parent.postMessage(MSG_PREFIX + JSON.stringify(obj), window.location.origin); } catch (_) {}
+  }
+
+  function setMeta(text) { metaEl.textContent = text || ''; }
+
+  function setMarker(lat, lng, address) {
+    if (!map || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const pos = new kakao.maps.LatLng(lat, lng);
+    if (!marker) marker = new kakao.maps.Marker({ map, position: pos });
+    marker.setPosition(pos);
+    selected = { lat, lng, address: (address || '').trim() };
+    setMeta(`위도 ${lat.toFixed(6)} / 경도 ${lng.toFixed(6)}${selected.address ? ` / ${selected.address}` : ''}`);
+  }
+
+  function reverseGeocode(lat, lng) {
+    if (!geocoder) return;
+    geocoder.coord2Address(lng, lat, (result, status) => {
+      if (status !== kakao.maps.services.Status.OK || !Array.isArray(result) || !result.length) return;
+      const addr = (result[0].road_address && result[0].road_address.address_name)
+        || (result[0].address && result[0].address.address_name)
+        || '';
+      if (!selected) return;
+      selected.address = addr;
+      setMeta(`위도 ${selected.lat.toFixed(6)} / 경도 ${selected.lng.toFixed(6)}${addr ? ` / ${addr}` : ''}`);
+    });
+  }
+
+  function applySelection() {
+    if (!selected) return;
+    post({ op: 'SELECT', lat: selected.lat, lng: selected.lng, address: selected.address || '' });
+  }
+
+  function closeDialog() { post({ op: 'CLOSE' }); }
+
+  function searchAddress() {
+    const q = (qEl.value || '').trim();
+    if (!q || !places) return;
+    places.keywordSearch(q, (data, status) => {
+      if (status !== kakao.maps.services.Status.OK || !Array.isArray(data) || !data.length) return;
+      const p = data[0];
+      const lat = Number(p.y);
+      const lng = Number(p.x);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      map.setCenter(new kakao.maps.LatLng(lat, lng));
+      map.setLevel(4);
+      setMarker(lat, lng, p.place_name || p.address_name || q);
+    });
+  }
+
+  function initMap() {
+    const center = Number.isFinite(initLat) && Number.isFinite(initLng)
+      ? new kakao.maps.LatLng(initLat, initLng)
+      : new kakao.maps.LatLng(SEOUL.lat, SEOUL.lng);
+    map = new kakao.maps.Map(document.getElementById('map'), { center, level: 5 });
+    geocoder = new kakao.maps.services.Geocoder();
+    places = new kakao.maps.services.Places();
+
+    kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
+      const lat = mouseEvent.latLng.getLat();
+      const lng = mouseEvent.latLng.getLng();
+      setMarker(lat, lng, '');
+      reverseGeocode(lat, lng);
+    });
+
+    if (Number.isFinite(initLat) && Number.isFinite(initLng)) {
+      setMarker(initLat, initLng, initAddress);
+    }
+  }
+
+  document.getElementById('searchBtn').addEventListener('click', searchAddress);
+  qEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') searchAddress(); });
+  document.getElementById('applyBtn').addEventListener('click', applySelection);
+  document.getElementById('applyBtnTop').addEventListener('click', applySelection);
+  document.getElementById('closeBtn').addEventListener('click', closeDialog);
+  document.getElementById('closeBtnTop').addEventListener('click', closeDialog);
+
+  if (!appkey) {
+    setMeta('Kakao Maps JavaScript 키가 없습니다.');
+  } else {
+    const s = document.createElement('script');
+    s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appkey)}&autoload=false&libraries=services`;
+    s.onload = () => kakao.maps.load(initMap);
+    s.onerror = () => setMeta('Kakao SDK를 불러오지 못했습니다.');
+    document.head.appendChild(s);
+  }
+</script>
+</body>
+</html>

@@ -84,9 +84,10 @@ class _PropertyLookupDialogState extends State<PropertyLookupDialog> {
 
               final properties = _filter(snapshot.data ?? const <Property>[]);
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+              return ErpLookupHorizontalSyncScope(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                   TextField(
                     controller: _keywordController,
                     onChanged: (_) => setState(() {}),
@@ -101,22 +102,27 @@ class _PropertyLookupDialogState extends State<PropertyLookupDialog> {
                         width: kErpLookupNoWidth,
                         child: ErpLookupHeaderText('NO'),
                       ),
+                      SizedBox(width: 10),
                       SizedBox(
                         width: kErpLookupPropertyNameWidth,
                         child: ErpLookupHeaderText('물건명'),
                       ),
+                      SizedBox(width: 10),
                       SizedBox(
                         width: kErpLookupPropertyAddressWidth,
                         child: ErpLookupHeaderText('주소'),
                       ),
+                      SizedBox(width: 10),
                       SizedBox(
                         width: kErpLookupMoneyColWidth,
                         child: ErpLookupHeaderText('보증금'),
                       ),
+                      SizedBox(width: 10),
                       SizedBox(
                         width: kErpLookupMoneyColWidth,
                         child: ErpLookupHeaderText('임차료'),
                       ),
+                      SizedBox(width: 10),
                       SizedBox(
                         width: kErpLookupMoneyColWidth,
                         child: ErpLookupHeaderText('권리금'),
@@ -151,30 +157,37 @@ class _PropertyLookupDialogState extends State<PropertyLookupDialog> {
                                     width: kErpLookupNoWidth,
                                     child: ErpLookupBodyText('${index + 1}'),
                                   ),
+                                  SizedBox(width: 10),
                                   SizedBox(
                                     width: kErpLookupPropertyNameWidth,
                                     child: ErpLookupBodyText(property.name),
                                   ),
+                                  SizedBox(width: 10),
                                   SizedBox(
                                     width: kErpLookupPropertyAddressWidth,
                                     child: ErpLookupBodyText(address),
                                   ),
+                                  SizedBox(width: 10),
                                   SizedBox(
                                     width: kErpLookupMoneyColWidth,
                                     child: ErpLookupBodyText(
                                       propertyLookupFormatWon(property.deposit),
                                     ),
                                   ),
+                                  SizedBox(width: 10),
                                   SizedBox(
                                     width: kErpLookupMoneyColWidth,
                                     child: ErpLookupBodyText(
                                       propertyLookupFormatWon(property.rent),
                                     ),
                                   ),
+                                  SizedBox(width: 10),
                                   SizedBox(
                                     width: kErpLookupMoneyColWidth,
                                     child: ErpLookupBodyText(
-                                      propertyLookupFormatWon(property.keyMoney),
+                                      propertyLookupFormatWon(
+                                        property.keyMoney,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -184,7 +197,8 @@ class _PropertyLookupDialogState extends State<PropertyLookupDialog> {
                   ),
                   const SizedBox(height: 12),
                   erpLookupDialogCloseFooter(context),
-                ],
+                  ],
+                ),
               );
             },
           ),

@@ -8,7 +8,7 @@ abstract final class CodeMstApiJsonKeys {
   static const String codeNm = 'codeNm';
 }
 
-@JsonSerializable()
+@JsonSerializable(createFactory: false)
 class CodeOption {
   const CodeOption({required this.codeCd, required this.codeNm});
 
@@ -18,8 +18,14 @@ class CodeOption {
   @JsonKey(name: CodeMstApiJsonKeys.codeNm)
   final String codeNm;
 
-  factory CodeOption.fromJson(Map<String, dynamic> json) =>
-      _$CodeOptionFromJson(json);
+  factory CodeOption.fromJson(Map<String, dynamic> json) {
+    final cd = json[CodeMstApiJsonKeys.codeCd];
+    final nm = json[CodeMstApiJsonKeys.codeNm];
+    return CodeOption(
+      codeCd: cd?.toString() ?? '',
+      codeNm: nm?.toString() ?? '',
+    );
+  }
 
   Map<String, dynamic> toJson() => _$CodeOptionToJson(this);
 }

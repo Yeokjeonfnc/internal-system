@@ -131,7 +131,8 @@ class _UserInfoPanelState extends ConsumerState<_UserInfoPanel> {
   bool _departmentsLoading = true;
   String? _selectedDeptId;
   String? _selectedPositionCd;
-  TagYn _tagYn = TagYn.untagged;
+  SvYn _svYn = SvYn.no;
+  OwnerYn _ownerYn = OwnerYn.no;
   DateTime? _joinDt;
 
   String? _verifiedUserIdTrim;
@@ -201,7 +202,8 @@ class _UserInfoPanelState extends ConsumerState<_UserInfoPanel> {
         : _originalUserIdTrim;
     _phoneCtrl.text = formatKoreanPhoneDisplay(e.mobilePhone);
     _emailCtrl.text = e.email;
-    _tagYn = e.tagYn;
+    _svYn = e.svYn;
+    _ownerYn = e.ownerYn;
     _joinDt = _parseJoinDtYmd(e.joinDt);
     _passwordCtrl.clear();
     _passwordConfirmCtrl.clear();
@@ -343,7 +345,8 @@ class _UserInfoPanelState extends ConsumerState<_UserInfoPanel> {
         email: _emailCtrl.text,
         joinDt: _joinDtYmdForApi(),
         positionCd: _effectivePositionCd(positionOpts),
-        tagYn: _tagYn == TagYn.tagged,
+        svYn: _svYn == SvYn.yes,
+        ownerYn: _ownerYn == OwnerYn.yes,
       );
       await ref.read(mst001ApiServiceProvider).updateUser(widget.userIdx, body);
       if (!mounted) return;
@@ -529,6 +532,16 @@ class _UserInfoPanelState extends ConsumerState<_UserInfoPanel> {
                                             ),
                                           ),
                                         )
+                                      : positionAsync.hasError
+                                      ? Text(
+                                          '직급 코드 조회에 실패했습니다.',
+                                          style: TextStyle(
+                                            color: FormStylePalette.textMuted,
+                                            fontSize: 13,
+                                            fontFamilyFallback:
+                                                AppTheme.koreanFontFallback,
+                                          ),
+                                        )
                                       : positionOptions.isEmpty
                                       ? Text(
                                           '직급 코드(그룹 $_kUserPositionGrpCd)가 없습니다.',
@@ -615,19 +628,19 @@ class _UserInfoPanelState extends ConsumerState<_UserInfoPanel> {
                           ),
                           const SizedBox(height: 15),
                           LabeledFormRow(
-                            label: '태그사용여부',
+                            label: 'SV·태그권한',
                             child: _isEditing
                                 ? Align(
                                     alignment: Alignment.centerLeft,
                                     child: CheckboxListTile(
-                                      value: _tagYn == TagYn.tagged,
+                                      value: _svYn == SvYn.yes,
                                       onChanged: _saving
                                           ? null
                                           : (v) {
                                               setState(
-                                                () => _tagYn = v == true
-                                                    ? TagYn.tagged
-                                                    : TagYn.untagged,
+                                                () => _svYn = v == true
+                                                    ? SvYn.yes
+                                                    : SvYn.no,
                                               );
                                             },
                                       contentPadding: EdgeInsets.zero,
@@ -636,17 +649,56 @@ class _UserInfoPanelState extends ConsumerState<_UserInfoPanel> {
                                           ListTileControlAffinity.leading,
                                       activeColor: AppTheme.accentRed,
                                       title: Text(
-                                        '태그 사용 허용',
+                                        'SV·태그 사용 허용',
                                         style: FormStylePalette.valueStyle
                                             .copyWith(fontSize: 13),
                                       ),
                                     ),
                                   )
-                                : _TagYnFieldChip(
-                                    tagYn: widget.user?.tagYn ?? _tagYn,
+                                : _YnFieldChip(
+                                    active:
+                                        widget.user?.svYn == SvYn.yes ||
+                                        _svYn == SvYn.yes,
                                   ),
                           ),
                           const SizedBox(height: 15),
+                          // LabeledFormRow(
+                          //   label: '가맹점주',
+                          //   child: _isEditing
+                          //       ? Align(
+                          //           alignment: Alignment.centerLeft,
+                          //           child: CheckboxListTile(
+                          //             value: _ownerYn == OwnerYn.yes,
+                          //             onChanged: _saving
+                          //                 ? null
+                          //                 : (v) {
+                          //                     setState(
+                          //                       () => _ownerYn = v == true
+                          //                           ? OwnerYn.yes
+                          //                           : OwnerYn.no,
+                          //                     );
+                          //                   },
+                          //             contentPadding: EdgeInsets.zero,
+                          //             visualDensity: VisualDensity.compact,
+                          //             controlAffinity:
+                          //                 ListTileControlAffinity.leading,
+                          //             activeColor: AppTheme.accentRed,
+                          //             title: Text(
+                          //               '가맹점주 계정 (게시판만 접근)',
+                          //               style: FormStylePalette.valueStyle
+                          //                   .copyWith(fontSize: 13),
+                          //             ),
+                          //           ),
+                          //         )
+                          //       : _YnFieldChip(
+                          //           active: widget.user?.ownerYn ==
+                          //                   OwnerYn.yes ||
+                          //               _ownerYn == OwnerYn.yes,
+                          //           activeLabel: '가맹점주',
+                          //           inactiveLabel: '일반',
+                          //         ),
+                          // ),
+                          // const SizedBox(height: 15),
                           LabeledFormRow(
                             label: '입사년월일',
                             child: ReadonlyValue(_joinReadonlyDisplay()),
@@ -711,27 +763,22 @@ class _UserPanelHeader extends StatelessWidget {
   }
 }
 
-/// 읽기 전용 — 태그 사용 여부를 칩 형태로 표시한다.
-class _TagYnFieldChip extends StatelessWidget {
-  const _TagYnFieldChip({required this.tagYn});
+/// 읽기 전용 — Y/N 여부를 칩 형태로 표시한다.
+class _YnFieldChip extends StatelessWidget {
+  const _YnFieldChip({required this.active});
 
-  final TagYn tagYn;
+  final bool active;
+
+  static const String activeLabel = '사용';
+  static const String inactiveLabel = '미사용';
 
   @override
   Widget build(BuildContext context) {
-    final tagged = tagYn == TagYn.tagged;
-    final (Color fg, Color bg, Color border) = tagged
-        ? (
-            const Color.fromARGB(255, 224, 38, 116),
-            const Color(0xFFEDE9FE),
-            const Color(0xFFC4B5FD),
-          )
-        : (
-            const Color(0xFF065F46),
-            const Color(0xFFD1FAE5),
-            const Color(0xFFA7F3D0),
-          );
-    final label = tagged ? '사용' : '미사용';
+    // 상태 배지 팔레트(01 규격) — 사용=파랑 계열 / 미사용=뮤트.
+    final Color fg = active ? AppTheme.statusRenewal : AppTheme.textMuted;
+    final Color bg = fg.withValues(alpha: 0.08);
+    final Color border = Colors.transparent;
+    final label = active ? activeLabel : inactiveLabel;
 
     return Align(
       alignment: Alignment.centerLeft,

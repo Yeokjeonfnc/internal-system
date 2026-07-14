@@ -1,6 +1,7 @@
 // 라우트별 상단 배너 제목·부모 경로 메타.
 
 import 'package:app_flutter/pages/active/shared/activity_routes.dart';
+import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 
 import 'app_router.dart';
 
@@ -31,8 +32,11 @@ RouteMeta resolveRouteMeta(String path) {
   if (path == AppRoutes.salesAreaSearch) {
     return const RouteMeta(title: '영업지역 검색', parentPath: AppRoutes.salesAreas);
   }
-  if (path.startsWith('${AppRoutes.salesAreas}/register/')) {
+  if (path == '${AppRoutes.salesAreas}/register') {
     return const RouteMeta(title: '영업지역 등록', parentPath: AppRoutes.salesAreas);
+  }
+  if (path.startsWith('${AppRoutes.salesAreas}/register/')) {
+    return const RouteMeta(title: '영업지역 상세', parentPath: AppRoutes.salesAreas);
   }
   for (final def in appRouteDefs) {
     if (def.path == path) {
@@ -54,6 +58,13 @@ RouteMeta resolveRouteMeta(String path) {
         parentPath: def.parentPath,
       );
     }
+  }
+
+  if (path == EapRoutes.root || path.startsWith('${EapRoutes.root}/')) {
+    return RouteMeta(
+      title: EapRoutes.titleFor(path),
+      parentPath: EapRoutes.parentFor(path),
+    );
   }
 
   if (path.startsWith(kActivitiesRoot)) {

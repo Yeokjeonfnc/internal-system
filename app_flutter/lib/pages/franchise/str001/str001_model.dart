@@ -34,6 +34,7 @@ class Store {
     required this.storeCd,
     required this.storeStatus,
     required this.storeStatusNm,
+    this.closedYn = false,
     required this.ownerNm,
     required this.storeTel,
     required this.zipCd,
@@ -42,6 +43,7 @@ class Store {
     required this.contStartDt,
     required this.contEndDt,
     required this.firstContDt,
+    this.transferDate = '',
     required this.frFee,
     required this.eduFee,
     required this.insuDeposit,
@@ -94,6 +96,9 @@ class Store {
   @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String storeStatusNm;
 
+  @JsonKey(defaultValue: false)
+  final bool closedYn;
+
   @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String ownerNm;
 
@@ -117,6 +122,9 @@ class Store {
 
   @JsonKey(defaultValue: '')
   final String firstContDt;
+
+  @JsonKey(defaultValue: '')
+  final String transferDate;
 
   @JsonKey(fromJson: _stringAny)
   final String contManager;
@@ -211,6 +219,7 @@ class Store {
 /// 문서 탭 한 행.
 class Document {
   const Document({
+    this.storeDocIdx,
     required this.fileName,
     required this.modifiedAt,
     required this.modifiedBy,
@@ -219,40 +228,70 @@ class Document {
     required this.attachedAt,
   });
 
+  final int? storeDocIdx;
   final String fileName;
   final String modifiedAt;
   final String modifiedBy;
   final bool attached;
   final String attachmentBaseDate;
   final String attachedAt;
+
+  factory Document.fromJson(Map<String, dynamic> json) {
+    int? docIdx;
+    final rawIdx = json['storeDocIdx'];
+    if (rawIdx is int) {
+      docIdx = rawIdx;
+    } else if (rawIdx != null) {
+      docIdx = int.tryParse(rawIdx.toString());
+    }
+    return Document(
+      storeDocIdx: docIdx,
+      fileName: json['fileName']?.toString() ?? '',
+      modifiedAt: json['modifiedAt']?.toString() ?? '',
+      modifiedBy: json['modifiedBy']?.toString() ?? '',
+      attached: json['attached'] == true,
+      attachmentBaseDate: json['attachmentBaseDate']?.toString() ?? '',
+      attachedAt: json['attachedAt']?.toString() ?? '',
+    );
+  }
 }
 
 /// 히스토리 탭 한 행.
-@JsonSerializable(createToJson: false)
 class HistoryEntry {
   const HistoryEntry({
     required this.chgDt,
+    required this.chgType,
     required this.chgContent,
     required this.plainApiContent,
     required this.chgUserId,
   });
 
-  @JsonKey(name: 'chgDt', fromJson: storeHistoryChgDtFromJson)
+  @JsonKey(name: 'chgDt', fromJson: storeHistoryChgDtFromJson, defaultValue: '')
   final String chgDt;
 
-  @JsonKey(name: 'chgContent', fromJson: storeHistoryChgContentEncode)
+  @JsonKey(fromJson: _stringAny, defaultValue: '')
+  final String chgType;
+
+  @JsonKey(name: 'chgContent', fromJson: storeHistoryChgContentEncode, defaultValue: '[]')
   final String chgContent;
 
   @JsonKey(name: 'content', fromJson: _stringAny, defaultValue: '')
   final String plainApiContent;
 
-  @JsonKey(fromJson: _stringAny)
+  @JsonKey(fromJson: _stringAny, defaultValue: '')
   final String chgUserId;
 
-  /// UI 표시용(변경 요약 + 폴백).
+  /// UI 표시용 — `UPDATE`만 [column_desc] 요약, 그 외 API [content] 등 기존 포맷.
   String get content =>
-      storeHistoryDisplayFromEncoded(chgContent, plainApiContent);
+      storeHistoryDisplayFromEncoded(chgContent, plainApiContent, chgType);
 
-  factory HistoryEntry.fromJson(Map<String, dynamic> json) =>
-      _$HistoryEntryFromJson(json);
+  factory HistoryEntry.fromJson(Map<String, dynamic> json) {
+    return HistoryEntry(
+      chgDt: storeHistoryChgDtFromJson(json['chgDt']),
+      chgType: _stringAny(json['chgType']),
+      chgContent: storeHistoryChgContentEncode(json['chgContent']),
+      plainApiContent: _stringAny(json['content']),
+      chgUserId: _stringAny(json['chgUserId']),
+    );
+  }
 }

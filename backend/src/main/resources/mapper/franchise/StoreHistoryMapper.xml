@@ -28,6 +28,13 @@
                 )))
     </insert>
 
+    <insert id="insertHistoryActive">
+        INSERT INTO store_history (store_idx, chg_type, chg_user_id, store_nm, chg_content, chg_dt)
+        VALUES (#{storeIdx}, #{chgType}, #{chgUserId}, #{storeNm},
+                to_jsonb(#{summaryText}::text),
+                #{chgDt})
+    </insert>
+
     <insert id="insertHistoryUpdateJson">
         INSERT INTO store_history (store_idx, chg_type, chg_user_id, store_nm, chg_content)
         VALUES (#{storeIdx}, 'UPDATE', 'system', #{storeNm}, CAST(#{jsonBody} AS JSONB))

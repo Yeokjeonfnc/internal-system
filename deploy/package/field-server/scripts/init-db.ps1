@@ -85,6 +85,7 @@ if (-not $PsqlPath -or -not (Test-Path -LiteralPath $PsqlPath)) {
 
 $createdbPath = Join-Path (Split-Path -Parent $PsqlPath) 'createdb.exe'
 $env:PGPASSWORD = $DbPassword
+$env:PGCLIENTENCODING = 'UTF8'
 
 try {
     $versionNum = & $PsqlPath -h $DbHost -p $DbPort -U $DbUser -d postgres -t -A -c 'SHOW server_version_num;'
@@ -140,4 +141,5 @@ try {
     Write-Host "[OK] App login account: admin / admin123"
 } finally {
     Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+    Remove-Item Env:PGCLIENTENCODING -ErrorAction SilentlyContinue
 }

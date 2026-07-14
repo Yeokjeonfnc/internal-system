@@ -1,0 +1,2313 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>영업지역 편집</title>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const key = params.get('appkey')
+        || window.localStorage.getItem('YJ_KAKAO_MAP_APP_KEY')
+        || window.YJ_KAKAO_MAP_APP_KEY
+        || '';
+      if (!key) {
+        window.__kakaoSdkLoadPromise = Promise.reject(new Error('KAKAO_MAP_KEY_EMPTY'));
+        return;
+      }
+      const url = 'https://dapi.kakao.com/v2/maps/sdk.js'
+        + '?appkey=' + encodeURIComponent(key)
+        + '&autoload=false&libraries=drawing,services';
+      window.__kakaoSdkLoadPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.charset = 'UTF-8';
+        script.src = url;
+        script.onload = () => {
+          if (window.kakao && window.kakao.maps) resolve();
+          else reject(new Error('KAKAO_SDK_OBJECT_MISSING'));
+        };
+        script.onerror = () => reject(new Error('KAKAO_SCRIPT_ORB'));
+        document.head.appendChild(script);
+      });
+    })();
+  </script>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #layout-root {
+      display: flex;
+      flex-direction: row;
+      width: 100%;
+      height: 100%;
+    }
+    #map-wrap {
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 100%;
+      position: relative;
+    }
+    .measure-edit {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 5;
+      display: flex;
+      gap: 6px;
+    }
+    .measure-edit.hidden { display: none; }
+    .measure-edit button {
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+    }
+    .measure-edit button.disabled {
+      background: #ddd;
+      color: #9e9e9e;
+      cursor: default;
+    }
+    #layout-root.split #map-wrap {
+      flex: 0 0 58%;
+    }
+    #map { width: 100%; height: 100%; }
+    #roadview-panel {
+      display: none;
+      flex: 0 0 42%;
+      height: 100%;
+      border-left: 1px solid #d9dee7;
+      background: #111;
+    }
+    #layout-root.split #roadview-panel {
+      display: block;
+    }
+    .overlay {
+      position: fixed; inset: 0; z-index: 10;
+      display: grid; place-items: center;
+      background: rgba(244, 246, 248, 0.92);
+    }
+    .overlay.hidden { display: none; }
+    .message {
+      max-width: 420px; padding: 16px 18px;
+      background: #fff; border: 1px solid #d9dee7;
+      border-radius: 8px; font-size: 14px; color: #52606d;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div id="layout-root">
+    <div id="map-wrap">
+      <div id="map" aria-label="영업지역 편집 지도"></div>
+      <div id="measure-edit-bar" class="measure-edit hidden" aria-label="거리 측정 편집">
+        <button id="measure-undo" class="disabled" type="button" disabled onclick="measureUndo()">UNDO</button>
+        <button id="measure-redo" class="disabled" type="button" disabled onclick="measureRedo()">REDO</button>
+      </div>
+    </div>
+    <div id="roadview-panel" aria-label="로드뷰"></div>
+  </div>
+  <div id="overlay" class="overlay hidden">
+    <div class="message" id="overlayText">지도를 준비하고 있습니다.</div>
+  </div>
+  <script>
+    const MSG_PREFIX = 'yj_sa_v1|';
+    const SEOUL = { lat: 37.5, lng: 127.0 };
+
+    /** 편집·설정 중인 영업지역 (DrawingManager — 드래그 수정 가능) */
+    const ZONE_EDIT_STYLE = {
+      strokeColor: '#2563eb',
+      fillColor: '#60a5fa',
+      fillOpacity: 0.38,
+      strokeOpacity: 0.95,
+      strokeWeight: 2,
+    };
+    /** 영업지역표시 — 주변·타 영업지역 */
+    const ZONE_NEARBY_STYLE = {
+      strokeColor: '#0e7490',
+      fillColor: '#22d3ee',
+      fillOpacity: 0.28,
+      strokeOpacity: 0.9,
+      strokeWeight: 2,
+    };
+
+    let map;
+    let drawingManager;
+    let storeMarker;
+    let storeMarkerLabel = null;
+    let displayOverlays = [];
+    let contextMarkers = [];
+    let contextOverlays = [];
+    let initPayload = null;
+    let mapBooted = false;
+    let markerImageRed = null;
+    let markerImageBlack = null;
+    let markerImageYellow = null;
+    let markerImagePurple = null;
+    let roadview = null;
+    let roadviewClient = null;
+    let mapClickListener = null;
+    let mapDblClickListener = null;
+    let mapRightClickListener = null;
+    let mapMouseMoveListener = null;
+    let searchMarkers = [];
+    let searchInfoWindow = null;
+    let selectedSearchMarker = null;
+    let geocoder = null;
+    let places = null;
+    let measureGroups = [];
+    let activeRadius = null;
+    let measuring = false;
+    let distanceMeasureActive = false;
+    let measurePolylineLabels = new Map();
+    let measureMapRefreshListener = null;
+    let geometrySyncTimer = null;
+    let lastKnownGeometry = null;
+    let draggedPrimaryPin = null;
+    let editModeActive = false;
+    let readOnlyMode = false;
+    /** 거리·반경 측정 — 보라색 통일 */
+    const MEASURE_STYLE = {
+      stroke: '#7c3aed',
+      strokeLight: '#8b5cf6',
+      fill: '#a78bfa',
+      fillOpacity: 0.14,
+      labelText: '#6d28d9',
+      labelBg: '#7c3aed',
+      previewDash: '#7c3aed',
+    };
+    const layoutRoot = document.getElementById('layout-root');
+    const roadviewPanel = document.getElementById('roadview-panel');
+    const overlay = document.getElementById('overlay');
+    const overlayText = document.getElementById('overlayText');
+
+    function postToHost(msg) {
+      const raw = MSG_PREFIX + JSON.stringify(msg);
+      try {
+        if (typeof YjSalesAreaMap !== 'undefined' && YjSalesAreaMap.postMessage) {
+          YjSalesAreaMap.postMessage(raw);
+          return;
+        }
+      } catch (_) {}
+      try {
+        parent.postMessage(raw, window.location.origin);
+      } catch (_) {}
+    }
+
+    function post(msg) {
+      postToHost(msg);
+    }
+
+    function postReady() {
+      post({ op: 'READY' });
+    }
+
+    function postMapBounds() {
+      if (!map) return;
+      const b = map.getBounds();
+      const sw = b.getSouthWest();
+      const ne = b.getNorthEast();
+      post({
+        op: 'MAP_BOUNDS',
+        swLat: sw.getLat(),
+        swLng: sw.getLng(),
+        neLat: ne.getLat(),
+        neLng: ne.getLng(),
+      });
+    }
+
+    let boundsTimer = null;
+    function scheduleMapBounds() {
+      window.clearTimeout(boundsTimer);
+      boundsTimer = window.setTimeout(postMapBounds, 180);
+    }
+
+    /** setCenter/setBounds 직후에는 bounds가 아직 갱신되지 않음 — idle 후 콜백 실행 */
+    function afterMapViewportSettled(fn) {
+      if (!map) return;
+      let done = false;
+      const run = () => {
+        if (done) return;
+        done = true;
+        kakao.maps.event.removeListener(map, 'idle', run);
+        window.clearTimeout(fallback);
+        fn();
+      };
+      const fallback = window.setTimeout(run, 500);
+      kakao.maps.event.addListener(map, 'idle', run);
+    }
+
+    function showOverlay(text) {
+      overlayText.textContent = text;
+      overlay.classList.remove('hidden');
+    }
+
+    function hideOverlay() {
+      overlay.classList.add('hidden');
+    }
+
+    function getKakaoAppKey(override) {
+      if (override) return override;
+      const params = new URLSearchParams(window.location.search);
+      return params.get('appkey')
+        || window.localStorage.getItem('YJ_KAKAO_MAP_APP_KEY')
+        || window.YJ_KAKAO_MAP_APP_KEY
+        || '';
+    }
+
+    function mapsLoadAsync() {
+      return new Promise((resolve, reject) => {
+        const timer = window.setTimeout(() => reject(new Error('KAKAO_SDK_TIMEOUT')), 20000);
+        kakao.maps.load(() => {
+          window.clearTimeout(timer);
+          resolve();
+        });
+      });
+    }
+
+    async function loadKakao(appKey) {
+      const key = getKakaoAppKey(appKey);
+      if (!key) throw new Error('KAKAO_MAP_KEY_EMPTY');
+
+      if (window.__kakaoSdkLoadPromise) {
+        await window.__kakaoSdkLoadPromise;
+        await mapsLoadAsync();
+        return;
+      }
+
+      if (window.kakao && window.kakao.maps) {
+        await mapsLoadAsync();
+        return;
+      }
+
+      throw new Error('KAKAO_SCRIPT_NETWORK');
+    }
+
+    function clearDisplayOverlays() {
+      displayOverlays.forEach((o) => o.setMap(null));
+      displayOverlays = [];
+    }
+
+    function clearContextLayer() {
+      contextMarkers.forEach((m) => m.setMap(null));
+      contextMarkers = [];
+      contextOverlays.forEach((o) => o.setMap(null));
+      contextOverlays = [];
+    }
+
+    function pinMarkerImage(hex) {
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="38" viewBox="0 0 28 38">'
+        + '<path fill="' + hex + '" stroke="#fff" stroke-width="1.5" d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 24 14 24s14-13.5 14-24C28 6.3 21.7 0 14 0z"/>'
+        + '<circle cx="14" cy="14" r="5" fill="#fff"/></svg>';
+      return new kakao.maps.MarkerImage(
+        'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+        new kakao.maps.Size(28, 38),
+        { offset: new kakao.maps.Point(14, 38) }
+      );
+    }
+
+    function isClosedStoreName(name) {
+      return String(name || '').trim().startsWith('[폐점]');
+    }
+
+    function ensureMarkerImages() {
+      if (!markerImageRed) markerImageRed = pinMarkerImage('#e0474c');
+      if (!markerImageBlack) markerImageBlack = pinMarkerImage('#111827');
+      if (!markerImageYellow) markerImageYellow = pinMarkerImage('#eab308');
+      if (!markerImagePurple) markerImagePurple = pinMarkerImage('#7c3aed');
+    }
+
+    function resolvePrimaryPin(payload) {
+      const opts = normalizeViewOptions(
+        (payload && payload.viewOptions)
+          || (initPayload && initPayload.viewOptions)
+          || {}
+      );
+      if (!opts.showStores) return null;
+      const lat = Number(payload && payload.primaryPinLat);
+      const lng = Number(payload && payload.primaryPinLng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return { lat, lng };
+    }
+
+    /** 빨간 핀 = 본인 가맹점(물건·주소 연결). 파란 핀 = [가맹점 표시] 시 주변 가맹점. */
+    function mergeMapPayload(payload) {
+      return Object.assign({}, initPayload || {}, payload || {});
+    }
+
+    function updatePrimaryStoreMarker(payload) {
+      if (storeMarker) storeMarker.setMap(null);
+      storeMarker = null;
+      if (storeMarkerLabel) storeMarkerLabel.setMap(null);
+      storeMarkerLabel = null;
+      const src = mergeMapPayload(payload);
+      const pin = resolvePrimaryPin(src);
+      if (!pin || !map) return;
+      ensureMarkerImages();
+      const pos = new kakao.maps.LatLng(pin.lat, pin.lng);
+      const closed = isClosedStoreName(src.storeNm);
+      storeMarker = new kakao.maps.Marker({
+        position: pos,
+        map,
+        image: closed ? markerImageBlack : markerImageRed,
+        zIndex: 3,
+        draggable: !readOnlyMode,
+      });
+      const storeNm = String(src.storeNm || '').trim();
+      if (storeNm) {
+        storeMarkerLabel = _storeNameLabel(pos, storeNm);
+      }
+      const opts = normalizeViewOptions(
+        (payload && payload.viewOptions)
+          || (initPayload && initPayload.viewOptions)
+          || {}
+      );
+      if (opts.showRoadView) {
+        kakao.maps.event.addListener(storeMarker, 'click', () => openRoadviewAt(pos));
+      }
+      if (!readOnlyMode) {
+        kakao.maps.event.addListener(storeMarker, 'dragend', () => {
+          const p = storeMarker.getPosition();
+          draggedPrimaryPin = { lat: p.getLat(), lng: p.getLng() };
+        });
+      }
+    }
+
+    function resolvePrimaryPinForSave() {
+      if (draggedPrimaryPin
+          && Number.isFinite(draggedPrimaryPin.lat)
+          && Number.isFinite(draggedPrimaryPin.lng)) {
+        return draggedPrimaryPin;
+      }
+      const pin = resolvePrimaryPin(mergeMapPayload(initPayload || {}));
+      return pin;
+    }
+
+    function bindOverlayClick(overlayObj, onClick) {
+      if (!onClick || !overlayObj) return;
+      kakao.maps.event.addListener(overlayObj, 'click', (e) => onClick(e.latLng));
+    }
+
+    function normalizeZoneGeometry(geometryData, geometryType) {
+      if (!geometryData || typeof geometryData !== 'object') return null;
+      const g = Object.assign({}, geometryData);
+      let type = String(g.type || geometryType || '').toUpperCase();
+      if (!type && Array.isArray(g.paths) && g.paths.length >= 3) type = 'POLYGON';
+      if (!type && g.center && g.radius != null) type = 'CIRCLE';
+      g.type = type;
+      return g;
+    }
+
+    function addZonePolygon(geometryData, style, onClick, geometryType) {
+      const geom = normalizeZoneGeometry(geometryData, geometryType);
+      if (!geom || !map) return;
+      const stroke = (style && style.strokeColor) || ZONE_NEARBY_STYLE.strokeColor;
+      const fill = (style && style.fillColor) || ZONE_NEARBY_STYLE.fillColor;
+      const fillOpacity = (style && style.fillOpacity) != null
+        ? style.fillOpacity
+        : ZONE_NEARBY_STYLE.fillOpacity;
+      const strokeOpacity = (style && style.strokeOpacity) != null
+        ? style.strokeOpacity
+        : ZONE_NEARBY_STYLE.strokeOpacity;
+      const strokeWeight = (style && style.strokeWeight) != null
+        ? style.strokeWeight
+        : ZONE_NEARBY_STYLE.strokeWeight;
+      if (geom.type === 'POLYGON' && geom.paths?.length >= 3) {
+        const path = geom.paths.map(
+          (p) => new kakao.maps.LatLng(Number(p.lat), Number(p.lng))
+        );
+        const polygon = new kakao.maps.Polygon({
+          path,
+          strokeWeight,
+          strokeColor: stroke,
+          strokeOpacity,
+          fillColor: fill,
+          fillOpacity,
+        });
+        polygon.setMap(map);
+        bindOverlayClick(polygon, onClick);
+        contextOverlays.push(polygon);
+        return;
+      }
+      if (geom.type === 'CIRCLE' && geom.center && geom.radius) {
+        const circle = new kakao.maps.Circle({
+          center: new kakao.maps.LatLng(
+            Number(geom.center.lat),
+            Number(geom.center.lng)
+          ),
+          radius: Number(geom.radius),
+          strokeWeight,
+          strokeColor: stroke,
+          strokeOpacity,
+          fillColor: fill,
+          fillOpacity,
+        });
+        circle.setMap(map);
+        bindOverlayClick(circle, onClick);
+        contextOverlays.push(circle);
+      }
+    }
+
+    function exitDrawingDrawMode() {
+      if (!drawingManager) return;
+      try { drawingManager.cancel(); } catch (_) {}
+      try { drawingManager.select(null); } catch (_) {}
+    }
+
+    /** DrawingManager 관리 오버레이 — 카카오 기본 편집 핸들(꼭지점·선 중간 점) */
+    function styleDrawingOverlay(overlay) {
+      if (!overlay) return;
+      const s = ZONE_EDIT_STYLE;
+      try {
+        overlay.setOptions({
+          strokeWeight: s.strokeWeight,
+          strokeColor: s.strokeColor,
+          strokeOpacity: s.strokeOpacity,
+          fillColor: s.fillColor,
+          fillOpacity: s.fillOpacity,
+          draggable: false,
+          editable: true,
+        });
+      } catch (_) {}
+    }
+
+    function activateDrawingOverlayEdit(overlay) {
+      if (!overlay || readOnlyMode || !drawingManager) return;
+      styleDrawingOverlay(overlay);
+      try {
+        if (typeof drawingManager.addEditingOverlay === 'function') {
+          drawingManager.addEditingOverlay(overlay);
+        }
+      } catch (e) {
+        console.warn('addEditingOverlay failed', e);
+      }
+    }
+
+    function activateDrawingManagerEditMode() {
+      if (!drawingManager || readOnlyMode) return;
+      exitDrawingDrawMode();
+      const overlays = drawingManager.getOverlays();
+      (overlays && overlays.polygon ? overlays.polygon : []).forEach(activateDrawingOverlayEdit);
+      (overlays && overlays.circle ? overlays.circle : []).forEach(activateDrawingOverlayEdit);
+      bindEditableOverlayPathListeners();
+      editModeActive = true;
+    }
+
+    function scheduleActivateDrawingManagerEditMode() {
+      activateDrawingManagerEditMode();
+      window.setTimeout(activateDrawingManagerEditMode, 0);
+      window.setTimeout(activateDrawingManagerEditMode, 80);
+    }
+
+    function putPolygonToDrawingManager(paths) {
+      const latLngPath = paths.map(
+        (p) => new kakao.maps.LatLng(Number(p.lat), Number(p.lng)),
+      );
+      try {
+        drawingManager.put(kakao.maps.drawing.OverlayType.POLYGON, latLngPath);
+        return true;
+      } catch (e1) {
+        console.warn('put(POLYGON, path) failed, retry object format', e1);
+      }
+      try {
+        const points = paths.map((p) => ({
+          x: Number(p.lng),
+          y: Number(p.lat),
+        }));
+        drawingManager.put({
+          [kakao.maps.drawing.OverlayType.POLYGON]: [{ points }],
+          [kakao.maps.drawing.OverlayType.CIRCLE]: [],
+          [kakao.maps.drawing.OverlayType.POLYLINE]: [],
+        });
+        return true;
+      } catch (e2) {
+        console.error('put polygon failed', e2);
+        return false;
+      }
+    }
+
+    function putCircleToDrawingManager(center, radius) {
+      try {
+        drawingManager.put({
+          [kakao.maps.drawing.OverlayType.POLYGON]: [],
+          [kakao.maps.drawing.OverlayType.CIRCLE]: [{
+            center: { x: Number(center.lng), y: Number(center.lat) },
+            radius: Number(radius),
+          }],
+          [kakao.maps.drawing.OverlayType.POLYLINE]: [],
+        });
+        return true;
+      } catch (e) {
+        console.error('put circle failed', e);
+        return false;
+      }
+    }
+
+    function fitGeometryViewport(geometryData, pathLatLngs, centerLatLng) {
+      if (pathLatLngs && pathLatLngs.length >= 3) {
+        const bounds = new kakao.maps.LatLngBounds();
+        pathLatLngs.forEach((pt) => bounds.extend(pt));
+        map.setBounds(bounds, 48, 48, 48, 48);
+        return;
+      }
+      if (centerLatLng) {
+        map.setCenter(centerLatLng);
+        map.setLevel(5);
+        return;
+      }
+      if (geometryData.type === 'POLYGON' && geometryData.paths?.length >= 3) {
+        const bounds = new kakao.maps.LatLngBounds();
+        geometryData.paths.forEach((p) => {
+          bounds.extend(new kakao.maps.LatLng(Number(p.lat), Number(p.lng)));
+        });
+        map.setBounds(bounds, 48, 48, 48, 48);
+      } else if (geometryData.type === 'CIRCLE' && geometryData.center) {
+        map.setCenter(new kakao.maps.LatLng(
+          Number(geometryData.center.lat),
+          Number(geometryData.center.lng),
+        ));
+        map.setLevel(5);
+      }
+    }
+
+    function addEditZoneGeometry(geometryData, fitViewport, editable) {
+      if (!geometryData || !map) return false;
+      const geom = normalizeZoneGeometry(geometryData);
+      if (!geom) return false;
+      const s = ZONE_EDIT_STYLE;
+      if (geom.type === 'POLYGON' && geom.paths?.length >= 3) {
+        const paths = normalizePolygonVertices(geom.paths);
+        const path = paths.map(
+          (p) => new kakao.maps.LatLng(Number(p.lat), Number(p.lng)),
+        );
+        const polygon = new kakao.maps.Polygon({
+          path,
+          strokeWeight: s.strokeWeight,
+          strokeColor: s.strokeColor,
+          strokeOpacity: s.strokeOpacity,
+          fillColor: s.fillColor,
+          fillOpacity: s.fillOpacity,
+          draggable: false,
+        });
+        polygon.setMap(map);
+        if (editable === true) {
+          try {
+            if (typeof polygon.setEditable === 'function') polygon.setEditable(true);
+          } catch (_) {}
+          bindStaticEditableOverlayListeners(polygon);
+          editModeActive = true;
+        }
+        displayOverlays.push(polygon);
+        if (fitViewport) fitGeometryViewport(geom, path, null);
+        return true;
+      }
+      if (geom.type === 'CIRCLE' && geom.center && geom.radius != null) {
+        const center = new kakao.maps.LatLng(
+          Number(geom.center.lat),
+          Number(geom.center.lng),
+        );
+        const circle = new kakao.maps.Circle({
+          center,
+          radius: Number(geom.radius),
+          strokeWeight: s.strokeWeight,
+          strokeColor: s.strokeColor,
+          strokeOpacity: s.strokeOpacity,
+          fillColor: s.fillColor,
+          fillOpacity: s.fillOpacity,
+          draggable: false,
+        });
+        circle.setMap(map);
+        if (editable === true) {
+          try {
+            if (typeof circle.setEditable === 'function') circle.setEditable(true);
+          } catch (_) {}
+          bindStaticEditableOverlayListeners(circle);
+          editModeActive = true;
+        }
+        displayOverlays.push(circle);
+        if (fitViewport) fitGeometryViewport(geom, null, center);
+        return true;
+      }
+      return false;
+    }
+
+    function bindStaticEditableOverlayListeners(overlay) {
+      if (!overlay || overlay._yjStaticEditBound) return;
+      overlay._yjStaticEditBound = true;
+      kakao.maps.event.addListener(overlay, 'mouseup', () => scheduleGeometrySync(true));
+      kakao.maps.event.addListener(overlay, 'dragend', () => scheduleGeometrySync(true));
+      if (overlay instanceof kakao.maps.Polygon) {
+        kakao.maps.event.addListener(overlay, 'mousemove', () => scheduleGeometrySync(false));
+      }
+    }
+
+    function ensureRoadview() {
+      if (!roadview) {
+        roadview = new kakao.maps.Roadview(roadviewPanel);
+        roadviewClient = new kakao.maps.RoadviewClient();
+      }
+    }
+
+    function openRoadviewAt(latLng) {
+      if (!latLng || !initPayload || !(initPayload.viewOptions || {}).showRoadView) {
+        return;
+      }
+      ensureRoadview();
+      roadviewClient.getNearestPanoId(latLng, 80, (panoId) => {
+        if (panoId === null) {
+          showOverlay('이 위치에는 로드뷰가 없습니다.');
+          window.setTimeout(hideOverlay, 1800);
+          return;
+        }
+        roadview.setPanoId(panoId, latLng);
+      });
+    }
+
+    function setRoadviewPanelVisible(visible) {
+      if (!layoutRoot) return;
+      if (visible) {
+        layoutRoot.classList.add('split');
+      } else {
+        layoutRoot.classList.remove('split');
+      }
+      if (map) {
+        window.setTimeout(() => map.relayout(), 60);
+      }
+      if (roadview) {
+        window.setTimeout(() => roadview.relayout(), 80);
+      }
+    }
+
+    function syncRoadviewMode(payload) {
+      const opts = normalizeViewOptions(payload && payload.viewOptions);
+      setRoadviewPanelVisible(opts.showRoadView === true);
+      if (measuring) return;
+      if (mapClickListener) {
+        kakao.maps.event.removeListener(map, 'click', mapClickListener);
+        mapClickListener = null;
+      }
+      if (!map || !opts.showRoadView) return;
+      mapClickListener = (mouseEvent) => {
+        openRoadviewAt(mouseEvent.latLng);
+      };
+      kakao.maps.event.addListener(map, 'click', mapClickListener);
+      const lat = Number(payload.lat);
+      const lng = Number(payload.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        openRoadviewAt(new kakao.maps.LatLng(lat, lng));
+      }
+    }
+
+    function publishGeometry(geom) {
+      if (!geom) return false;
+      lastKnownGeometry = geom;
+      post({
+        op: 'GEOMETRY_CHANGED',
+        geometryType: geom.geometryType,
+        geometryData: geom.geometryData,
+      });
+      return true;
+    }
+
+    function extractCurrentZoneGeometry() {
+      let geom = null;
+      if (displayOverlays.length > 0) {
+        geom = extractFromDisplayOverlay();
+      }
+      if (!geom) geom = extractGeometryFromDrawing();
+      if (!geom) geom = extractFromDisplayOverlay();
+      if (!geom) geom = lastKnownGeometry;
+      return geom;
+    }
+
+    function publishCurrentGeometry() {
+      const geom = extractCurrentZoneGeometry();
+      if (geom) publishGeometry(geom);
+      return geom;
+    }
+
+    function scheduleGeometrySync(immediate) {
+      if (!editModeActive || measuring || distanceMeasureActive) return;
+      window.clearTimeout(geometrySyncTimer);
+      if (immediate) {
+        publishCurrentGeometry();
+        return;
+      }
+      geometrySyncTimer = window.setTimeout(() => {
+        publishCurrentGeometry();
+      }, 200);
+    }
+
+    function flushGeometryBeforeSave() {
+      window.clearTimeout(geometrySyncTimer);
+      geometrySyncTimer = null;
+      // select(null) 전에 추출 — 편집 모드 해제 시 꼭지점 좌표가 원본으로 되돌아갈 수 있음
+      let geom = extractCurrentZoneGeometry();
+      if (!geom && lastKnownGeometry) geom = lastKnownGeometry;
+      if (drawingManager) {
+        try { drawingManager.select(null); } catch (_) {}
+      }
+      if (!geom) geom = extractCurrentZoneGeometry();
+      if (!geom && lastKnownGeometry) geom = lastKnownGeometry;
+      if (geom) lastKnownGeometry = geom;
+      return geom;
+    }
+
+    function applyEditStyleToDrawingOverlays() {
+      activateDrawingManagerEditMode();
+    }
+
+    function bindEditableOverlayPathListeners() {
+      if (readOnlyMode) return;
+      if (!drawingManager) return;
+      const overlays = drawingManager.getOverlays();
+      const bindOverlay = (overlay) => {
+        if (!overlay || overlay._yjEditBound) return;
+        overlay._yjEditBound = true;
+        kakao.maps.event.addListener(overlay, 'mouseup', () => scheduleGeometrySync(true));
+        kakao.maps.event.addListener(overlay, 'dragend', () => scheduleGeometrySync(true));
+        if (overlay instanceof kakao.maps.Polygon) {
+          kakao.maps.event.addListener(overlay, 'mousemove', () => scheduleGeometrySync(false));
+        }
+      };
+      (overlays && overlays.polygon ? overlays.polygon : []).forEach(bindOverlay);
+      (overlays && overlays.circle ? overlays.circle : []).forEach(bindOverlay);
+    }
+
+    function resolvePayloadGeometry(cmdMsg) {
+      const raw = (cmdMsg && cmdMsg.geometryData)
+        || (initPayload && initPayload.geometryData);
+      return normalizeZoneGeometry(raw, initPayload && initPayload.geometryType);
+    }
+
+    /** 저장된 geometry → DrawingManager put + addEditingOverlay (카카오 기본 편집 UI) */
+    function loadEditableZoneGeometry(geometryData, fitViewport) {
+      if (!geometryData || !map) return false;
+      const geom = normalizeZoneGeometry(geometryData);
+      if (!geom) return false;
+
+      exitDistanceMeasureMode();
+      clearDisplayOverlays();
+      clearPolygonPerimeterLabel();
+      hideOverlay();
+
+      if (readOnlyMode) {
+        if (!drawingManager) initDrawingManager();
+        exitDrawingDrawMode();
+        if (drawingManager) removeDrawingManagerOverlays(drawingManager, false);
+        editModeActive = false;
+        return addEditZoneGeometry(geom, fitViewport, false);
+      }
+
+      if (!drawingManager) initDrawingManager();
+      if (!drawingManager || typeof drawingManager.put !== 'function') {
+        console.warn('drawingManager unavailable; static polygon fallback');
+        const ok = addEditZoneGeometry(geom, fitViewport, true);
+        if (ok) {
+          window.setTimeout(() => {
+            const initial = extractCurrentZoneGeometry();
+            if (initial) lastKnownGeometry = initial;
+          }, 120);
+        }
+        return ok;
+      }
+
+      exitDrawingDrawMode();
+      removeDrawingManagerOverlays(drawingManager, false);
+      editModeActive = false;
+
+      let putOk = false;
+      if (geom.type === 'POLYGON' && geom.paths?.length >= 3) {
+        const paths = normalizePolygonVertices(geom.paths);
+        if (paths.length >= 3) {
+          putOk = putPolygonToDrawingManager(paths);
+          if (putOk && fitViewport) {
+            const path = paths.map(
+              (p) => new kakao.maps.LatLng(Number(p.lat), Number(p.lng)),
+            );
+            fitGeometryViewport(geom, path, null);
+          }
+        }
+      } else if (geom.type === 'CIRCLE' && geom.center && geom.radius != null) {
+        const radius = Number(geom.radius);
+        if (Number.isFinite(radius) && radius > 0) {
+          putOk = putCircleToDrawingManager(geom.center, radius);
+          if (putOk && fitViewport) {
+            const center = new kakao.maps.LatLng(
+              Number(geom.center.lat),
+              Number(geom.center.lng),
+            );
+            fitGeometryViewport(geom, null, center);
+          }
+        }
+      }
+
+      if (!putOk) {
+        const ok = addEditZoneGeometry(geom, fitViewport, true);
+        if (ok) {
+          window.setTimeout(() => {
+            const initial = extractCurrentZoneGeometry();
+            if (initial) lastKnownGeometry = initial;
+          }, 120);
+        }
+        return ok;
+      }
+
+      scheduleActivateDrawingManagerEditMode();
+      window.setTimeout(() => {
+        const initial = extractCurrentZoneGeometry();
+        if (initial) lastKnownGeometry = initial;
+      }, 120);
+      return true;
+    }
+
+    function renderExistingGeometry(geometryData, fitViewport) {
+      if (!geometryData || !map) return;
+      loadEditableZoneGeometry(geometryData, fitViewport);
+    }
+
+    function normalizeViewOptions(opts) {
+      return {
+        showSalesAreas: false,
+        showReferenceDistance: false,
+        showStores: true,
+        showRoadView: false,
+        showSearchMarkers: true,
+        ...(opts || {}),
+      };
+    }
+
+    function applyViewLayer(payload) {
+      if (!mapBooted || !map) return;
+      const merged = mergeMapPayload(payload);
+      const opts = normalizeViewOptions(merged.viewOptions);
+      if (!opts.showSearchMarkers) {
+        clearSearchMarkers();
+      }
+      clearContextLayer();
+      const lat = Number(merged.lat);
+      const lng = Number(merged.lng);
+      updatePrimaryStoreMarker(merged);
+
+      merged.viewOptions = opts;
+      const refM = Number(merged.referenceRadiusM) || 500;
+
+      if (opts.showReferenceDistance && Number.isFinite(lat) && Number.isFinite(lng)) {
+        const refCircle = new kakao.maps.Circle({
+          center: new kakao.maps.LatLng(lat, lng),
+          radius: refM,
+          strokeWeight: 2,
+          strokeColor: '#5ba4e6',
+          strokeOpacity: 0.85,
+          fillColor: '#7ec8f8',
+          fillOpacity: 0.14,
+        });
+        refCircle.setMap(map);
+        contextOverlays.push(refCircle);
+      }
+
+      const roadviewClick = opts.showRoadView
+        ? (latLng) => openRoadviewAt(latLng)
+        : null;
+
+      if (opts.showStores && Array.isArray(merged.nearbyStores)) {
+        ensureMarkerImages();
+        merged.nearbyStores.forEach((s) => {
+          const slat = Number(s.lat);
+          const slng = Number(s.lng);
+          if (!Number.isFinite(slat) || !Number.isFinite(slng)) return;
+          const pos = new kakao.maps.LatLng(slat, slng);
+          const closed = s.isClosed === true || isClosedStoreName(s.storeNm);
+          const m = new kakao.maps.Marker({
+            position: pos,
+            map,
+            image: closed ? markerImageBlack : markerImageRed,
+            title: s.storeNm || '',
+            zIndex: 2,
+          });
+          if (roadviewClick) {
+            kakao.maps.event.addListener(m, 'click', () => roadviewClick(pos));
+          }
+          contextMarkers.push(m);
+          const label = _storeNameLabel(pos, s.storeNm || '');
+          if (label) contextOverlays.push(label);
+        });
+      }
+
+      if (opts.showSalesAreas && Array.isArray(merged.nearbyZones)) {
+        merged.nearbyZones.forEach((z) => {
+          if (z.zoneIdx != null && merged.zoneIdx != null
+              && Number(z.zoneIdx) === Number(merged.zoneIdx)) {
+            return;
+          }
+          addZonePolygon(
+            z.geometryData,
+            ZONE_NEARBY_STYLE,
+            roadviewClick,
+            z.geometryType,
+          );
+        });
+      }
+
+      syncRoadviewMode(merged);
+    }
+
+    function initDrawingManager() {
+      if (readOnlyMode) return;
+      if (drawingManager || !kakao.maps.drawing) return;
+      drawingManager = new kakao.maps.drawing.DrawingManager({
+        map,
+        drawingMode: [
+          kakao.maps.drawing.OverlayType.POLYGON,
+          kakao.maps.drawing.OverlayType.CIRCLE,
+          kakao.maps.drawing.OverlayType.POLYLINE,
+        ],
+        guideTooltip: ['draw', 'edit'],
+        polygonOptions: {
+          draggable: false,
+          editable: true,
+          removable: true,
+          strokeWeight: ZONE_EDIT_STYLE.strokeWeight,
+          strokeColor: ZONE_EDIT_STYLE.strokeColor,
+          fillColor: ZONE_EDIT_STYLE.fillColor,
+          fillOpacity: ZONE_EDIT_STYLE.fillOpacity,
+        },
+        circleOptions: {
+          draggable: false,
+          editable: true,
+          removable: true,
+          strokeWeight: ZONE_EDIT_STYLE.strokeWeight,
+          strokeColor: ZONE_EDIT_STYLE.strokeColor,
+          fillColor: ZONE_EDIT_STYLE.fillColor,
+          fillOpacity: ZONE_EDIT_STYLE.fillOpacity,
+        },
+        polylineOptions: {
+          draggable: true,
+          removable: true,
+          editable: true,
+          strokeColor: MEASURE_STYLE.stroke,
+          hintStrokeStyle: 'dash',
+          hintStrokeOpacity: 0.5,
+        },
+      });
+      bindDrawingManagerEvents();
+    }
+
+    let polygonPerimeterLabel = null;
+
+    function clearPolygonPerimeterLabel() {
+      if (polygonPerimeterLabel) {
+        polygonPerimeterLabel.setMap(null);
+        polygonPerimeterLabel = null;
+      }
+    }
+
+    /** DrawingManager·표시 Polygon 경로 점 — LatLng, {lat,lng}, {y,x} 모두 처리 */
+    function latLngPointToObject(ll) {
+      if (ll == null) return null;
+      if (typeof ll.getLat === 'function' && typeof ll.getLng === 'function') {
+        return { lat: ll.getLat(), lng: ll.getLng() };
+      }
+      const lat = Number(ll.lat != null ? ll.lat : ll.y);
+      const lng = Number(ll.lng != null ? ll.lng : ll.x);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return { lat, lng };
+    }
+
+    function pathToLatLngArray(path) {
+      if (!path) return [];
+      if (Array.isArray(path)) return path;
+      if (typeof path.getArray === 'function') {
+        try {
+          const arr = path.getArray();
+          if (Array.isArray(arr) && arr.length) return arr;
+        } catch (_) {}
+      }
+      if (typeof path.getLength === 'function' && typeof path.getAt === 'function') {
+        const out = [];
+        try {
+          const len = path.getLength();
+          for (let i = 0; i < len; i += 1) {
+            out.push(path.getAt(i));
+          }
+          if (out.length) return out;
+        } catch (_) {}
+      }
+      if (typeof path.forEach === 'function') {
+        const out = [];
+        try {
+          path.forEach((ll) => out.push(ll));
+          if (out.length) return out;
+        } catch (_) {}
+      }
+      return [];
+    }
+
+    function polygonPathToObjects(polygon) {
+      if (!polygon) return [];
+      if (typeof polygon.getPath === 'function') {
+        const out = pathToLatLngArray(polygon.getPath())
+          .map(latLngPointToObject)
+          .filter(Boolean);
+        if (out.length >= 3) return out;
+      }
+      if (typeof polygon.getPaths === 'function') {
+        try {
+          const paths = polygon.getPaths();
+          const outer = Array.isArray(paths) ? paths[0] : paths;
+          const out = pathToLatLngArray(outer)
+            .map(latLngPointToObject)
+            .filter(Boolean);
+          if (out.length >= 3) return out;
+        } catch (_) {}
+      }
+      return [];
+    }
+
+    function normalizePolygonVertices(paths) {
+      if (!Array.isArray(paths) || paths.length < 3) return paths || [];
+      const out = paths.slice();
+      const first = out[0];
+      const last = out[out.length - 1];
+      if (first && last && first.lat === last.lat && first.lng === last.lng) {
+        out.pop();
+      }
+      return out;
+    }
+
+    function computePathPerimeterMeters(paths) {
+      if (!Array.isArray(paths) || paths.length < 2) return 0;
+      let total = 0;
+      for (let i = 1; i < paths.length; i += 1) {
+        total += measureSegmentLength(
+          new kakao.maps.LatLng(paths[i - 1].lat, paths[i - 1].lng),
+          new kakao.maps.LatLng(paths[i].lat, paths[i].lng),
+        );
+      }
+      const first = paths[0];
+      const last = paths[paths.length - 1];
+      if (first.lat !== last.lat || first.lng !== last.lng) {
+        total += measureSegmentLength(
+          new kakao.maps.LatLng(last.lat, last.lng),
+          new kakao.maps.LatLng(first.lat, first.lng),
+        );
+      }
+      return total;
+    }
+
+    function polygonBoundsCenter(paths) {
+      let lat = 0;
+      let lng = 0;
+      paths.forEach((p) => {
+        lat += p.lat;
+        lng += p.lng;
+      });
+      return { lat: lat / paths.length, lng: lng / paths.length };
+    }
+
+    function polylinePathLength(polyline) {
+      if (!polyline || typeof polyline.getPath !== 'function') return 0;
+      const path = polyline.getPath();
+      const arr = path && typeof path.getArray === 'function' ? path.getArray() : path;
+      if (!Array.isArray(arr) || arr.length < 2) return 0;
+      let total = 0;
+      for (let i = 1; i < arr.length; i += 1) {
+        total += measureSegmentLength(arr[i - 1], arr[i]);
+      }
+      return total;
+    }
+
+    function attachPolylineDistanceLabel(polyline) {
+      if (!polyline) return;
+      const prev = measurePolylineLabels.get(polyline);
+      if (prev) prev.setMap(null);
+      const len = polylinePathLength(polyline);
+      if (len < 1) {
+        measurePolylineLabels.delete(polyline);
+        return;
+      }
+      const path = polyline.getPath();
+      const arr = path.getArray ? path.getArray() : path;
+      const last = arr[arr.length - 1];
+      measurePolylineLabels.set(
+        polyline,
+        _measureTotalLabel(last, `총거리${_fmtMeters(len)}`),
+      );
+    }
+
+    function refreshAllPolylineDistanceLabels() {
+      measurePolylineLabels.forEach((label) => {
+        if (label) label.setMap(null);
+      });
+      measurePolylineLabels.clear();
+      if (!drawingManager) return;
+      const overlays = drawingManager.getOverlays();
+      const lines = overlays && overlays.polyline ? overlays.polyline : [];
+      lines.forEach((line) => attachPolylineDistanceLabel(line));
+    }
+
+    function bindDrawingManagerEvents() {
+      if (!drawingManager || drawingManager._yjEventsBound) return;
+      drawingManager._yjEventsBound = true;
+
+      drawingManager.addListener('put', (data) => {
+        if (!data || !data.target) return;
+        if (data.overlayType === kakao.maps.drawing.OverlayType.POLYGON
+            || data.overlayType === kakao.maps.drawing.OverlayType.CIRCLE) {
+          activateDrawingOverlayEdit(data.target);
+          bindEditableOverlayPathListeners();
+          editModeActive = true;
+        }
+      });
+
+      drawingManager.addListener('drawstart', (data) => {
+        if (!data || data.overlayType !== kakao.maps.drawing.OverlayType.POLYGON) return;
+        clearPolygonPerimeterLabel();
+      });
+
+      drawingManager.addListener('drawend', (data) => {
+        if (!data) return;
+        if (data.overlayType === kakao.maps.drawing.OverlayType.POLYGON) {
+          const polygon = data.target;
+          const rawPaths = polygonPathToObjects(polygon);
+          const paths = normalizePolygonVertices(rawPaths);
+          if (paths.length < 3) return;
+          const perimeter = computePathPerimeterMeters(
+            rawPaths.length >= 3 ? rawPaths : paths,
+          );
+          const c = polygonBoundsCenter(paths);
+          clearPolygonPerimeterLabel();
+          polygonPerimeterLabel = _measureTotalLabel(
+            new kakao.maps.LatLng(c.lat, c.lng),
+            `둘레 ${_fmtMeters(perimeter)}`,
+          );
+          editModeActive = true;
+          exitDrawingDrawMode();
+          activateDrawingOverlayEdit(polygon);
+          bindEditableOverlayPathListeners();
+          scheduleGeometrySync(true);
+          return;
+        }
+        if (data.overlayType === kakao.maps.drawing.OverlayType.CIRCLE) {
+          editModeActive = true;
+          exitDrawingDrawMode();
+          activateDrawingOverlayEdit(data.target);
+          bindEditableOverlayPathListeners();
+          scheduleGeometrySync(true);
+          return;
+        }
+        if (data.overlayType === kakao.maps.drawing.OverlayType.POLYLINE) {
+          attachPolylineDistanceLabel(data.target);
+          syncMeasureUndoRedoButtons();
+        }
+      });
+
+      drawingManager.addListener('state_changed', () => {
+        syncMeasureUndoRedoButtons();
+        if (distanceMeasureActive) refreshAllPolylineDistanceLabels();
+        else if (editModeActive) scheduleGeometrySync(true);
+      });
+
+      drawingManager.addListener('remove', (data) => {
+        if (data && data.overlayType === kakao.maps.drawing.OverlayType.POLYLINE) {
+          const label = measurePolylineLabels.get(data.target);
+          if (label) label.setMap(null);
+          measurePolylineLabels.delete(data.target);
+          syncMeasureUndoRedoButtons();
+          return;
+        }
+        clearPolygonPerimeterLabel();
+      });
+
+      drawingManager.addListener('cancel', () => {
+        clearPolygonPerimeterLabel();
+      });
+    }
+
+    function removeDrawingManagerOverlays(manager, includePolylines) {
+      if (!manager) return;
+      const overlayKeys = includePolylines
+        ? ['polygon', 'circle', 'polyline', 'rectangle', 'marker', 'arrow', 'ellipse']
+        : ['polygon', 'circle'];
+      try {
+        if (typeof manager.getOverlays === 'function') {
+          const mapobj = manager.getOverlays();
+          overlayKeys.forEach((key) => {
+            const arr = (mapobj && mapobj[key]) ? mapobj[key].slice() : [];
+            arr.forEach((overlay) => {
+              try {
+                overlay.setMap(null);
+                manager.remove(overlay);
+              } catch (_) {}
+            });
+          });
+        }
+      } catch (_) {}
+      const types = [
+        kakao.maps.drawing.OverlayType.POLYGON,
+        kakao.maps.drawing.OverlayType.CIRCLE,
+      ];
+      if (includePolylines) {
+        types.push(kakao.maps.drawing.OverlayType.POLYLINE);
+      }
+      try {
+        types.forEach((type) => {
+          let arr = (manager.getData()[type] || []);
+          while (arr.length > 0) {
+            try { manager.remove(type, arr.length - 1); } catch (_) { break; }
+            arr = (manager.getData()[type] || []);
+          }
+        });
+        const empty = {
+          [kakao.maps.drawing.OverlayType.POLYGON]: [],
+          [kakao.maps.drawing.OverlayType.CIRCLE]: [],
+        };
+        if (includePolylines) {
+          empty[kakao.maps.drawing.OverlayType.POLYLINE] = [];
+        }
+        manager.put(empty);
+      } catch (_) {}
+    }
+
+    function extractCircleFromOverlay(circle) {
+      if (!circle) return null;
+      const center = typeof circle.getPosition === 'function'
+        ? circle.getPosition()
+        : (typeof circle.getCenter === 'function' ? circle.getCenter() : null);
+      const radius = typeof circle.getRadius === 'function' ? circle.getRadius() : null;
+      if (!center || !Number.isFinite(radius) || radius <= 0) return null;
+      return {
+        geometryType: 'CIRCLE',
+        geometryData: {
+          type: 'CIRCLE',
+          center: { lat: center.getLat(), lng: center.getLng() },
+          radius,
+        },
+      };
+    }
+
+    function pathsEqual(a, b) {
+      if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i += 1) {
+        if (Math.abs(Number(a[i].lat) - Number(b[i].lat)) > 1e-7) return false;
+        if (Math.abs(Number(a[i].lng) - Number(b[i].lng)) > 1e-7) return false;
+      }
+      return true;
+    }
+
+    function extractGeometryFromDrawing() {
+      if (!drawingManager) return null;
+      const overlays = drawingManager.getOverlays();
+      const polygonOverlays = overlays && overlays.polygon ? overlays.polygon : [];
+      let overlayPaths = null;
+      for (let i = polygonOverlays.length - 1; i >= 0; i -= 1) {
+        const paths = normalizePolygonVertices(polygonPathToObjects(polygonOverlays[i]));
+        if (paths.length >= 3) {
+          overlayPaths = paths;
+          break;
+        }
+      }
+      const data = drawingManager.getData();
+      const polygons = data[kakao.maps.drawing.OverlayType.POLYGON] || [];
+      let dataPaths = null;
+      for (let i = polygons.length - 1; i >= 0; i -= 1) {
+        const pts = polygons[i].points || [];
+        const paths = normalizePolygonVertices(
+          pts.map((p) => ({ lat: p.y, lng: p.x })),
+        );
+        if (paths.length >= 3) {
+          dataPaths = paths;
+          break;
+        }
+      }
+      if (overlayPaths && dataPaths && !pathsEqual(overlayPaths, dataPaths)) {
+        const prev = lastKnownGeometry && lastKnownGeometry.geometryData
+          ? lastKnownGeometry.geometryData.paths
+          : null;
+        if (prev && pathsEqual(overlayPaths, prev) && !pathsEqual(dataPaths, prev)) {
+          overlayPaths = null;
+        } else if (prev && pathsEqual(dataPaths, prev) && !pathsEqual(overlayPaths, prev)) {
+          dataPaths = null;
+        }
+      }
+      const chosenPaths = overlayPaths || dataPaths;
+      if (chosenPaths) {
+        return { geometryType: 'POLYGON', geometryData: { type: 'POLYGON', paths: chosenPaths } };
+      }
+      const circleOverlays = overlays && overlays.circle ? overlays.circle : [];
+      for (let i = circleOverlays.length - 1; i >= 0; i -= 1) {
+        const circleGeom = extractCircleFromOverlay(circleOverlays[i]);
+        if (circleGeom) return circleGeom;
+      }
+      const circles = data[kakao.maps.drawing.OverlayType.CIRCLE] || [];
+      for (let i = circles.length - 1; i >= 0; i -= 1) {
+        const c = circles[i];
+        const center = c.center;
+        const radius = Number(c.radius);
+        if (center && Number.isFinite(radius) && radius > 0) {
+          return {
+            geometryType: 'CIRCLE',
+            geometryData: {
+              type: 'CIRCLE',
+              center: { lat: center.y, lng: center.x },
+              radius,
+            },
+          };
+        }
+      }
+      return null;
+    }
+
+    function extractFromDisplayOverlay() {
+      for (const o of displayOverlays) {
+        if (o instanceof kakao.maps.Polygon) {
+          const paths = normalizePolygonVertices(polygonPathToObjects(o));
+          if (paths.length >= 3) {
+            return { geometryType: 'POLYGON', geometryData: { type: 'POLYGON', paths } };
+          }
+        }
+        if (o instanceof kakao.maps.Circle) {
+          const circleGeom = extractCircleFromOverlay(o);
+          if (circleGeom) return circleGeom;
+        }
+      }
+      return null;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      })[char]);
+    }
+
+    function _fmtMeters(m) {
+      if (!Number.isFinite(m)) return '0m';
+      if (m >= 1000) return `${(m / 1000).toFixed(2)}km`;
+      return `${Math.round(m)}m`;
+    }
+
+    function _storeNameLabel(latLng, name) {
+      const text = String(name || '').trim();
+      if (!text || !map) return null;
+      const content = `<div style="padding:4px 8px;background:#fff;border:1px solid #3b82f6;border-radius:4px;font-size:12px;font-weight:600;color:#111;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.12);">${escapeHtml(text)}</div>`;
+      const ov = new kakao.maps.CustomOverlay({
+        position: latLng,
+        content,
+        yAnchor: 2.4,
+        xAnchor: 0.5,
+        zIndex: 4,
+      });
+      ov.setMap(map);
+      return ov;
+    }
+
+    function _measureHintLabel(latLng, text) {
+      const content = `<div style="padding:4px 8px;background:#111827;color:#fff;border-radius:4px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.25);">${escapeHtml(text)}</div>`;
+      const ov = new kakao.maps.CustomOverlay({
+        position: latLng,
+        content,
+        yAnchor: 2.2,
+        xAnchor: 0.5,
+        zIndex: 6,
+      });
+      ov.setMap(map);
+      return ov;
+    }
+
+    function _measureTotalLabel(latLng, text) {
+      const content = `<div style="margin-left:10px;font-size:14px;font-weight:700;color:${MEASURE_STYLE.labelText};white-space:nowrap;line-height:1.2;">${escapeHtml(text)}</div>`;
+      const ov = new kakao.maps.CustomOverlay({
+        position: latLng,
+        content,
+        yAnchor: 0.55,
+        xAnchor: 0,
+        zIndex: 8,
+      });
+      ov.setMap(map);
+      return ov;
+    }
+
+    function _measureLabel(latLng, text, offsetY = -24) {
+      const content = `<div style="padding:2px 6px;background:${MEASURE_STYLE.labelBg};color:#fff;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap;">${text}</div>`;
+      const ov = new kakao.maps.CustomOverlay({
+        position: latLng,
+        content,
+        yAnchor: 1,
+        xAnchor: 0.5,
+      });
+      ov.setMap(map);
+      return ov;
+    }
+
+    function _measureClose(latLng, onClick) {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'width:16px;height:16px;line-height:14px;text-align:center;border-radius:50%;background:#fff;border:1px solid #555;color:#333;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.2);';
+      wrap.textContent = '×';
+      wrap.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+      };
+      const ov = new kakao.maps.CustomOverlay({
+        position: latLng,
+        content: wrap,
+        yAnchor: 2.6,
+        xAnchor: 0.5,
+        zIndex: 9,
+      });
+      ov.setMap(map);
+      return ov;
+    }
+
+    const MEASURE_NODE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect x="0.5" y="0.5" width="7" height="7" fill="#fff" stroke="#333" stroke-width="1"/></svg>';
+
+    function measureSegmentLength(a, b) {
+      const seg = new kakao.maps.Polyline({ path: [a, b] });
+      return seg.getLength();
+    }
+
+    function removeMapOverlays(items) {
+      if (!items) return;
+      const list = Array.isArray(items) ? items : [items];
+      list.forEach((o) => {
+        if (o && o.setMap) o.setMap(null);
+      });
+    }
+
+    /** DrawingManager에는 setMap 없음 — 반경 측정 시 그리기 모드만 해제 */
+    function suspendDrawingManager() {
+      if (!drawingManager) return;
+      drawingManager.cancel();
+      try { drawingManager.select(null); } catch (_) {}
+    }
+
+    function unbindMeasureMapRefresh() {
+      if (!measureMapRefreshListener || !map) return;
+      kakao.maps.event.removeListener(map, 'zoom_changed', measureMapRefreshListener);
+      kakao.maps.event.removeListener(map, 'dragend', measureMapRefreshListener);
+      measureMapRefreshListener = null;
+    }
+
+    function clearMeasurePreviewDash(group) {
+      if (group && group.previewDash && group.previewDash.overlay) {
+        group.previewDash.overlay.setMap(null);
+      }
+      if (group && group.previewLabel) {
+        group.previewLabel.setMap(null);
+        group.previewLabel = null;
+      }
+    }
+
+    /** 화면 픽셀 기준 빨간 점선 — Polyline shortdash 미표시 환경에서도 항상 보임 */
+    function updateMeasurePreviewDash(group, from, to) {
+      if (!group || !from || !to || !map) return;
+      if (!group.previewDash) {
+        const el = document.createElement('div');
+        el.style.cssText = 'pointer-events:none;';
+        group.previewDash = {
+          el,
+          overlay: new kakao.maps.CustomOverlay({
+            map,
+            position: from,
+            content: el,
+            xAnchor: 0,
+            yAnchor: 0.5,
+            zIndex: 100,
+          }),
+        };
+      }
+      const proj = map.getProjection();
+      const f = proj.containerPointFromCoords(from);
+      const t = proj.containerPointFromCoords(to);
+      const dx = t.x - f.x;
+      const dy = t.y - f.y;
+      const len = Math.max(Math.hypot(dx, dy), 1);
+      const deg = Math.atan2(dy, dx) * (180 / Math.PI);
+      group.previewDash.el.innerHTML =
+        `<div style="width:${len}px;height:0;border-top:3px dashed ${MEASURE_STYLE.previewDash};opacity:0.95;transform-origin:0 50%;transform:rotate(${deg}deg);"></div>`;
+      group.previewDash.overlay.setPosition(from);
+      group.previewDash.overlay.setMap(map);
+    }
+
+    function bindMeasureMapRefresh(onRefresh) {
+      unbindMeasureMapRefresh();
+      if (!map || !onRefresh) return;
+      measureMapRefreshListener = onRefresh;
+      kakao.maps.event.addListener(map, 'zoom_changed', onRefresh);
+      kakao.maps.event.addListener(map, 'dragend', onRefresh);
+    }
+
+    function showMeasureEditBar(show) {
+      const bar = document.getElementById('measure-edit-bar');
+      if (bar) bar.classList.toggle('hidden', !show);
+      if (!show) syncMeasureUndoRedoButtons(true);
+    }
+
+    function syncMeasureUndoRedoButtons(forceDisabled) {
+      const undoBtn = document.getElementById('measure-undo');
+      const redoBtn = document.getElementById('measure-redo');
+      if (!undoBtn || !redoBtn) return;
+      if (forceDisabled || !drawingManager || !distanceMeasureActive) {
+        undoBtn.disabled = true;
+        redoBtn.disabled = true;
+        undoBtn.className = 'disabled';
+        redoBtn.className = 'disabled';
+        return;
+      }
+      if (drawingManager.undoable()) {
+        undoBtn.disabled = false;
+        undoBtn.className = '';
+      } else {
+        undoBtn.disabled = true;
+        undoBtn.className = 'disabled';
+      }
+      if (drawingManager.redoable()) {
+        redoBtn.disabled = false;
+        redoBtn.className = '';
+      } else {
+        redoBtn.disabled = true;
+        redoBtn.className = 'disabled';
+      }
+    }
+
+    function measureUndo() {
+      if (drawingManager && distanceMeasureActive) drawingManager.undo();
+    }
+
+    function measureRedo() {
+      if (drawingManager && distanceMeasureActive) drawingManager.redo();
+    }
+
+    function clearDistancePolylines() {
+      measurePolylineLabels.forEach((label) => {
+        if (label) label.setMap(null);
+      });
+      measurePolylineLabels.clear();
+      if (!drawingManager) return;
+      removeDrawingManagerOverlays(drawingManager, true);
+    }
+
+    function exitDistanceMeasureMode() {
+      if (!distanceMeasureActive) return;
+      distanceMeasureActive = false;
+      showMeasureEditBar(false);
+      if (drawingManager) {
+        drawingManager.cancel();
+        try { drawingManager.select(null); } catch (_) {}
+      }
+    }
+
+    function setMeasureMapOptions(active) {
+      if (!map || typeof map.setOptions !== 'function') return;
+      try {
+        map.setOptions({
+          disableDoubleClickZoom: true,
+          disableDoubleClick: false,
+        });
+      } catch (_) {}
+    }
+
+    function clearGroupVisuals(g) {
+      if (!g) return;
+      (g.overlays || []).forEach((o) => {
+        if (o && o.setMap) o.setMap(null);
+      });
+      if (g.tempLine) {
+        removeMapOverlays(g.tempLine);
+        g.tempLine = null;
+      }
+      clearMeasurePreviewDash(g);
+      if (g.tempLabel) {
+        g.tempLabel.setMap(null);
+        g.tempLabel = null;
+      }
+      if (g.tempCircle) {
+        g.tempCircle.setMap(null);
+        g.tempCircle = null;
+      }
+      if (g.hintLabel) {
+        g.hintLabel.setMap(null);
+        g.hintLabel = null;
+      }
+      if (g.closeBtn) {
+        g.closeBtn.setMap(null);
+        g.closeBtn = null;
+      }
+      if (g.totalLabel) {
+        g.totalLabel.setMap(null);
+        g.totalLabel = null;
+      }
+    }
+
+    function clearMeasureOverlays() {
+      measureGroups.forEach((g) => clearGroupVisuals(g));
+      measureGroups = [];
+      activeRadius = null;
+      clearDistancePolylines();
+      exitDistanceMeasureMode();
+      measuring = false;
+      unbindMeasureMapRefresh();
+      detachMeasureListeners();
+      syncRoadviewMode(initPayload || {});
+    }
+
+    function bindMeasureListeners(onClick, onDblClick, onRightClick, onMove) {
+      detachMeasureListeners();
+      mapClickListener = onClick;
+      mapDblClickListener = onDblClick || null;
+      mapRightClickListener = onRightClick || null;
+      kakao.maps.event.addListener(map, 'click', mapClickListener);
+      if (mapDblClickListener) {
+        kakao.maps.event.addListener(map, 'dblclick', mapDblClickListener);
+      }
+      if (mapRightClickListener) {
+        kakao.maps.event.addListener(map, 'rightclick', mapRightClickListener);
+      }
+      if (onMove) {
+        mapMouseMoveListener = onMove;
+        kakao.maps.event.addListener(map, 'mousemove', mapMouseMoveListener);
+      }
+    }
+
+    function detachMeasureListeners() {
+      if (mapClickListener) {
+        kakao.maps.event.removeListener(map, 'click', mapClickListener);
+        mapClickListener = null;
+      }
+      if (mapDblClickListener) {
+        kakao.maps.event.removeListener(map, 'dblclick', mapDblClickListener);
+        mapDblClickListener = null;
+      }
+      if (mapRightClickListener) {
+        kakao.maps.event.removeListener(map, 'rightclick', mapRightClickListener);
+        mapRightClickListener = null;
+      }
+      if (mapMouseMoveListener) {
+        kakao.maps.event.removeListener(map, 'mousemove', mapMouseMoveListener);
+        mapMouseMoveListener = null;
+      }
+    }
+
+    function finishMeasureMode() {
+      measuring = false;
+      unbindMeasureMapRefresh();
+      detachMeasureListeners();
+      syncRoadviewMode(initPayload || {});
+    }
+
+    function finishActiveDistanceMeasure() {
+      if (drawingManager && distanceMeasureActive) drawingManager.cancel();
+    }
+
+    function clearDrawingOverlays() {
+      exitDistanceMeasureMode();
+      editModeActive = false;
+      window.clearTimeout(geometrySyncTimer);
+      clearDisplayOverlays();
+      clearPolygonPerimeterLabel();
+      if (!drawingManager) return;
+      drawingManager.cancel();
+      removeDrawingManagerOverlays(drawingManager, false);
+      try {
+        drawingManager.select(null);
+      } catch (_) {}
+    }
+
+    function removeMeasureGroup(id) {
+      const wasActive = activeRadius && activeRadius.id === id;
+      const next = [];
+      measureGroups.forEach((g) => {
+        if (g.id === id) {
+          clearGroupVisuals(g);
+          return;
+        }
+        next.push(g);
+      });
+      measureGroups = next;
+      if (activeRadius && activeRadius.id === id) activeRadius = null;
+      if (wasActive) finishMeasureMode();
+    }
+
+    function drawReferenceCircle() {
+      if (!map) return;
+      const refM = Number((initPayload && initPayload.referenceRadiusM) || 500);
+      const pinLatRaw = initPayload && initPayload.primaryPinLat;
+      const pinLngRaw = initPayload && initPayload.primaryPinLng;
+      const latRaw = initPayload && initPayload.lat;
+      const lngRaw = initPayload && initPayload.lng;
+      const lat = Number(pinLatRaw != null ? pinLatRaw : latRaw);
+      const lng = Number(pinLngRaw != null ? pinLngRaw : lngRaw);
+      const center = (Number.isFinite(lat) && Number.isFinite(lng))
+        ? new kakao.maps.LatLng(lat, lng)
+        : map.getCenter();
+      clearDrawingOverlays();
+      exitDistanceMeasureMode();
+      if (drawingManager) drawingManager.cancel();
+      const circle = new kakao.maps.Circle({
+        center,
+        radius: refM,
+        strokeWeight: ZONE_EDIT_STYLE.strokeWeight,
+        strokeColor: ZONE_EDIT_STYLE.strokeColor,
+        strokeOpacity: ZONE_EDIT_STYLE.strokeOpacity,
+        fillColor: ZONE_EDIT_STYLE.fillColor,
+        fillOpacity: ZONE_EDIT_STYLE.fillOpacity,
+      });
+      circle.setMap(map);
+      displayOverlays.push(circle);
+      map.setCenter(center);
+    }
+
+    function startDistanceMeasure() {
+      if (!map) return;
+      if (distanceMeasureActive || activeRadius) {
+        clearMeasureOverlays();
+      }
+      detachMeasureListeners();
+      unbindMeasureMapRefresh();
+      if (!drawingManager) initDrawingManager();
+      measuring = true;
+      distanceMeasureActive = true;
+      drawingManager.cancel();
+      try { drawingManager.select(null); } catch (_) {}
+      showMeasureEditBar(true);
+      syncMeasureUndoRedoButtons();
+      drawingManager.select(kakao.maps.drawing.OverlayType.POLYLINE);
+    }
+
+    function startRadiusMeasure() {
+      if (!map) return;
+      if (distanceMeasureActive || activeRadius) {
+        clearMeasureOverlays();
+      }
+      exitDistanceMeasureMode();
+      suspendDrawingManager();
+      measuring = true;
+      setMeasureMapOptions(true);
+      const id = Date.now() + Math.floor(Math.random() * 10000);
+      let pendingMoveTo = null;
+      const group = {
+        id,
+        overlays: [],
+        center: null,
+        tempCircle: null,
+        tempLabel: null,
+        lastMovePt: null,
+        finished: false,
+      };
+      measureGroups.push(group);
+      activeRadius = group;
+
+      const refreshPreview = () => {
+        if (!group.center || group.finished || !pendingMoveTo) return;
+        updateMeasurePreviewDash(group, group.center, pendingMoveTo);
+        const r = measureSegmentLength(group.center, pendingMoveTo);
+        if (group.tempCircle) group.tempCircle.setMap(null);
+        group.tempCircle = new kakao.maps.Circle({
+          center: group.center,
+          radius: r,
+          strokeWeight: 2,
+          strokeColor: MEASURE_STYLE.stroke,
+          strokeOpacity: 0.85,
+          fillColor: MEASURE_STYLE.fill,
+          fillOpacity: MEASURE_STYLE.fillOpacity,
+          zIndex: 11,
+        });
+        group.tempCircle.setMap(map);
+        if (group.tempLabel) group.tempLabel.setMap(null);
+        group.tempLabel = _measureLabel(pendingMoveTo, `반경 ${_fmtMeters(r)}`);
+      };
+
+      const clearTemp = () => {
+        pendingMoveTo = null;
+        clearMeasurePreviewDash(group);
+        if (group.tempCircle) {
+          group.tempCircle.setMap(null);
+          group.tempCircle = null;
+        }
+        if (group.tempLabel) {
+          group.tempLabel.setMap(null);
+          group.tempLabel = null;
+        }
+      };
+
+      const finishRadius = (pt) => {
+        clearTemp();
+        if (!group.center) {
+          removeMeasureGroup(id);
+          return;
+        }
+        const r = measureSegmentLength(group.center, pt);
+        const line = new kakao.maps.Polyline({
+          path: [group.center, pt],
+          strokeWeight: 3,
+          strokeColor: MEASURE_STYLE.stroke,
+          strokeOpacity: 0.95,
+          strokeStyle: 'solid',
+          zIndex: 12,
+        });
+        const circle = new kakao.maps.Circle({
+          center: group.center,
+          radius: r,
+          strokeWeight: 2,
+          strokeColor: MEASURE_STYLE.stroke,
+          strokeOpacity: 0.9,
+          fillColor: MEASURE_STYLE.fill,
+          fillOpacity: MEASURE_STYLE.fillOpacity,
+          zIndex: 10,
+        });
+        line.setMap(map);
+        circle.setMap(map);
+        group.overlays.push(line, circle);
+        group.overlays.push(_measureLabel(pt, `반경 ${_fmtMeters(r)}`));
+        group.overlays.push(_measureClose(pt, () => removeMeasureGroup(id)));
+        group.finished = true;
+        activeRadius = null;
+        finishMeasureMode();
+      };
+
+      const radiusClick = (mouseEvent) => {
+        if (group.finished || activeRadius !== group) return;
+        const pt = mouseEvent.latLng;
+        if (!group.center) {
+          group.center = pt;
+          const mark = new kakao.maps.Marker({
+            position: pt,
+            map,
+            image: new kakao.maps.MarkerImage(
+              'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect x="0" y="0" width="10" height="10" fill="#fff" stroke="${MEASURE_STYLE.stroke}" stroke-width="2"/></svg>`),
+              new kakao.maps.Size(10, 10),
+              { offset: new kakao.maps.Point(5, 5) },
+            ),
+          });
+          group.overlays.push(mark);
+          return;
+        }
+        finishRadius(pt);
+      };
+
+      const radiusDblClick = (e) => {
+        if (group.finished || activeRadius !== group) return;
+        if (e && e.preventDefault) e.preventDefault();
+        if (group.center && group.lastMovePt) {
+          finishRadius(group.lastMovePt);
+        }
+      };
+
+      const moveListener = (mouseEvent) => {
+        if (!group.center || group.finished || activeRadius !== group) return;
+        pendingMoveTo = mouseEvent.latLng;
+        group.lastMovePt = pendingMoveTo;
+        refreshPreview();
+      };
+
+      bindMeasureMapRefresh(refreshPreview);
+      bindMeasureListeners(radiusClick, radiusDblClick, null, moveListener);
+    }
+
+    function ensureSearchInfoWindow() {
+      if (!searchInfoWindow) {
+        searchInfoWindow = new kakao.maps.InfoWindow({ zIndex: 1 });
+      }
+      return searchInfoWindow;
+    }
+
+    function clearSearchMarkers() {
+      searchMarkers.forEach((marker) => {
+        if (marker._yjSearchClick) {
+          kakao.maps.event.removeListener(marker, 'click', marker._yjSearchClick);
+        }
+        marker.setMap(null);
+      });
+      searchMarkers = [];
+      selectedSearchMarker = null;
+      ensureSearchInfoWindow().close();
+    }
+
+    function applySearchHit(item, title) {
+      const lat = Number(item.y);
+      const lng = Number(item.x);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+      const label = item.place_name
+        || item.address_name
+        || item.road_address_name
+        || title
+        || '';
+      initPayload = Object.assign({}, initPayload || {}, {
+        lat,
+        lng,
+        address: label,
+        keyword: label,
+      });
+      scheduleMapBounds();
+      post({ op: 'ADDRESS_SELECTED', address: label, lat, lng });
+      return true;
+    }
+
+    function displaySearchMarker(place) {
+      ensureMarkerImages();
+      const lat = Number(place.y);
+      const lng = Number(place.x);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      const pos = new kakao.maps.LatLng(lat, lng);
+      const marker = new kakao.maps.Marker({
+        map,
+        position: pos,
+        image: markerImageYellow,
+        title: place.place_name || place.address_name || '',
+      });
+      const iw = ensureSearchInfoWindow();
+      const onClick = () => {
+        const name = place.place_name || place.address_name || '';
+        iw.setContent(
+          '<div style="padding:5px;font-size:12px;">' + escapeHtml(name) + '</div>',
+        );
+        iw.open(map, marker);
+        selectedSearchMarker = marker;
+        applySearchHit(place, name);
+      };
+      marker._yjSearchClick = onClick;
+      kakao.maps.event.addListener(marker, 'click', onClick);
+      searchMarkers.push(marker);
+      return { marker, pos };
+    }
+
+    function displaySearchResults(data) {
+      clearSearchMarkers();
+      if (!Array.isArray(data) || !data.length) return false;
+      const opts = normalizeViewOptions(
+        (initPayload && initPayload.viewOptions) || {},
+      );
+      if (!opts.showSearchMarkers) {
+        const place = data[0] || {};
+        const primaryLabel = place.place_name || place.address_name || '';
+        map.setCenter(new kakao.maps.LatLng(Number(place.y), Number(place.x)));
+        map.setLevel(data.length === 1 ? 5 : 6);
+        applySearchHit(place, primaryLabel);
+        return true;
+      }
+      const bounds = new kakao.maps.LatLngBounds();
+      data.forEach((place) => {
+        const hit = displaySearchMarker(place);
+        if (hit) bounds.extend(hit.pos);
+      });
+      if (!searchMarkers.length) return false;
+      const primary = data[0] || {};
+      const primaryLabel = primary.place_name || primary.address_name || '';
+      if (searchMarkers.length === 1) {
+        const place = primary;
+        map.setCenter(new kakao.maps.LatLng(Number(place.y), Number(place.x)));
+        map.setLevel(5);
+        applySearchHit(place, primaryLabel);
+        ensureSearchInfoWindow().setContent(
+          '<div style="padding:5px;font-size:12px;">'
+          + escapeHtml(primaryLabel)
+          + '</div>',
+        );
+        ensureSearchInfoWindow().open(map, searchMarkers[0]);
+        selectedSearchMarker = searchMarkers[0];
+      } else {
+        map.setBounds(bounds);
+        afterMapViewportSettled(() => {
+          const c = map.getCenter();
+          applySearchHit({
+            y: c.getLat(),
+            x: c.getLng(),
+            place_name: primaryLabel,
+            address_name: primaryLabel,
+          }, primaryLabel);
+        });
+      }
+      hideOverlay();
+      return true;
+    }
+
+    function placesSearchCB(data, status, onFail) {
+      if (status === kakao.maps.services.Status.OK && displaySearchResults(data)) return;
+      onFail();
+    }
+
+    function keywordVariants(q) {
+      const trimmed = String(q || '').trim();
+      const compact = trimmed.replace(/\s+/g, '');
+      const out = [trimmed];
+      if (compact && compact !== trimmed) out.push(compact);
+      if (/역$/.test(compact)) {
+        out.push(compact.replace(/역$/, '').trim());
+      } else if (!/역/.test(compact)) {
+        out.push(`${compact}역`);
+      }
+      return [...new Set(out.filter((v) => v.length > 0))];
+    }
+
+    function searchAddress(keyword) {
+      const q = String(keyword || '').trim();
+      if (!q || !map) return;
+
+      if (kakao.maps.services) {
+        if (!places && kakao.maps.services.Places) {
+          places = new kakao.maps.services.Places();
+        }
+        if (!geocoder && kakao.maps.services.Geocoder) {
+          geocoder = new kakao.maps.services.Geocoder();
+        }
+      }
+
+      if (!places) {
+        showOverlay('주소 검색 서비스를 사용할 수 없습니다.');
+        window.setTimeout(hideOverlay, 1400);
+        return;
+      }
+
+      const showNoResult = () => {
+        showOverlay('주소 검색 결과가 없습니다.');
+        window.setTimeout(hideOverlay, 1800);
+      };
+
+      const runKeywordSearch = (query, onFail) => {
+        places.keywordSearch(query, (data, status) => {
+          placesSearchCB(data, status, onFail);
+        });
+      };
+
+      runKeywordSearch(q, () => {
+        const variants = keywordVariants(q).filter((v) => v !== q);
+        let idx = 0;
+        const tryVariant = () => {
+          if (idx >= variants.length) {
+            if (!geocoder) {
+              showNoResult();
+              return;
+            }
+            geocoder.addressSearch(q, (result, status) => {
+              if (status === kakao.maps.services.Status.OK && Array.isArray(result) && result.length) {
+                displaySearchResults(result.map((r) => ({
+                  y: r.y,
+                  x: r.x,
+                  place_name: r.address_name || q,
+                  address_name: r.address_name,
+                })));
+              } else {
+                showNoResult();
+              }
+            });
+            return;
+          }
+          runKeywordSearch(variants[idx], () => {
+            idx += 1;
+            tryVariant();
+          });
+        };
+        tryVariant();
+      });
+    }
+
+    async function bootEditor(payload) {
+      payload.viewOptions = normalizeViewOptions(payload.viewOptions);
+      initPayload = payload;
+      readOnlyMode = payload.readOnly === true;
+      try {
+        await loadKakao(payload.appKey);
+        const lat = Number(payload.lat);
+        const lng = Number(payload.lng);
+        const center = Number.isFinite(lat) && Number.isFinite(lng)
+          ? new kakao.maps.LatLng(lat, lng)
+          : new kakao.maps.LatLng(SEOUL.lat, SEOUL.lng);
+
+        if (!mapBooted) {
+          map = new kakao.maps.Map(document.getElementById('map'), {
+            center,
+            level: 5,
+            draggable: true,
+            scrollwheel: true,
+            disableDoubleClickZoom: true,
+          });
+          mapBooted = true;
+          kakao.maps.event.addListener(map, 'idle', scheduleMapBounds);
+          scheduleMapBounds();
+        } else {
+          map.setCenter(center);
+        }
+
+        updatePrimaryStoreMarker(payload);
+        renderExistingGeometry(payload.geometryData, true);
+        applyViewLayer(payload);
+        if (normalizeViewOptions(payload.viewOptions).showStores) {
+          const lv = map.getLevel();
+          if (lv > 7) map.setLevel(7);
+          scheduleMapBounds();
+        }
+        hideOverlay();
+      } catch (e) {
+        console.error(e);
+        const keyMissing = e && e.message === 'KAKAO_MAP_KEY_EMPTY';
+        const orb = e && e.message === 'KAKAO_SCRIPT_ORB';
+        post({
+          op: 'ERROR',
+          message: keyMissing
+            ? 'KAKAO_MAP_KEY_EMPTY'
+            : orb
+              ? 'KAKAO_SDK_LOAD_FAILED: KAKAO_SCRIPT_ORB'
+              : `KAKAO_SDK_LOAD_FAILED: ${e && e.message ? e.message : 'unknown'}`,
+        });
+        showOverlay(
+          keyMissing
+            ? 'Kakao Maps JavaScript 키가 설정되지 않았습니다.'
+            : 'Kakao 지도 SDK를 불러오지 못했습니다. Web 도메인 등록·F12 Network를 확인하세요.'
+        );
+      }
+    }
+
+    function handleCmd(cmd, cmdMsg) {
+      if (cmd === 'SEARCH_ADDRESS') {
+        const keyword = (cmdMsg && cmdMsg.keyword)
+          || (initPayload && initPayload.keyword)
+          || '';
+        if (!mapBooted) {
+          showOverlay('지도 준비 중입니다. 잠시 후 다시 검색해 주세요.');
+          window.setTimeout(hideOverlay, 1600);
+          return;
+        }
+        searchAddress(keyword);
+        return;
+      }
+      if (readOnlyMode) return;
+      if (!mapBooted) return;
+      if (cmd === 'DRAW_POLYGON') {
+        const existing = resolvePayloadGeometry(cmdMsg);
+        if (existing && existing.type === 'POLYGON') {
+          loadEditableZoneGeometry(existing, false);
+          return;
+        }
+        if (!drawingManager) initDrawingManager();
+        exitDistanceMeasureMode();
+        clearDrawingOverlays();
+        exitDrawingDrawMode();
+        editModeActive = false;
+        drawingManager.select(kakao.maps.drawing.OverlayType.POLYGON);
+      } else if (cmd === 'DRAW_CIRCLE') {
+        const existing = resolvePayloadGeometry(cmdMsg);
+        if (existing && existing.type === 'CIRCLE') {
+          loadEditableZoneGeometry(existing, false);
+          return;
+        }
+        if (!drawingManager) initDrawingManager();
+        exitDistanceMeasureMode();
+        clearDrawingOverlays();
+        exitDrawingDrawMode();
+        editModeActive = false;
+        drawingManager.select(kakao.maps.drawing.OverlayType.CIRCLE);
+      } else if (cmd === 'EDIT_GEOMETRY') {
+        exitDistanceMeasureMode();
+        const geom = resolvePayloadGeometry(cmdMsg);
+        if (geom && loadEditableZoneGeometry(geom, false)) {
+          hideOverlay();
+        } else {
+          showOverlay('수정할 영업지역이 없습니다. 먼저 영역을 그려 주세요.');
+          window.setTimeout(hideOverlay, 2200);
+        }
+      } else if (cmd === 'DRAW_REFERENCE_CIRCLE') {
+        drawReferenceCircle();
+      } else if (cmd === 'DISTANCE_MEASURE') {
+        startDistanceMeasure();
+      } else if (cmd === 'FINISH_DISTANCE_MEASURE') {
+        finishActiveDistanceMeasure();
+      } else if (cmd === 'RADIUS_MEASURE') {
+        startRadiusMeasure();
+      } else if (cmd === 'CLEAR_DRAWING') {
+        if (!drawingManager) initDrawingManager();
+        clearDrawingOverlays();
+        if (drawingManager) drawingManager.cancel();
+      } else if (cmd === 'CLEAR_MEASURE') {
+        clearMeasureOverlays();
+      } else if (cmd === 'REQUEST_SAVE') {
+        const geom = flushGeometryBeforeSave();
+        if (!geom) {
+          const msg = '지도에서 영역을 그려 주세요.';
+          post({ op: 'ERROR', message: msg });
+          showOverlay(msg);
+          window.setTimeout(hideOverlay, 2200);
+          return;
+        }
+        publishGeometry(geom);
+        const pin = resolvePrimaryPinForSave();
+        post({
+          op: 'SAVE',
+          zoneNm: (cmdMsg && cmdMsg.zoneNm)
+            || (initPayload && initPayload.zoneNm)
+            || '',
+          geometryType: geom.geometryType,
+          geometryData: geom.geometryData,
+          lat: pin ? pin.lat : undefined,
+          lng: pin ? pin.lng : undefined,
+        });
+      }
+    }
+
+    function setReadOnlyMode(enabled) {
+      readOnlyMode = enabled === true;
+      if (readOnlyMode) {
+        hideOverlay();
+        exitDistanceMeasureMode();
+        clearMeasureOverlays();
+        if (drawingManager) {
+          try { drawingManager.cancel(); } catch (_) {}
+          removeDrawingManagerOverlays(drawingManager, true);
+        }
+        editModeActive = false;
+      }
+      if (initPayload && initPayload.geometryData) {
+        renderExistingGeometry(initPayload.geometryData, false);
+      }
+    }
+
+    function dispatchHostMessage(raw) {
+      if (typeof raw !== 'string' || !raw.startsWith(MSG_PREFIX)) return;
+      try {
+        const msg = JSON.parse(raw.slice(MSG_PREFIX.length));
+        if (msg.op === 'INIT') bootEditor(msg);
+        if (msg.op === 'SET_READONLY') {
+          initPayload = Object.assign({}, initPayload || {}, msg);
+          setReadOnlyMode(msg.readOnly === true);
+          if (initPayload) applyViewLayer(initPayload);
+        }
+        if (msg.op === 'UPDATE_GEOMETRY') {
+          initPayload = Object.assign({}, initPayload || {}, msg);
+          if (msg.geometryData) {
+            const fit = msg.fitViewport === true;
+            if (!loadEditableZoneGeometry(msg.geometryData, fit)) {
+              renderExistingGeometry(msg.geometryData, fit);
+            }
+          }
+          if (Number.isFinite(Number(msg.lat)) && Number.isFinite(Number(msg.lng))) {
+            initPayload.lat = Number(msg.lat);
+            initPayload.lng = Number(msg.lng);
+            initPayload.primaryPinLat = Number(msg.lat);
+            initPayload.primaryPinLng = Number(msg.lng);
+            draggedPrimaryPin = null;
+          }
+          applyViewLayer(initPayload);
+        }
+        if (msg.op === 'VIEW_OPTIONS') {
+          initPayload = Object.assign({}, initPayload || {}, msg);
+          applyViewLayer(msg);
+        }
+        if (msg.op === 'CMD') {
+          initPayload = Object.assign({}, initPayload || {}, msg);
+          handleCmd(msg.cmd, msg);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    window.__yjSaDispatch = dispatchHostMessage;
+
+    window.addEventListener('message', (event) => {
+      if (event.origin !== window.location.origin && event.origin !== 'null') return;
+      dispatchHostMessage(event.data);
+    });
+
+    postReady();
+  </script>
+</body>
+</html>

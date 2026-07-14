@@ -1,7 +1,6 @@
 // 상세 화면 공통 스캐폴드(타이틀·탭·본문).
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
@@ -33,7 +32,8 @@ class DetailScreenHeadline extends StatelessWidget {
         children: [
           Text(
             lead,
-            style: GoogleFonts.doHyeon(
+            style: const TextStyle(
+              fontFamily: 'DoHyeon',
               fontSize: 30,
               fontWeight: FontWeight.w700,
               color: kDetailHeadlineMuted,
@@ -44,7 +44,8 @@ class DetailScreenHeadline extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             tail,
-            style: GoogleFonts.notoSansKr(
+            style: const TextStyle(
+          fontFamily: AppTheme.brandFontFamily,
               fontSize: 20,
               fontWeight: FontWeight.w700,
               color: FormStylePalette.textPrimary,
@@ -62,7 +63,8 @@ class DetailScreenHeadline extends StatelessWidget {
       key: key,
       child: Text(
         text,
-        style: GoogleFonts.notoSansKr(
+        style: const TextStyle(
+          fontFamily: AppTheme.brandFontFamily,
           fontSize: 25,
           fontWeight: FontWeight.w800,
           color: FormStylePalette.textPrimary,
@@ -78,7 +80,8 @@ class DetailScreenHeadline extends StatelessWidget {
   }
 }
 
-/// 가맹점·물건 상세 등 공통 **메인 탭바** (빨간 배경 + 흰 라벨).
+/// 가맹점·물건 상세 등 공통 **메인 탭바**
+/// (화이트 배경 + 활성 탭 레드 언더라인 — 02_screens.md §4 탭바 규격).
 class DetailMainTabBar extends StatelessWidget {
   const DetailMainTabBar({super.key, required this.tabTitles});
 
@@ -87,18 +90,31 @@ class DetailMainTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: FormStylePalette.accent,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: AppTheme.hairline)),
+      ),
       child: TabBar(
         isScrollable: true,
-        tabAlignment: TabAlignment.center,
-        labelPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 5),
+        tabAlignment: TabAlignment.start,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         labelStyle: const TextStyle(
-          fontSize: 17,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
           fontFamilyFallback: AppTheme.koreanFontFallback,
         ),
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.white70,
-        indicatorColor: Colors.white,
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
+        labelColor: AppTheme.textPrimary,
+        unselectedLabelColor: AppTheme.textMuted,
+        indicatorColor: AppTheme.accentRed,
+        indicatorWeight: 2,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
+        overlayColor: WidgetStateProperty.all(const Color(0xFFF4F4F2)),
         tabs: [for (final t in tabTitles) Tab(text: t)],
       ),
     );

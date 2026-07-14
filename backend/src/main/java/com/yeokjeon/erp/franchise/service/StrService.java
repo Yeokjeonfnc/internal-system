@@ -76,8 +76,12 @@ public class StrService {
                     ? storeNm + ": 삭제"
                     : "가맹점 삭제";
         }
-        
-        // UPDATE의 경우 변경된 컬럼명들을 추출
+
+        if ("active".equalsIgnoreCase(chgType)) {
+            return activeHistoryDisplayText(chgContent);
+        }
+
+        // UPDATE — API content 필드는 기존 문구 유지(화면 표시는 클라이언트에서 chg_content 파싱)
         if ("UPDATE".equals(chgType) && chgContent != null && !chgContent.isBlank()) {
             try {
                 JsonNode changes = objectMapper.readTree(chgContent);
@@ -92,20 +96,35 @@ public class StrService {
                     }
                     if (columns.length() > 0) {
                         String storeName = storeNm != null && !storeNm.isBlank() ? storeNm : "가맹점";
-                        return storeName + ": " + columns.toString() + " 정보 수정";
+                        return storeName + ": " + columns + " 정보 수정";
                     }
                 }
             } catch (JsonProcessingException e) {
                 log.warn("히스토리 내용 파싱 실패: {}", chgContent, e);
             }
         }
-        
+
         // 기본 처리
         String action = "가맹점";
         if (storeNm != null && !storeNm.isBlank()) {
             return storeNm + ": " + action;
         }
         return action;
+    }
+
+    private String activeHistoryDisplayText(String chgContent) {
+        if (chgContent == null || chgContent.isBlank()) {
+            return "";
+        }
+        try {
+            JsonNode node = objectMapper.readTree(chgContent);
+            if (node.isTextual()) {
+                return node.asText();
+            }
+        } catch (JsonProcessingException e) {
+            log.warn("활동 히스토리 내용 파싱 실패: {}", chgContent, e);
+        }
+        return chgContent.trim();
     }
 
     private JsonNode toJsonNode(String rawJson) {
@@ -165,6 +184,7 @@ public class StrService {
                 .latitude(body.latitude())
                 .longitude(body.longitude())
                 .storeStatus(body.storeStatus())
+                .closedYn(closedYnFromStatus(body.storeStatus()))
                 .contEndDt(body.contEndDt())
                 .autoRenewalYn(autoRenewalYn != null ? autoRenewalYn : true)
                 .storeType(body.storeType())
@@ -175,6 +195,7 @@ public class StrService {
                 .contStartDt(body.contStartDt())
                 .businessNumber(body.businessNumber())
                 .firstContDt(body.firstContDt())
+                .transferDate(body.transferDate())
                 .frFee(body.frFee())
                 .eduFee(body.eduFee())
                 .insuDeposit(body.insuDeposit())
@@ -216,13 +237,23 @@ public class StrService {
         Store store = storeRepository.findByStoreIdx(storeIdx)
                 .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeIdx", storeIdx));
 
+        // 수정 시 가맹점명·주소가 바뀌지 않았으면 중복 검사 생략(다른 필드만 저장 가능).
+        final String originalStoreNmNorm = normalizeStoreNm(store.getStoreNm());
+        final String originalAddressNorm = normalizeAddress(store.getAddress());
+        final String originalZipNorm = normalizeZipCd(store.getZipCd());
+
         // 변경 이력 추적을 위한 변경 내역 수집
         List<FieldChange> changes = new ArrayList<>();
 
         String storeNm = body.storeNm();
-        if (storeNm != null && !storeNm.equals(store.getStoreNm())) {
+        if (storeNm != null && !normalizeStoreNm(storeNm).equals(originalStoreNmNorm)) {
             changes.add(new FieldChange("storeNm", "가맹점명", store.getStoreNm(), storeNm));
             store.setStoreNm(storeNm);
+        }
+        String storeCd = body.storeCd();
+        if (storeCd != null && !storeCd.equals(store.getStoreCd())) {
+            changes.add(new FieldChange("storeCd", "가맹점코드", store.getStoreCd(), storeCd));
+            store.setStoreCd(storeCd.trim().isEmpty() ? null : storeCd.trim());
         }
         String ownerNm = body.ownerNm();
         if (ownerNm != null && !ownerNm.equals(store.getOwnerNm())) {
@@ -270,6 +301,15 @@ public class StrService {
         if (storeStatus != null && !storeStatus.equals(store.getStoreStatus())) {
             changes.add(new FieldChange("storeStatus", "계약상태", store.getStoreStatus(), storeStatus));
             store.setStoreStatus(storeStatus);
+            String nextClosedYn = closedYnFromStatus(storeStatus);
+            if (!Objects.equals(nextClosedYn, store.getClosedYn())) {
+                changes.add(new FieldChange(
+                        "closedYn",
+                        "폐점여부",
+                        store.getClosedYn(),
+                        nextClosedYn));
+                store.setClosedYn(nextClosedYn);
+            }
         }
         var contEndDt = body.contEndDt();
         if (contEndDt != null && !contEndDt.equals(store.getContEndDt())) {
@@ -316,6 +356,13 @@ public class StrService {
                     store.getContStartDt() != null ? store.getContStartDt().toString() : null,
                     contStartDt.toString()));
             store.setContStartDt(contStartDt);
+        }
+        var transferDate = body.transferDate();
+        if (transferDate != null && !transferDate.equals(store.getTransferDate())) {
+            changes.add(new FieldChange("transferDate", "양수도 계약일자",
+                    store.getTransferDate() != null ? store.getTransferDate().toString() : null,
+                    transferDate.toString()));
+            store.setTransferDate(transferDate);
         }
         String businessNumber = body.businessNumber();
         if (businessNumber != null && !businessNumber.equals(store.getBusinessNumber())) {
@@ -445,26 +492,22 @@ public class StrService {
                     propIdx.toString()));
             store.setPropIdx(propIdx);
         }
-        Integer partnerIdx = body.partnerIdx();
-        if (propIdx != null && !Objects.equals(propIdx, store.getPartnerIdx())) {
-            changes.add(new FieldChange("partnerIdx", "창업자",
-                    store.getPartnerIdx() != null ? store.getPartnerIdx().toString() : null,
-                    propIdx.toString()));
-            store.setPartnerIdx(propIdx);
-        }
+        // partnerIdx는 등록(POST) 시에만 반영 — 수정 요청 본문의 partnerIdx는 무시한다.
 
-        // 저장 직전 최종 값 기준 중복 검사(현재 행 제외)
-        if (store.getStoreNm() != null && !store.getStoreNm().isBlank()) {
-            if (storeMstMapper.countStoreNmDuplicateExclude(store.getStoreNm().trim(), storeIdx) > 0) {
-                throw new IllegalArgumentException("중복된 가맹점명입니다.");
-            }
+        // 저장 직전 중복 검사 — 가맹점명·주소가 실제로 변경된 경우에만(현재 행 제외)
+        final String effectiveStoreNmNorm = normalizeStoreNm(store.getStoreNm());
+        if (!effectiveStoreNmNorm.isBlank()
+                && !effectiveStoreNmNorm.equals(originalStoreNmNorm)
+                && storeMstMapper.countStoreNmDuplicateExclude(store.getStoreNm().trim(), storeIdx) > 0) {
+            throw new IllegalArgumentException("중복된 가맹점명입니다.");
         }
         String effAddr = store.getAddress() != null ? store.getAddress().trim() : "";
         String effZip = store.getZipCd() != null ? store.getZipCd().trim() : "";
-        if (!effAddr.isBlank()) {
-            if (storeMstMapper.countAddressDuplicateExclude(effAddr, effZip, storeIdx) > 0) {
-                throw new IllegalArgumentException("중복된 주소입니다. (동일한 우편번호·주소)");
-            }
+        final boolean addressChanged = !normalizeAddress(effAddr).equals(originalAddressNorm)
+                || !normalizeZipCd(effZip).equals(originalZipNorm);
+        if (!effAddr.isBlank() && addressChanged
+                && storeMstMapper.countAddressDuplicateExclude(effAddr, effZip, storeIdx) > 0) {
+            throw new IllegalArgumentException("중복된 주소입니다. (동일한 우편번호·주소)");
         }
 
         Store updatedStore = storeRepository.save(store);
@@ -528,6 +571,28 @@ public class StrService {
         }
     }
 
+    /** DB 중복 검사와 동일 — TRIM + LOWER */
+    private static String normalizeStoreNm(String nm) {
+        if (nm == null) {
+            return "";
+        }
+        return nm.trim().toLowerCase();
+    }
+
+    private static String normalizeAddress(String addr) {
+        if (addr == null) {
+            return "";
+        }
+        return addr.trim().toLowerCase();
+    }
+
+    private static String normalizeZipCd(String zip) {
+        if (zip == null) {
+            return "";
+        }
+        return zip.trim();
+    }
+
     private static class FieldChange {
         final String columnNm;
         final String columnDesc;
@@ -555,5 +620,13 @@ public class StrService {
             return List.of();
         }
         return storeMstMapper.selectStoresByStoreNmLike("%" + storeNm + "%");
+    }
+
+    /** 계약상태 `closed` 이면 폐점(Y), 그 외 N. */
+    private static String closedYnFromStatus(String storeStatus) {
+        if (storeStatus == null) {
+            return "N";
+        }
+        return "closed".equalsIgnoreCase(storeStatus.trim()) ? "Y" : "N";
     }
 }

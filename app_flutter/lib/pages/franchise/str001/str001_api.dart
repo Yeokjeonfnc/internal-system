@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:app_flutter/core/api/api_client.dart';
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_model.dart';
 import 'package:app_flutter/core/store_mst/store_mst_write_request.dart';
@@ -259,5 +260,110 @@ class StoreApiService extends BaseRepository {
       debugPrint('Error fetching store histories: $e');
       rethrow;
     }
+  }
+
+  /// 가맹점 문서 목록
+  Future<List<Document>> getStoreDocuments(int storeIdx) async {
+    try {
+      return await getDataList(
+        StoreMstApiPaths.documents(storeIdx),
+        fromJson: Document.fromJson,
+      );
+    } catch (e) {
+      debugPrint('Error fetching store documents: $e');
+      return const [];
+    }
+  }
+
+  /// 가맹점 문서 업로드
+  Future<Document?> uploadStoreDocument({
+    required int storeIdx,
+    required String fileName,
+    required List<int> bytes,
+    required String userId,
+    void Function(String message)? onServerMessage,
+  }) async {
+    void fail(String m) {
+      if (onServerMessage != null) {
+        onServerMessage(m);
+      } else {
+        debugPrint('uploadStoreDocument: $m');
+      }
+    }
+
+    try {
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: fileName),
+      });
+      final r = await client.postMultipart(
+        StoreMstApiPaths.documents(storeIdx),
+        formData: formData,
+        queryParameters: {
+          if (userId.isNotEmpty) 'userId': userId,
+        },
+      );
+      if (r.data == null) {
+        fail('서버 응답이 비어 있습니다.');
+        return null;
+      }
+      if (!envelopeSuccess(r.data)) {
+        fail(envelopeMessage(r.data) ?? '업로드에 실패했습니다.');
+        return null;
+      }
+      if (!isHttpSuccess(r.statusCode)) {
+        fail('업로드에 실패했습니다.');
+        return null;
+      }
+      return parseDataOrNull(r.data, Document.fromJson);
+    } catch (e, st) {
+      debugPrint('Error uploading store document: $e\n$st');
+      if (e is DioException) {
+        final apiMsg = _envelopeMessageFromDio(e);
+        if (apiMsg != null) {
+          fail(apiMsg);
+          return null;
+        }
+      }
+      fail('업로드에 실패했습니다.\n(${_describeStoreCreateFailure(e)})');
+    }
+    return null;
+  }
+
+  /// 가맹점 문서 파일 바이트 (미리보기·인앱 처리용)
+  Future<Uint8List?> downloadStoreDocumentBytes(
+    int storeIdx,
+    int storeDocIdx,
+  ) async {
+    try {
+      final r = await client.get(
+        StoreMstApiPaths.documentDownload(storeIdx, storeDocIdx),
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 60),
+          headers: {Headers.acceptHeader: '*/*'},
+        ),
+      );
+      if (!isHttpSuccess(r.statusCode) || r.data == null) return null;
+      final data = r.data;
+      if (data is Uint8List) return data;
+      if (data is List<int>) return Uint8List.fromList(data);
+      return null;
+    } catch (e, st) {
+      debugPrint('downloadStoreDocumentBytes: $e\n$st');
+      return null;
+    }
+  }
+
+  /// 가맹점 문서 다운로드 URL (브라우저 저장용)
+  String storeDocumentDownloadUrl(int storeIdx, int storeDocIdx) {
+    final base = ApiClient.resolveBaseUrl();
+    final path = StoreMstApiPaths.documentDownload(storeIdx, storeDocIdx);
+    if (base.endsWith('/') && path.startsWith('/')) {
+      return '${base.substring(0, base.length - 1)}$path';
+    }
+    if (!base.endsWith('/') && !path.startsWith('/')) {
+      return '$base/$path';
+    }
+    return '$base$path';
   }
 }

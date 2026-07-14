@@ -45,7 +45,7 @@ Map<String, dynamic> _$PropertyToJson(Property instance) => <String, dynamic>{
   'propNm': instance.name,
   'region': instance.region,
   'propStatus': _$PropStatusEnumMap[instance.propStatus]!,
-  'propType': _$PropertyOwnershipEnumMap[instance.ownership]!,
+  'propType': _$OwnershipEnumMap[instance.ownership]!,
   'contArea': instance.areaSqm,
   'realArea': instance.actualAreaSqm,
   'premiumFee': instance.keyMoney,
@@ -77,12 +77,9 @@ const _$AddressScopeEnumMap = {
 };
 
 const _$PropStatusEnumMap = {
-  PropStatus.contracted: 'CONTRACTED',
-  PropStatus.pending: 'PENDING',
-  PropStatus.unsuitable: 'UNSUITABLE',
+  PropStatus.contracted: 'contracted',
+  PropStatus.pending: 'pending',
+  PropStatus.unsuitable: 'unsuitable',
 };
 
-const _$PropertyOwnershipEnumMap = {
-  Ownership.owned: 'owned',
-  Ownership.lease: 'lease',
-};
+const _$OwnershipEnumMap = {Ownership.owned: 'owned', Ownership.lease: 'lease'};

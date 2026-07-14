@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.development.mapper.PropertyDocumentMapper">
+
+    <sql id="propertyDocumentSelect">
+        SELECT pd.property_doc_idx   AS propertyDocIdx,
+               pd.prop_idx           AS propIdx,
+               pd.file_name          AS fileName,
+               pd.stored_name        AS storedName,
+               pd.file_size          AS fileSize,
+               pd.content_type       AS contentType,
+               pd.attachment_base_date AS attachmentBaseDate,
+               CAST(pd.attached_at AS TIMESTAMP) AS attachedAt,
+               CAST(pd.modified_at AS TIMESTAMP) AS modifiedAt,
+               pd.modified_by        AS modifiedBy,
+               um.user_name          AS modifiedByNm,
+               pd.deleted_yn         AS deletedYn
+        FROM property_doc pd
+                 LEFT JOIN user_mst um ON um.user_id = pd.modified_by
+    </sql>
+
+    <select id="selectByPropIdx" resultType="com.yeokjeon.erp.development.dto.PropertyDocumentJdbcRow">
+        <include refid="propertyDocumentSelect"/>
+        WHERE pd.prop_idx = #{propIdx}
+          AND pd.deleted_yn = false
+        ORDER BY pd.attached_at DESC, pd.property_doc_idx DESC
+    </select>
+
+    <select id="selectByDocIdxAndPropIdx"
+            resultType="com.yeokjeon.erp.development.dto.PropertyDocumentJdbcRow">
+        <include refid="propertyDocumentSelect"/>
+        WHERE pd.property_doc_idx = #{propertyDocIdx}
+          AND pd.prop_idx = #{propIdx}
+          AND pd.deleted_yn = false
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="propertyDocIdx" keyColumn="property_doc_idx">
+        INSERT INTO property_doc (
+            prop_idx,
+            file_name,
+            stored_name,
+            file_size,
+            content_type,
+            attachment_base_date,
+            modified_by
+        )
+        VALUES (
+            #{propIdx},
+            #{fileName},
+            #{storedName},
+            #{fileSize},
+            #{contentType},
+            #{attachmentBaseDate},
+            #{modifiedBy}
+        )
+    </insert>
+
+    <update id="markDeleted">
+        UPDATE property_doc
+        SET deleted_yn = true,
+            modified_at = CURRENT_TIMESTAMP
+        WHERE property_doc_idx = #{propertyDocIdx}
+          AND prop_idx = #{propIdx}
+          AND deleted_yn = false
+    </update>
+</mapper>

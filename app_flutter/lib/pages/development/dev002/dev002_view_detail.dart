@@ -7,7 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
-import 'package:app_flutter/core/address/kakao_postcode_picker.dart';
+import 'package:app_flutter/core/router/app_router.dart';
+import 'package:app_flutter/core/address/kakao_address_coordinate_picker.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
@@ -20,6 +21,7 @@ import 'package:app_flutter/core/widgets/common/form/common_labeled_form_row.dar
 import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_model.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_controller.dart';
+import 'package:app_flutter/pages/development/dev002/dev002_documents_tab.dart';
 import 'package:app_flutter/core/property_mst/property_mst_write_request.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_controller.dart';
 import 'package:app_flutter/pages/master/dialogs/mst001_dialog_lookup.dart';
@@ -28,10 +30,16 @@ import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
 class PropertyRegisterDraft {
   PropertyRegisterDraft() : registrationDate = DateTime.now();
 
+  /// 등록 화면 탭별 [PropertyInfoPanel]이 공유 — 저장 중복 요청 방지.
+  bool isSaving = false;
+
+  /// 첫 저장 성공 후 propIdx — 두 번째 저장이 CREATE로 나가지 않도록.
+  int? createdPropIdx;
+
   DateTime? surveyDate;
   DateTime? registrationDate;
   Ownership ownership = Ownership.lease;
-  PropStatus propStatus = PropStatus.pending;
+  PropStatus propStatus = PropStatus.contracted;
   String region = _kRegionNone;
   AddressScope addressScope = AddressScope.domestic;
   String postalCode = '';
@@ -48,6 +56,8 @@ class PropertyRegisterDraft {
   String premiumFee = '0';
   String maintFee = '0';
   String notes = '';
+  String? latitude;
+  String? longitude;
 
   void hydrateFromProperty(Property property) {
     surveyDate = _propertyParseYmd(property.surveyDate);
@@ -76,6 +86,8 @@ class PropertyRegisterDraft {
         ? '0'
         : _formatMoneyInput(property.managementFee);
     notes = property.notes;
+    latitude = property.latitude;
+    longitude = property.longitude;
   }
 
   PropertyMstWriteRequest toPayload() {
@@ -108,8 +120,18 @@ class PropertyRegisterDraft {
       PropertyMstWriteRequest.jsonKeyMaintFee: _intFromMoneyText(maintFee),
       PropertyMstWriteRequest.jsonKeyPropNotes: notes.trim(),
       PropertyMstWriteRequest.jsonKeySurveyDt: _formatPayloadDate(surveyDate),
+      PropertyMstWriteRequest.jsonKeyLatitude: _optionalCoordPayload(latitude),
+      PropertyMstWriteRequest.jsonKeyLongitude: _optionalCoordPayload(
+        longitude,
+      ),
     });
   }
+}
+
+num? _optionalCoordPayload(String? value) {
+  final normalized = value?.replaceAll(',', '').trim() ?? '';
+  if (normalized.isEmpty || normalized == '-') return null;
+  return num.tryParse(normalized);
 }
 
 String _propertyNumberText(num? value) {
@@ -283,9 +305,18 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
   }
 
   Future<void> saveProperty() async {
+    final draft = widget.registerDraft;
+    if (draft?.isSaving == true) {
+      return;
+    }
+    if (draft != null) {
+      draft.isSaving = true;
+      if (mounted) setState(() {});
+    }
+
     PropertyMstWriteRequest payload;
-    if (widget.registerDraft != null) {
-      payload = widget.registerDraft!.toPayload();
+    if (draft != null) {
+      payload = draft.toPayload();
     } else {
       payload = PropertyMstWriteRequest.fromMap({});
       if (widget.fixedTabIndex == 0 || widget.fixedTabIndex == null) {
@@ -309,48 +340,64 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
       );
     }
 
-    if (payload.isPropNmBlank) {
-      _snack('물건명을 입력해 주세요.');
-      return;
-    } else if (payload.address == null || payload.address!.trim().isEmpty) {
-      _snack('주소를 입력해 주세요.');
-      return;
-    } else if (payload.zipCd == null || payload.zipCd!.trim().isEmpty) {
-      _snack('우편번호를 입력해 주세요.');
-      return;
-    } else if (payload.surveyor == null || payload.surveyor!.trim().isEmpty) {
-      _snack('조사자를 입력해 주세요.');
-      return;
-    } else if (payload.surveyDt == null || payload.surveyDt!.trim().isEmpty) {
-      _snack('조사일자를 선택해 주세요.');
-      return;
-    }
-    final (Property? saved, String? saveError) = widget.property == null
-        ? await ref.read(propertyApiServiceProvider).createProperty(payload)
-        : await ref
-              .read(propertyApiServiceProvider)
-              .updateProperty(widget.property!.propIdx, payload);
-    if (!mounted) return;
-    if (saved == null) {
-      _snack(saveError ?? '저장에 실패했습니다.');
-      return;
-    }
-    if (widget.registerDraft != null) {
-      widget.registerDraft!.hydrateFromProperty(saved);
-    }
-    await ref.refresh(propertyDataProvider.future).then<void>((_) {});
-    await ref
-        .refresh(propertyDetailProvider(saved.propIdx).future)
-        .then<void>((_) {});
-    if (!mounted) return;
-    widget.onSaved?.call(saved);
-    widget.onEditModeChanged?.call(false);
-    setState(() => _isEditing = false);
-    await showAlertDialog(context, '저장되었습니다.');
+    try {
+      if (payload.isPropNmBlank) {
+        _snack('물건명을 입력해 주세요.');
+        return;
+      } else if (payload.address == null || payload.address!.trim().isEmpty) {
+        _snack('주소를 입력해 주세요.');
+        return;
+      } else if (payload.zipCd == null || payload.zipCd!.trim().isEmpty) {
+        _snack('우편번호를 입력해 주세요.');
+        return;
+      } else if (payload.surveyor == null || payload.surveyor!.trim().isEmpty) {
+        _snack('조사자를 입력해 주세요.');
+        return;
+      } else if (payload.surveyDt == null || payload.surveyDt!.trim().isEmpty) {
+        _snack('조사일자를 선택해 주세요.');
+        return;
+      }
 
-    // 저장 후 데이터 새로고침
-    if (mounted) {
-      setState(() {});
+      final existingPropIdx = widget.property?.propIdx ?? draft?.createdPropIdx;
+      final (Property? saved, String? saveError) = existingPropIdx == null
+          ? await ref.read(propertyApiServiceProvider).createProperty(payload)
+          : await ref
+                .read(propertyApiServiceProvider)
+                .updateProperty(existingPropIdx, payload);
+      if (!mounted) return;
+      if (saved == null) {
+        _snack(saveError ?? '저장에 실패했습니다.');
+        return;
+      }
+      if (draft != null) {
+        draft.createdPropIdx = saved.propIdx;
+        draft.hydrateFromProperty(saved);
+      }
+      ref.invalidate(propertyDataProvider);
+      ref.invalidate(propertyDetailProvider(saved.propIdx));
+
+      final isRegisterFlow = widget.registerDraft != null;
+      if (isRegisterFlow) {
+        widget.onEditModeChanged?.call(false);
+        if (mounted) setState(() => _isEditing = false);
+        widget.onSaved?.call(saved);
+        if (!mounted) return;
+        await showAlertDialog(context, '저장되었습니다. 아래에서 파일을 첨부할 수 있습니다.');
+        return;
+      }
+
+      widget.onEditModeChanged?.call(false);
+      if (mounted) {
+        setState(() => _isEditing = false);
+      }
+      if (!mounted) return;
+      await showAlertDialog(context, '저장되었습니다.');
+      appRouter.go(AppRoutes.properties);
+    } finally {
+      if (draft != null) {
+        draft.isSaving = false;
+        if (mounted) setState(() {});
+      }
     }
   }
 
@@ -407,6 +454,9 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
                           _PanelHeader(
                             title: '물건정보',
                             isEditing: _editing,
+                            forCreate: widget.property == null,
+                            saveInProgress:
+                                widget.registerDraft?.isSaving ?? false,
                             onEnterEdit: editProperty,
                             onSave: saveProperty,
                             onCancel: cancelPropertyEdit,
@@ -423,6 +473,9 @@ class _PropertyInfoPanelState extends ConsumerState<PropertyInfoPanel> {
                             _PanelHeader(
                               title: '물건정보',
                               isEditing: _editing,
+                              forCreate: widget.property == null,
+                              saveInProgress:
+                                  widget.registerDraft?.isSaving ?? false,
                               onEnterEdit: editProperty,
                               onSave: saveProperty,
                               onCancel: cancelPropertyEdit,
@@ -468,6 +521,8 @@ class _PanelHeader extends StatelessWidget {
     required this.onEnterEdit,
     required this.onSave,
     required this.onCancel,
+    this.forCreate = false,
+    this.saveInProgress = false,
   });
 
   final String title;
@@ -475,6 +530,8 @@ class _PanelHeader extends StatelessWidget {
   final VoidCallback onEnterEdit;
   final VoidCallback onSave;
   final VoidCallback onCancel;
+  final bool forCreate;
+  final bool saveInProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -492,7 +549,12 @@ class _PanelHeader extends StatelessWidget {
           ),
         ),
         if (isEditing) ...[
-          SaveActionButton(menuCd: kMenuDev002, onPressed: onSave),
+          SaveActionButton(
+            menuCd: kMenuDev002,
+            forCreate: forCreate,
+            enabled: !saveInProgress,
+            onPressed: onSave,
+          ),
           const SizedBox(width: 8),
           CancelActionButton(onPressed: onCancel),
         ] else
@@ -525,7 +587,7 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
   DateTime? _surveyDate;
   DateTime? _registrationDate;
   Ownership _ownership = Ownership.lease;
-  PropStatus _propStatus = PropStatus.pending;
+  PropStatus _propStatus = PropStatus.contracted;
   String _region = _kRegionNone;
   AddressScope _addressScope = AddressScope.domestic;
 
@@ -535,6 +597,8 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
   late final TextEditingController _nameController;
   late final TextEditingController _surveyorController;
   late final TextEditingController _notesController;
+  String? _latitude;
+  String? _longitude;
 
   @override
   void initState() {
@@ -547,7 +611,7 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
     _registrationDate =
         parsedRegistration ?? (p == null ? draft?.registrationDate : null);
     _ownership = p?.ownership ?? draft?.ownership ?? Ownership.lease;
-    _propStatus = p?.propStatus ?? draft?.propStatus ?? PropStatus.pending;
+    _propStatus = p?.propStatus ?? draft?.propStatus ?? PropStatus.contracted;
     _region = p?.region ?? draft?.region ?? _kRegionNone;
     _addressScope =
         p?.addressScope ?? draft?.addressScope ?? AddressScope.domestic;
@@ -567,6 +631,8 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
     _notesController = TextEditingController(
       text: p?.notes ?? draft?.notes ?? '',
     );
+    _latitude = p?.latitude ?? draft?.latitude;
+    _longitude = p?.longitude ?? draft?.longitude;
     _postalCodeController.addListener(_syncDraft);
     _addressController.addListener(_syncDraft);
     _addressDetailController.addListener(_syncDraft);
@@ -591,7 +657,9 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
       ..addressDetail = _addressDetailController.text
       ..name = _nameController.text
       ..surveyor = _surveyorController.text
-      ..notes = _notesController.text;
+      ..notes = _notesController.text
+      ..latitude = _latitude
+      ..longitude = _longitude;
   }
 
   PropertyMstWriteRequest toPayload() {
@@ -612,6 +680,10 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
       PropertyMstWriteRequest.jsonKeySurveyor: _surveyorController.text.trim(),
       PropertyMstWriteRequest.jsonKeySurveyDt: _formatPayloadDate(_surveyDate),
       PropertyMstWriteRequest.jsonKeyPropNotes: _notesController.text.trim(),
+      PropertyMstWriteRequest.jsonKeyLatitude: _optionalCoordPayload(_latitude),
+      PropertyMstWriteRequest.jsonKeyLongitude: _optionalCoordPayload(
+        _longitude,
+      ),
     });
   }
 
@@ -626,17 +698,25 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
     super.dispose();
   }
 
-  Future<void> _openKakaoPostcode() async {
+  Future<void> _openAddressCoordinatePicker() async {
     if (!widget.isEditing) return;
-    final result = await showKakaoPostcodePicker(context);
+    final result = await showKakaoAddressCoordinatePicker(
+      context,
+      initialLatitude: double.tryParse((_latitude ?? '').trim()),
+      initialLongitude: double.tryParse((_longitude ?? '').trim()),
+      initialAddress: _addressController.text.trim(),
+    );
     if (!mounted || result == null) return;
     setState(() {
       _postalCodeController.text = result.zonecode;
       _addressController.text = result.addressLine;
+      _latitude = result.latitude.toStringAsFixed(6);
+      _longitude = result.longitude.toStringAsFixed(6);
       _addressScope = AddressScope.domestic;
       _syncDraft();
     });
   }
+
 
   Future<void> _openSurveyorUserLookup() async {
     if (!widget.isEditing) return;
@@ -669,16 +749,10 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
     }
   }
 
-  void _snack(String message) {
-    if (!mounted) return;
-    showAlertDialog(context, message);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final regionOptions =
-        ref.watch(propertyCodeOptionsProvider(20)).value ??
-        const <CodeOption>[];
+    final regionAsync = ref.watch(propertyCodeOptionsProvider(20));
+    final regionOptions = regionAsync.value ?? const <CodeOption>[];
     final selectedRegion = regionOptions.any((e) => e.codeCd == _region)
         ? _region
         : _kRegionNone;
@@ -806,7 +880,9 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
                   const SizedBox(width: 8),
                   AccentOutlinedButton(
                     label: '주소검색',
-                    onPressed: widget.isEditing ? _openKakaoPostcode : () {},
+                    onPressed: widget.isEditing
+                        ? _openAddressCoordinatePicker
+                        : () {},
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
@@ -851,62 +927,30 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
                 hint: '상세 주소 (동·호 등)',
                 enabled: widget.isEditing,
               ),
+              const SizedBox(height: 8),
             ],
           ),
         ),
         const SizedBox(height: 14),
         LabeledFormRow(
           label: '지역',
-          child: DropdownButtonFormField<String>(
-            initialValue: selectedRegion,
-            items: [
-              const DropdownMenuItem<String>(
-                value: _kRegionNone,
-                child: Text(_kRegionNone),
-              ),
-              for (final option in regionOptions)
-                DropdownMenuItem<String>(
-                  value: option.codeCd,
-                  child: Text(option.codeNm),
-                ),
-            ],
-            onChanged: widget.isEditing
-                ? (v) {
+          child: widget.isEditing
+              ? _PropertyRegionDropdown(
+                  async: regionAsync,
+                  value: selectedRegion,
+                  noneValue: _kRegionNone,
+                  onChanged: (v) {
                     if (v != null) {
                       setState(() {
                         _region = v;
                         _syncDraft();
                       });
                     }
-                  }
-                : null,
-            style: FormStylePalette.valueStyle,
-            decoration: _detailDropdownDecoration(),
-          ),
-        ),
-        const SizedBox(height: 14),
-        LabeledFormRow(
-          label: '사진',
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Expanded(child: ReadonlyValue('첨부된 사진이 없습니다.')),
-              const SizedBox(width: 8),
-              AccentOutlinedButton(
-                label: '사진첨부',
-                onPressed: widget.isEditing
-                    ? () => _snack('사진 첨부는 추후 연동 예정입니다.')
-                    : () {},
-              ),
-              const SizedBox(width: 6),
-              AccentOutlinedButton(
-                label: '미리보기',
-                onPressed: widget.isEditing
-                    ? () => _snack('첨부된 사진이 없어 미리볼 수 없습니다.')
-                    : () {},
-              ),
-            ],
-          ),
+                  },
+                )
+              : ReadonlyValue(
+                  _propertyRegionLabel(selectedRegion, regionOptions),
+                ),
         ),
         const SizedBox(height: 12),
         LabeledFormRow(
@@ -926,6 +970,12 @@ class _BasicInfoTabState extends ConsumerState<_BasicInfoTab> {
               const SizedBox(width: 8),
             ],
           ),
+        ),
+        const SizedBox(height: 20),
+        PropertyDocumentsTab(
+          property: widget.property,
+          createdPropIdx: widget.registerDraft?.createdPropIdx,
+          embedded: true,
         ),
       ],
     );
@@ -1478,6 +1528,82 @@ String? _formatPayloadDate(DateTime? value) {
 }
 
 /// "구분없음" 라벨.
+class _PropertyRegionDropdown extends StatelessWidget {
+  const _PropertyRegionDropdown({
+    required this.async,
+    required this.value,
+    required this.noneValue,
+    required this.onChanged,
+  });
+
+  final AsyncValue<List<CodeOption>> async;
+  final String value;
+  final String noneValue;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return async.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+      error: (_, _) => const Text(
+        '지역 코드 조회에 실패했습니다.',
+        style: TextStyle(
+          fontSize: 13,
+          color: FormStylePalette.textMuted,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
+      ),
+      data: (options) {
+        if (options.isEmpty) {
+          return const Text(
+            '지역 코드 목록이 비어 있습니다.',
+            style: TextStyle(
+              fontSize: 13,
+              color: FormStylePalette.textMuted,
+              fontFamilyFallback: AppTheme.koreanFontFallback,
+            ),
+          );
+        }
+        final allowed = {noneValue, ...options.map((e) => e.codeCd)};
+        final selected = allowed.contains(value) ? value : noneValue;
+        return DropdownButtonFormField<String>(
+          key: ValueKey<String>('prop-region-${options.length}-$selected'),
+          initialValue: selected,
+          isExpanded: true,
+          decoration: _detailDropdownDecoration(),
+          style: FormStylePalette.valueStyle,
+          items: [
+            DropdownMenuItem<String>(value: noneValue, child: Text(noneValue)),
+            for (final option in options)
+              DropdownMenuItem<String>(
+                value: option.codeCd,
+                child: Text(option.codeNm),
+              ),
+          ],
+          onChanged: onChanged,
+        );
+      },
+    );
+  }
+}
+
+String _propertyRegionLabel(String code, List<CodeOption> options) {
+  if (code == _kRegionNone || code.isEmpty) return _kRegionNone;
+  for (final o in options) {
+    if (o.codeCd == code) return o.codeNm;
+  }
+  return code;
+}
+
 const String _kRegionNone = '구분없음';
 
 /// 상세 화면의 편집 가능한 텍스트 입력 필드. ReadonlyInputShell 과 톤을 맞춘다.

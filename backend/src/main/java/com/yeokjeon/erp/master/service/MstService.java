@@ -65,7 +65,7 @@ public class MstService {
     @Transactional
     public UserMstDto save(UserMstCreateRequestDto body) {
         Character sv = firstCharOrNull(body.svYn());
-        Character tag = firstCharOrNull(body.tagYn());
+        Character owner = firstCharOrNull(body.ownerYn());
         MstUser user = MstUser.builder()
                 .userName(body.userName().trim())
                 .userId(trimToNull(body.userId()))
@@ -74,14 +74,14 @@ public class MstService {
                 .userPhone(trimToNull(body.userPhone()))
                 .userEmail(trimToNull(body.userEmail()))
                 .svYn(sv != null ? sv : 'N')
+                .ownerYn(owner != null ? owner : 'N')
                 .positionCd(trimToNull(body.positionCd()))
-                .tagYn(tag != null ? tag : 'N')
                 .joinDt(body.joinDt())
                 .build();
         normalize(user);
         MstUser saved = mstUserRepository.save(user);
         log.info("사용자 생성 완료: {}", saved.getUserIdx());
-        return get(saved.getUserIdx());
+        return loadUserDtoAfterSave(saved);
     }
 
     @Transactional
@@ -113,8 +113,8 @@ public class MstService {
         if (body.isPositionCdPresent()) {
             user.setPositionCd(trimToNull(body.getPositionCd()));
         }
-        if (body.isTagYnPresent()) {
-            user.setTagYn(firstCharOrNull(body.getTagYn()));
+        if (body.isOwnerYnPresent()) {
+            user.setOwnerYn(firstCharOrNull(body.getOwnerYn()));
         }
         if (body.isJoinDtPresent()) {
             user.setJoinDt(body.getJoinDt());
@@ -122,7 +122,16 @@ public class MstService {
         normalize(user);
         MstUser saved = mstUserRepository.save(user);
         log.info("사용자 수정 완료: {}", saved.getUserIdx());
-        return get(saved.getUserIdx());
+        return loadUserDtoAfterSave(saved);
+    }
+
+    private UserMstDto loadUserDtoAfterSave(MstUser saved) {
+        try {
+            return get(saved.getUserIdx());
+        } catch (RuntimeException ex) {
+            log.warn("사용자 저장 후 JOIN 조회 실패 — 엔티티 기준 응답: userIdx={}", saved.getUserIdx(), ex);
+            return UserMstDto.fromEntity(saved);
+        }
     }
 
     @Transactional
@@ -152,12 +161,8 @@ public class MstService {
         if (user.getSvYn() == null) {
             user.setSvYn('N');
         }
-        if (user.getTagYn() == null) {
-            user.setTagYn('N');
-        }
-        // tag_yn = 'Y' 이면 sv_yn 도 'Y' 로 맞춤(클라이언트가 svYn만 빠뜨려도 일관 저장).
-        if (user.getTagYn() != null && user.getTagYn() == 'Y') {
-            user.setSvYn('Y');
+        if (user.getOwnerYn() == null) {
+            user.setOwnerYn('N');
         }
     }
 

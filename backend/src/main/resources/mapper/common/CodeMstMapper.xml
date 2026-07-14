@@ -8,7 +8,7 @@
                code_nm AS codeNm
         FROM code_mst
         WHERE grp_cd = #{grpCd}
-          AND  use_yn = 'Y'
+          AND use_yn = 'Y'
         ORDER BY code_cd
     </select>
 </mapper>

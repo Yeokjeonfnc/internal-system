@@ -35,6 +35,7 @@ class ActivityWriteRequest {
   static const String jsonKeySvNotes = 'svNotes';
   static const String jsonKeyApprUserIds = 'apprUserIds';
   static const String jsonKeyChecklistResults = 'checklistResults';
+  static const String jsonKeyUsageLogIdx = 'usageLogIdx';
 
   const ActivityWriteRequest({
     required this.storeIdx,
@@ -48,6 +49,7 @@ class ActivityWriteRequest {
     required this.svNotes,
     this.apprUserIds,
     this.checklistResults,
+    this.usageLogIdx,
   });
 
   final int storeIdx;
@@ -61,6 +63,7 @@ class ActivityWriteRequest {
   final String svNotes;
   final List<String>? apprUserIds;
   final List<ChkResultDtlSave>? checklistResults;
+  final int? usageLogIdx;
 
   Map<String, dynamic> toJson() {
     return {
@@ -78,6 +81,8 @@ class ActivityWriteRequest {
       if (checklistResults != null && checklistResults!.isNotEmpty)
         jsonKeyChecklistResults:
             checklistResults!.map((e) => e.toJson()).toList(),
+      if (usageLogIdx != null && usageLogIdx! > 0)
+        jsonKeyUsageLogIdx: usageLogIdx,
     };
   }
 }

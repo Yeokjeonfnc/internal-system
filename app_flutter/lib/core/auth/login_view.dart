@@ -1,7 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
@@ -93,13 +91,12 @@ class _LoginViewState extends State<LoginView> {
       }
     } on DioException catch (e) {
       if (!mounted) return;
-      final isConnection = e.type == DioExceptionType.connectionError ||
+      final isConnection =
+          e.type == DioExceptionType.connectionError ||
           e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout ||
           e.type == DioExceptionType.sendTimeout;
-      final baseHint = kDebugMode
-          ? '\n(${ApiClient.resolveBaseUrl()})'
-          : '';
+      final baseHint = '\n(${ApiClient.resolveBaseUrl()})';
       _showMessage(
         isConnection
             ? '서버에 연결할 수 없습니다.\nPC에서 백엔드를 실행했는지 확인하세요.$baseHint'
@@ -128,7 +125,8 @@ class _LoginViewState extends State<LoginView> {
           child: Text(
             message,
             textAlign: TextAlign.center,
-            style: GoogleFonts.notoSansKr(
+            style: const TextStyle(
+              fontFamily: AppTheme.brandFontFamily,
               fontSize: 15,
               color: FormStylePalette.textPrimary,
             ),
@@ -173,129 +171,154 @@ class _LoginViewState extends State<LoginView> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 380),
             child: Card(
-              elevation: 4,
+              elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: AppTheme.hairline),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(40),
+                padding: const EdgeInsets.all(36),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // 로고 또는 제목
-                    Text(
-                      '역전F&C',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.jua(
-                        fontSize: 40,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.accentRed,
-                      ),
+                    // 로고
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.asset(
+                            'assets/images/logo_yj.png',
+                            width: 36,
+                            height: 36,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          '역전 F&C',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      '로그인',
+                    const Text(
+                      '매장 운영 시스템',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.jua(
-                        fontSize: 20,
+                      style: TextStyle(
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w500,
-                        color: FormStylePalette.textSecondary,
+                        color: AppTheme.textMuted,
                       ),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 32),
 
                     // 아이디 입력
-                    Text(
+                    const Text(
                       '아이디',
-                      style: GoogleFonts.jua(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: FormStylePalette.textPrimary,
+                      style: TextStyle(
+                        fontFamily: AppTheme.brandFontFamily,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: FormStylePalette.textMuted,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     TextField(
                       controller: _userIdController,
                       enabled: !_isLoading,
                       decoration: InputDecoration(
                         hintText: '아이디를 입력하세요',
+                        hintStyle: const TextStyle(
+                          color: AppTheme.textPlaceholder,
+                        ),
                         filled: true,
                         fillColor: FormStylePalette.inputBg,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide(
                             color: FormStylePalette.panelBorder,
                           ),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide(
                             color: FormStylePalette.panelBorder,
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
                             color: AppTheme.accentRed,
-                            width: 2,
+                            width: 1.4,
                           ),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
+                          horizontal: 14,
+                          vertical: 13,
                         ),
                       ),
-                      style: GoogleFonts.notoSansKr(
+                      style: const TextStyle(
+                        fontFamily: AppTheme.brandFontFamily,
                         fontSize: 14,
                         color: FormStylePalette.textPrimary,
                       ),
                       onSubmitted: (_) => _handleLogin(),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
 
                     // 비밀번호 입력
-                    Text(
+                    const Text(
                       '비밀번호',
-                      style: GoogleFonts.jua(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: FormStylePalette.textPrimary,
+                      style: TextStyle(
+                        fontFamily: AppTheme.brandFontFamily,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: FormStylePalette.textMuted,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     TextField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
                       enabled: !_isLoading,
                       decoration: InputDecoration(
                         hintText: '비밀번호를 입력하세요',
+                        hintStyle: const TextStyle(
+                          color: AppTheme.textPlaceholder,
+                        ),
                         filled: true,
                         fillColor: FormStylePalette.inputBg,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide(
                             color: FormStylePalette.panelBorder,
                           ),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide(
                             color: FormStylePalette.panelBorder,
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
                             color: AppTheme.accentRed,
-                            width: 2,
+                            width: 1.4,
                           ),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
+                          horizontal: 14,
+                          vertical: 13,
                         ),
                         suffixIcon: IconButton(
                           icon: Icon(
@@ -311,7 +334,8 @@ class _LoginViewState extends State<LoginView> {
                           },
                         ),
                       ),
-                      style: GoogleFonts.notoSansKr(
+                      style: const TextStyle(
+                        fontFamily: AppTheme.brandFontFamily,
                         fontSize: 14,
                         color: FormStylePalette.textPrimary,
                       ),
@@ -350,7 +374,8 @@ class _LoginViewState extends State<LoginView> {
                           const SizedBox(width: 8),
                           Text(
                             '비밀번호 저장',
-                            style: GoogleFonts.notoSansKr(
+                            style: const TextStyle(
+                              fontFamily: AppTheme.brandFontFamily,
                               fontSize: 14,
                               color: FormStylePalette.textPrimary,
                             ),
@@ -366,9 +391,9 @@ class _LoginViewState extends State<LoginView> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.accentRed,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         elevation: 0,
                         disabledBackgroundColor: FormStylePalette.textMuted

@@ -382,7 +382,7 @@ class _InstructionsEmptyTable extends StatelessWidget {
               columnWidths: _instructionTableColumnWidths(),
               children: const [
                 TableRow(
-                  decoration: BoxDecoration(color: AppTheme.accentRed),
+                  decoration: kErpTableHeaderRowDecoration,
                   children: [
                     ErpTableHeaderCell('활동구분'),
                     ErpTableHeaderCell('활동일자'),

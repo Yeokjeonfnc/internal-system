@@ -15,4 +15,5 @@ final List<ListFilterRule<UserFilter, User>> kMst001ListRules =
       },
       (s, u) => s.department == '전체' || u.department == s.department,
       (s, u) => s.position == '전체' || u.positionNm == s.position,
+      (_, u) => u.ownerYn != OwnerYn.yes,
     ];

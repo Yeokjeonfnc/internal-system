@@ -86,21 +86,14 @@ List<ListFilterRule<SalesAreaFilter, SalesAreaRow>> dev003ListRules(
   ];
 }
 
-({int total, int configured, int unset}) dev003AreaSummary(
-  List<SalesAreaRow> rows,
-) {
-  return (
-    total: rows.length,
-    configured: rows.where((r) => r.isAreaConfigured).length,
-    unset: rows.where((r) => !r.isAreaConfigured).length,
-  );
-}
-
 /// 지역([dev003RegionFilterAllows]) 제외한 목록 규칙.
 final List<ListFilterRule<SalesAreaFilter, SalesAreaRow>> kDev003ListRulesCore =
     <ListFilterRule<SalesAreaFilter, SalesAreaRow>>[
       (s, r) {
-        if (s.strategicOpeningOnly) return r.isStrategicOpening;
+        if (r.isStrategicOpening) {
+          return s.strategicOpeningOnly;
+        }
+        if (s.strategicOpeningOnly) return false;
         return true;
       },
       (s, r) {
@@ -109,6 +102,7 @@ final List<ListFilterRule<SalesAreaFilter, SalesAreaRow>> kDev003ListRulesCore =
       },
       (s, r) {
         if (s.includeUnsetArea) return true;
+        if (r.isStrategicOpening) return s.strategicOpeningOnly;
         return r.isAreaConfigured;
       },
       (s, r) {

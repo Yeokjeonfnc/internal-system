@@ -37,6 +37,28 @@ class TabManagerNotifier extends Notifier<List<ManagedTab>> {
   @override
   List<ManagedTab> build() => [];
 
+  /// 방문한 화면 경로 스택(뒤로가기용). 가장 최근 화면이 마지막.
+  final List<String> _history = [];
+  static const int _kHistoryLimit = 50;
+
+  /// 현재 화면 직전에 방문한 경로. 없으면 null.
+  String? previousLocation() =>
+      _history.length >= 2 ? _history[_history.length - 2] : null;
+
+  /// 라우트 변경을 이력에 기록한다.
+  /// 직전 경로로 되돌아온 경우(뒤로가기)는 스택을 pop, 그 외에는 push.
+  void _recordHistory(String location) {
+    if (_history.isNotEmpty && _history.last == location) return;
+    if (_history.length >= 2 && _history[_history.length - 2] == location) {
+      _history.removeLast();
+      return;
+    }
+    _history.add(location);
+    if (_history.length > _kHistoryLimit) {
+      _history.removeRange(0, _history.length - _kHistoryLimit);
+    }
+  }
+
   static bool _isPinned(String location) => location == AppRoutes.dashboard;
 
   /// 대시보드는 항상 맨 왼쪽(고정 홈 탭), 나머지는 연 순서 유지.
@@ -62,6 +84,7 @@ class TabManagerNotifier extends Notifier<List<ManagedTab>> {
 
   /// 현재 라우트에 맞춰 탭을 추가하거나 제목만 갱신한다.
   void syncWithRoute(String location) {
+    _recordHistory(location);
     var list = canonicalOrder(state);
     final label = _labelFor(location);
     final idx = list.indexWhere((t) => t.location == location);

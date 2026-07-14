@@ -76,6 +76,25 @@ $java = Resolve-Java
 $out = Join-Path $logDir 'backend.out.log'
 $err = Join-Path $logDir 'backend.err.log'
 
+# 기동할 때 이전 로그를 타임스탬프로 밀어 두고(감사·장애분석용), 오래된 것은 정리한다.
+function Rotate-Log {
+    param([string]$Path, [int]$Keep = 10)
+    if (Test-Path -LiteralPath $Path) {
+        $item = Get-Item -LiteralPath $Path
+        if ($item.Length -gt 0) {
+            $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+            Move-Item -LiteralPath $Path -Destination "$Path.$stamp" -Force
+        }
+    }
+    $leaf = Split-Path -Leaf $Path
+    Get-ChildItem -Path (Split-Path -Parent $Path) -Filter "$leaf.*" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -Skip $Keep |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+}
+Rotate-Log -Path $out
+Rotate-Log -Path $err
+
 $args = @(
     '-jar', $jarPath,
     "--server.port=$port",

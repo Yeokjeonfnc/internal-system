@@ -20,6 +20,7 @@ public record StoreMstDto(
         BigDecimal longitude,
         String storeStatus,
         String storeStatusNm,
+        Boolean closedYn,
         LocalDate contEndDt,
         Boolean autoRenewalYn,
         String storeType,
@@ -35,6 +36,7 @@ public record StoreMstDto(
         LocalDate contStartDt,
         String businessNumber,
         LocalDate firstContDt,
+        LocalDate transferDate,
         BigDecimal frFee,
         BigDecimal eduFee,
         BigDecimal insuDeposit,
@@ -68,6 +70,7 @@ public record StoreMstDto(
                 store.getLongitude(),
                 store.getStoreStatus(),
                 codeName(store.getStoreStatus(), store.getStoreStatusNm()),
+                ynToBoolean(store.getClosedYn()),
                 store.getContEndDt(),
                 store.getAutoRenewalYn(),
                 store.getStoreType(),
@@ -83,6 +86,7 @@ public record StoreMstDto(
                 store.getContStartDt(),
                 store.getBusinessNumber(),
                 store.getFirstContDt(),
+                store.getTransferDate(),
                 store.getFrFee(),
                 store.getEduFee(),
                 store.getInsuDeposit(),
@@ -105,5 +109,9 @@ public record StoreMstDto(
 
     private static String codeName(String code, String name) {
         return name != null ? name : code;
+    }
+
+    private static Boolean ynToBoolean(String yn) {
+        return "Y".equalsIgnoreCase(yn != null ? yn.trim() : "");
     }
 }

@@ -17,6 +17,7 @@
             <arg column="longitude" javaType="java.math.BigDecimal"/>
             <arg column="store_status" javaType="java.lang.String"/>
             <arg column="store_status_nm" javaType="java.lang.String"/>
+            <arg column="closed_yn" javaType="java.lang.Boolean"/>
             <arg column="cont_end_dt" javaType="java.time.LocalDate"/>
             <arg column="auto_renewal_yn" javaType="java.lang.Boolean"/>
             <arg column="store_type" javaType="java.lang.String"/>
@@ -32,6 +33,7 @@
             <arg column="cont_start_dt" javaType="java.time.LocalDate"/>
             <arg column="business_number" javaType="java.lang.String"/>
             <arg column="first_cont_dt" javaType="java.time.LocalDate"/>
+            <arg column="transfer_date" javaType="java.time.LocalDate"/>
             <arg column="fr_fee" javaType="java.math.BigDecimal"/>
             <arg column="edu_fee" javaType="java.math.BigDecimal"/>
             <arg column="insu_deposit" javaType="java.math.BigDecimal"/>
@@ -66,6 +68,7 @@
         sm.longitude,
         sm.store_status,
         COALESCE(st.code_nm, CAST(sm.store_status AS VARCHAR)) AS store_status_nm,
+        (COALESCE(sm.closed_yn, 'N') = 'Y') AS closed_yn,
         sm.cont_end_dt,
         sm.auto_renewal_yn,
         sm.store_type,
@@ -81,6 +84,7 @@
         sm.cont_start_dt,
         sm.business_number,
         sm.first_cont_dt,
+        sm.transfer_date,
         sm.fr_fee,
         sm.edu_fee,
         sm.insu_deposit,
@@ -103,10 +107,14 @@
 
     <sql id="storeMstFromJoins">
         FROM store_mst sm
-                 LEFT JOIN code_mst reg ON reg.grp_cd = '20' AND reg.code_cd = sm.region_cd
-                 LEFT JOIN code_mst st ON st.grp_cd = '10' AND st.code_cd = sm.store_status
-                 LEFT JOIN code_mst typ ON typ.grp_cd = '30' AND typ.code_cd = sm.store_type
-                 LEFT JOIN code_mst br ON br.grp_cd = '40' AND br.code_cd = CAST(sm.brand_cd AS VARCHAR)
+                 LEFT JOIN code_mst reg ON reg.grp_cd = 20
+                     AND CAST(reg.code_cd AS TEXT) = CAST(sm.region_cd AS TEXT)
+                 LEFT JOIN code_mst st ON st.grp_cd = 10
+                     AND CAST(st.code_cd AS TEXT) = CAST(sm.store_status AS TEXT)
+                 LEFT JOIN code_mst typ ON typ.grp_cd = 30
+                     AND CAST(typ.code_cd AS TEXT) = CAST(sm.store_type AS TEXT)
+                 LEFT JOIN code_mst br ON br.grp_cd = 40
+                     AND CAST(br.code_cd AS TEXT) = CAST(sm.brand_cd AS VARCHAR)
                  LEFT JOIN user_mst ucs ON ucs.user_id = sm.cont_manager
                  LEFT JOIN user_mst ues ON ues.user_id = sm.edu_manager
                  LEFT JOIN user_mst usv ON usv.user_id = sm.sv_id
@@ -123,7 +131,9 @@
         SELECT
         <include refid="storeMstDtoColumnList"/>
         <include refid="storeMstFromJoins"/>
-        WHERE sm.store_nm LIKE #{pattern}
+        WHERE sm.store_nm ILIKE #{pattern}
+           OR COALESCE(sm.sv_id, '') ILIKE #{pattern}
+           OR COALESCE(usv.user_name, '') ILIKE #{pattern}
         ORDER BY sm.store_idx DESC
     </select>
 

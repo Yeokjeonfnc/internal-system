@@ -6,26 +6,19 @@ import 'package:go_router/go_router.dart';
 
 import 'package:app_flutter/core/format/korean_phone_display.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
-import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
-import 'package:app_flutter/core/widgets/common/common_detail_button.dart';
+import 'package:app_flutter/core/widgets/common/common_status_badge.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_controller.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_filter.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
 import 'package:app_flutter/core/router/app_router.dart';
-
-/// 사원관리 목록 본문에 항상 노출하는 검색 항목(통합 텍스트 검색은 상단 필드).
-const Set<CommonSearchFieldId> kUserListSupportedSearchFields = {
-  CommonSearchFieldId.userDepartment,
-  CommonSearchFieldId.userPosition,
-};
 
 /// 사원관리 목록.
 class UserListView extends ConsumerStatefulWidget {
@@ -54,81 +47,58 @@ class _UserListViewState extends ConsumerState<UserListView> {
 
   /// 목록에 실제로 나타난 부서명·직급명(필터 규칙과 동일하게 문자열 비교).
   List<String> _distinctSorted(Iterable<String> raw) {
-    final out = raw.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet().toList();
+    final out = raw
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
     out.sort();
     return out;
   }
 
-  List<SearchFilterItemData> _mainFilterItems(
+  SearchFilterItemData _departmentFilterItem(
+    UserFilter filter,
+    List<String> departmentNames,
+    UserNotifier n,
+  ) {
+    return FilterDropdownSlot<String>(
+      label: '부서',
+      value: filter.department,
+      items: [
+        const DropdownMenuItem<String?>(value: '전체', child: Text('전체')),
+        for (final name in departmentNames)
+          DropdownMenuItem<String?>(value: name, child: Text(name)),
+      ],
+      onChanged: (v) => n.setDepartment(v ?? '전체'),
+    ).toItem();
+  }
+
+  SearchFilterItemData _positionFilterItem(
+    UserFilter filter,
+    List<String> positionNames,
+    UserNotifier n,
+  ) {
+    return FilterStringOptionsSlot(
+      label: '직급',
+      value: filter.position,
+      options: ['전체', ...positionNames],
+      onSelected: n.setPosition,
+      forceDropdown: true,
+    ).toItem();
+  }
+
+  Widget _buildFilterRow(
     UserFilter filter,
     List<String> departmentNames,
     List<String> positionNames,
     UserNotifier n,
   ) {
-    final items = <SearchFilterItemData>[];
-    for (final def in commonSearchDefsOrdered(kUserListSupportedSearchFields)) {
-      switch (def.id) {
-        case CommonSearchFieldId.userName:
-        case CommonSearchFieldId.userEmail:
-        case CommonSearchFieldId.userPhone:
-          break;
-        case CommonSearchFieldId.userDepartment:
-          items.add(
-            FilterDropdownSlot<String>(
-              label: def.label,
-              value: filter.department,
-              items: [
-                const DropdownMenuItem<String?>(value: '전체', child: Text('전체')),
-                for (final name in departmentNames)
-                  DropdownMenuItem<String?>(
-                    value: name,
-                    child: Text(name),
-                  ),
-              ],
-              onChanged: (v) => n.setDepartment(v ?? '전체'),
-            ).toItem(),
-          );
-          break;
-        case CommonSearchFieldId.userPosition:
-          items.add(
-            FilterStringOptionsSlot(
-              label: def.label,
-              value: filter.position,
-              options: ['전체', ...positionNames],
-              onSelected: n.setPosition,
-              forceDropdown: true,
-            ).toItem(),
-          );
-          break;
-        case CommonSearchFieldId.storeNm:
-        case CommonSearchFieldId.storeCd:
-        case CommonSearchFieldId.brandCd:
-        case CommonSearchFieldId.storeStatus:
-        case CommonSearchFieldId.supervisorCd:
-        case CommonSearchFieldId.storeType:
-        case CommonSearchFieldId.prospectName:
-        case CommonSearchFieldId.entrepreneurStatus:
-        case CommonSearchFieldId.regionCd:
-        case CommonSearchFieldId.mobilePhone:
-        case CommonSearchFieldId.registrationDate:
-        case CommonSearchFieldId.propertyName:
-        case CommonSearchFieldId.propertyOwnership:
-        case CommonSearchFieldId.propertyStatus:
-        case CommonSearchFieldId.propertyAddress:
-        case CommonSearchFieldId.partnerName:
-        case CommonSearchFieldId.founderEvaluation:
-        case CommonSearchFieldId.partnerStatus:
-        case CommonSearchFieldId.activityConsultMemo:
-        case CommonSearchFieldId.activityDateRange:
-        case CommonSearchFieldId.salesAreaName:
-        case CommonSearchFieldId.salesAreaStrategicOnly:
-        case CommonSearchFieldId.salesAreaIncludeNonFranchise:
-        case CommonSearchFieldId.salesAreaIncludeUnset:
-        case CommonSearchFieldId.salesAreaSettingDateRange:
-          break;
-      }
-    }
-    return items;
+    return SearchFilterStackedItems(
+      items: [
+        _departmentFilterItem(filter, departmentNames, n),
+        _positionFilterItem(filter, positionNames, n),
+      ],
+    );
   }
 
   @override
@@ -168,8 +138,11 @@ class _UserListViewState extends ConsumerState<UserListView> {
               onChanged: n.setUserKeyword,
             ),
             const SizedBox(height: 8),
-            SearchFilterStackedItems(
-              items: _mainFilterItems(filter, departmentNames, positionNames, n),
+            _buildFilterRow(
+              filter,
+              departmentNames,
+              positionNames,
+              n,
             ),
           ],
         );
@@ -229,117 +202,92 @@ class _UserTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ErpDataTable(
-      minWidth: AppDimensions.tableMinWidthDefault,
-      tableBuilder: (context, _) => Table(
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        border: kErpTableInnerGridBorder,
-        columnWidths: const {
-          0: FixedColumnWidth(200),
-          1: FlexColumnWidth(0.5),
-          2: FixedColumnWidth(130),
-          3: FixedColumnWidth(180),
-          4: FixedColumnWidth(200),
-          5: FlexColumnWidth(1.4),
-          6: FixedColumnWidth(120),
-          7: FixedColumnWidth(100),
-          8: FixedColumnWidth(130),
-        },
+    return ErpVirtualDataTable(
+      minWidth: AppDimensions.tableMinWidthStandard,
+      columnWidths: const {
+        0: FixedColumnWidth(90),
+        1: FlexColumnWidth(0.8),
+        2: FixedColumnWidth(80),
+        3: FixedColumnWidth(140),
+        4: FlexColumnWidth(1.0),
+        5: FlexColumnWidth(1.2),
+        6: FixedColumnWidth(100),
+        7: FixedColumnWidth(90),
+      },
+      headerRow: const TableRow(
+        decoration: kErpTableHeaderRowDecoration,
         children: [
-          const TableRow(
-            decoration: BoxDecoration(color: AppTheme.accentRed),
-            children: [
-              ErpTableHeaderCell('이름'),
-              ErpTableHeaderCell('부서'),
-              ErpTableHeaderCell('직급'),
-              ErpTableHeaderCell('휴대전화'),
-              ErpTableHeaderCell('아이디'),
-              ErpTableHeaderCell('이메일 주소'),
-              ErpTableHeaderCell('입사년월일'),
-              ErpTableHeaderCell('태그사용여부'),
-              ErpTableHeaderCell('상세보기'),
-            ],
-          ),
-          ...rows.asMap().entries.map(
-            (e) => TableRow(
-              decoration: BoxDecoration(
-                color: e.key.isEven
-                    ? AppTheme.tableRowOdd
-                    : AppTheme.tableRowEven,
-              ),
-              children: [
-                ErpTableBodyCell(e.value.name, center: true),
-                ErpTableBodyCell(e.value.department, center: true),
-                ErpTableBodyCell(e.value.positionNm, center: true),
-                ErpTableBodyCell(
-                  formatKoreanPhoneDisplay(e.value.mobilePhone),
-                  center: true,
-                ),
-                ErpTableBodyCell(e.value.userId, center: true),
-                ErpTableBodyCell(e.value.email, center: true),
-                ErpTableBodyCell(e.value.joinDt, center: true),
-                _TagYnFieldChip(tagYn: e.value.tagYn),
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Center(
-                    child: DetailButton(
-                      onPressed: () => context.goNamed(
-                        AppRouteNames.masterUserDetail,
-                        pathParameters: {'userIdx': '${e.value.userIdx}'},
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          ErpTableHeaderCell('이름'),
+          ErpTableHeaderCell('부서'),
+          ErpTableHeaderCell('직급'),
+          ErpTableHeaderCell('휴대전화'),
+          ErpTableHeaderCell('아이디'),
+          ErpTableHeaderCell('이메일 주소'),
+          ErpTableHeaderCell('입사년월일'),
+          ErpTableHeaderCell('태그사용여부 '),
         ],
       ),
+      rowCount: rows.length,
+      rowBuilder: (rowContext, index) {
+        final user = rows[index];
+        void openDetail() => rowContext.goNamed(
+          AppRouteNames.masterUserDetail,
+          pathParameters: {'userIdx': '${user.userIdx}'},
+        );
+        Widget tap(Widget child) =>
+            ErpTableDoubleTapCell(onDoubleTap: openDetail, child: child);
+        return TableRow(
+          decoration: BoxDecoration(
+            color: index.isEven ? AppTheme.tableRowOdd : AppTheme.tableRowEven,
+          ),
+          children: [
+            tap(ErpTableBodyCell(user.name, center: true)),
+            tap(
+              ErpTableBodyCell(
+                user.department.isEmpty ? '-' : user.department,
+                center: true,
+              ),
+            ),
+            tap(
+              ErpTableBodyCell(
+                user.positionNm.isEmpty ? '-' : user.positionNm,
+                center: true,
+              ),
+            ),
+            tap(
+              ErpTableBodyCell(
+                formatKoreanPhoneDisplay(user.mobilePhone),
+                center: true,
+              ),
+            ),
+            tap(ErpTableBodyCell(user.userId, center: true)),
+            tap(ErpTableBodyCell(user.email, center: true)),
+            tap(ErpTableBodyCell(user.joinDt, center: true)),
+            tap(_YnFieldChip(active: user.svYn == SvYn.yes)),
+          ],
+        );
+      },
     );
   }
 }
 
-/// 읽기 전용 — 태그 사용 여부를 칩 형태로 표시한다.
-class _TagYnFieldChip extends StatelessWidget {
-  const _TagYnFieldChip({required this.tagYn});
+/// 읽기 전용 — Y/N 여부를 칩 형태로 표시한다.
+class _YnFieldChip extends StatelessWidget {
+  const _YnFieldChip({required this.active});
 
-  final TagYn tagYn;
+  final bool active;
+
+  static const String activeLabel = '사  용';
+  static const String inactiveLabel = '미사용';
 
   @override
   Widget build(BuildContext context) {
-    final tagged = tagYn == TagYn.tagged;
-    final (Color fg, Color bg, Color border) = tagged
-        ? (
-            const Color.fromARGB(255, 238, 36, 70),
-            const Color.fromARGB(255, 253, 195, 198),
-            const Color.fromARGB(255, 237, 233, 254),
-          )
-        : (
-            const Color(0xFF065F46),
-            const Color(0xFFD1FAE5),
-            const Color(0xFFA7F3D0),
-          );
-    final label = tagged ? '사용' : '미사용';
+    final color = active ? AppTheme.statusRenewal : AppTheme.textMuted;
+    final label = active ? activeLabel : inactiveLabel;
 
     return Align(
       alignment: Alignment.center,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: border),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: fg,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            fontFamilyFallback: AppTheme.koreanFontFallback,
-          ),
-        ),
-      ),
+      child: StatusBadge(label, color: color, showDot: false),
     );
   }
 }

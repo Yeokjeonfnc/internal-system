@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>주소 검색 / 좌표 지정</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif; background: #fff; }
+    #root { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #e5e7eb;
+      flex-shrink: 0;
+      min-height: 0;
+    }
+    .title { font-size: 16px; font-weight: 700; color: #0f172a; white-space: nowrap; }
+    .hint { flex: 1; font-size: 11px; color: #64748b; line-height: 1.35; }
+    #panels { display: grid; grid-template-columns: minmax(320px, 42%) 1fr; flex: 1 1 auto; min-height: 0; }
+    #postcode-wrap { height: 100%; border-right: 1px solid #e5e7eb; overflow: hidden; }
+    #postcode-wrap #wrap { width: 100%; height: 100%; overflow: hidden; }
+    #map { width: 100%; height: 100%; min-height: 0; background: #f1f5f9; }
+    .footer { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-top: 1px solid #e5e7eb; background: #fff; flex-shrink: 0; }
+    .meta { flex: 1 1 200px; font-size: 12px; color: #475569; line-height: 1.4; min-width: 0; }
+    .actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .btn { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 7px 12px; font-size: 13px; cursor: pointer; }
+    .btn.primary { border-color: #b91c1c; background: #b91c1c; color: #fff; font-weight: 600; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+<div id="root">
+  <div class="header">
+    <span class="title">주소 검색 / 좌표 지정</span>
+    <span class="hint">왼쪽에서 주소를 선택한 뒤, 오른쪽 지도를 클릭해 좌표를 조정하고 [적용]을 누르세요.</span>
+  </div>
+  <div id="panels">
+    <div id="postcode-wrap"><div id="wrap"></div></div>
+    <div id="map"></div>
+  </div>
+  <div class="footer">
+    <div id="meta" class="meta">주소를 선택해 주세요.</div>
+    <div class="actions">
+      <button id="applyBtn" class="btn primary" disabled>적용</button>
+      <button id="closeBtn" class="btn">닫기</button>
+    </div>
+  </div>
+</div>
+<script>
+  const MSG_PREFIX = 'yj_ac_v1|';
+  const SEOUL = { lat: 37.5665, lng: 126.9780 };
+
+  let map = null;
+  let geocoder = null;
+  let marker = null;
+  let selectedPostcode = null;
+  let selectedCoord = null;
+
+  const metaEl = document.getElementById('meta');
+  const applyBtn = document.getElementById('applyBtn');
+
+  const params = new URLSearchParams(window.location.search);
+  const appkey = params.get('appkey') || window.localStorage.getItem('YJ_KAKAO_MAP_APP_KEY') || '';
+  const initLat = Number(params.get('lat'));
+  const initLng = Number(params.get('lng'));
+  const initAddress = (params.get('address') || '').trim();
+
+  function post(obj) {
+    var str = JSON.stringify(obj);
+    try { window.__yjKakaoAddrCoordPending = str; } catch (_) {}
+    try {
+      if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+        window.chrome.webview.postMessage(str);
+        return;
+      }
+    } catch (_) {}
+    try {
+      if (typeof KakaoAddressCoordinate !== 'undefined' && KakaoAddressCoordinate.postMessage) {
+        KakaoAddressCoordinate.postMessage(str);
+        return;
+      }
+    } catch (_) {}
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(MSG_PREFIX + str, '*');
+      }
+    } catch (_) {}
+  }
+
+  function setMeta(text) { metaEl.textContent = text || ''; }
+
+  function panelsHeight() {
+    var panels = document.getElementById('panels');
+    return panels && panels.clientHeight > 0 ? panels.clientHeight : 480;
+  }
+
+  function syncPostcodeWrapHeight() {
+    var wrap = document.getElementById('wrap');
+    if (!wrap) return;
+    wrap.style.height = panelsHeight() + 'px';
+  }
+
+  function observePanelsResize() {
+    var panels = document.getElementById('panels');
+    if (!panels || !window.ResizeObserver) return;
+    new ResizeObserver(function() {
+      syncPostcodeWrapHeight();
+      if (map) kakao.maps.relayout();
+    }).observe(panels);
+  }
+
+  function updateMeta() {
+    if (!selectedPostcode && !selectedCoord) {
+      setMeta('주소를 선택해 주세요.');
+      applyBtn.disabled = true;
+      return;
+    }
+    var lines = [];
+    if (selectedPostcode) {
+      if (selectedPostcode.zonecode) lines.push('우편번호 ' + selectedPostcode.zonecode);
+      var addr = selectedPostcode.roadAddress || selectedPostcode.jibunAddress;
+      if (addr) lines.push(addr);
+    }
+    if (selectedCoord) {
+      lines.push('위도 ' + selectedCoord.lat.toFixed(6) + ' / 경도 ' + selectedCoord.lng.toFixed(6));
+    }
+    setMeta(lines.join(' · '));
+    applyBtn.disabled = !(selectedPostcode && selectedCoord);
+  }
+
+  function setMarker(lat, lng) {
+    if (!map || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    var pos = new kakao.maps.LatLng(lat, lng);
+    if (!marker) marker = new kakao.maps.Marker({ map: map, position: pos });
+    marker.setPosition(pos);
+    selectedCoord = { lat: lat, lng: lng };
+    updateMeta();
+  }
+
+  function geocodeAddress(address) {
+    if (!geocoder || !address) return;
+    geocoder.addressSearch(address, function(result, status) {
+      if (status !== kakao.maps.services.Status.OK || !result || !result.length) return;
+      var lat = parseFloat(result[0].y);
+      var lng = parseFloat(result[0].x);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      map.setCenter(new kakao.maps.LatLng(lat, lng));
+      map.setLevel(3);
+      setMarker(lat, lng);
+    });
+  }
+
+  function onPostcodeComplete(data) {
+    selectedPostcode = {
+      zonecode: data.zonecode || '',
+      roadAddress: data.roadAddress || '',
+      jibunAddress: data.jibunAddress || '',
+      buildingName: data.buildingName || '',
+      userSelectedType: data.userSelectedType || ''
+    };
+    var addr = data.roadAddress || data.jibunAddress || '';
+    geocodeAddress(addr);
+    updateMeta();
+  }
+
+  function applySelection() {
+    if (!selectedPostcode || !selectedCoord) return;
+    post({
+      op: 'SELECT',
+      zonecode: selectedPostcode.zonecode,
+      roadAddress: selectedPostcode.roadAddress,
+      jibunAddress: selectedPostcode.jibunAddress,
+      buildingName: selectedPostcode.buildingName,
+      userSelectedType: selectedPostcode.userSelectedType,
+      latitude: selectedCoord.lat,
+      longitude: selectedCoord.lng
+    });
+  }
+
+  function closeDialog() { post({ op: 'CLOSE' }); }
+
+  function initMap() {
+    var center = (Number.isFinite(initLat) && Number.isFinite(initLng))
+      ? new kakao.maps.LatLng(initLat, initLng)
+      : new kakao.maps.LatLng(SEOUL.lat, SEOUL.lng);
+    map = new kakao.maps.Map(document.getElementById('map'), { center: center, level: 5 });
+    geocoder = new kakao.maps.services.Geocoder();
+
+    kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
+      var lat = mouseEvent.latLng.getLat();
+      var lng = mouseEvent.latLng.getLng();
+      setMarker(lat, lng);
+    });
+
+    if (Number.isFinite(initLat) && Number.isFinite(initLng)) {
+      setMarker(initLat, initLng);
+    }
+    if (initAddress) {
+      geocodeAddress(initAddress);
+    }
+  }
+
+  function loadPostcode() {
+    var script = document.createElement('script');
+    script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    script.onload = function() {
+      try {
+        syncPostcodeWrapHeight();
+        var wrap = document.getElementById('wrap');
+        var h = panelsHeight();
+        new daum.Postcode({
+          oncomplete: onPostcodeComplete,
+          onresize: function() {
+            syncPostcodeWrapHeight();
+          },
+          width: '100%',
+          height: h + 'px'
+        }).embed(wrap);
+        observePanelsResize();
+      } catch (e) {
+        post({ error: String(e) });
+      }
+    };
+    script.onerror = function() {
+      post({ error: '우편번호 스크립트를 불러오지 못했습니다.' });
+    };
+    document.head.appendChild(script);
+  }
+
+  function schedulePostcodeLoad() {
+    requestAnimationFrame(function() {
+      requestAnimationFrame(loadPostcode);
+    });
+  }
+
+  applyBtn.addEventListener('click', applySelection);
+  document.getElementById('closeBtn').addEventListener('click', closeDialog);
+
+  if (!appkey) {
+    setMeta('Kakao Maps JavaScript 키가 없습니다. 지도를 사용할 수 없습니다.');
+    schedulePostcodeLoad();
+  } else {
+    var s = document.createElement('script');
+    s.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + encodeURIComponent(appkey) + '&autoload=false&libraries=services';
+    s.onload = function() {
+      kakao.maps.load(function() {
+        initMap();
+        schedulePostcodeLoad();
+      });
+    };
+    s.onerror = function() {
+      setMeta('Kakao SDK를 불러오지 못했습니다.');
+      schedulePostcodeLoad();
+    };
+    document.head.appendChild(s);
+  }
+</script>
+</body>
+</html>

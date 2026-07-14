@@ -1,11 +1,11 @@
 {
-    "name": "app_flutter",
-    "short_name": "app_flutter",
+    "name": "역전 F&C 매장 운영 시스템",
+    "short_name": "역전 F&C",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FCFBF9",
+    "theme_color": "#BC1F26",
+    "description": "역전 F&C 매장 운영 시스템",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

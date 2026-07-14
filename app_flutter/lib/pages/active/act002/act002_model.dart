@@ -14,6 +14,7 @@ class ActivityRow {
     required this.svNm,
     required this.chkYn,
     required this.apprStatus,
+    required this.suggestions,
     required this.apprNotes,
     required this.brandNm,
     required this.brandCd,
@@ -31,6 +32,7 @@ class ActivityRow {
   final String actNotes;
   final String svNm;
   final String chkYn;
+  final String suggestions;
   final String apprStatus;
   final String apprNotes;
   final String brandNm;
@@ -51,6 +53,7 @@ class ActivityRow {
       svNm: json.jsonString(ActiveMstApiJsonKeys.svNm),
       chkYn: json.jsonString(ActiveMstApiJsonKeys.chkYn),
       apprStatus: json.jsonString(ActiveMstApiJsonKeys.apprStatus),
+      suggestions: json.jsonString(ActiveMstApiJsonKeys.suggestions),
       apprNotes: json.jsonString(ActiveMstApiJsonKeys.apprNotes),
       brandNm: json.jsonString(ActiveMstApiJsonKeys.brandNm),
       brandCd: json.jsonString(ActiveMstApiJsonKeys.brandCd),
@@ -83,6 +86,7 @@ class ActivityDetail {
     required this.svDeptNm,
     required this.svNm,
     required this.resolvedApproverIds,
+    required this.hasSignature,
   });
 
   final int? storeIdx;
@@ -104,6 +108,7 @@ class ActivityDetail {
 
   /// 결재 라인: `apprUserIds` 우선, 없으면 `apprId` CSV.
   final List<String> resolvedApproverIds;
+  final bool hasSignature;
 
   static String toYmd(String? v) {
     final s = v?.trim() ?? '';
@@ -195,6 +200,40 @@ class ActivityDetail {
       svDeptNm: json.jsonString(ActiveMstApiJsonKeys.svDeptNm),
       svNm: json.jsonString(ActiveMstApiJsonKeys.svNm),
       resolvedApproverIds: ids,
+      hasSignature: json[ActiveMstApiJsonKeys.hasSignature] == true,
+    );
+  }
+}
+
+/// 활동 첨부파일 — `ActAttachmentDto`.
+class ActAttachment {
+  const ActAttachment({
+    required this.actAttIdx,
+    required this.actIdx,
+    required this.fileName,
+    required this.modifiedAt,
+    required this.modifiedBy,
+    required this.attached,
+    required this.attachedAt,
+  });
+
+  final int actAttIdx;
+  final int actIdx;
+  final String fileName;
+  final String modifiedAt;
+  final String modifiedBy;
+  final bool attached;
+  final String attachedAt;
+
+  factory ActAttachment.fromJson(Map<String, dynamic> json) {
+    return ActAttachment(
+      actAttIdx: asJsonIntOpt(json[ActiveMstApiJsonKeys.actAttIdx]) ?? 0,
+      actIdx: asJsonIntOpt(json[ActiveMstApiJsonKeys.actIdx]) ?? 0,
+      fileName: json.jsonString(ActiveMstApiJsonKeys.fileName),
+      modifiedAt: json.jsonString(ActiveMstApiJsonKeys.modifiedAt),
+      modifiedBy: json.jsonString(ActiveMstApiJsonKeys.modifiedBy),
+      attached: json[ActiveMstApiJsonKeys.attached] == true,
+      attachedAt: json.jsonString(ActiveMstApiJsonKeys.attachedAt),
     );
   }
 }
@@ -230,12 +269,11 @@ class ChkResultRow {
       chkType: json.jsonString(ChkMstApiJsonKeys.chkType),
       chkTypeNm: json.jsonString(ChkMstApiJsonKeys.chkTypeNm),
       chkContent: json.jsonString(ChkMstApiJsonKeys.chkContent),
-      baseScore:
-          (json[ChkMstApiJsonKeys.baseScore] as Object?).asJsonInt(0),
+      baseScore: (json[ChkMstApiJsonKeys.baseScore] as Object?).asJsonInt(0),
       displayOrder: asJsonIntOpt(json[ChkMstApiJsonKeys.displayOrder]),
       answerVal: json.jsonString(ChkResultDtlSave.jsonKeyAnswerVal),
-      answerScore:
-          (json[ChkResultDtlSave.jsonKeyAnswerScore] as Object?).asJsonInt(0),
+      answerScore: (json[ChkResultDtlSave.jsonKeyAnswerScore] as Object?)
+          .asJsonInt(0),
     );
   }
 }

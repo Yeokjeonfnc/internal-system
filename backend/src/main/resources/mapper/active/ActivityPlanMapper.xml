@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.active.mapper.ActivityPlanMapper">
+
+    <sql id="assigneeVisibilityFilter">
+        (
+            u.user_idx = #{viewerUserIdx}
+            OR u.user_idx IN (
+                SELECT u2.user_idx
+                FROM user_mst u2
+                WHERE u2.dept_idx IN (
+                    SELECT target_dept_idx
+                    FROM team_view_permission
+                    WHERE viewer_user_idx = #{viewerUserIdx}
+                      AND can_view = 'Y'
+                )
+            )
+        )
+    </sql>
+
+    <select id="selectUserDeptIdx" resultType="java.lang.Integer">
+        SELECT dept_idx FROM user_mst WHERE user_idx = #{userIdx}
+    </select>
+
+    <select id="selectDeptNm" resultType="java.lang.String">
+        SELECT dept_nm FROM dept_mst WHERE dept_idx = #{deptIdx}
+    </select>
+
+    <select id="selectUserId" resultType="java.lang.String">
+        SELECT user_id FROM user_mst WHERE user_idx = #{userIdx}
+    </select>
+
+    <select id="selectUserName" resultType="java.lang.String">
+        SELECT user_name FROM user_mst WHERE user_idx = #{userIdx}
+    </select>
+
+    <select id="selectGrantedDeptIdxByViewer" resultType="java.lang.Integer">
+        SELECT target_dept_idx
+        FROM team_view_permission
+        WHERE viewer_user_idx = #{viewerUserIdx}
+          AND can_view = 'Y'
+    </select>
+
+    <select id="selectGrantedTeams"
+            resultType="com.yeokjeon.erp.active.dto.ActivityPlanCalendarTeamDto">
+        SELECT d.dept_idx AS deptIdx,
+               d.dept_nm  AS deptNm,
+               TRUE       AS granted
+        FROM team_view_permission tvp
+                 JOIN dept_mst d ON d.dept_idx = tvp.target_dept_idx
+        WHERE tvp.viewer_user_idx = #{viewerUserIdx}
+          AND tvp.can_view = 'Y'
+        ORDER BY d.dept_nm
+    </select>
+
+    <select id="selectMembersForViewer"
+            resultType="com.yeokjeon.erp.active.dto.ActivityPlanCalendarMemberDto">
+        SELECT u.user_idx AS userIdx,
+               u.user_name AS userName,
+               u.dept_idx AS deptIdx,
+               d.dept_nm AS deptNm,
+               (u.user_idx = #{viewerUserIdx}) AS selfUser
+        FROM user_mst u
+                 LEFT JOIN dept_mst d ON d.dept_idx = u.dept_idx
+        WHERE u.user_idx = #{viewerUserIdx}
+           OR u.dept_idx IN (
+               SELECT target_dept_idx
+               FROM team_view_permission
+               WHERE viewer_user_idx = #{viewerUserIdx}
+                 AND can_view = 'Y'
+           )
+        ORDER BY selfUser DESC, d.dept_nm NULLS LAST, u.user_name
+    </select>
+
+    <select id="canViewerSeeAssignee" resultType="boolean">
+        SELECT CASE
+                   WHEN #{assigneeUserIdx} = #{viewerUserIdx} THEN TRUE
+                   WHEN EXISTS (
+                       SELECT 1
+                       FROM user_mst u
+                                JOIN team_view_permission tvp
+                                     ON tvp.target_dept_idx = u.dept_idx
+                                         AND tvp.viewer_user_idx = #{viewerUserIdx}
+                                         AND tvp.can_view = 'Y'
+                       WHERE u.user_idx = #{assigneeUserIdx}
+                   ) THEN TRUE
+                   ELSE FALSE
+                   END
+    </select>
+
+    <select id="selectPlannedStoresInMonth"
+            resultType="com.yeokjeon.erp.active.dto.ActivityPlanStoreRowDto">
+        SELECT aps.plan_date     AS planDate,
+               aps.store_idx     AS storeIdx,
+               sm.store_nm       AS storeNm,
+               cm.code_nm        AS brandNm,
+               aps.assignee_user_idx AS assigneeUserIdx,
+               u.user_name       AS assigneeUserName,
+               TRUE              AS planned,
+               FALSE             AS completed
+        FROM activity_plan_store aps
+                 JOIN user_mst u ON u.user_idx = aps.assignee_user_idx
+                 JOIN store_mst sm ON sm.store_idx = aps.store_idx
+                 LEFT JOIN code_mst cm
+                           ON sm.brand_cd = cm.code_cd AND cm.grp_cd = 40
+        WHERE aps.plan_date &gt;= #{monthStart}
+          AND aps.plan_date &lt; #{monthEnd}
+          AND <include refid="assigneeVisibilityFilter"/>
+        <if test="assigneeUserIdxs != null and assigneeUserIdxs.size() &gt; 0">
+            AND aps.assignee_user_idx IN
+            <foreach collection="assigneeUserIdxs" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        ORDER BY aps.plan_date, aps.sort_order, aps.plan_store_idx
+    </select>
+
+    <select id="selectCompletedVisitsInMonth"
+            resultType="com.yeokjeon.erp.active.dto.ActivityPlanStoreRowDto">
+        SELECT am.act_dt         AS planDate,
+               am.store_idx      AS storeIdx,
+               sm.store_nm       AS storeNm,
+               cm.code_nm        AS brandNm,
+               u.user_idx        AS assigneeUserIdx,
+               u.user_name       AS assigneeUserName,
+               FALSE             AS planned,
+               TRUE              AS completed
+        FROM active_mst am
+                 JOIN user_mst u ON u.user_id = am.sv_id
+                 JOIN store_mst sm ON sm.store_idx = am.store_idx
+                 LEFT JOIN code_mst cm
+                           ON sm.brand_cd = cm.code_cd AND cm.grp_cd = 40
+        WHERE UPPER(TRIM(COALESCE(am.appr_status, ''))) = 'APPROVED'
+          AND am.act_dt &gt;= #{monthStart}
+          AND am.act_dt &lt; #{monthEnd}
+          AND <include refid="assigneeVisibilityFilter"/>
+        <if test="assigneeUserIdxs != null and assigneeUserIdxs.size() &gt; 0">
+            AND u.user_idx IN
+            <foreach collection="assigneeUserIdxs" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        ORDER BY am.act_dt, am.act_idx
+    </select>
+
+    <select id="selectPlannedStoresOnDay"
+            resultType="com.yeokjeon.erp.active.dto.ActivityPlanStoreRowDto">
+        SELECT aps.plan_date     AS planDate,
+               aps.store_idx     AS storeIdx,
+               sm.store_nm       AS storeNm,
+               cm.code_nm        AS brandNm,
+               aps.assignee_user_idx AS assigneeUserIdx,
+               u.user_name       AS assigneeUserName,
+               TRUE              AS planned,
+               FALSE             AS completed
+        FROM activity_plan_store aps
+                 JOIN user_mst u ON u.user_idx = aps.assignee_user_idx
+                 JOIN store_mst sm ON sm.store_idx = aps.store_idx
+                 LEFT JOIN code_mst cm
+                           ON sm.brand_cd = cm.code_cd AND cm.grp_cd = 40
+        WHERE aps.assignee_user_idx = #{assigneeUserIdx}
+          AND aps.plan_date = #{planDate}
+        ORDER BY aps.sort_order, aps.plan_store_idx
+    </select>
+
+    <select id="selectCompletedVisitsOnDay"
+            resultType="com.yeokjeon.erp.active.dto.ActivityPlanStoreRowDto">
+        SELECT am.act_dt         AS planDate,
+               am.store_idx      AS storeIdx,
+               sm.store_nm       AS storeNm,
+               cm.code_nm        AS brandNm,
+               u.user_idx        AS assigneeUserIdx,
+               u.user_name       AS assigneeUserName,
+               FALSE             AS planned,
+               TRUE              AS completed
+        FROM active_mst am
+                 JOIN user_mst u ON u.user_id = am.sv_id
+                 JOIN store_mst sm ON sm.store_idx = am.store_idx
+                 LEFT JOIN code_mst cm
+                           ON sm.brand_cd = cm.code_cd AND cm.grp_cd = 40
+        WHERE u.user_idx = #{assigneeUserIdx}
+          AND am.act_dt = #{planDate}
+          AND UPPER(TRIM(COALESCE(am.appr_status, ''))) = 'APPROVED'
+        ORDER BY am.act_idx
+    </select>
+
+    <delete id="deletePlannedStoresOnDay">
+        DELETE FROM activity_plan_store
+        WHERE assignee_user_idx = #{assigneeUserIdx}
+          AND plan_date = #{planDate}
+    </delete>
+
+    <insert id="insertPlannedStore">
+        INSERT INTO activity_plan_store (
+            assignee_user_idx, plan_date, store_idx, sort_order, created_by
+        ) VALUES (
+            #{assigneeUserIdx},
+            #{planDate},
+            #{storeIdx},
+            #{sortOrder},
+            #{createdBy}
+        )
+    </insert>
+</mapper>

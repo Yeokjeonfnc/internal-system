@@ -115,15 +115,26 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
     try {
       final depts = await _deptRepo.all();
       final users = await _userApi.getUsers();
+      if (!mounted) return;
       setState(() {
         _departments = depts;
         _allUsers = users;
         _displayedUsers = users;
+        _selectedDeptId ??= 'root';
         _isLoading = false;
       });
     } catch (e) {
       debugPrint('결재라인 데이터 로딩 실패: $e');
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _departments = const [];
+        _allUsers = const [];
+        _displayedUsers = const [];
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('사원 목록을 불러오지 못했습니다. ($e)')));
     }
   }
 
@@ -170,47 +181,99 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
     }
   }
 
+  User? _userByIdx(int userIdx) {
+    for (final list in [_visibleUsers, _displayedUsers, _allUsers]) {
+      for (final u in list) {
+        if (u.userIdx == userIdx) return u;
+      }
+    }
+    return null;
+  }
+
+  void _toggleRowCheck(int userIdx, bool checked) {
+    setState(() {
+      if (checked) {
+        _rowChecked.add(userIdx);
+      } else {
+        _rowChecked.remove(userIdx);
+      }
+    });
+  }
+
   void _onAddApprovers() {
+    if (_rowChecked.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('추가할 사원을 체크하거나 행을 눌러 선택하세요.'),
+        ),
+      );
+      return;
+    }
+
     final ids = _rowChecked.toList()..sort();
     final toAdd = <User>[];
     for (final id in ids) {
-      final picked = _allUsers.firstWhere(
-        (e) => e.userIdx == id,
-        orElse: () => _allUsers.isNotEmpty
-            ? _allUsers.first
-            : const User(
-                userIdx: 0,
-                name: '',
-                department: '',
-                positionNm: '',
-                mobilePhone: '',
-                email: '',
-                joinDt: '',
-                tagYn: TagYn.untagged,
-                userId: '',
-              ),
-      );
-      if (picked.userIdx == id) toAdd.add(picked);
+      final picked = _userByIdx(id);
+      if (picked != null) toAdd.add(picked);
     }
+    if (toAdd.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('선택한 사원 정보를 찾지 못했습니다.')),
+      );
+      return;
+    }
+
+    var added = 0;
+    var skippedDuplicate = 0;
+    var skippedFull = false;
     setState(() {
       for (final u in toAdd) {
-        if (_lineNames.contains(u.name)) continue;
-        final i = _lineNames.indexWhere((e) => e.isEmpty);
-        if (i >= 0) {
-          _lineNames[i] = u.name;
-          _lineTitles[i] = u.positionNm;
-          _lineUserIds[i] = u.userId;
+        if (_lineNames.contains(u.name)) {
+          skippedDuplicate++;
+          continue;
         }
+        final i = _lineNames.indexWhere((e) => e.isEmpty);
+        if (i < 0) {
+          skippedFull = true;
+          break;
+        }
+        _lineNames[i] = u.name;
+        _lineTitles[i] = u.positionNm;
+        _lineUserIds[i] = u.userId;
+        added++;
       }
       _rowChecked.clear();
     });
+
+    if (added == 0) {
+      final msg = skippedFull
+          ? '결재 슬롯이 모두 찼습니다. 초기화 후 다시 추가하세요.'
+          : skippedDuplicate > 0
+          ? '이미 결재라인에 있는 사원입니다.'
+          : '결재자를 추가하지 못했습니다.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
   }
 
   void _onReset() {
     setState(() {
+      // 0번 슬롯은 기안(본인) — 결재자만 비우고 본인은 유지한다.
+      final writerName = _lineNames.isNotEmpty
+          ? _lineNames[0]
+          : widget.initialNames[0];
+      final writerTitle = _lineTitles.isNotEmpty
+          ? _lineTitles[0]
+          : widget.initialTitles[0];
+      final writerId = _lineUserIds.isNotEmpty
+          ? _lineUserIds[0]
+          : widget.initialUserIds[0];
+
       _lineNames = List<String>.filled(kActivityApprovalLineSlotCount, '');
       _lineTitles = List<String>.filled(kActivityApprovalLineSlotCount, '');
       _lineUserIds = List<String>.filled(kActivityApprovalLineSlotCount, '');
+      _lineNames[0] = writerName;
+      _lineTitles[0] = writerTitle;
+      _lineUserIds[0] = writerId;
       _rowChecked.clear();
     });
   }
@@ -263,6 +326,22 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
                   ),
                 ),
               )
+            else if (_allUsers.isEmpty)
+              Expanded(
+                child: Center(
+                  child: Text(
+                    _departments.isEmpty
+                        ? '조직·사원 데이터를 불러오지 못했습니다.\n백엔드 로그의 /users 오류를 확인하세요.'
+                        : '사원 목록이 비어 있습니다.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: FormStylePalette.textSecondary,
+                      fontFamilyFallback: AppTheme.koreanFontFallback,
+                    ),
+                  ),
+                ),
+              )
             else
               Expanded(
                 child: Padding(
@@ -272,15 +351,7 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
                           compact: true,
                           users: _visibleUsers,
                           checked: _rowChecked,
-                          onToggle: (id, v) {
-                            setState(() {
-                              if (v) {
-                                _rowChecked.add(id);
-                              } else {
-                                _rowChecked.remove(id);
-                              }
-                            });
-                          },
+                          onToggle: _toggleRowCheck,
                         )
                       : Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -297,15 +368,7 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
                               child: _UserTablePanel(
                                 users: _visibleUsers,
                                 checked: _rowChecked,
-                                onToggle: (id, v) {
-                                  setState(() {
-                                    if (v) {
-                                      _rowChecked.add(id);
-                                    } else {
-                                      _rowChecked.remove(id);
-                                    }
-                                  });
-                                },
+                                onToggle: _toggleRowCheck,
                               ),
                             ),
                           ],
@@ -556,48 +619,93 @@ class _UserTablePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ErpDataTable(
+    if (users.isEmpty) {
+      return const Center(
+        child: Text(
+          '표시할 사원이 없습니다.',
+          style: TextStyle(
+            fontSize: 14,
+            color: FormStylePalette.textSecondary,
+            fontFamilyFallback: AppTheme.koreanFontFallback,
+          ),
+        ),
+      );
+    }
+
+    return ErpVirtualDataTable(
       minWidth: compact ? 300 : 480,
-      tableBuilder: (context, width) {
-        return Table(
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          border: kErpTableInnerGridBorder,
-          columnWidths: {
-            0: const FixedColumnWidth(48),
-            1: const FlexColumnWidth(1.05),
-            2: const FlexColumnWidth(0.78),
-            3: const FlexColumnWidth(1.05),
-          },
+      columnWidths: const {
+        0: FixedColumnWidth(48),
+        1: FlexColumnWidth(1.05),
+        2: FlexColumnWidth(0.78),
+        3: FlexColumnWidth(1.05),
+      },
+      headerRow: const TableRow(
+        decoration: kErpTableHeaderRowDecoration,
+        children: [
+          ErpTableHeaderCell(' '),
+          ErpTableHeaderCell('부서명'),
+          ErpTableHeaderCell('직급(직책)'),
+          ErpTableHeaderCell('사원명'),
+        ],
+      ),
+      rowCount: users.length,
+      rowBuilder: (context, i) {
+        final user = users[i];
+        final isChecked = checked.contains(user.userIdx);
+        return TableRow(
+          decoration: BoxDecoration(
+            color: isChecked
+                ? const Color(0xFFE8F4FC)
+                : i.isEven
+                ? AppTheme.tableRowOdd
+                : AppTheme.tableRowEven,
+          ),
           children: [
-            const TableRow(
-              decoration: BoxDecoration(color: AppTheme.accentRed),
-              children: [
-                ErpTableHeaderCell(' '),
-                ErpTableHeaderCell('부서명'),
-                ErpTableHeaderCell('직급(직책)'),
-                ErpTableHeaderCell('사원명'),
-              ],
+            _CheckboxTableCell(
+              isChecked: isChecked,
+              onChanged: (v) => onToggle(user.userIdx, v ?? false),
             ),
-            for (var i = 0; i < users.length; i++)
-              TableRow(
-                decoration: BoxDecoration(
-                  color: i.isEven
-                      ? AppTheme.tableRowOdd
-                      : AppTheme.tableRowEven,
-                ),
-                children: [
-                  _CheckboxTableCell(
-                    isChecked: checked.contains(users[i].userIdx),
-                    onChanged: (v) => onToggle(users[i].userIdx, v ?? false),
-                  ),
-                  ErpTableBodyCell(users[i].department),
-                  ErpTableBodyCell(users[i].positionNm, center: true),
-                  ErpTableBodyCell(users[i].name, center: true),
-                ],
-              ),
+            _TappableBodyCell(
+              label: user.department,
+              onTap: () => onToggle(user.userIdx, !isChecked),
+            ),
+            _TappableBodyCell(
+              label: user.positionNm,
+              center: true,
+              onTap: () => onToggle(user.userIdx, !isChecked),
+            ),
+            _TappableBodyCell(
+              label: user.name,
+              center: true,
+              onTap: () => onToggle(user.userIdx, !isChecked),
+            ),
           ],
         );
       },
+    );
+  }
+}
+
+class _TappableBodyCell extends StatelessWidget {
+  const _TappableBodyCell({
+    required this.label,
+    required this.onTap,
+    this.center = false,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool center;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: ErpTableBodyCell(label, center: center),
+      ),
     );
   }
 }

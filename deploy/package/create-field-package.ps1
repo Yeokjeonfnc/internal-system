@@ -58,7 +58,11 @@ if ($Build) {
 
     Push-Location (Join-Path $repoRoot 'app_flutter')
     try {
-        & $flutter build web --no-pub "--dart-define=API_BASE_URL=$ApiBaseUrl" "--dart-define=KAKAO_MAP_JAVASCRIPT_KEY=$KakaoMapJavaScriptKey"
+        # --no-tree-shake-icons: 전체 MaterialIcons 폰트를 항상 포함한다.
+        # (트리셰이킹 시 새로 추가한 아이콘이 캐시된 옛 부분폰트에 없어 안 보이는 문제 방지)
+        # --pwa-strategy=none: 서비스워커 오프라인 캐시 비활성화.
+        # (재배포 후에도 브라우저가 옛 main.dart.js 를 계속 실행하는 문제 방지 — 내부 ERP 는 항상 서버 최신본 사용)
+        & $flutter build web --no-pub --no-tree-shake-icons --pwa-strategy=none "--dart-define=API_BASE_URL=$ApiBaseUrl" "--dart-define=KAKAO_MAP_JAVASCRIPT_KEY=$KakaoMapJavaScriptKey"
     } finally {
         Pop-Location
     }

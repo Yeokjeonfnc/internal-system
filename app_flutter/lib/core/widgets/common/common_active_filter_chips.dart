@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
-import 'package:app_flutter/core/theme/form_style_palette.dart';
 
 /// 메인 화면에 표시할 **적용 중 검색 조건** 한 칩.
 class ActiveFilterChip {
@@ -22,10 +21,10 @@ class ActiveFilterChipsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (chips.isEmpty) {
-      return Text(
+      return const Text(
         '적용된 검색 조건이 없습니다.',
         style: TextStyle(
-          color: FormStylePalette.textMuted,
+          color: AppTheme.textMuted,
           fontSize: 13,
           fontFamilyFallback: AppTheme.koreanFontFallback,
         ),
@@ -42,31 +41,26 @@ class ActiveFilterChipsBar extends StatelessWidget {
                 label: Text(
                   c.label,
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -0.1,
-                    color: Color.fromARGB(255, 236, 110, 110),
+                    color: AppTheme.textSecondary,
                     fontFamilyFallback: AppTheme.koreanFontFallback,
                   ),
                 ),
-                deleteIcon: Icon(
+                deleteIcon: const Icon(
                   Icons.close_rounded,
-                  size: 16,
-                  color: const Color.fromARGB(
-                    255,
-                    236,
-                    110,
-                    110,
-                  ).withValues(alpha: 0.9),
+                  size: 15,
+                  color: AppTheme.textSecondary,
                 ),
                 onDeleted: c.onClear,
                 visualDensity: VisualDensity.compact,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                side: const BorderSide(color: Color(0xFFFECDD3)),
-                backgroundColor: const Color.fromARGB(255, 255, 241, 242),
+                side: BorderSide.none,
+                backgroundColor: AppTheme.chipNeutralBackground,
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 0),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(999),
                 ),
               ),
             ),

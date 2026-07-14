@@ -7,6 +7,8 @@ import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/notifications/notification_api_service.dart';
 import 'package:app_flutter/core/notifications/notif_model.dart';
 import 'package:app_flutter/core/router/app_router.dart' show AppRoutes;
+import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/core/widgets/common/common_responsive_grid.dart';
 import 'package:app_flutter/pages/active/act002/act002_api.dart';
 import 'package:app_flutter/pages/active/act002/act002_model.dart';
 import 'package:app_flutter/pages/active/shared/activity_routes.dart';
@@ -14,20 +16,24 @@ import 'package:app_flutter/pages/franchise/str001/str001_api.dart';
 import 'package:provider/provider.dart' as provider;
 import 'package:go_router/go_router.dart';
 
-/// 대시보드 전용 팔레트 — 모던 어드민 카드 UI.
+/// 대시보드 전용 팔레트 — 2026 리디자인(01_design_system.md) 라이트 톤.
 abstract final class _DashPalette {
-  static const bg = Color(0xFF2F3136);
-  static const card = Color(0xFF3D4048);
-  static const cardElevated = Color(0xFF454952);
-  static const divider = Color(0xFF525862);
-  static const coral = Color(0xFFFF6B6B);
-  static const pink = Color(0xFFFFC9C9);
-  static const pinkLight = Color(0xFFFFE3E3);
-  static const cyan = Color(0xFF3BC9DB);
-  static const textOnDark = Color(0xFFF8F9FA);
-  static const textMuted = Color(0xFFADB5BD);
-  static const textOnLight = Color(0xFF2D3436);
+  static const bg = AppTheme.appSurface;
+  static const card = Colors.white;
+  static const cardElevated = AppTheme.tableHeaderBackground;
+  static const divider = AppTheme.hairline;
+  static const coral = AppTheme.accentRed;
+  static const pink = AppTheme.statusPending;
+  static const cyan = AppTheme.statusRenewal;
+  static const textOnDark = AppTheme.textPrimary;
+  static const textMuted = AppTheme.textMuted;
 }
+
+/// 세션 캐시 — 재진입 시 즉시 표시(keepAlive), 저장 흐름에서 invalidate.
+final dashboardHomeDataProvider =
+    FutureProvider.family<_DashboardHomeData, String>((ref, uid) {
+  return _loadDashboardHomeData(uid);
+});
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -38,14 +44,15 @@ class DashboardScreen extends ConsumerWidget {
       context,
       listen: false,
     ).userId.trim();
+    final dataAsync = ref.watch(dashboardHomeDataProvider(uid));
     return ColoredBox(
       color: _DashPalette.bg,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-        child: FutureBuilder<_DashboardHomeData>(
-          future: _loadDashboardHomeData(uid),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
+        child: Builder(
+          builder: (context) {
+            final data = dataAsync.valueOrNull;
+            if (data == null && dataAsync.isLoading) {
               return const SizedBox(
                 height: 420,
                 child: Center(
@@ -53,7 +60,6 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               );
             }
-            final data = snapshot.data;
             if (data == null) {
               return const SizedBox(
                 height: 420,
@@ -66,122 +72,67 @@ class DashboardScreen extends ConsumerWidget {
               );
             }
 
-            return LayoutBuilder(
-              builder: (context, c) {
-                final width = c.maxWidth;
-                final isWide = width > 1100;
-                final statGap = 16.0;
-                final gridGap = 16.0;
+            const gridGap = 16.0;
 
-                final statCards = [
-                  _StatAccentCard(
-                    value: '${data.recentNotifs.length} 건',
-                    label: '결재 알림',
-                    sublabel: '',
-                    background: _DashPalette.coral,
-                    foreground: Colors.white,
-                    icon: Icons.notifications_active_outlined,
-                  ),
-                  _StatAccentCard(
-                    value: '${data.newStoresThisMonth}',
-                    label: '이번 달 신규',
-                    sublabel: '가맹점',
-                    background: _DashPalette.pink,
-                    foreground: _DashPalette.textOnLight,
-                    icon: Icons.storefront_outlined,
-                  ),
-                  _StatAccentCard(
-                    value: '${data.expiringStoresThisMonth}',
-                    label: '이번 달 만료',
-                    sublabel: '예정 가맹점',
-                    background: _DashPalette.pinkLight,
-                    foreground: _DashPalette.textOnLight,
-                    icon: Icons.event_busy_outlined,
-                  ),
-                  _StatAccentCard(
-                    value: '${data.totalStores}',
-                    label: '총 가맹점',
-                    sublabel: '운영 중',
-                    background: _DashPalette.cyan,
-                    foreground: Colors.white,
-                    icon: Icons.apartment_outlined,
-                  ),
-                ];
+            final statCards = [
+              _StatAccentCard(
+                value: '${data.recentNotifs.length}건',
+                label: '결재 알림',
+                sublabel: '처리 대기',
+                accent: _DashPalette.coral,
+              ),
+              _StatAccentCard(
+                value: '${data.newStoresThisMonth}',
+                label: '이번 달 신규',
+                sublabel: '가맹점',
+                accent: AppTheme.statusNew,
+              ),
+              _StatAccentCard(
+                value: '${data.expiringStoresThisMonth}',
+                label: '이번 달 만료',
+                sublabel: '예정 가맹점',
+                accent: _DashPalette.pink,
+              ),
+              _StatAccentCard(
+                value: '${data.totalStores}',
+                label: '총 가맹점',
+                sublabel: '운영 중',
+                accent: _DashPalette.cyan,
+              ),
+            ];
 
-                Widget statRow() {
-                  if (isWide) {
-                    return Row(
-                      children: [
-                        for (var i = 0; i < statCards.length; i++) ...[
-                          if (i > 0) SizedBox(width: statGap),
-                          Expanded(child: statCards[i]),
-                        ],
-                      ],
-                    );
-                  }
-                  return Wrap(
-                    spacing: statGap,
-                    runSpacing: statGap,
-                    children: statCards
-                        .map(
-                          (card) => SizedBox(
-                            width: width > 600 ? (width - statGap) / 2 : width,
-                            child: card,
-                          ),
-                        )
-                        .toList(),
-                  );
-                }
+            final contentCards = [
+              _RecentNotifsCard(recentNotifs: data.recentNotifs, userId: uid),
+              _StoreChangesCard(
+                newStoresThisMonth: data.newStoresThisMonth,
+                expiringStoresThisMonth: data.expiringStoresThisMonth,
+                totalStores: data.totalStores,
+              ),
+              _RecentActivitiesCard(
+                recentActivities: data.recentActivities,
+                userId: uid,
+              ),
+              const _CalendarCard(),
+            ];
 
-                final contentCards = [
-                  _RecentNotifsCard(
-                    recentNotifs: data.recentNotifs,
-                    userId: uid,
-                  ),
-                  _StoreChangesCard(
-                    newStoresThisMonth: data.newStoresThisMonth,
-                    expiringStoresThisMonth: data.expiringStoresThisMonth,
-                    totalStores: data.totalStores,
-                  ),
-                  _RecentActivitiesCard(
-                    recentActivities: data.recentActivities,
-                    userId: uid,
-                  ),
-                  const _CalendarCard(),
-                ];
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    statRow(),
-                    SizedBox(height: gridGap + 4),
-                    if (isWide) ...[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: contentCards[0]),
-                          SizedBox(width: gridGap),
-                          Expanded(child: contentCards[1]),
-                        ],
-                      ),
-                      SizedBox(height: gridGap),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: contentCards[2]),
-                          SizedBox(width: gridGap),
-                          Expanded(child: contentCards[3]),
-                        ],
-                      ),
-                    ] else ...[
-                      for (var i = 0; i < contentCards.length; i++) ...[
-                        if (i > 0) SizedBox(height: gridGap),
-                        contentCards[i],
-                      ],
-                    ],
-                  ],
-                );
-              },
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ResponsiveCardGrid(
+                  minItemWidth: 200,
+                  spacing: gridGap,
+                  runSpacing: gridGap,
+                  children: statCards,
+                ),
+                const SizedBox(height: gridGap + 4),
+                ResponsiveCardGrid(
+                  minItemWidth: 380,
+                  maxColumns: 2,
+                  spacing: gridGap,
+                  runSpacing: gridGap,
+                  children: contentCards,
+                ),
+              ],
             );
           },
         ),
@@ -244,7 +195,16 @@ Future<_DashboardHomeData> _loadDashboardHomeData(String userId) async {
     );
   }
 
-  final notifsAll = await NotificationApiService().list(uid);
+  // 세 API는 서로 독립이므로 병렬 호출한다(직렬 시 왕복 3회 ≈ 2.8초 → 1회 수준).
+  final notifsFuture = NotificationApiService().list(uid);
+  final storesFuture = StoreApiService().getAllStores();
+  final approvalsFuture = Act002Api().fetchPendingAndApprovedRowsForRelUser(
+    uid,
+  );
+  final notifsAll = await notifsFuture;
+  final stores = await storesFuture;
+  final approvalRows = await approvalsFuture;
+
   final recentNotifs = notifsAll
       .where(
         (n) =>
@@ -254,7 +214,6 @@ Future<_DashboardHomeData> _loadDashboardHomeData(String userId) async {
       .take(5)
       .toList();
 
-  final stores = await StoreApiService().getAllStores();
   final totalStores = stores.length;
   final newStoresThisMonth = stores
       .where((s) => _isSameMonth(s.firstContDt, now))
@@ -263,9 +222,6 @@ Future<_DashboardHomeData> _loadDashboardHomeData(String userId) async {
       .where((s) => _isSameMonth(s.contEndDt, now))
       .length;
 
-  final approvalRows = await Act002Api().fetchPendingAndApprovedRowsForRelUser(
-    uid,
-  );
   final recentActivities = approvalRows.take(5).toList();
 
   return _DashboardHomeData(
@@ -277,77 +233,80 @@ Future<_DashboardHomeData> _loadDashboardHomeData(String userId) async {
   );
 }
 
+/// KPI 스트립 한 칸 — 플랫(01_design_system.md §4 KPI 카드 규격).
 class _StatAccentCard extends StatelessWidget {
   const _StatAccentCard({
     required this.value,
     required this.label,
     required this.sublabel,
-    required this.background,
-    required this.foreground,
-    required this.icon,
+    required this.accent,
   });
 
   final String value;
   final String label;
   final String sublabel;
-  final Color background;
-  final Color foreground;
-  final IconData icon;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: background.withValues(alpha: 0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.hairline),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Spacer(),
-              Icon(icon, color: foreground.withValues(alpha: 0.75), size: 28),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textMuted,
+                  ),
+                ),
+              ),
             ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.w800,
-              color: foreground,
-              height: 1,
-              letterSpacing: -0.5,
-            ),
           ),
           const SizedBox(height: 10),
           Text(
-            label,
+            value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 23,
               fontWeight: FontWeight.w700,
-              color: foreground.withValues(alpha: 0.92),
-              height: 1.2,
+              color: AppTheme.textPrimary,
+              height: 1,
+              letterSpacing: -0.6,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Text(
             sublabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11.5,
               fontWeight: FontWeight.w600,
-              color: foreground.withValues(alpha: 0.72),
+              color: accent,
             ),
           ),
         ],
@@ -376,15 +335,8 @@ class _DashboardCardShell extends StatelessWidget {
     final content = Container(
       decoration: BoxDecoration(
         color: _DashPalette.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _DashPalette.divider.withValues(alpha: 0.5)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A000000),
-            blurRadius: 20,
-            offset: Offset(0, 6),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.hairline),
       ),
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       child: Column(
@@ -393,15 +345,6 @@ class _DashboardCardShell extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 4,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: accentColor,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -409,9 +352,9 @@ class _DashboardCardShell extends StatelessWidget {
                     Text(
                       title,
                       style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: _DashPalette.textOnDark,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
                         height: 1.2,
                       ),
                     ),
@@ -420,9 +363,9 @@ class _DashboardCardShell extends StatelessWidget {
                       Text(
                         subtitle!,
                         style: const TextStyle(
-                          fontSize: 13,
-                          color: _DashPalette.textMuted,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 11.5,
+                          color: AppTheme.textMuted,
+                          fontWeight: FontWeight.w500,
                           height: 1.3,
                         ),
                       ),
@@ -433,12 +376,12 @@ class _DashboardCardShell extends StatelessWidget {
               if (onTap != null)
                 Icon(
                   Icons.arrow_forward_ios_rounded,
-                  size: 14,
-                  color: accentColor.withValues(alpha: 0.85),
+                  size: 13,
+                  color: accentColor,
                 ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           child,
         ],
       ),
@@ -448,7 +391,7 @@ class _DashboardCardShell extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: content,
       ),
@@ -691,19 +634,14 @@ class _RecentActivitiesCard extends StatelessWidget {
   Color _chipFg(String raw) {
     final r = raw.trim().toUpperCase();
     return r == 'PENDING'
-        ? const Color(0xFFFFB86C)
+        ? AppTheme.statusPending
         : r == 'APPROVED'
-        ? const Color(0xFF63E6BE)
+        ? AppTheme.statusNew
         : _DashPalette.textMuted;
   }
 
   Color _chipBg(String raw) {
-    final r = raw.trim().toUpperCase();
-    return r == 'PENDING'
-        ? const Color(0x33FFB86C)
-        : r == 'APPROVED'
-        ? const Color(0x3363E6BE)
-        : _DashPalette.cardElevated;
+    return _chipFg(raw).withValues(alpha: 0.1);
   }
 
   @override
@@ -849,8 +787,9 @@ class _CalendarCardState extends State<_CalendarCard> {
   Widget build(BuildContext context) {
     return _DashboardCardShell(
       title: '달력',
-      subtitle: '일정 확인',
+      subtitle: '활동 계획으로 이동',
       accentColor: _DashPalette.cyan,
+      onTap: () => context.go(ActivityRoutes.calendar),
       child: Theme(
         data: Theme.of(context).copyWith(
           colorScheme: Theme.of(context).colorScheme.copyWith(
@@ -870,7 +809,10 @@ class _CalendarCardState extends State<_CalendarCard> {
             initialDate: _selectedDate,
             firstDate: DateTime(DateTime.now().year - 1, 1, 1),
             lastDate: DateTime(DateTime.now().year + 1, 12, 31),
-            onDateChanged: (d) => setState(() => _selectedDate = d),
+            onDateChanged: (d) {
+              setState(() => _selectedDate = d);
+              context.go(ActivityRoutes.calendar);
+            },
           ),
         ),
       ),

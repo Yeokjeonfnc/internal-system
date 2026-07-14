@@ -7,7 +7,7 @@ import 'package:app_flutter/core/menu/menu_route_access.dart';
 /// 화면에서 메뉴 권한 조회 — [AuthProvider] 래퍼.
 extension MenuAccessContext on BuildContext {
   AuthProvider get _menuAuth =>
-      provider.Provider.of<AuthProvider>(this, listen: false);
+      provider.Provider.of<AuthProvider>(this);
 
   bool menuCanView(String menuCd) => _menuAuth.canViewMenu(menuCd);
 
@@ -23,5 +23,11 @@ extension MenuAccessContext on BuildContext {
     final cd = menuCdForPath(path);
     if (cd == null) return true;
     return menuCanCreate(cd);
+  }
+
+  bool pathCanUpdate(String path) {
+    final cd = menuCdForPath(path);
+    if (cd == null) return true;
+    return menuCanUpdate(cd);
   }
 }

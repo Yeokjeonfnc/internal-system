@@ -146,7 +146,7 @@ class FilterStringChoiceChipsRow extends StatelessWidget {
 
   static const Color _selBg = Color(0xFFFFF1F2);
   static const Color _selBorder = AppTheme.accentRed;
-  static const Color _unBorder = Color(0xFFE5E7EB);
+  static const Color _unBorder = AppTheme.inputBorder;
 
   @override
   Widget build(BuildContext context) {

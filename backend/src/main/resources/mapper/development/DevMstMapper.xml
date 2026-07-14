@@ -3,6 +3,21 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.yeokjeon.erp.development.mapper.DevMstMapper">
 
+    <!-- 영업지역 화면: 폐점 가맹점명 앞 [폐점] 접두사 -->
+    <sql id="closedStoreNmExpr">
+        CASE WHEN COALESCE(sm.closed_yn, 'N') = 'Y'
+             THEN '[폐점] ' || COALESCE(sm.store_nm, '')
+             ELSE COALESCE(sm.store_nm, '')
+        END
+    </sql>
+
+    <sql id="closedStoreNmExprOrZone">
+        COALESCE(
+            NULLIF(TRIM(<include refid="closedStoreNmExpr"/>), ''),
+            COALESCE(szm.zone_nm, '')
+        )
+    </sql>
+
     <resultMap id="partnerMstDto" type="com.yeokjeon.erp.development.dto.PartnerMstDto">
         <constructor>
             <arg column="partner_idx" javaType="java.lang.Integer"/>
@@ -35,12 +50,31 @@
             <arg column="prop_nm" javaType="java.lang.String"/>
             <arg column="area_setting_label" javaType="java.lang.String"/>
             <arg column="sales_area_nm" javaType="java.lang.String"/>
+            <arg column="zone_info" javaType="java.lang.String"/>
             <arg column="is_area_configured" javaType="java.lang.Boolean"/>
             <arg column="is_strategic_opening" javaType="java.lang.Boolean"/>
             <arg column="is_franchise" javaType="java.lang.Boolean"/>
             <arg column="map_address" javaType="java.lang.String"/>
             <arg column="latitude" javaType="java.math.BigDecimal"/>
             <arg column="longitude" javaType="java.math.BigDecimal"/>
+            <arg column="geometry_type" javaType="java.lang.String"/>
+            <arg column="geometry_data_json" javaType="java.lang.String"/>
+            <arg column="prop_idx" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="salesAreaMapPointDto" type="com.yeokjeon.erp.development.dto.SalesAreaMapPointDto">
+        <constructor>
+            <arg column="zone_idx" javaType="java.lang.Integer"/>
+            <arg column="store_idx" javaType="java.lang.Integer"/>
+            <arg column="store_nm" javaType="java.lang.String"/>
+            <arg column="zone_nm" javaType="java.lang.String"/>
+            <arg column="lat" javaType="java.math.BigDecimal"/>
+            <arg column="lng" javaType="java.math.BigDecimal"/>
+            <arg column="region_cd" javaType="java.lang.String"/>
+            <arg column="brand_cd" javaType="java.lang.String"/>
+            <arg column="geometry_type" javaType="java.lang.String"/>
+            <arg column="geometry_data_json" javaType="java.lang.String"/>
         </constructor>
     </resultMap>
 
@@ -89,42 +123,108 @@
         ORDER BY partner_idx DESC
     </select>
 
-    <!-- DEV003: sale_zone_mst 기준 FULL OUTER JOIN store_mst (가맹점만/구역만 행 포함) -->
+    <!-- DEV003: property_mst 기준 목록 + 전략출점(use_yn=false) union -->
     <select id="selectSalesAreasForList" resultMap="salesAreaDto">
-        SELECT szm.zone_idx,
+        SELECT pm.zone_idx,
                sm.store_idx,
-               ((szm.created_at AT TIME ZONE 'Asia/Seoul')::date)                                           AS setting_date_ymd,
-               COALESCE(sm.store_nm, '')                                                                    AS store_nm,
-               (SELECT cm.code_nm 
+               TO_CHAR((COALESCE(szm.created_at, pm.create_dt) AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD') AS setting_date_ymd,
+               <include refid="closedStoreNmExpr"/>                                                                 AS store_nm,
+               (SELECT cm.code_nm
                 FROM code_mst cm
-                WHERE cm.grp_cd = '30'
-                  AND cm.code_cd = sm.store_type)                                                           AS franchise_label,
-               CAST(COALESCE(sm.brand_cd, szm.brand_cd) AS VARCHAR)                                         AS brand_cd,
-               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = '40'
-                  AND cm.code_cd = CAST(COALESCE(sm.brand_cd, szm.brand_cd) AS VARCHAR))                    AS brand_nm,
+                WHERE cm.grp_cd = 30
+                  AND CAST(cm.code_cd AS TEXT) = CAST(sm.store_type AS TEXT))                                    AS franchise_label,
+               CAST(COALESCE(sm.brand_cd, szm.brand_cd) AS VARCHAR)                                               AS brand_cd,
+               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = 40
+                  AND CAST(cm.code_cd AS TEXT) = CAST(COALESCE(sm.brand_cd, szm.brand_cd) AS VARCHAR))           AS brand_nm,
                sm.region_cd,
-               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = '20' AND cm.code_cd = sm.region_cd)   AS region_nm,
+               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = 20
+                  AND CAST(cm.code_cd AS TEXT) = CAST(sm.region_cd AS TEXT))                                      AS region_nm,
                pm.prop_nm,
                CASE
-                   WHEN sm.store_idx IS NOT NULL AND szm.zone_idx IS NOT NULL THEN '설정'
-                   WHEN sm.store_idx IS NOT NULL AND szm.zone_idx IS NULL THEN '미설정'
-                   WHEN sm.store_idx IS NULL AND szm.zone_idx IS NOT NULL THEN '전략출점'
-                   ELSE '기타'
-                   END                                                                                     AS area_setting_label,
-               COALESCE(szm.zone_nm, '')                                                                   AS sales_area_nm,
-               (sm.store_idx IS NOT NULL AND szm.zone_idx IS NOT NULL)                                     AS is_area_configured,
-               (sm.store_idx IS NULL AND szm.zone_idx IS NOT NULL)                                         AS is_strategic_opening,
-               (sm.store_idx IS NOT NULL AND COALESCE(sm.store_type, '') = 'FR') AS is_franchise,
+                   WHEN pm.zone_idx IS NOT NULL AND szm.geometry_data IS NOT NULL THEN '설정'
+                   ELSE '미설정'
+                   END                                                                                              AS area_setting_label,
+               COALESCE(szm.zone_nm, '')                                                                            AS sales_area_nm,
+               COALESCE(szm.zone_info, '') AS zone_info,
+               (pm.zone_idx IS NOT NULL AND szm.geometry_data IS NOT NULL)                                          AS is_area_configured,
+               FALSE                                                                                                 AS is_strategic_opening,
+               (sm.store_idx IS NOT NULL AND COALESCE(sm.store_type, '') = 'FR')                                    AS is_franchise,
                NULLIF(TRIM(CONCAT_WS(' ',
                    NULLIF(TRIM(COALESCE(sm.address, pm.address, '')), ''),
                    NULLIF(TRIM(COALESCE(pm.address_detail, '')), '')
-               )), '')                                                                               AS map_address,
-               sm.latitude                                                                             AS latitude,
-               sm.longitude                                                                            AS longitude
+               )), '')                                                                                               AS map_address,
+               COALESCE(
+                   sm.latitude,
+                   pm.latitude,
+                   (szm.geometry_data #>> '{paths,0,lat}')::numeric,
+                   (szm.geometry_data #>> '{center,lat}')::numeric
+               )                                                                                                     AS latitude,
+               COALESCE(
+                   sm.longitude,
+                   pm.longitude,
+                   (szm.geometry_data #>> '{paths,0,lng}')::numeric,
+                   (szm.geometry_data #>> '{center,lng}')::numeric
+               )                                                                                                     AS longitude,
+               szm.geometry_type,
+               CAST(NULL AS TEXT)                                                                                    AS geometry_data_json,
+               pm.prop_idx
+        FROM property_mst pm
+                 LEFT JOIN LATERAL (
+            SELECT sm2.store_idx,
+                   sm2.store_nm,
+                   sm2.closed_yn,
+                   sm2.store_type,
+                   sm2.brand_cd,
+                   sm2.region_cd,
+                   sm2.address,
+                   sm2.latitude,
+                   sm2.longitude
+            FROM store_mst sm2
+            WHERE sm2.prop_idx = pm.prop_idx
+            ORDER BY sm2.store_idx
+            LIMIT 1
+        ) sm ON TRUE
+                 LEFT JOIN sale_zone_mst szm ON szm.zone_idx = pm.zone_idx
+
+        UNION ALL
+
+        SELECT szm.zone_idx,
+               CAST(NULL AS INTEGER)                                                                                 AS store_idx,
+               TO_CHAR((szm.created_at AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD')                             AS setting_date_ymd,
+               ''                                                                                                    AS store_nm,
+               CAST(NULL AS VARCHAR)                                                                                 AS franchise_label,
+               CAST(szm.brand_cd AS VARCHAR)                                                                         AS brand_cd,
+               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = 40
+                  AND CAST(cm.code_cd AS TEXT) = CAST(szm.brand_cd AS VARCHAR))                                     AS brand_nm,
+               CAST(NULL AS VARCHAR)                                                                                 AS region_cd,
+               CAST(NULL AS VARCHAR)                                                                                 AS region_nm,
+               ''                                                                                                    AS prop_nm,
+               '전략출점'                                                                                              AS area_setting_label,
+               COALESCE(szm.zone_nm, '')                                                                            AS sales_area_nm,
+               COALESCE(szm.zone_info, '') AS zone_info,
+               FALSE                                                                                                 AS is_area_configured,
+               TRUE                                                                                                  AS is_strategic_opening,
+               FALSE                                                                                                 AS is_franchise,
+               CAST(NULL AS VARCHAR)                                                                                 AS map_address,
+               COALESCE(
+                   (szm.geometry_data #>> '{paths,0,lat}')::numeric,
+                   (szm.geometry_data #>> '{center,lat}')::numeric
+               )                                                                                                     AS latitude,
+               COALESCE(
+                   (szm.geometry_data #>> '{paths,0,lng}')::numeric,
+                   (szm.geometry_data #>> '{center,lng}')::numeric
+               )                                                                                                     AS longitude,
+               szm.geometry_type,
+               CAST(NULL AS TEXT)                                                                                    AS geometry_data_json,
+               CAST(NULL AS INTEGER)                                                                                 AS prop_idx
         FROM sale_zone_mst szm
-                 FULL OUTER JOIN store_mst sm ON szm.zone_idx = sm.zone_idx
-                 LEFT OUTER JOIN property_mst pm ON sm.prop_idx = pm.prop_idx
-        ORDER BY szm.zone_idx NULLS LAST, sm.store_idx NULLS LAST
+        WHERE COALESCE(szm.use_yn, false) = false
+          AND NOT EXISTS (
+            SELECT 1
+            FROM property_mst pm
+            WHERE pm.zone_idx = szm.zone_idx
+          )
+        ORDER BY zone_idx NULLS LAST, store_idx NULLS LAST, prop_idx NULLS LAST
     </select>
 
     <!-- sale_zone_mst 없거나 전체조인 실패 시 — store_mst만 (zone_idx 컬럼 불필요). -->
@@ -134,25 +234,29 @@
                TO_CHAR(
                        COALESCE(sm.cont_start_dt, (sm.updated_at AT TIME ZONE 'Asia/Seoul')::date),
                        'YYYY-MM-DD')                                  AS setting_date_ymd,
-               sm.store_nm,
+               <include refid="closedStoreNmExpr"/>                       AS store_nm,
                (SELECT cm.code_nm
                 FROM code_mst cm
-                WHERE cm.grp_cd = '30'
-                  AND cm.code_cd = sm.store_type)                       AS franchise_label,
+                WHERE cm.grp_cd = 30
+                  AND CAST(cm.code_cd AS TEXT) = CAST(sm.store_type AS TEXT))                       AS franchise_label,
                CAST(sm.brand_cd AS VARCHAR)                             AS brand_cd,
                (SELECT cm.code_nm
                 FROM code_mst cm
-                WHERE cm.grp_cd = '40'
-                  AND cm.code_cd = CAST(sm.brand_cd AS VARCHAR))       AS brand_nm,
+                WHERE cm.grp_cd = 40
+                  AND CAST(cm.code_cd AS TEXT) = CAST(sm.brand_cd AS VARCHAR))       AS brand_nm,
                sm.region_cd,
                (SELECT cm.code_nm
                 FROM code_mst cm
-                WHERE cm.grp_cd = '20'
-                  AND cm.code_cd = sm.region_cd)                       AS region_nm,
+                WHERE cm.grp_cd = 20
+                  AND CAST(cm.code_cd AS TEXT) = CAST(sm.region_cd AS TEXT))                       AS region_nm,
                pm.prop_nm,
-               '미설정'                                                 AS area_setting_label,
-               ''                                                       AS sales_area_nm,
-               FALSE                                                    AS is_area_configured,
+               CASE
+                   WHEN szm.geometry_data IS NOT NULL THEN '설정'
+                   ELSE '미설정'
+                   END                                                  AS area_setting_label,
+               COALESCE(szm.zone_nm, '')                                AS sales_area_nm,
+               COALESCE(szm.zone_info, '') AS zone_info,
+               (szm.geometry_data IS NOT NULL)                           AS is_area_configured,
                FALSE                                                    AS is_strategic_opening,
                (COALESCE(sm.store_type, '') = 'FR')                      AS is_franchise,
                NULLIF(TRIM(CONCAT_WS(' ',
@@ -160,10 +264,409 @@
                    NULLIF(TRIM(COALESCE(pm.address_detail, '')), '')
                )), '')                                                 AS map_address,
                sm.latitude                                               AS latitude,
-               sm.longitude                                              AS longitude
+               sm.longitude                                              AS longitude,
+               szm.geometry_type,
+               CAST(NULL AS TEXT)                                        AS geometry_data_json,
+               pm.prop_idx
         FROM store_mst sm
                  LEFT OUTER JOIN property_mst pm ON sm.prop_idx = pm.prop_idx
+                 LEFT OUTER JOIN sale_zone_mst szm ON szm.zone_idx = pm.zone_idx
+        WHERE sm.prop_idx IS NOT NULL
         ORDER BY sm.store_idx DESC
+    </select>
+
+    <select id="selectSalesAreaMapPoints" resultMap="salesAreaMapPointDto">
+        SELECT COALESCE(pm.zone_idx, szm.zone_idx)                              AS zone_idx,
+               sm.store_idx,
+               <include refid="closedStoreNmExprOrZone"/>                        AS store_nm,
+               COALESCE(szm.zone_nm, '')                                        AS zone_nm,
+               COALESCE(
+                   sm.latitude,
+                   pm.latitude,
+                   (szm.geometry_data #>> '{paths,0,lat}')::numeric,
+                   (szm.geometry_data #>> '{center,lat}')::numeric
+               )                                                                 AS lat,
+               COALESCE(
+                   sm.longitude,
+                   pm.longitude,
+                   (szm.geometry_data #>> '{paths,0,lng}')::numeric,
+                   (szm.geometry_data #>> '{center,lng}')::numeric
+               )                                                                 AS lng,
+               sm.region_cd,
+               CAST(COALESCE(sm.brand_cd, szm.brand_cd) AS VARCHAR)             AS brand_cd,
+               szm.geometry_type,
+               CAST(NULL AS TEXT)                                                AS geometry_data_json
+        FROM store_mst sm
+                 LEFT JOIN property_mst pm ON pm.prop_idx = sm.prop_idx
+                 LEFT JOIN sale_zone_mst szm ON szm.zone_idx = pm.zone_idx
+        WHERE sm.store_idx IS NOT NULL
+          AND (sm.latitude IS NOT NULL AND sm.longitude IS NOT NULL
+               OR pm.latitude IS NOT NULL AND pm.longitude IS NOT NULL
+               OR szm.geometry_data IS NOT NULL)
+
+        UNION ALL
+
+        SELECT szm.zone_idx,
+               CAST(NULL AS INTEGER)                                             AS store_idx,
+               COALESCE(szm.zone_nm, '')                                         AS store_nm,
+               COALESCE(szm.zone_nm, '')                                         AS zone_nm,
+               COALESCE(
+                   (szm.geometry_data #>> '{paths,0,lat}')::numeric,
+                   (szm.geometry_data #>> '{center,lat}')::numeric
+               )                                                                 AS lat,
+               COALESCE(
+                   (szm.geometry_data #>> '{paths,0,lng}')::numeric,
+                   (szm.geometry_data #>> '{center,lng}')::numeric
+               )                                                                 AS lng,
+               CAST(NULL AS VARCHAR)                                             AS region_cd,
+               CAST(szm.brand_cd AS VARCHAR)                                     AS brand_cd,
+               szm.geometry_type,
+               CAST(NULL AS TEXT)                                                AS geometry_data_json
+        FROM sale_zone_mst szm
+        WHERE szm.geometry_data IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM property_mst pm
+            WHERE pm.zone_idx = szm.zone_idx
+          )
+
+        UNION ALL
+
+        /* 물건에 연결됐으나 가맹점(store)이 없는 영업지역 — 전략출점·신규 등록 */
+        SELECT szm.zone_idx,
+               CAST(NULL AS INTEGER)                                             AS store_idx,
+               COALESCE(szm.zone_nm, '')                                         AS store_nm,
+               COALESCE(szm.zone_nm, '')                                         AS zone_nm,
+               COALESCE(
+                   (szm.geometry_data #>> '{paths,0,lat}')::numeric,
+                   (szm.geometry_data #>> '{center,lat}')::numeric
+               )                                                                 AS lat,
+               COALESCE(
+                   (szm.geometry_data #>> '{paths,0,lng}')::numeric,
+                   (szm.geometry_data #>> '{center,lng}')::numeric
+               )                                                                 AS lng,
+               CAST(NULL AS VARCHAR)                                             AS region_cd,
+               CAST(szm.brand_cd AS VARCHAR)                                     AS brand_cd,
+               szm.geometry_type,
+               CAST(NULL AS TEXT)                                                AS geometry_data_json
+        FROM sale_zone_mst szm
+                 INNER JOIN property_mst pm ON pm.zone_idx = szm.zone_idx
+        WHERE szm.geometry_data IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM store_mst sm WHERE sm.prop_idx = pm.prop_idx
+          )
+        ORDER BY zone_idx, store_idx NULLS LAST
+    </select>
+
+  <!-- 편집 화면: 근처 영업지역 폴리곤 표시용 geometry 포함 -->
+    <select id="selectSalesAreaMapPointsWithGeometry" resultMap="salesAreaMapPointDto">
+        SELECT COALESCE(pm.zone_idx, szm.zone_idx)                              AS zone_idx,
+               sm.store_idx,
+               <include refid="closedStoreNmExprOrZone"/>                        AS store_nm,
+               COALESCE(szm.zone_nm, '')                                        AS zone_nm,
+               COALESCE(
+                   sm.latitude,
+                   pm.latitude,
+                   (szm.geometry_data #>> '{paths,0,lat}')::numeric,
+                   (szm.geometry_data #>> '{center,lat}')::numeric
+               )                                                                 AS lat,
+               COALESCE(
+                   sm.longitude,
+                   pm.longitude,
+                   (szm.geometry_data #>> '{paths,0,lng}')::numeric,
+                   (szm.geometry_data #>> '{center,lng}')::numeric
+               )                                                                 AS lng,
+               sm.region_cd,
+               CAST(COALESCE(sm.brand_cd, szm.brand_cd) AS VARCHAR)             AS brand_cd,
+               szm.geometry_type,
+               szm.geometry_data::text                                           AS geometry_data_json
+        FROM store_mst sm
+                 LEFT JOIN property_mst pm ON pm.prop_idx = sm.prop_idx
+                 LEFT JOIN sale_zone_mst szm ON szm.zone_idx = pm.zone_idx
+        WHERE sm.store_idx IS NOT NULL
+          AND (sm.latitude IS NOT NULL AND sm.longitude IS NOT NULL
+               OR pm.latitude IS NOT NULL AND pm.longitude IS NOT NULL
+               OR szm.geometry_data IS NOT NULL)
+
+        UNION ALL
+
+        SELECT szm.zone_idx,
+               CAST(NULL AS INTEGER)                                             AS store_idx,
+               COALESCE(szm.zone_nm, '')                                         AS store_nm,
+               COALESCE(szm.zone_nm, '')                                         AS zone_nm,
+               COALESCE(
+                   (szm.geometry_data #>> '{paths,0,lat}')::numeric,
+                   (szm.geometry_data #>> '{center,lat}')::numeric
+               )                                                                 AS lat,
+               COALESCE(
+                   (szm.geometry_data #>> '{paths,0,lng}')::numeric,
+                   (szm.geometry_data #>> '{center,lng}')::numeric
+               )                                                                 AS lng,
+               CAST(NULL AS VARCHAR)                                             AS region_cd,
+               CAST(szm.brand_cd AS VARCHAR)                                     AS brand_cd,
+               szm.geometry_type,
+               szm.geometry_data::text                                           AS geometry_data_json
+        FROM sale_zone_mst szm
+        WHERE szm.geometry_data IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM property_mst pm
+            WHERE pm.zone_idx = szm.zone_idx
+          )
+
+        UNION ALL
+
+        SELECT szm.zone_idx,
+               CAST(NULL AS INTEGER)                                             AS store_idx,
+               COALESCE(szm.zone_nm, '')                                         AS store_nm,
+               COALESCE(szm.zone_nm, '')                                         AS zone_nm,
+               COALESCE(
+                   (szm.geometry_data #>> '{paths,0,lat}')::numeric,
+                   (szm.geometry_data #>> '{center,lat}')::numeric
+               )                                                                 AS lat,
+               COALESCE(
+                   (szm.geometry_data #>> '{paths,0,lng}')::numeric,
+                   (szm.geometry_data #>> '{center,lng}')::numeric
+               )                                                                 AS lng,
+               CAST(NULL AS VARCHAR)                                             AS region_cd,
+               CAST(szm.brand_cd AS VARCHAR)                                     AS brand_cd,
+               szm.geometry_type,
+               szm.geometry_data::text                                           AS geometry_data_json
+        FROM sale_zone_mst szm
+                 INNER JOIN property_mst pm ON pm.zone_idx = szm.zone_idx
+        WHERE szm.geometry_data IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM store_mst sm WHERE sm.prop_idx = pm.prop_idx
+          )
+        ORDER BY zone_idx, store_idx NULLS LAST
+    </select>
+
+    <select id="selectSalesAreaDetailByStoreIdx" resultMap="salesAreaDto">
+        SELECT szm.zone_idx,
+               sm.store_idx,
+               TO_CHAR((szm.created_at AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD') AS setting_date_ymd,
+               <include refid="closedStoreNmExpr"/>                          AS store_nm,
+               (SELECT cm.code_nm
+                FROM code_mst cm
+                WHERE cm.grp_cd = 30
+                  AND CAST(cm.code_cd AS TEXT) = CAST(sm.store_type AS TEXT)) AS franchise_label,
+               CAST(COALESCE(sm.brand_cd, szm.brand_cd) AS VARCHAR)  AS brand_cd,
+               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = 40
+                  AND CAST(cm.code_cd AS TEXT) = CAST(COALESCE(sm.brand_cd, szm.brand_cd) AS VARCHAR)) AS brand_nm,
+               CAST(COALESCE(pm.region, sm.region_cd) AS VARCHAR)           AS region_cd,
+               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = 20
+                  AND CAST(cm.code_cd AS TEXT) = CAST(COALESCE(pm.region, sm.region_cd) AS TEXT)) AS region_nm,
+               pm.prop_nm,
+               CASE
+                   WHEN pm.zone_idx IS NOT NULL AND szm.geometry_data IS NOT NULL THEN '설정'
+                   ELSE '미설정'
+                   END                                                   AS area_setting_label,
+               COALESCE(szm.zone_nm, '')                                 AS sales_area_nm,
+               COALESCE(szm.zone_info, '') AS zone_info,
+               (pm.zone_idx IS NOT NULL AND szm.geometry_data IS NOT NULL) AS is_area_configured,
+               FALSE                                                     AS is_strategic_opening,
+               (COALESCE(sm.store_type, '') = 'FR')                      AS is_franchise,
+               NULLIF(TRIM(CONCAT_WS(' ',
+                   NULLIF(TRIM(COALESCE(sm.address, pm.address, '')), ''),
+                   NULLIF(TRIM(COALESCE(pm.address_detail, '')), '')
+               )), '')                                                   AS map_address,
+               COALESCE(sm.latitude, pm.latitude,
+                   (szm.geometry_data #>> '{paths,0,lat}')::numeric)   AS latitude,
+               COALESCE(sm.longitude, pm.longitude,
+                   (szm.geometry_data #>> '{paths,0,lng}')::numeric)   AS longitude,
+               szm.geometry_type,
+               szm.geometry_data::text                                 AS geometry_data_json,
+               pm.prop_idx
+        FROM store_mst sm
+                 INNER JOIN property_mst pm ON sm.prop_idx = pm.prop_idx
+                 LEFT JOIN sale_zone_mst szm ON szm.zone_idx = pm.zone_idx
+        WHERE sm.store_idx = #{storeIdx}
+    </select>
+
+    <insert id="insertSaleZone" parameterType="map" useGeneratedKeys="true"
+            keyProperty="zoneIdx" keyColumn="zone_idx">
+        INSERT INTO sale_zone_mst (zone_nm, brand_cd, geometry_type, geometry_data, use_yn)
+        VALUES (#{zoneNm}, #{brandCd}, #{geometryType}, #{geometryDataJson}::jsonb, COALESCE(#{useYn, jdbcType=BOOLEAN}, false))
+    </insert>
+
+    <update id="updateSaleZone">
+        UPDATE sale_zone_mst
+           SET zone_nm = #{zoneNm},
+               brand_cd = #{brandCd},
+               geometry_type = #{geometryType},
+               geometry_data = #{geometryDataJson}::jsonb,
+               updated_at = CURRENT_TIMESTAMP
+         WHERE zone_idx = #{zoneIdx}
+    </update>
+
+    <update id="updateSaleZoneUseYn">
+        UPDATE sale_zone_mst
+           SET use_yn = #{useYn, jdbcType=BOOLEAN},
+               updated_at = CURRENT_TIMESTAMP
+         WHERE zone_idx = #{zoneIdx}
+    </update>
+
+    <update id="updateSaleZoneInfo">
+        UPDATE sale_zone_mst
+           SET zone_info = #{zoneInfo},
+               updated_at = CURRENT_TIMESTAMP
+         WHERE zone_idx = #{zoneIdx}
+    </update>
+
+    <select id="selectStoreIdxByPropIdx" resultType="java.lang.Integer">
+        SELECT store_idx FROM store_mst WHERE prop_idx = #{propIdx} LIMIT 1
+    </select>
+
+    <select id="selectZoneIdxByPropIdx" resultType="java.lang.Integer">
+        SELECT zone_idx FROM property_mst
+         WHERE prop_idx = #{propIdx} AND zone_idx IS NOT NULL
+         LIMIT 1
+    </select>
+
+    <select id="selectZoneIdxByStoreIdx" resultType="java.lang.Integer">
+        SELECT pm.zone_idx
+          FROM store_mst sm
+          JOIN property_mst pm ON pm.prop_idx = sm.prop_idx
+         WHERE sm.store_idx = #{storeIdx} AND pm.zone_idx IS NOT NULL
+         LIMIT 1
+    </select>
+
+    <update id="updatePropertyZoneIdx">
+        UPDATE property_mst
+           SET zone_idx = #{zoneIdx},
+               update_dt = CURRENT_TIMESTAMP
+         WHERE prop_idx = #{propIdx}
+    </update>
+
+    <update id="updatePropertyCoordinates">
+        UPDATE property_mst
+           SET latitude = #{latitude},
+               longitude = #{longitude},
+               update_dt = CURRENT_TIMESTAMP
+         WHERE prop_idx = #{propIdx}
+    </update>
+
+    <update id="updateStoreCoordinates">
+        UPDATE store_mst
+           SET latitude = #{latitude},
+               longitude = #{longitude},
+               updated_at = CURRENT_TIMESTAMP
+         WHERE store_idx = #{storeIdx}
+    </update>
+
+    <update id="updateStoreCoordinatesByPropIdx">
+        UPDATE store_mst
+           SET latitude = #{latitude},
+               longitude = #{longitude},
+               updated_at = CURRENT_TIMESTAMP
+         WHERE prop_idx = #{propIdx}
+    </update>
+
+    <update id="clearPropertyZoneFromOtherProperties">
+        UPDATE property_mst
+           SET zone_idx = NULL,
+               update_dt = CURRENT_TIMESTAMP
+         WHERE zone_idx = #{zoneIdx}
+           AND prop_idx &lt;&gt; #{propIdx}
+    </update>
+
+    <select id="selectSalesAreaDetailByZoneIdx" resultMap="salesAreaDto">
+        SELECT szm.zone_idx,
+               sm.store_idx,
+               TO_CHAR((szm.created_at AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD') AS setting_date_ymd,
+               <include refid="closedStoreNmExpr"/>                          AS store_nm,
+               (SELECT cm.code_nm
+                FROM code_mst cm
+                WHERE cm.grp_cd = 30
+                  AND CAST(cm.code_cd AS TEXT) = CAST(sm.store_type AS TEXT)) AS franchise_label,
+               CAST(szm.brand_cd AS VARCHAR)                           AS brand_cd,
+               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = 40
+                  AND CAST(cm.code_cd AS TEXT) = CAST(szm.brand_cd AS VARCHAR)) AS brand_nm,
+               CAST(COALESCE(pm.region, sm.region_cd) AS VARCHAR)           AS region_cd,
+               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = 20
+                  AND CAST(cm.code_cd AS TEXT) = CAST(COALESCE(pm.region, sm.region_cd) AS TEXT)) AS region_nm,
+               pm.prop_nm,
+               CASE
+                   WHEN pm.zone_idx IS NOT NULL AND szm.geometry_data IS NOT NULL THEN '설정'
+                   WHEN COALESCE(szm.use_yn, false) = false THEN '전략출점'
+                   ELSE '미설정'
+                   END                                                   AS area_setting_label,
+               COALESCE(szm.zone_nm, '')                                 AS sales_area_nm,
+               COALESCE(szm.zone_info, '') AS zone_info,
+               (pm.zone_idx IS NOT NULL AND szm.geometry_data IS NOT NULL) AS is_area_configured,
+               (COALESCE(szm.use_yn, false) = false)                      AS is_strategic_opening,
+               (COALESCE(sm.store_type, '') = 'FR')                      AS is_franchise,
+               NULLIF(TRIM(CONCAT_WS(' ',
+                   NULLIF(TRIM(COALESCE(sm.address, pm.address, '')), ''),
+                   NULLIF(TRIM(COALESCE(pm.address_detail, '')), '')
+               )), '')                                                   AS map_address,
+               COALESCE(pm.latitude, sm.latitude,
+                   (szm.geometry_data #>> '{paths,0,lat}')::numeric)   AS latitude,
+               COALESCE(pm.longitude, sm.longitude,
+                   (szm.geometry_data #>> '{paths,0,lng}')::numeric)   AS longitude,
+               szm.geometry_type,
+               szm.geometry_data::text                                 AS geometry_data_json,
+               pm.prop_idx
+        FROM sale_zone_mst szm
+                 LEFT JOIN property_mst pm ON pm.zone_idx = szm.zone_idx
+                 LEFT JOIN store_mst sm ON sm.prop_idx = pm.prop_idx
+        WHERE szm.zone_idx = #{zoneIdx}
+    </select>
+
+    <select id="selectSalesAreaDetailByPropIdx" resultMap="salesAreaDto">
+        SELECT szm.zone_idx,
+               sm.store_idx,
+               TO_CHAR((COALESCE(szm.created_at, pm.create_dt) AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD') AS setting_date_ymd,
+               <include refid="closedStoreNmExpr"/>                          AS store_nm,
+               (SELECT cm.code_nm
+                FROM code_mst cm
+                WHERE cm.grp_cd = 30
+                  AND CAST(cm.code_cd AS TEXT) = CAST(sm.store_type AS TEXT)) AS franchise_label,
+               CAST(COALESCE(sm.brand_cd, szm.brand_cd) AS VARCHAR)  AS brand_cd,
+               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = 40
+                  AND CAST(cm.code_cd AS TEXT) = CAST(COALESCE(sm.brand_cd, szm.brand_cd) AS VARCHAR)) AS brand_nm,
+               CAST(COALESCE(pm.region, sm.region_cd) AS VARCHAR)           AS region_cd,
+               (SELECT cm.code_nm FROM code_mst cm WHERE cm.grp_cd = 20
+                  AND CAST(cm.code_cd AS TEXT) = CAST(COALESCE(pm.region, sm.region_cd) AS TEXT)) AS region_nm,
+               pm.prop_nm,
+               CASE
+                   WHEN pm.zone_idx IS NOT NULL AND szm.geometry_data IS NOT NULL THEN '설정'
+                   ELSE '미설정'
+                   END                                                   AS area_setting_label,
+               COALESCE(szm.zone_nm, '')                                 AS sales_area_nm,
+               COALESCE(szm.zone_info, '') AS zone_info,
+               (pm.zone_idx IS NOT NULL AND szm.geometry_data IS NOT NULL) AS is_area_configured,
+               FALSE                                                     AS is_strategic_opening,
+               (COALESCE(sm.store_type, '') = 'FR')                      AS is_franchise,
+               NULLIF(TRIM(CONCAT_WS(' ',
+                   NULLIF(TRIM(COALESCE(pm.address, sm.address, '')), ''),
+                   NULLIF(TRIM(COALESCE(pm.address_detail, '')), '')
+               )), '')                                                   AS map_address,
+               COALESCE(pm.latitude, sm.latitude,
+                   (szm.geometry_data #>> '{paths,0,lat}')::numeric)   AS latitude,
+               COALESCE(pm.longitude, sm.longitude,
+                   (szm.geometry_data #>> '{paths,0,lng}')::numeric)   AS longitude,
+               szm.geometry_type,
+               szm.geometry_data::text                                 AS geometry_data_json,
+               pm.prop_idx
+        FROM property_mst pm
+                 LEFT JOIN LATERAL (
+            SELECT sm2.store_idx,
+                   sm2.store_nm,
+                   sm2.closed_yn,
+                   sm2.store_type,
+                   sm2.brand_cd,
+                   sm2.region_cd,
+                   sm2.address,
+                   sm2.latitude,
+                   sm2.longitude
+            FROM store_mst sm2
+            WHERE sm2.prop_idx = pm.prop_idx
+            ORDER BY sm2.store_idx
+            LIMIT 1
+        ) sm ON TRUE
+                 LEFT JOIN sale_zone_mst szm ON szm.zone_idx = pm.zone_idx
+        WHERE pm.prop_idx = #{propIdx}
     </select>
 
     <select id="selectPropertiesOrdered" resultMap="propertyMstDto">

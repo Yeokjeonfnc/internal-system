@@ -1,3 +1,4 @@
+import 'package:app_flutter/core/api/api_base_url_config.dart';
 import 'package:app_flutter/core/api/api_runtime_platform.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -9,16 +10,18 @@ class ApiClient {
 
   late final Dio dio;
 
-  /// 1) `--dart-define=API_BASE_URL=...` 2) Android → 에뮬 호스트 PC 3) 그 외 localhost
+  /// 1) `--dart-define=API_BASE_URL=...` (회사 서버·로컬 PC 모두)
+  /// 2) Android → [kCompanyApiBaseUrl] (기본: test.yeokjeon.com)
+  /// 3) 그 외 → 로컬 개발 PC localhost
   static String resolveBaseUrl() {
     const fromEnv = String.fromEnvironment('API_BASE_URL');
     if (fromEnv.isNotEmpty) {
       return fromEnv;
     }
     if (!kIsWeb && isAndroidHost) {
-      return 'http://10.0.2.2:3001/api';
+      return kCompanyApiBaseUrl;
     }
-    return 'http://localhost:3001/api';
+    return buildDevApiBaseUrl('localhost');
   }
 
   /// Hot reload·재실행 후에도 최신 baseUrl 을 쓰도록 갱신한다.
@@ -28,7 +31,9 @@ class ApiClient {
       _instance!.dio.options.baseUrl = url;
     }
     if (kDebugMode) {
-      debugPrint('[ApiClient] baseUrl=$url (android=${!kIsWeb && isAndroidHost})');
+      debugPrint(
+        '[ApiClient] baseUrl=$url (android=${!kIsWeb && isAndroidHost})',
+      );
     }
   }
 
@@ -58,19 +63,8 @@ class ApiClient {
 
     if (kDebugMode) {
       debugPrint('[ApiClient] init baseUrl=$baseUrl');
+      dio.interceptors.add(_DebugLogInterceptor());
     }
-
-    // 로깅 인터셉터 추가 (개발 환경)
-    dio.interceptors.add(
-      LogInterceptor(
-        request: true,
-        requestHeader: true,
-        requestBody: true,
-        responseHeader: true,
-        responseBody: true,
-        error: true,
-      ),
-    );
   }
 
   /// GET 요청
@@ -144,5 +138,68 @@ class ApiClient {
       queryParameters: queryParameters,
       options: options,
     );
+  }
+
+  /// multipart POST — [FormData]일 때 Content-Type은 Dio가 boundary 포함해 설정한다.
+  Future<Response> postMultipart(
+    String path, {
+    required FormData formData,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    return await dio.post(
+      path,
+      data: formData,
+      queryParameters: queryParameters,
+      options: Options(
+        contentType: Headers.multipartFormDataContentType,
+        headers: {Headers.acceptHeader: 'application/json'},
+      ),
+    );
+  }
+}
+
+/// 개발용 — 영업지역·지도 등 대용량 JSON 본문은 건수만 로그.
+class _DebugLogInterceptor extends Interceptor {
+  static bool _omitResponseBody(String path, String method) {
+    if (path.contains('map-points')) return true;
+    if (method == 'GET' && path.contains('sales-areas')) return true;
+    return false;
+  }
+
+  static int? _envelopeListCount(dynamic data) {
+    if (data is! Map) return null;
+    final list = data['data'];
+    return list is List ? list.length : null;
+  }
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    debugPrint('[DIO] → ${options.method} ${options.uri}');
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    final path = response.requestOptions.path;
+    final method = response.requestOptions.method;
+    if (_omitResponseBody(path, method)) {
+      final n = _envelopeListCount(response.data);
+      debugPrint(
+        '[DIO] ← ${response.statusCode} $method $path'
+        '${n != null ? ' ($n rows)' : ''}',
+      );
+    } else {
+      debugPrint('[DIO] ← ${response.statusCode} $method $path');
+    }
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    debugPrint(
+      '[DIO] ✗ ${err.requestOptions.method} ${err.requestOptions.uri} '
+      '${err.message}',
+    );
+    handler.next(err);
   }
 }

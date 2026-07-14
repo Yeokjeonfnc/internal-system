@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:app_flutter/core/api/api_client.dart';
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_model.dart';
 import 'package:app_flutter/core/property_mst/property_mst_write_request.dart';
@@ -95,4 +96,115 @@ class PropertyApiService extends BaseRepository {
 
   Future<bool> deleteProperty(int propIdx) =>
       deleteOk(PropertyMstApiPaths.one(propIdx));
+
+  /// 물건 문서 목록
+  Future<List<PropertyDocument>> getPropertyDocuments(int propIdx) async {
+    try {
+      return await getDataList(
+        PropertyMstApiPaths.documents(propIdx),
+        fromJson: PropertyDocument.fromJson,
+      );
+    } catch (e) {
+      debugPrint('Error fetching property documents: $e');
+      return const [];
+    }
+  }
+
+  /// 물건 문서 업로드
+  Future<PropertyDocument?> uploadPropertyDocument({
+    required int propIdx,
+    required String fileName,
+    required List<int> bytes,
+    required String userId,
+    void Function(String message)? onServerMessage,
+  }) async {
+    void fail(String m) {
+      if (onServerMessage != null) {
+        onServerMessage(m);
+      } else {
+        debugPrint('uploadPropertyDocument: $m');
+      }
+    }
+
+    try {
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: fileName),
+      });
+      final r = await client.postMultipart(
+        PropertyMstApiPaths.documents(propIdx),
+        formData: formData,
+        queryParameters: {
+          if (userId.isNotEmpty) 'userId': userId,
+        },
+      );
+      if (r.data == null) {
+        fail('서버 응답이 비어 있습니다.');
+        return null;
+      }
+      if (!envelopeSuccess(r.data)) {
+        fail(envelopeMessage(r.data) ?? '업로드에 실패했습니다.');
+        return null;
+      }
+      if (!isHttpSuccess(r.statusCode)) {
+        fail('업로드에 실패했습니다.');
+        return null;
+      }
+      return parseDataOrNull(r.data, PropertyDocument.fromJson);
+    } on DioException catch (e) {
+      debugPrint('Error uploading property document: $e');
+      final msg = envelopeMessage(e.response?.data);
+      if (msg != null && msg.isNotEmpty) {
+        fail(msg);
+      } else {
+        fail('업로드에 실패했습니다.');
+      }
+    } catch (e) {
+      debugPrint('Error uploading property document: $e');
+      fail('업로드에 실패했습니다.');
+    }
+    return null;
+  }
+
+  /// 물건 문서 파일 바이트 (미리보기용)
+  Future<Uint8List?> downloadPropertyDocumentBytes(
+    int propIdx,
+    int propertyDocIdx,
+  ) async {
+    try {
+      final r = await client.get(
+        PropertyMstApiPaths.documentDownload(propIdx, propertyDocIdx),
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 60),
+          headers: {Headers.acceptHeader: '*/*'},
+        ),
+      );
+      if (!isHttpSuccess(r.statusCode) || r.data == null) return null;
+      final data = r.data;
+      if (data is Uint8List) return data;
+      if (data is List<int>) return Uint8List.fromList(data);
+      return null;
+    } catch (e, st) {
+      debugPrint('downloadPropertyDocumentBytes: $e\n$st');
+      return null;
+    }
+  }
+
+  /// 물건 문서 삭제
+  Future<bool> deletePropertyDocument(int propIdx, int propertyDocIdx) {
+    return deleteOk(PropertyMstApiPaths.documentOne(propIdx, propertyDocIdx));
+  }
+
+  /// 물건 문서 다운로드 URL (브라우저 저장용)
+  String propertyDocumentDownloadUrl(int propIdx, int propertyDocIdx) {
+    final base = ApiClient.resolveBaseUrl();
+    final path = PropertyMstApiPaths.documentDownload(propIdx, propertyDocIdx);
+    if (base.endsWith('/') && path.startsWith('/')) {
+      return '${base.substring(0, base.length - 1)}$path';
+    }
+    if (!base.endsWith('/') && !path.startsWith('/')) {
+      return '$base/$path';
+    }
+    return '$base$path';
+  }
 }

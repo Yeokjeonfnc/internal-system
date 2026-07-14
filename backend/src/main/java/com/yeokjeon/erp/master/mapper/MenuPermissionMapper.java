@@ -22,4 +22,6 @@ public interface MenuPermissionMapper {
     int insertUserMenuAuth(@Param("row") UserMenuAuth row);
 
     Integer selectUserIdxByUserId(@Param("userId") String userId);
+
+    String selectAdminYnByUserId(@Param("userId") String userId);
 }

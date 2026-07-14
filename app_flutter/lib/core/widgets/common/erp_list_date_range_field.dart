@@ -76,67 +76,82 @@ class _ErpListDateRangeFieldState extends State<ErpListDateRangeField> {
     widget.onRangeChanged(s, e);
   }
 
+  Widget _presetDropdown() {
+    return SearchFilterDropdownField<String>(
+      compact: true,
+      fieldLabel: '활동일자_프리셋',
+      value: _opts.contains(_preset) ? _preset : '직접 설정',
+      items: [
+        for (final o in _opts)
+          DropdownMenuItem<String?>(
+            value: o,
+            child: Text(o, style: kSearchFilterValueTextStyle),
+          ),
+      ],
+      onChanged: (v) {
+        if (v == null) return;
+        if (v == '직접 설정') {
+          setState(() => _preset = v);
+          return;
+        }
+        setState(() => _preset = v);
+        final p = erpPresetDateRange(v);
+        widget.onRangeChanged(p.$1, p.$2);
+      },
+    );
+  }
+
+  Widget _dateRangeRow({required bool stretchDates}) {
+    final start = ErpListCompactDateButton(
+      date: widget.start,
+      onPressed: _pickStart,
+    );
+    final end = ErpListCompactDateButton(
+      date: widget.end,
+      onPressed: _pickEnd,
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (stretchDates)
+          Expanded(child: start)
+        else
+          SizedBox(width: _dateFieldWidth, child: start),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text('—', style: kSearchFilterValueTextStyle),
+        ),
+        if (stretchDates)
+          Expanded(child: end)
+        else
+          SizedBox(width: _dateFieldWidth, child: end),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, c) {
-        final row = Row(
+        if (c.maxWidth < 420) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _presetDropdown(),
+              const SizedBox(height: 6),
+              _dateRangeRow(stretchDates: true),
+            ],
+          );
+        }
+        return Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            SearchFilterDropdownField<String>(
-              compact: true,
-              fieldLabel: '활동일자_프리셋',
-              value: _opts.contains(_preset) ? _preset : '직접 설정',
-              items: [
-                for (final o in _opts)
-                  DropdownMenuItem<String?>(
-                    value: o,
-                    child: Text(o, style: kSearchFilterValueTextStyle),
-                  ),
-              ],
-              onChanged: (v) {
-                if (v == null) return;
-                if (v == '직접 설정') {
-                  setState(() => _preset = v);
-                  return;
-                }
-                setState(() => _preset = v);
-                final p = erpPresetDateRange(v);
-                widget.onRangeChanged(p.$1, p.$2);
-              },
-            ),
+            _presetDropdown(),
             const SizedBox(width: 8),
-            SizedBox(
-              width: _dateFieldWidth,
-              child: ErpListCompactDateButton(
-                date: widget.start,
-                onPressed: _pickStart,
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-              child: Text('—', style: kSearchFilterValueTextStyle),
-            ),
-            SizedBox(
-              width: _dateFieldWidth,
-              child: ErpListCompactDateButton(
-                date: widget.end,
-                onPressed: _pickEnd,
-              ),
-            ),
+            _dateRangeRow(stretchDates: false),
           ],
         );
-        if (c.maxWidth < 420) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 400),
-              child: row,
-            ),
-          );
-        }
-        return row;
       },
     );
   }

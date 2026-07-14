@@ -27,7 +27,6 @@ class AuthProfileUpdateRequest {
   static const String jsonKeyUserPhone = 'userPhone';
   static const String jsonKeyPositionCd = 'positionCd';
   static const String jsonKeySvYn = 'svYn';
-  static const String jsonKeyTagYn = 'tagYn';
 
   AuthProfileUpdateRequest._(this._map);
 
@@ -41,7 +40,6 @@ class AuthProfileUpdateRequest {
     String? userPhone,
     String? positionCd,
     String? svYn,
-    String? tagYn,
   }) {
     final m = <String, dynamic>{};
     if (userName != null) m[jsonKeyUserName] = userName;
@@ -51,7 +49,6 @@ class AuthProfileUpdateRequest {
     if (userPhone != null) m[jsonKeyUserPhone] = userPhone;
     if (positionCd != null) m[jsonKeyPositionCd] = positionCd;
     if (svYn != null) m[jsonKeySvYn] = svYn;
-    if (tagYn != null) m[jsonKeyTagYn] = tagYn;
     return AuthProfileUpdateRequest._(m);
   }
 }

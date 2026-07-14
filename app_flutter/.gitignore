@@ -47,6 +47,9 @@ app.*.map.json
 # DevTools
 devtools_options.yaml
 
+# 로컬 flutter run 용 dart-define (dart_defines.local.example.json 참고)
+dart_defines.local.json
+
 # Auto-generated plugin files
 **/GeneratedPluginRegistrant.swift
 **/GeneratedPluginRegistrant.m

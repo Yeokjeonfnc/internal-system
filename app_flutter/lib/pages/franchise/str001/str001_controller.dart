@@ -78,20 +78,11 @@ final storeHistoriesProvider = FutureProvider.autoDispose
   return ref.read(storeApiServiceProvider).getStoreHistories(storeIdx);
 });
 
-abstract class DocumentRepository {
-  List<Document> docs(Store store);
-}
-
-class InMemoryDocumentRepository implements DocumentRepository {
-  const InMemoryDocumentRepository();
-
-  @override
-  List<Document> docs(Store store) => const <Document>[];
-}
-
-final documentRepositoryProvider = Provider<DocumentRepository>(
-  (ref) => const InMemoryDocumentRepository(),
-);
+final storeDocumentsProvider = FutureProvider.autoDispose
+    .family<List<Document>, int>((ref, storeIdx) async {
+  if (storeIdx <= 0) return const <Document>[];
+  return ref.read(storeApiServiceProvider).getStoreDocuments(storeIdx);
+});
 
 // --- 목록 필터 (Riverpod) ---
 
@@ -116,9 +107,13 @@ class StoreNotifier extends BaseListNotifier<StoreFilter, Store> {
   @override
   List<ListFilterRule<StoreFilter, Store>> get ruleList => kStr001ListRules;
 
-  /// 데이터 새로고침
-  void refresh() {
+  /// 데이터 새로고침.
+  ///
+  /// [includeCodes]가 true(새로고침 버튼)면 공통코드·지역·브랜드까지 갱신하고,
+  /// 화면 진입 시(배경 갱신)에는 목록만 갱신해 불필요한 왕복 6회를 줄인다.
+  void refresh({bool includeCodes = true}) {
     ref.invalidate(storeDataProvider);
+    if (!includeCodes) return;
     ref.invalidate(regionNamesProvider);
     ref.invalidate(brandNamesProvider);
     ref.invalidate(codeOptionsProvider(10));

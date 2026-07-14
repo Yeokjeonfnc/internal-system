@@ -7,6 +7,7 @@ import com.yeokjeon.erp.auth.dto.AuthProfileUpdateRequestDto;
 import com.yeokjeon.erp.auth.mapper.AuthProfileMapper;
 import com.yeokjeon.erp.master.dto.MenuPermissionDto;
 import com.yeokjeon.erp.master.service.MenuPermissionService;
+import com.yeokjeon.erp.master.service.UsageLogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ public class AuthService {
 
     private final AuthProfileMapper authProfileMapper;
     private final MenuPermissionService menuPermissionService;
+    private final UsageLogService usageLogService;
 
     public AuthProfileDto login(AuthLoginRequestDto body) {
         String userId = body.userId();
@@ -31,8 +33,13 @@ public class AuthService {
             if (row == null) {
                 return null;
             }
+            usageLogService.recordLogin(row);
             List<MenuPermissionDto> menuPermissions = loadMenuPermissionsSafely(userId);
-            return AuthProfileDto.fromRow(row, menuPermissions);
+            AuthProfileDto profile = AuthProfileDto.fromRow(row, menuPermissions);
+            // admin_yn 컬럼 또는 config 폴백 — 프론트가 관리자 여부를 일관되게 받도록 보정
+            return menuPermissionService.isSuperAdmin(userId)
+                    ? profile.withAdminYn("Y")
+                    : profile;
         } catch (Exception e) {
             log.error("로그인 실패: userId={}", userId, e);
             return null;

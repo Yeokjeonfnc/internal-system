@@ -2,9 +2,13 @@ import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/property_mst/property_mst_write_request.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/pages/active/shared/activity_routes.dart';
+import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 
 /// 현재 경로에 대응하는 메뉴 코드. 사이드바·라우터 가드 공통.
 String? menuCdForPath(String path) {
+  if (path == AppRoutes.board || path.startsWith('${AppRoutes.board}/')) {
+    return kMenuBbs001;
+  }
   if (path == AppRoutes.dashboard) {
     return kMenuDsh001;
   }
@@ -38,6 +42,17 @@ String? menuCdForPath(String path) {
       path.startsWith('${AppRoutes.masterChecklists}/')) {
     return kMenuMst004;
   }
+  if (path == AppRoutes.masterUsageLogs ||
+      path.startsWith('${AppRoutes.masterUsageLogs}/')) {
+    return kMenuMst005;
+  }
+  if (path == AppRoutes.masterOwnerUsers ||
+      path.startsWith('${AppRoutes.masterOwnerUsers}/')) {
+    return kMenuMst006;
+  }
+  if (path == EapRoutes.root || path.startsWith('${EapRoutes.root}/')) {
+    return kMenuEap001;
+  }
   if (path.startsWith(kActivitiesRoot)) {
     if (path == ActivityRoutes.groupStatus ||
         path.startsWith('${ActivityRoutes.groupStatus}/') ||
@@ -49,14 +64,21 @@ String? menuCdForPath(String path) {
         path.startsWith('$kActivitiesRoot/approval/')) {
       return kMenuAct003;
     }
+    if (path == ActivityRoutes.calendar ||
+        path.startsWith('${ActivityRoutes.calendar}/')) {
+      return kMenuAct004;
+    }
     return kMenuAct002;
   }
   return null;
 }
 
 /// 등록·신규 화면 경로 여부 (`/new`, `/register` 등).
+/// `/sales-areas/register/:rowId` 는 상세·수정 — [isMenuCreatePath] false.
 bool isMenuCreatePath(String path) {
-  return path.endsWith('/new') || path.contains('/register');
+  if (path.endsWith('/new')) return true;
+  if (path.endsWith('/register')) return true;
+  return false;
 }
 
 /// 메뉴 코드에 대응하는 목록(허브) 경로.
@@ -78,10 +100,15 @@ final _menuListRoutes = <(String, String)>[
   (kMenuAct001, ActivityRoutes.groupStatus),
   (kMenuAct002, ActivityRoutes.groupManage),
   (kMenuAct003, ActivityRoutes.approvalAll),
+  (kMenuAct004, ActivityRoutes.calendar),
+  (kMenuEap001, EapRoutes.home),
   (kMenuMst001, AppRoutes.masterUsers),
   (kMenuMst002, AppRoutes.masterDepartments),
   (kMenuMst003, AppRoutes.masterMenuPermissions),
   (kMenuMst004, AppRoutes.masterChecklists),
+  (kMenuMst005, AppRoutes.masterUsageLogs),
+  (kMenuMst006, AppRoutes.masterOwnerUsers),
+  (kMenuBbs001, AppRoutes.board),
 ];
 
 /// 조회 권한이 있는 첫 화면 경로(대시보드 우선).

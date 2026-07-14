@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
-import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
@@ -58,6 +57,8 @@ class _Act003ViewState extends State<Act003View>
   /// 탭 전환 시 해당 목록 API 재조회용 키.
   late final List<int> _tabEpoch;
 
+  int? _listRowCount;
+
   (DateTime, DateTime) _defRange() {
     return erpPresetDateRange('최근1개월');
   }
@@ -82,7 +83,10 @@ class _Act003ViewState extends State<Act003View>
     if (_tabController.indexIsChanging) return;
     if (!mounted) return;
     final idx = _tabController.index.clamp(0, kApprTabs.length - 1);
-    setState(() => _tabEpoch[idx]++);
+    setState(() {
+      _tabEpoch[idx]++;
+      _listRowCount = null;
+    });
     final target = kApprTabs[idx];
     final loc = GoRouterState.of(context).uri.path;
     if (loc != target) {
@@ -112,7 +116,16 @@ class _Act003ViewState extends State<Act003View>
   void _reloadList() {
     if (!mounted) return;
     final idx = _tabController.index.clamp(0, _tabEpoch.length - 1);
-    setState(() => _tabEpoch[idx]++);
+    setState(() {
+      _tabEpoch[idx]++;
+      _listRowCount = null;
+    });
+  }
+
+  void _onListRowCount(int tabIndex, int? count) {
+    if (!mounted || _tabController.index != tabIndex) return;
+    if (_listRowCount == count) return;
+    setState(() => _listRowCount = count);
   }
 
   @override
@@ -251,19 +264,31 @@ class _Act003ViewState extends State<Act003View>
 
   Widget _tabBar() {
     return Container(
-      color: FormStylePalette.accent,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: AppTheme.hairline)),
+      ),
       child: TabBar(
         controller: _tabController,
         isScrollable: true,
         tabAlignment: TabAlignment.center,
         labelPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 5),
         labelStyle: const TextStyle(
-          fontSize: 17,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
           fontFamilyFallback: AppTheme.koreanFontFallback,
         ),
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.white70,
-        indicatorColor: Colors.white,
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
+        labelColor: AppTheme.textPrimary,
+        unselectedLabelColor: AppTheme.textMuted,
+        indicatorColor: AppTheme.accentRed,
+        indicatorWeight: 2,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
         tabs: const [
           Tab(text: '전체활동관리'),
           Tab(text: '결재대기'),
@@ -277,12 +302,24 @@ class _Act003ViewState extends State<Act003View>
   }
 
   Widget _listShell(Widget mainFields, {Widget? customTable}) {
+    final countText = _listRowCount == null
+        ? '조회 중입니다.'
+        : '총 $_listRowCount건이 조회되었습니다.';
     return ListPageTemplate(
       activeFilters: _chips(),
       mainSearchFields: mainFields,
-      countText: '총 0건이 조회되었습니다.',
+      countText: countText,
       onRefresh: _reloadList,
-      table: customTable ?? const ActivityDraftsTable(),
+      table:
+          customTable ??
+          ActivityDraftsTable(
+            rangeStart: _rangeStart,
+            rangeEnd: _rangeEnd,
+            onFilteredRowCount: (c) => _onListRowCount(
+              _tabController.index.clamp(0, _tabEpoch.length - 1),
+              c,
+            ),
+          ),
     );
   }
 
@@ -332,6 +369,9 @@ class _Act003ViewState extends State<Act003View>
                     mode: ActivityDraftsTableMode.approvalAll,
                     rowKeywordFilter: _keywordCtrl.text.trim(),
                     brandCdFilter: _brandFilterCd(),
+                    rangeStart: _rangeStart,
+                    rangeEnd: _rangeEnd,
+                    onFilteredRowCount: (c) => _onListRowCount(0, c),
                   ),
                 ),
                 _listShell(
@@ -341,6 +381,9 @@ class _Act003ViewState extends State<Act003View>
                     mode: ActivityDraftsTableMode.approvalPending,
                     rowKeywordFilter: _keywordCtrl.text.trim(),
                     brandCdFilter: _brandFilterCd(),
+                    rangeStart: _rangeStart,
+                    rangeEnd: _rangeEnd,
+                    onFilteredRowCount: (c) => _onListRowCount(1, c),
                   ),
                 ),
                 _listShell(
@@ -350,6 +393,9 @@ class _Act003ViewState extends State<Act003View>
                     mode: ActivityDraftsTableMode.approvalApproved,
                     rowKeywordFilter: _keywordCtrl.text.trim(),
                     brandCdFilter: _brandFilterCd(),
+                    rangeStart: _rangeStart,
+                    rangeEnd: _rangeEnd,
+                    onFilteredRowCount: (c) => _onListRowCount(2, c),
                   ),
                 ),
                 _listShell(
@@ -359,6 +405,9 @@ class _Act003ViewState extends State<Act003View>
                     mode: ActivityDraftsTableMode.approvalSuggestions,
                     rowKeywordFilter: _keywordCtrl.text.trim(),
                     brandCdFilter: _brandFilterCd(),
+                    rangeStart: _rangeStart,
+                    rangeEnd: _rangeEnd,
+                    onFilteredRowCount: (c) => _onListRowCount(3, c),
                   ),
                 ),
                 _listShell(
@@ -371,6 +420,7 @@ class _Act003ViewState extends State<Act003View>
                     brandCdFilter: _brandFilterCd(),
                     rangeStart: _rangeStart,
                     rangeEnd: _rangeEnd,
+                    onFilteredRowCount: (c) => _onListRowCount(4, c),
                   ),
                 ),
                 _listShell(
@@ -378,6 +428,9 @@ class _Act003ViewState extends State<Act003View>
                   customTable: ActivityChecklistTable(
                     key: ValueKey<int>(_tabEpoch[5]),
                     rowKeywordFilter: _keywordCtrl.text.trim(),
+                    rangeStart: _rangeStart,
+                    rangeEnd: _rangeEnd,
+                    onFilteredRowCount: (c) => _onListRowCount(5, c),
                   ),
                 ),
               ],

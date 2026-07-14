@@ -3,15 +3,27 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:app_flutter/core/auth/auth_provider.dart';
+import 'package:app_flutter/core/perf/session_list_cache.dart';
 import 'package:app_flutter/core/search/erp_activity_row_keyword.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
-import 'package:app_flutter/core/widgets/common/common_detail_button.dart';
+import 'package:app_flutter/core/widgets/common/common_status_badge.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 import 'package:app_flutter/pages/active/act002/act002_api.dart';
 import 'package:app_flutter/pages/active/act002/act002_model.dart';
 import 'package:app_flutter/pages/active/shared/activity_routes.dart';
+
+String _activityNoteCell(String value) {
+  final text = value.trim();
+  return text.isEmpty ? '-' : text;
+}
+
+String _activityNoteYmd(String value) {
+  final t = _activityNoteCell(value);
+  if (t == '-') return t;
+  return t.split('T').first;
+}
 
 /// [ActivityNoteTabView] 목록 API 분기.
 enum ActivityInstructionsQueryKind {
@@ -32,6 +44,7 @@ class ActivityNoteTabView extends StatefulWidget {
     this.brandCdFilter,
     required this.rangeStart,
     required this.rangeEnd,
+    this.onFilteredRowCount,
   });
 
   final ActivityInstructionsQueryKind queryKind;
@@ -45,17 +58,21 @@ class ActivityNoteTabView extends StatefulWidget {
   final DateTime rangeStart;
   final DateTime rangeEnd;
 
+  /// 필터 적용 후 행 수. null = 조회 중.
+  final ValueChanged<int?>? onFilteredRowCount;
+
   @override
   State<ActivityNoteTabView> createState() => _ActivityNoteTabViewState();
 }
 
 class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
-  late Future<List<ActivityRow>> _future;
+  List<ActivityRow>? _rows;
+  bool _refreshing = false;
+  int _loadEpoch = 0;
 
   @override
   void initState() {
     super.initState();
-    _future = Future.value(const <ActivityRow>[]);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _load();
@@ -64,55 +81,41 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
 
   void _load() {
     final uid = context.read<AuthProvider>().userId.trim();
+    if (uid.isEmpty) {
+      setState(() => _rows = const <ActivityRow>[]);
+      return;
+    }
+    final key = 'act002note:${widget.queryKind.name}:$uid';
+    final epoch = ++_loadEpoch;
     setState(() {
-      _future = uid.isEmpty
-          ? Future.value(const <ActivityRow>[])
-          : switch (widget.queryKind) {
-              ActivityInstructionsQueryKind.writerMemoSv =>
-                Act002Api().fetchRowsForSvWithApprNote(uid),
-              ActivityInstructionsQueryKind.approverMemoNotif =>
-                Act002Api().fetchRowsForApproverMemoInstructions(uid),
-            };
+      _rows = SessionListCache.get<ActivityRow>(key);
+      _refreshing = true;
+    });
+    final future = switch (widget.queryKind) {
+      ActivityInstructionsQueryKind.writerMemoSv =>
+        Act002Api().fetchRowsForSvWithApprNote(uid),
+      ActivityInstructionsQueryKind.approverMemoNotif =>
+        Act002Api().fetchRowsForApproverMemoInstructions(uid),
+    };
+    future.then((fresh) {
+      SessionListCache.put<ActivityRow>(key, fresh);
+      if (!mounted || epoch != _loadEpoch) return;
+      setState(() {
+        _rows = fresh;
+        _refreshing = false;
+      });
+    }).catchError((Object _) {
+      if (!mounted || epoch != _loadEpoch) return;
+      setState(() {
+        _rows ??= const <ActivityRow>[];
+        _refreshing = false;
+      });
     });
   }
 
-  static String _cell(String value) {
-    final text = value.trim();
-    return text.isEmpty ? '-' : text;
-  }
 
-  static String _ymd(String value) {
-    final t = _cell(value);
-    if (t == '-') return t;
-    return t.split('T').first;
-  }
-
-  static String _chkYn(String value) {
-    final str = value.trim();
-    if (str.isEmpty) return '—';
-    if (str == 'Y') return 'V';
-    if (str == 'N') return 'X';
-    return str;
-  }
-
-  bool _inRange(ActivityRow row) {
-    final raw = row.actDt.trim();
-    if (raw.isEmpty) return false;
-    final parsed = DateTime.tryParse(raw.split('T').first);
-    if (parsed == null) return false;
-    final day = DateTime(parsed.year, parsed.month, parsed.day);
-    final a = DateTime(
-      widget.rangeStart.year,
-      widget.rangeStart.month,
-      widget.rangeStart.day,
-    );
-    final b = DateTime(
-      widget.rangeEnd.year,
-      widget.rangeEnd.month,
-      widget.rangeEnd.day,
-    );
-    return !day.isBefore(a) && !day.isAfter(b);
-  }
+  bool _inRange(ActivityRow row) =>
+      erpActivityRowInDateRange(row, widget.rangeStart, widget.rangeEnd);
 
   bool _brandOk(ActivityRow row) {
     final cdFilter = widget.brandCdFilter?.trim() ?? '';
@@ -128,18 +131,20 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<ActivityRow>>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
+    return Builder(
+      builder: (context) {
+        final cached = _rows;
+        if (cached == null) {
+          erpNotifyFilteredRowCount(widget.onFilteredRowCount, null);
           return const Center(child: CircularProgressIndicator());
         }
         final uid = context.read<AuthProvider>().userId.trim();
         if (uid.isEmpty) {
+          erpNotifyFilteredRowCount(widget.onFilteredRowCount, 0);
           return const Center(child: Text('로그인 후 지시사항(결재특이사항)을 조회할 수 있습니다.'));
         }
 
-        final raw = snapshot.data ?? const <ActivityRow>[];
+        final raw = cached;
         var rows = raw.where(_inRange).where(_brandOk).toList();
 
         final kw = widget.rowKeywordFilter.trim();
@@ -149,6 +154,7 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
               .toList();
         }
 
+        erpNotifyFilteredRowCount(widget.onFilteredRowCount, rows.length);
         if (rows.isEmpty) {
           return Center(
             child: Text(
@@ -157,7 +163,7 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
           );
         }
 
-        return ErpDataTable(
+        final table = ErpDataTable(
           minWidth: AppDimensions.tableMinWidthDefault + 280,
           tableBuilder: (context, w) => Table(
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
@@ -171,11 +177,10 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
               5: FlexColumnWidth(0.75),
               6: FlexColumnWidth(0.4),
               7: FlexColumnWidth(0.3),
-              8: FlexColumnWidth(0.35),
             },
             children: [
               const TableRow(
-                decoration: BoxDecoration(color: AppTheme.accentRed),
+                decoration: kErpTableHeaderRowDecoration,
                 children: [
                   ErpTableHeaderCell('활동구분'),
                   ErpTableHeaderCell('활동일자'),
@@ -185,7 +190,6 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
                   ErpTableHeaderCell('지시사항(결재특이사항)'),
                   ErpTableHeaderCell('담당 수퍼바이저'),
                   ErpTableHeaderCell('체크리스트'),
-                  ErpTableHeaderCell('상세보기'),
                 ],
               ),
               for (var i = 0; i < rows.length; i++)
@@ -195,56 +199,72 @@ class _ActivityNoteTabViewState extends State<ActivityNoteTabView> {
                         ? AppTheme.tableRowOdd
                         : AppTheme.tableRowEven,
                   ),
-                  children: [
-                    ErpTableBodyCell(_cell(rows[i].actType), center: true),
-                    ErpTableBodyCell(_ymd(rows[i].actDt), center: true),
-                    ErpTableBodyCell(
-                      _cell(
-                        rows[i].brandNm.isNotEmpty
-                            ? rows[i].brandNm
-                            : rows[i].brandCd,
-                      ),
-                      center: true,
-                    ),
-                    ErpTableBodyCell(_cell(rows[i].storeNm), center: true),
-                    ErpTableBodyCell(_cell(rows[i].actNotes)),
-                    ErpTableBodyCell(_cell(rows[i].apprNotes)),
-                    ErpTableBodyCell(_cell(rows[i].svNm), center: true),
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Center(
-                        child: _ChecklistStatusChip(_cell(rows[i].chkYn)),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Center(
-                        child: DetailButton(
-                          onPressed: () {
-                            final actIdx = rows[i].actIdx;
-                            if (actIdx != null) {
-                              context.go(
-                                widget.queryKind ==
-                                        ActivityInstructionsQueryKind
-                                            .approverMemoNotif
-                                    ? ActivityRoutes.approvalActivityDetail(
-                                        actIdx,
-                                      )
-                                    : ActivityRoutes.manageDetail(actIdx),
-                              );
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
+                  children: _instructionRowCells(
+                    context,
+                    rows[i],
+                    queryKind: widget.queryKind,
+                  ),
                 ),
             ],
           ),
         );
+        if (!_refreshing) return table;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const LinearProgressIndicator(minHeight: 2),
+            Expanded(child: table),
+          ],
+        );
       },
     );
   }
+}
+
+List<Widget> _instructionRowCells(
+  BuildContext context,
+  ActivityRow row, {
+  required ActivityInstructionsQueryKind queryKind,
+}) {
+  void openDetail() {
+    final actIdx = row.actIdx;
+    if (actIdx == null) return;
+    context.go(
+      queryKind == ActivityInstructionsQueryKind.approverMemoNotif
+          ? ActivityRoutes.approvalActivityDetail(actIdx)
+          : ActivityRoutes.manageDetail(actIdx),
+    );
+  }
+
+  Widget tap(Widget child) => ErpTableDoubleTapCell(
+    onDoubleTap: openDetail,
+    child: child,
+  );
+
+  return [
+    tap(ErpTableBodyCell(_activityNoteCell(row.actType), center: true)),
+    tap(ErpTableBodyCell(_activityNoteYmd(row.actDt), center: true)),
+    tap(
+      ErpTableBodyCell(
+        _activityNoteCell(
+          row.brandNm.isNotEmpty ? row.brandNm : row.brandCd,
+        ),
+        center: true,
+      ),
+    ),
+    tap(ErpTableBodyCell(_activityNoteCell(row.storeNm), center: true)),
+    tap(ErpTableBodyCell(_activityNoteCell(row.actNotes))),
+    tap(ErpTableBodyCell(_activityNoteCell(row.apprNotes))),
+    tap(ErpTableBodyCell(_activityNoteCell(row.svNm), center: true)),
+    tap(
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: Center(
+          child: _ChecklistStatusChip(_activityNoteCell(row.chkYn)),
+        ),
+      ),
+    ),
+  ];
 }
 
 class _ChecklistStatusChip extends StatelessWidget {
@@ -255,52 +275,9 @@ class _ChecklistStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final done = value?.toString().trim().toUpperCase() == 'Y';
-    return _StatusChip(
-      label: done ? '완료' : '미완료',
-      foreground: done
-          ? const Color.fromARGB(255, 5, 102, 119)
-          : const Color.fromARGB(255, 97, 104, 119),
-      background: done
-          ? const Color.fromARGB(255, 171, 211, 238)
-          : const Color(0xFFF3F4F6),
-      border: done ? const Color(0xFFA7F3D0) : const Color(0xFFE5E7EB),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({
-    required this.label,
-    required this.foreground,
-    required this.background,
-    required this.border,
-  });
-
-  final String label;
-  final Color foreground;
-  final Color background;
-  final Color border;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: border),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: foreground,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          fontFamilyFallback: AppTheme.koreanFontFallback,
-        ),
-      ),
+    return StatusBadge(
+      done ? '완료' : '미점검',
+      color: done ? AppTheme.statusNew : AppTheme.textMuted,
     );
   }
 }

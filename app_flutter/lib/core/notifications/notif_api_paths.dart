@@ -4,6 +4,8 @@ abstract final class NotifMstApiPaths {
 
   static const String unreadCount = '$root/unread-count';
 
+  static const String readAll = '$root/read-all';
+
   static String read(int notifIdx) => '$root/$notifIdx/read';
 
   static const String activityApproval = '$root/activity-approval';

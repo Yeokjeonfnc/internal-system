@@ -40,8 +40,7 @@ class UserRegisterView extends ConsumerStatefulWidget {
   static const List<String> _tabTitles = ['사원정보'];
 
   @override
-  ConsumerState<UserRegisterView> createState() =>
-      _UserRegisterViewState();
+  ConsumerState<UserRegisterView> createState() => _UserRegisterViewState();
 }
 
 class PhoneNumberFormatter extends TextInputFormatter {
@@ -85,8 +84,9 @@ class _UserRegisterViewState extends ConsumerState<UserRegisterView> {
   String? _selectedDeptId;
   String? _selectedPositionCd;
 
-  /// [User.tagYn] 와 동일 — API `svYn`
-  bool _tagYn = false;
+  /// API `svYn` — 슈퍼바이저·출입 태그 권한 통합.
+  bool _svYn = false;
+  final bool _ownerYn = false;
   bool _saving = false;
 
   /// 로그인 ID를 입력했을 때만 사용. [trim] 값과 일치하면 중복확인 통과로 본다.
@@ -271,7 +271,8 @@ class _UserRegisterViewState extends ConsumerState<UserRegisterView> {
         email: _emailCtrl.text,
         joinDt: _joinDtYmdForApi(),
         positionCd: _effectivePositionCd(positionOpts),
-        tagYn: _tagYn,
+        svYn: _svYn,
+        ownerYn: _ownerYn,
       );
       await Mst001ApiService().createUser(body);
       if (!mounted) return;
@@ -292,9 +293,7 @@ class _UserRegisterViewState extends ConsumerState<UserRegisterView> {
 
   @override
   Widget build(BuildContext context) {
-    final positionAsync = ref.watch(
-      codeOptionsProvider(_kUserPositionGrpCd),
-    );
+    final positionAsync = ref.watch(codeOptionsProvider(_kUserPositionGrpCd));
     final positionOptions = positionAsync.value ?? const <CodeOption>[];
 
     return DetailScreenWithTabs(
@@ -522,6 +521,16 @@ class _UserRegisterViewState extends ConsumerState<UserRegisterView> {
                                       ),
                                     ),
                                   )
+                                : positionAsync.hasError
+                                ? Text(
+                                    '직급 코드 조회에 실패했습니다.',
+                                    style: TextStyle(
+                                      color: FormStylePalette.textMuted,
+                                      fontSize: 13,
+                                      fontFamilyFallback:
+                                          AppTheme.koreanFontFallback,
+                                    ),
+                                  )
                                 : positionOptions.isEmpty
                                 ? Text(
                                     '직급 코드(그룹 $_kUserPositionGrpCd)가 없습니다.',
@@ -584,15 +593,15 @@ class _UserRegisterViewState extends ConsumerState<UserRegisterView> {
                           ),
                           const SizedBox(height: 15),
                           LabeledFormRow(
-                            label: '태그사용여부',
+                            label: '슈퍼바이저 여부',
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: CheckboxListTile(
-                                value: _tagYn,
+                                value: _svYn,
                                 onChanged: _saving
                                     ? null
                                     : (v) {
-                                        setState(() => _tagYn = v ?? false);
+                                        setState(() => _svYn = v ?? false);
                                       },
                                 contentPadding: EdgeInsets.zero,
                                 visualDensity: VisualDensity.compact,
@@ -600,7 +609,7 @@ class _UserRegisterViewState extends ConsumerState<UserRegisterView> {
                                     ListTileControlAffinity.leading,
                                 activeColor: AppTheme.accentRed,
                                 title: Text(
-                                  '태그 사용 허용',
+                                  '태그 사용',
                                   style: FormStylePalette.valueStyle.copyWith(
                                     fontSize: 13,
                                   ),

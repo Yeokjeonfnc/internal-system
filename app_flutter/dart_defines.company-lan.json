@@ -1,0 +1,5 @@
+{
+  "KAKAO_MAP_JAVASCRIPT_KEY": "3649c96a39bc8cff269119d8cffbe4e0",
+  "API_BASE_URL": "http://192.168.30.30:8080/api",
+  "KAKAO_MAP_WEBVIEW_BASE_URL": "https://test.yeokjeon.com/"
+}

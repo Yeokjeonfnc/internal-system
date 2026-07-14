@@ -25,6 +25,7 @@ class StoreMstWriteRequest {
   static const String jsonKeyContStartDt = 'contStartDt';
   static const String jsonKeyBusinessNumber = 'businessNumber';
   static const String jsonKeyFirstContDt = 'firstContDt';
+  static const String jsonKeyTransferDate = 'transferDate';
   static const String jsonKeyFrFee = 'frFee';
   static const String jsonKeyEduFee = 'eduFee';
   static const String jsonKeyInsuDeposit = 'insuDeposit';
@@ -69,6 +70,16 @@ abstract final class StoreMstApiPaths {
   static String one(int storeIdx) => '$root/$storeIdx';
 
   static String histories(int storeIdx) => '$root/$storeIdx/histories';
+
+  static String documents(int storeIdx) => '$root/$storeIdx/documents';
+
+  static String documentDownload(int storeIdx, int storeDocIdx) =>
+      '$root/$storeIdx/documents/$storeDocIdx/download';
+
+  static String documentOne(int storeIdx, int storeDocIdx) =>
+      '$root/$storeIdx/documents/$storeDocIdx';
+
+  static String nfcTag(int storeIdx) => '$root/$storeIdx/nfc-tag';
 
   /// `GET` 검색 — 쿼리 키는 [StoreMstWriteRequest.jsonKeyStoreNm].
   static String get search => '$root/search';

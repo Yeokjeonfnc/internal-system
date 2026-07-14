@@ -1,20 +1,26 @@
 // 사이드바·상단 멀티 탭·페이지 배너를 포함한 ERP 메인 껍데기 레이아웃이다.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart' as provider;
 
 import 'package:app_flutter/core/layout/app_compact_layout.dart';
+import 'package:app_flutter/core/layout/app_mobile_only.dart';
+import 'package:app_flutter/core/layout/app_shell_top_banner.dart';
 
 import '../router/app_router.dart';
 import '../router/route_meta.dart';
 import 'package:app_flutter/pages/active/shared/activity_routes.dart';
+import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 import '../theme/app_colors.dart';
 import '../theme/shell_tab_chrome.dart';
 import '../auth/auth_provider.dart';
 import '../menu/menu_codes.dart';
 import '../auth/user_profile_dialog.dart';
+import '../widgets/common/common_alert_dialog.dart';
 import '../widgets/common/common_notification_sheet.dart';
 import 'tab_manager_provider.dart';
 
@@ -61,9 +67,9 @@ class _MainFrameLayoutState extends ConsumerState<MainFrameLayout> {
                   currentPath: location,
                   inDrawer: true,
                   onAfterNavigate: () {
-                    final nav = Navigator.of(context);
-                    if (nav.canPop()) {
-                      nav.pop();
+                    final scaffold = Scaffold.maybeOf(context);
+                    if (scaffold != null && scaffold.isDrawerOpen) {
+                      scaffold.closeDrawer();
                     }
                   },
                 ),
@@ -101,8 +107,16 @@ class _MainFrameLayoutState extends ConsumerState<MainFrameLayout> {
   }
 }
 
+/// 지도(HtmlElementView)와 SelectionArea 가 충돌하는 화면.
+bool _shellDisablesTextSelection(String location) {
+  return location == AppRoutes.salesAreas ||
+      location == AppRoutes.salesAreaSearch ||
+      location.startsWith('${AppRoutes.salesAreas}/register/') ||
+      location == ActivityRoutes.calendar;
+}
+
 /// 상단 탭·배너·본문 영역(데스크톱 Row 오른쪽 / 모바일 Scaffold body).
-class _MainShellBody extends StatelessWidget {
+class _MainShellBody extends ConsumerWidget {
   const _MainShellBody({
     required this.location,
     required this.meta,
@@ -118,21 +132,32 @@ class _MainShellBody extends StatelessWidget {
   final VoidCallback? onOpenDrawer;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return ColoredBox(
       color: AppTheme.appSurface,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // 데스크톱: 히스토리(열린 화면) 탭 줄은 유지, 제목 배너(대분류 바)만 제거.
+            // 컴팩트(모바일): 드로어를 열 햄버거·뒤로가기가 필요해 배너를 유지한다.
             if (!compact) _ShellTabStrip(currentPath: location),
-            _ShellTopBanner(
-              meta: meta,
-              currentPath: location,
-              compact: compact,
-              onOpenDrawer: onOpenDrawer,
+            if (compact)
+              _ShellTopBanner(
+                meta: meta,
+                currentPath: location,
+                compact: compact,
+                onOpenDrawer: onOpenDrawer,
+                onBack: () => _shellNavigateBack(context, ref, location),
+              ),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(top: compact ? 0 : 14),
+                child: _shellDisablesTextSelection(location)
+                    ? child
+                    : SelectionArea(child: child),
+              ),
             ),
-            Expanded(child: SelectionArea(child: child)),
           ],
         ),
       ),
@@ -140,7 +165,10 @@ class _MainShellBody extends StatelessWidget {
   }
 }
 
-/// 브라우저형으로 열린 화면을 나열하는 상단 탭 줄.
+/// 브라우저형으로 열린 화면을 나열하는 상단 **히스토리 탭 줄**.
+///
+/// 2026 리디자인: 화이트 바 + 헤어라인 하단 보더, 활성 탭은 잉크블랙 라벨 +
+/// 하단 레드 언더라인. (제목 배너는 제거됨 — 이 줄이 유일한 상단 크롬.)
 class _ShellTabStrip extends ConsumerWidget {
   const _ShellTabStrip({required this.currentPath});
 
@@ -152,87 +180,62 @@ class _ShellTabStrip extends ConsumerWidget {
     final notifier = ref.read(tabManagerProvider.notifier);
 
     return DecoratedBox(
-      decoration: const BoxDecoration(gradient: ShellTabChrome.barGradient),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: AppTheme.hairline)),
+      ),
       child: SizedBox(
         height: ShellTabChrome.tabStripHeight,
-        child: Stack(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              height: 1,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      ShellTabChrome.barHighlightLine,
-                      Colors.transparent,
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < tabs.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 4),
+                      _ShellTabChip(
+                        tab: tabs[i],
+                        selected: tabs[i].location == currentPath,
+                        closable: tabs[i].location != AppRoutes.dashboard,
+                        onSelect: () {
+                          if (tabs[i].location != currentPath) {
+                            context.go(tabs[i].location);
+                          }
+                        },
+                        onClose: () =>
+                            notifier.closeTab(context, tabs[i].location),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
-            Positioned.fill(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: EdgeInsets.fromLTRB(
-                        12,
-                        ShellTabChrome.tabStripTopPadding,
-                        12,
-                        0,
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          for (var i = 0; i < tabs.length; i++) ...[
-                            if (i > 0) const SizedBox(width: 6),
-                            _ShellTabChip(
-                              tab: tabs[i],
-                              selected: tabs[i].location == currentPath,
-                              closable: tabs[i].location != AppRoutes.dashboard,
-                              onSelect: () {
-                                if (tabs[i].location != currentPath) {
-                                  context.go(tabs[i].location);
-                                }
-                              },
-                              onClose: () =>
-                                  notifier.closeTab(context, tabs[i].location),
-                            ),
-                          ],
-                        ],
+            if (tabs.any((tab) => tab.location != AppRoutes.dashboard))
+              Padding(
+                padding: const EdgeInsets.only(right: 10, top: 5, bottom: 5),
+                child: Center(
+                  child: Tooltip(
+                    message: '열린 탭 모두 닫기',
+                    child: IconButton(
+                      onPressed: () => notifier.closeAllTabs(context),
+                      icon: const Icon(Icons.close_rounded, size: 17),
+                      color: AppTheme.textMuted,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black.withValues(alpha: 0.04),
+                        hoverColor: Colors.black.withValues(alpha: 0.07),
+                        minimumSize: const Size(30, 30),
+                        padding: EdgeInsets.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                     ),
                   ),
-                  if (tabs.any((tab) => tab.location != AppRoutes.dashboard))
-                    Padding(
-                      padding: const EdgeInsets.only(right: 10, bottom: 6),
-                      child: Tooltip(
-                        message: '열린 탭 모두 닫기',
-                        child: IconButton(
-                          onPressed: () => notifier.closeAllTabs(context),
-                          icon: const Icon(Icons.close_rounded),
-                          color: Colors.white,
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.white.withValues(
-                              alpha: 0.12,
-                            ),
-                            hoverColor: Colors.white.withValues(alpha: 0.18),
-                            minimumSize: const Size(34, 34),
-                            padding: EdgeInsets.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -240,7 +243,8 @@ class _ShellTabStrip extends ConsumerWidget {
   }
 }
 
-class _ShellTabChip extends StatefulWidget {
+/// 히스토리 탭 한 칸 — 활성: 잉크 라벨 + 하단 2px 레드 언더라인 / 비활성: 뮤트.
+class _ShellTabChip extends StatelessWidget {
   const _ShellTabChip({
     required this.tab,
     required this.selected,
@@ -256,162 +260,66 @@ class _ShellTabChip extends StatefulWidget {
   final VoidCallback onClose;
 
   @override
-  State<_ShellTabChip> createState() => _ShellTabChipState();
-}
-
-class _ShellTabChipState extends State<_ShellTabChip> {
-  bool _hover = false;
-
-  @override
-  void didUpdateWidget(covariant _ShellTabChip oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.selected && !oldWidget.selected) {
-      _hover = false;
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final selected = widget.selected;
-    final inactiveRadius = BorderRadius.circular(8);
-    final activeTopRadius = const BorderRadius.only(
-      topLeft: Radius.circular(10),
-      topRight: Radius.circular(10),
-    );
-
-    if (selected) {
-      return SizedBox(
-        height: ShellTabChrome.tabActiveFillHeight,
-        child: Material(
-          color: Colors.transparent,
-          elevation: 0,
-          shadowColor: Colors.transparent,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOutCubic,
-            decoration: BoxDecoration(
-              gradient: ShellTabChrome.activeTabGradient,
-              borderRadius: activeTopRadius,
-              border: ShellTabChrome.activeTabBorderSides,
-              boxShadow: ShellTabChrome.activeTabShadow,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                InkWell(
-                  onTap: widget.onSelect,
-                  borderRadius: activeTopRadius,
-                  hoverColor: Colors.white.withValues(alpha: 0.1),
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      14,
-                      0,
-                      widget.closable ? 2 : 14,
-                      0,
-                    ),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: ShellTabChrome.tabTitleMaxWidthActive,
-                      ),
-                      child: Text(
-                        widget.tab.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: ShellTabChrome.activeLabelOnRed,
-                          fontSize: 17,
-                          letterSpacing: -0.15,
-                          height: 1.2,
-                          fontWeight: FontWeight.w600,
-                          fontFamilyFallback: AppTheme.koreanFontFallback,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                if (widget.closable)
-                  IconButton(
-                    onPressed: widget.onClose,
-                    icon: const Icon(Icons.close_rounded, size: 15),
-                    color: ShellTabChrome.activeIconOnRed,
-                    style: IconButton.styleFrom(
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                      minimumSize: const Size(30, 30),
-                      padding: EdgeInsets.zero,
-                      hoverColor: Colors.white.withValues(alpha: 0.14),
-                    ),
-                    tooltip: '탭 닫기',
-                  ),
-              ],
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: selected ? AppTheme.accentRed : Colors.transparent,
+            width: 2,
           ),
         ),
-      );
-    }
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          color: _hover ? ShellTabChrome.inactiveHoverFill : Colors.transparent,
-          borderRadius: inactiveRadius,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            InkWell(
-              onTap: widget.onSelect,
-              borderRadius: inactiveRadius,
-              hoverColor: ShellTabChrome.inactiveHoverFill,
-              splashColor: Colors.white.withValues(alpha: 0.12),
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  14,
-                  9,
-                  widget.closable ? 2 : 14,
-                  9,
-                ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: onSelect,
+            hoverColor: ShellTabChrome.inactiveHoverFill,
+            splashColor: Colors.black.withValues(alpha: 0.05),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(12, 0, closable ? 2 : 12, 0),
+              child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: ShellTabChrome.tabTitleMaxWidthInactive,
+                  constraints: BoxConstraints(
+                    maxWidth: selected
+                        ? ShellTabChrome.tabTitleMaxWidthActive
+                        : ShellTabChrome.tabTitleMaxWidthInactive,
                   ),
                   child: Text(
-                    widget.tab.title,
+                    tab.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: ShellTabChrome.inactiveLabel,
+                    style: TextStyle(
+                      color: selected
+                          ? AppTheme.textPrimary
+                          : ShellTabChrome.inactiveLabel,
                       fontSize: 13,
                       letterSpacing: -0.15,
                       height: 1.2,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                       fontFamilyFallback: AppTheme.koreanFontFallback,
                     ),
                   ),
                 ),
               ),
             ),
-            if (widget.closable)
-              IconButton(
-                onPressed: widget.onClose,
-                icon: const Icon(Icons.close_rounded, size: 15),
-                color: ShellTabChrome.inactiveIcon,
-                style: IconButton.styleFrom(
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.compact,
-                  minimumSize: const Size(30, 30),
-                  padding: EdgeInsets.zero,
-                  hoverColor: Colors.white.withValues(alpha: 0.12),
-                ),
-                tooltip: '탭 닫기',
+          ),
+          if (closable)
+            IconButton(
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded, size: 14),
+              color: ShellTabChrome.inactiveIcon,
+              style: IconButton.styleFrom(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                minimumSize: const Size(26, 26),
+                padding: EdgeInsets.zero,
+                hoverColor: Colors.black.withValues(alpha: 0.05),
               ),
-          ],
-        ),
+              tooltip: '탭 닫기',
+            ),
+        ],
       ),
     );
   }
@@ -421,12 +329,14 @@ class _ShellTopBanner extends StatelessWidget {
   const _ShellTopBanner({
     required this.meta,
     required this.currentPath,
+    required this.onBack,
     this.compact = false,
     this.onOpenDrawer,
   });
 
   final RouteMeta meta;
   final String currentPath;
+  final VoidCallback onBack;
   final bool compact;
   final VoidCallback? onOpenDrawer;
 
@@ -434,146 +344,53 @@ class _ShellTopBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasSubtitle = meta.subtitle.isNotEmpty;
-    final minBannerHeight = compact ? (hasSubtitle ? 72.0 : 52.0) : 72.0;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-      child: Container(
-        width: double.infinity,
-        constraints: BoxConstraints(minHeight: minBannerHeight),
-        padding: EdgeInsets.fromLTRB(
-          compact ? 8 : 20,
-          compact ? 8 : 10,
-          compact ? 8 : 16,
-          compact ? 8 : 10,
-        ),
-        decoration: const BoxDecoration(
-          color: AppTheme.accentRed,
-          // borderRadius: BorderRadius.only(
-          //   topRight: Radius.circular(8),
-          //   bottomRight: Radius.circular(8),
-          // ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            if (onOpenDrawer != null) ...[
-              _ShellBannerLeadingButton(
-                icon: Icons.menu_rounded,
-                tooltip: '메뉴',
-                onPressed: onOpenDrawer,
-              ),
-              SizedBox(width: compact ? 4 : 10),
-            ],
-            _ShellBannerLeadingButton(
-              icon: _isDashboard
-                  ? Icons.home_rounded
-                  : Icons.arrow_back_rounded,
-              tooltip: _isDashboard ? '홈' : '뒤로',
-              onPressed: _isDashboard
-                  ? null
-                  : () => _shellNavigateBack(context, currentPath),
-            ),
-            SizedBox(width: compact ? 6 : 10),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    meta.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: compact ? 18 : 22,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.4,
-                      height: 1.15,
-                      fontFamily: AppTheme.brandFontFamily,
-                      fontFamilyFallback: AppTheme.koreanFontFallback,
-                    ),
-                  ),
-                  if (hasSubtitle) ...[
-                    SizedBox(height: compact ? 2 : 2),
-                    Text(
-                      meta.subtitle,
-                      maxLines: compact ? 3 : 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.94),
-                        fontSize: compact ? 11 : 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: -0.1,
-                        height: 1.25,
-                        fontFamily: AppTheme.brandFontFamily,
-                        fontFamilyFallback: AppTheme.koreanFontFallback,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (_isDashboard && !compact)
-              OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.refresh_rounded, size: 15),
-                label: const Text('Refresh'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white54),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w700),
+    return AppShellTopBanner(
+      title: meta.title,
+      subtitle: meta.subtitle,
+      compact: compact,
+      onOpenDrawer: onOpenDrawer,
+      backIcon: _isDashboard ? Icons.home_rounded : Icons.arrow_back_rounded,
+      backTooltip: _isDashboard ? '홈' : '뒤로',
+      onBack: _isDashboard ? null : onBack,
+      trailing: _isDashboard && !compact
+          ? OutlinedButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.refresh_rounded, size: 15),
+              label: const Text('새로고침'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.textSecondary,
+                side: const BorderSide(color: AppTheme.tableHeaderBorder),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
                 ),
               ),
-          ],
-        ),
-      ),
+            )
+          : null,
     );
-  }
-}
-
-class _ShellBannerLeadingButton extends StatelessWidget {
-  const _ShellBannerLeadingButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    const size = 36.0;
-    final button = Material(
-      color: Colors.white.withValues(alpha: 0.14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onPressed,
-        child: SizedBox(
-          width: size,
-          height: size,
-          child: Icon(icon, color: Colors.white, size: 20),
-        ),
-      ),
-    );
-    return Tooltip(message: tooltip, child: button);
   }
 }
 
 /// 상단 뒤로가기 버튼 처리.
 ///
-/// 1. 브라우저/내비게이션 스택에 이전 페이지가 있으면 그걸로 pop 한다.
-/// 2. 없을 때는 [parentPathFor] 로 부모 경로를 조회해서 이동한다.
-void _shellNavigateBack(BuildContext context, String currentPath) {
+/// 1. 방문 이력(직전에 보던 화면)이 있으면 그 화면으로 돌아간다.
+/// 2. 브라우저/내비게이션 스택에 이전 페이지가 있으면 그걸로 pop 한다.
+/// 3. 둘 다 없으면 [parentPathFor] 로 부모 경로로 이동한다.
+void _shellNavigateBack(
+  BuildContext context,
+  WidgetRef ref,
+  String currentPath,
+) {
+  final previous = ref.read(tabManagerProvider.notifier).previousLocation();
+  if (previous != null && previous != currentPath) {
+    context.go(previous);
+    return;
+  }
+
   final router = GoRouter.of(context);
   final fallback = parentPathFor(currentPath);
   if (currentPath.startsWith(kActivitiesRoot) && fallback != null) {
@@ -606,8 +423,13 @@ class _SidebarNavigation extends StatelessWidget {
     bool can(String menuCd) => auth.canViewMenu(menuCd);
 
     void navigate(void Function() action) {
+      final afterNavigate = onAfterNavigate;
+      if (afterNavigate != null) {
+        afterNavigate();
+        WidgetsBinding.instance.addPostFrameCallback((_) => action());
+        return;
+      }
       action();
-      onAfterNavigate?.call();
     }
 
     final devChildren = <Widget>[
@@ -665,6 +487,14 @@ class _SidebarNavigation extends StatelessWidget {
               currentPath == ActivityRoutes.checklist,
           onTap: () => navigate(() => context.go(ActivityRoutes.groupManage)),
         ),
+      if (can(kMenuAct004) || can(kMenuAct002))
+        _SidebarSubMenuItem(
+          title: '활동 계획',
+          selected:
+              currentPath == ActivityRoutes.calendar ||
+              currentPath.startsWith('${ActivityRoutes.calendar}/'),
+          onTap: () => navigate(() => context.go(ActivityRoutes.calendar)),
+        ),
       if (can(kMenuAct003))
         _SidebarSubMenuItem(
           title: '활동관리결재',
@@ -677,6 +507,14 @@ class _SidebarNavigation extends StatelessWidget {
     ];
 
     final mstChildren = <Widget>[
+      if (can(kMenuMst006))
+        _SidebarSubMenuItem(
+          title: '가맹주관리',
+          selected:
+              currentPath == AppRoutes.masterOwnerUsers ||
+              currentPath.startsWith('${AppRoutes.masterOwnerUsers}/'),
+          onTap: () => navigate(() => context.go(AppRoutes.masterOwnerUsers)),
+        ),
       if (can(kMenuMst001))
         _SidebarSubMenuItem(
           title: '사원관리',
@@ -710,23 +548,63 @@ class _SidebarNavigation extends StatelessWidget {
               currentPath.startsWith('${AppRoutes.masterChecklists}/'),
           onTap: () => navigate(() => context.go(AppRoutes.masterChecklists)),
         ),
+      if (can(kMenuMst005))
+        _SidebarSubMenuItem(
+          title: '사용기록 조회',
+          selected:
+              currentPath == AppRoutes.masterUsageLogs ||
+              currentPath.startsWith('${AppRoutes.masterUsageLogs}/'),
+          onTap: () => navigate(() => context.go(AppRoutes.masterUsageLogs)),
+        ),
     ];
 
     return SizedBox(
       width: inDrawer ? double.infinity : 250,
-      child: ColoredBox(
-        color: AppTheme.sidebarBackground,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppTheme.sidebarBackground,
+          border: inDrawer
+              ? null
+              : const Border(
+                  right: BorderSide(color: AppTheme.hairline),
+                ),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const _SidebarBrand(),
             const SizedBox(height: 8),
-            if (can(kMenuDsh001))
-              _SidebarMenuItem(
-                icon: Icons.home_filled,
-                title: '홈',
+            // 메뉴가 화면보다 길어지면(여러 그룹을 펼쳤을 때) 아래가 잘리므로
+            // 가운데 메뉴 영역만 세로 스크롤되게 한다. 브랜드(상단)·프로필(하단)은 고정.
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (can(kMenuDsh001))
+                      _SidebarMenuItem(
+                        icon: Icons.home_filled,
+                        title: '홈',
                 selected: currentPath == AppRoutes.dashboard,
                 onTap: () => navigate(() => context.go(AppRoutes.dashboard)),
+              ),
+            if (can(kMenuBbs001))
+              _SidebarMenuItem(
+                icon: Icons.forum_outlined,
+                title: '게시판',
+                selected:
+                    currentPath == AppRoutes.board ||
+                    currentPath.startsWith('${AppRoutes.board}/'),
+                onTap: () => navigate(() => context.go(AppRoutes.board)),
+              ),
+            if (!auth.isFranchiseOwner)
+              _SidebarMenuItem(
+                icon: Icons.chat_bubble_outline,
+                title: '메신저',
+                selected:
+                    currentPath == AppRoutes.chat ||
+                    currentPath.startsWith('${AppRoutes.chat}/'),
+                onTap: () => navigate(() => context.go(AppRoutes.chat)),
               ),
             if (can(kMenuStr001))
               _SidebarMenuItem(
@@ -759,6 +637,15 @@ class _SidebarNavigation extends StatelessWidget {
                     currentPath.startsWith('${AppRoutes.activities}/'),
                 children: actChildren,
               ),
+            if (can(kMenuEap001) || can(kMenuAct002) || can(kMenuAct003))
+              _SidebarMenuItem(
+                icon: Icons.approval_outlined,
+                title: '전자결재',
+                selected:
+                    currentPath == EapRoutes.root ||
+                    currentPath.startsWith('${EapRoutes.root}/'),
+                onTap: () => navigate(() => context.go(EapRoutes.home)),
+              ),
             if (mstChildren.isNotEmpty)
               _SidebarExpandableMenuItem(
                 icon: Icons.people_alt,
@@ -768,9 +655,30 @@ class _SidebarNavigation extends StatelessWidget {
                 ),
                 children: mstChildren,
               ),
-            const _SidebarMenuItem(icon: Icons.lock, title: '출입 관리 (Mobile)'),
-            const Spacer(),
-            const Divider(height: 1, thickness: 1, color: Colors.white12),
+            if (isNativeMobileApp && !auth.isFranchiseOwner)
+              _SidebarMenuItem(
+                icon: Icons.nfc,
+                title: '출입 관리',
+                selected: false,
+                onTap: () => navigate(() {
+                  final profile = auth.profile;
+                  if (profile == null || !profile.canUseStoreEntryTag) {
+                    unawaited(
+                      showAlertDialog(
+                        context,
+                        '태그 사용 권한이 없습니다.\n사원 관리에서 태그 사용을 허용해 주세요.',
+                      ),
+                    );
+                    return;
+                  }
+                  context.push(AppRoutes.storeEntry);
+                }),
+              ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1, thickness: 1, color: AppTheme.hairline),
             const _SidebarUserProfile(),
           ],
         ),
@@ -799,9 +707,10 @@ class _SidebarBrand extends StatelessWidget {
             child: Text(
               '(주)역전에프앤씨',
               style: TextStyle(
-                color: Colors.white,
+                color: AppTheme.textPrimary,
                 fontWeight: FontWeight.w700,
-                fontSize: 16,
+                fontSize: 15,
+                letterSpacing: -0.2,
                 fontFamilyFallback: AppTheme.koreanFontFallback,
               ),
             ),
@@ -843,7 +752,7 @@ class _SidebarMenuItem extends StatelessWidget {
               border: Border(
                 left: BorderSide(
                   color: selected ? AppTheme.accentRed : Colors.transparent,
-                  width: 3,
+                  width: 2.5,
                 ),
               ),
             ),
@@ -852,13 +761,21 @@ class _SidebarMenuItem extends StatelessWidget {
               mouseCursor: onTap != null
                   ? SystemMouseCursors.click
                   : SystemMouseCursors.basic,
-              leading: Icon(icon, color: Colors.white70, size: 20),
+              leading: Icon(
+                icon,
+                color: selected
+                    ? AppTheme.accentRed
+                    : const Color(0xFF6E6E74),
+                size: 20,
+              ),
               title: Text(
                 title,
                 style: TextStyle(
-                  color: selected ? Colors.white : const Color(0xFFADB5BD),
-                  fontSize: 14,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected
+                      ? AppTheme.textPrimary
+                      : const Color(0xFF55555A),
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                   fontFamilyFallback: AppTheme.koreanFontFallback,
                 ),
               ),
@@ -925,12 +842,16 @@ class _SidebarExpandableMenuItemState
               child: ListTile(
                 dense: true,
                 mouseCursor: SystemMouseCursors.click,
-                leading: Icon(widget.icon, color: Colors.white70, size: 20),
+                leading: Icon(
+                  widget.icon,
+                  color: const Color(0xFF6E6E74),
+                  size: 20,
+                ),
                 title: Text(
                   widget.title,
                   style: const TextStyle(
-                    color: Color(0xFFADB5BD),
-                    fontSize: 14,
+                    color: Color(0xFF55555A),
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                     fontFamilyFallback: AppTheme.koreanFontFallback,
                   ),
@@ -992,7 +913,7 @@ class _SidebarSubMenuItem extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: selected
                         ? AppTheme.accentRed
-                        : const Color(0xFF6C757D),
+                        : const Color(0xFFB5B5B1),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -1001,8 +922,10 @@ class _SidebarSubMenuItem extends StatelessWidget {
                   child: Text(
                     title,
                     style: TextStyle(
-                      color: selected ? Colors.white : const Color(0xFFADB5BD),
-                      fontSize: 13,
+                      color: selected
+                          ? AppTheme.textPrimary
+                          : const Color(0xFF55555A),
+                      fontSize: 12.5,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                       fontFamilyFallback: AppTheme.koreanFontFallback,
                     ),
@@ -1066,9 +989,9 @@ class _SidebarUserProfile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                         fontFamilyFallback: AppTheme.koreanFontFallback,
                       ),
                     ),
@@ -1078,9 +1001,9 @@ class _SidebarUserProfile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFFADB5BD),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                        color: AppTheme.textMuted,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w400,
                         fontFamilyFallback: AppTheme.koreanFontFallback,
                       ),
                     ),
@@ -1095,9 +1018,9 @@ class _SidebarUserProfile extends StatelessWidget {
                   showUserProfileDialog(context);
                 },
                 icon: const Icon(Icons.settings, size: 18),
-                color: const Color(0xFFADB5BD),
+                color: AppTheme.textMuted,
                 style: IconButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.03),
+                  backgroundColor: Colors.black.withValues(alpha: 0.04),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -1113,9 +1036,9 @@ class _SidebarUserProfile extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Icons.logout_rounded, size: 18),
-                color: const Color(0xFFADB5BD),
+                color: AppTheme.textMuted,
                 style: IconButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.03),
+                  backgroundColor: Colors.black.withValues(alpha: 0.04),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
