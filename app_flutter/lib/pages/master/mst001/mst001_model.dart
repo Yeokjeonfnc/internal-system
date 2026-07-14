@@ -6,8 +6,9 @@ import 'package:app_flutter/core/user_mst/user_mst_write_request.dart';
 part 'mst001_model.g.dart';
 
 /// 사원 한 명(목록·필터 소스).
-///
-enum TagYn { tagged, untagged }
+enum SvYn { yes, no }
+
+enum OwnerYn { yes, no }
 
 @JsonSerializable()
 class User {
@@ -19,7 +20,8 @@ class User {
     required this.mobilePhone,
     required this.email,
     required this.joinDt,
-    required this.tagYn,
+    required this.svYn,
+    this.ownerYn = OwnerYn.no,
     this.userId = '',
     this.deptIdx,
     this.positionCd,
@@ -34,14 +36,12 @@ class User {
   @JsonKey(name: UserMstApiJsonKeys.deptNm)
   final String department;
 
-  /// 상세 API에서 내려오는 부서 PK(목록에는 없을 수 있음).
   @JsonKey(name: UserMstApiJsonKeys.deptIdx)
   final int? deptIdx;
 
   @JsonKey(name: UserMstApiJsonKeys.positionNm)
   final String positionNm;
 
-  /// 직급 코드(상세·저장 시 드롭다운 값).
   @JsonKey(name: UserMstApiJsonKeys.positionCd)
   final String? positionCd;
 
@@ -59,27 +59,35 @@ class User {
   @JsonKey(name: UserMstApiJsonKeys.userId, defaultValue: '')
   final String userId;
 
-  /// 서버 `UserMstDto`는 `tagYn`·`svYn` 둘 다 줄 수 있다. `tagYn`이 비어 있으면 `User.fromJson`에서 `svYn`으로 보강한다.
-  /// enum 자동 디코드는 쓰지 않는다(`Y`와 `tagged` 불일치 방지).
   @JsonKey(
-    name: UserMstApiJsonKeys.tagYn,
-    fromJson: _tagYnFromJsonField,
-    toJson: _tagYnToJson,
+    name: UserMstApiJsonKeys.svYn,
+    fromJson: _svYnFromJsonField,
+    toJson: _svYnToJson,
   )
-  final TagYn tagYn;
+  final SvYn svYn;
+
+  @JsonKey(
+    name: UserMstApiJsonKeys.ownerYn,
+    fromJson: _ownerYnFromJsonField,
+    toJson: _ownerYnToJson,
+    defaultValue: OwnerYn.no,
+  )
+  final OwnerYn ownerYn;
 
   factory User.fromJson(Map<String, dynamic> json) {
     final m = Map<String, dynamic>.from(json);
-    final tag = m[UserMstApiJsonKeys.tagYn];
-    if (tag == null && m[UserMstApiJsonKeys.svYn] != null) {
-      m[UserMstApiJsonKeys.tagYn] = m[UserMstApiJsonKeys.svYn];
-    }
+    m[UserMstApiJsonKeys.userIdx] ??= 0;
+    m[UserMstApiJsonKeys.userName] ??= '';
+    m[UserMstApiJsonKeys.deptNm] ??= '';
+    m[UserMstApiJsonKeys.positionNm] ??= '';
+    m[UserMstApiJsonKeys.userPhone] ??= '';
+    m[UserMstApiJsonKeys.userEmail] ??= '';
+    m[UserMstApiJsonKeys.userId] ??= '';
     return _$UserFromJson(m);
   }
 
   Map<String, dynamic> toJson() => _$UserToJson(this);
 
-  /// POST `/users` 본문을 만든다. 필드 의미는 [User]와 동일하게 맞춘다.
   static UserMstWriteRequest buildCreateUserRequest({
     int? userIdx,
     required String name,
@@ -90,14 +98,14 @@ class User {
     String email = '',
     String joinDt = '',
     String positionCd = '',
-    bool tagYn = false,
+    bool svYn = false,
+    bool ownerYn = false,
   }) {
-    final yn = tagYn ? 'Y' : 'N';
     final body = <String, dynamic>{
       UserMstWriteRequest.jsonKeyUserName: name.trim(),
       UserMstWriteRequest.jsonKeyUserPassword: userPassword,
-      UserMstWriteRequest.jsonKeyTagYn: yn,
-      UserMstWriteRequest.jsonKeySvYn: yn,
+      UserMstWriteRequest.jsonKeySvYn: svYn ? 'Y' : 'N',
+      UserMstWriteRequest.jsonKeyOwnerYn: ownerYn ? 'Y' : 'N',
     };
     final uid = userId.trim();
     if (uid.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserId] = uid;
@@ -113,7 +121,6 @@ class User {
     return UserMstWriteRequest.fromMap(body);
   }
 
-  /// PUT `/users/:userIdx` — 비밀번호는 비어 있으면 본문에 넣지 않는다.
   static UserMstWriteRequest buildUpdateUserRequest({
     required String name,
     String userPassword = '',
@@ -123,13 +130,13 @@ class User {
     String email = '',
     String joinDt = '',
     String positionCd = '',
-    bool tagYn = false,
+    bool svYn = false,
+    bool ownerYn = false,
   }) {
-    final yn = tagYn ? 'Y' : 'N';
     final body = <String, dynamic>{
       UserMstWriteRequest.jsonKeyUserName: name.trim(),
-      UserMstWriteRequest.jsonKeyTagYn: yn,
-      UserMstWriteRequest.jsonKeySvYn: yn,
+      UserMstWriteRequest.jsonKeySvYn: svYn ? 'Y' : 'N',
+      UserMstWriteRequest.jsonKeyOwnerYn: ownerYn ? 'Y' : 'N',
     };
     final pw = userPassword.trim();
     if (pw.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserPassword] = pw;
@@ -156,13 +163,24 @@ String _joinDtFromJson(Object? v) {
   return str;
 }
 
-TagYn _tagYnFromJsonField(Object? value) {
-  if (value is TagYn) return value;
-  if (value is bool) return value ? TagYn.tagged : TagYn.untagged;
-  if (value is num) return value != 0 ? TagYn.tagged : TagYn.untagged;
+SvYn _svYnFromJsonField(Object? value) {
+  if (value is SvYn) return value;
+  if (value is bool) return value ? SvYn.yes : SvYn.no;
+  if (value is num) return value != 0 ? SvYn.yes : SvYn.no;
   final s = value?.toString().trim().toUpperCase() ?? '';
-  if (s == 'Y' || s == 'TRUE' || s == '1') return TagYn.tagged;
-  return TagYn.untagged;
+  if (s == 'Y' || s == 'TRUE' || s == '1') return SvYn.yes;
+  return SvYn.no;
 }
 
-String _tagYnToJson(TagYn v) => v == TagYn.tagged ? 'Y' : 'N';
+String _svYnToJson(SvYn v) => v == SvYn.yes ? 'Y' : 'N';
+
+OwnerYn _ownerYnFromJsonField(Object? value) {
+  if (value is OwnerYn) return value;
+  if (value is bool) return value ? OwnerYn.yes : OwnerYn.no;
+  if (value is num) return value != 0 ? OwnerYn.yes : OwnerYn.no;
+  final s = value?.toString().trim().toUpperCase() ?? '';
+  if (s == 'Y' || s == 'TRUE' || s == '1') return OwnerYn.yes;
+  return OwnerYn.no;
+}
+
+String _ownerYnToJson(OwnerYn v) => v == OwnerYn.yes ? 'Y' : 'N';

@@ -10,4 +10,6 @@ import java.util.Optional;
 public interface StoreRepository extends JpaRepository<Store, Integer> {
 
     Optional<Store> findByStoreIdx(Integer storeIdx);
+
+    Optional<Store> findByPropIdx(Integer propIdx);
 }

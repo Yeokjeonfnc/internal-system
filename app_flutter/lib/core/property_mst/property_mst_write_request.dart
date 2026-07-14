@@ -23,6 +23,8 @@ class PropertyMstWriteRequest {
   static const String jsonKeyMaintFee = PropertyMstApiJsonKeys.maintFee;
   static const String jsonKeyPropNotes = PropertyMstApiJsonKeys.propNotes;
   static const String jsonKeySurveyDt = PropertyMstApiJsonKeys.surveyDt;
+  static const String jsonKeyLatitude = PropertyMstApiJsonKeys.latitude;
+  static const String jsonKeyLongitude = PropertyMstApiJsonKeys.longitude;
 
   PropertyMstWriteRequest._(this._map);
 
@@ -50,4 +52,12 @@ abstract final class PropertyMstApiPaths {
   static const String root = '/properties';
 
   static String one(int propIdx) => '$root/$propIdx';
+
+  static String documents(int propIdx) => '${one(propIdx)}/documents';
+
+  static String documentDownload(int propIdx, int propertyDocIdx) =>
+      '${documents(propIdx)}/$propertyDocIdx/download';
+
+  static String documentOne(int propIdx, int propertyDocIdx) =>
+      '${documents(propIdx)}/$propertyDocIdx';
 }

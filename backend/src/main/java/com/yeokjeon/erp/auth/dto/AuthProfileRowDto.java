@@ -3,7 +3,7 @@ package com.yeokjeon.erp.auth.dto;
 import java.time.LocalDate;
 
 /**
- * MyBatis 조회 전용 — SQL 컬럼 12개와 1:1 (생성자 자동 매핑).
+ * MyBatis 조회 전용 — SQL 컬럼과 1:1 (생성자 자동 매핑).
  * API 응답은 {@link AuthProfileDto} 를 사용한다.
  */
 public record AuthProfileRowDto(
@@ -17,5 +17,8 @@ public record AuthProfileRowDto(
         String positionCd,
         String positionNm,
         String svYn,
-        String tagYn,
+        String ownerYn,
+        String adminYn,
+        Integer storeIdx,
+        String storeNm,
         LocalDate joinDt) {}

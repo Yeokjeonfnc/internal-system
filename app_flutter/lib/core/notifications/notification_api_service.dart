@@ -54,6 +54,20 @@ class NotificationApiService extends BaseRepository {
     }
   }
 
+  Future<bool> markAllRead(String userId) async {
+    if (userId.isEmpty) return false;
+    try {
+      final r = await client.patch(
+        NotifMstApiPaths.readAll,
+        queryParameters: {UserMstWriteRequest.jsonKeyUserId: userId},
+      );
+      return r.statusCode == 200 && envelopeSuccess(r.data);
+    } catch (e) {
+      debugPrint('알림 모두 읽음 처리 실패: $e');
+      return false;
+    }
+  }
+
   /// 활동 결재 화면 [결재하기]: `notif_mst` 대기(N) 건만 Y 로 반영.
   /// [apprNotes] 는 `active_mst.appr_notes` 에 그대로 반영한다(빈 문자열이면 DB NULL).
   /// 실패 시 서버 [ApiResponse.message] 를 [errorMessage] 로 돌려 얼럿에 쓴다.

@@ -13,4 +13,11 @@ abstract final class ActiveMstApiPaths {
   static const String listBySuggestions = '$root/list/by-suggestions';
   static const String listByCheck = '$root/list/by-check';
   static const String listByStatus = '$root/list/by-status';
+
+  static String attachments(int actIdx) => '$root/$actIdx/attachments';
+
+  static String attachmentDownload(int actIdx, int actAttIdx) =>
+      '$root/$actIdx/attachments/$actAttIdx/download';
+
+  static String signature(int actIdx) => '$root/$actIdx/signature';
 }

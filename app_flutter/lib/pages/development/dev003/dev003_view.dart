@@ -1,21 +1,29 @@
 // 영업지역 관리 — 필터·집계 탭·테이블.
 
 import 'package:app_flutter/core/widgets/common/common_search_filter_multi_select.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
+import 'package:app_flutter/core/widgets/common/common_status_badge.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 import 'package:app_flutter/core/widgets/common/erp_list_date_range_field.dart';
 import 'package:app_flutter/core/date/erp_list_date_presets.dart'
     show erpPresetDateRange;
+import 'package:app_flutter/core/layout/app_mobile_only.dart';
+import 'package:app_flutter/core/map/kakao_map_app_key_io.dart';
+import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/router/app_router.dart';
+import 'package:app_flutter/pages/development/dev003/dev003_api.dart';
 import 'package:app_flutter/pages/development/dev003/dev003_controller.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_flutter/pages/development/dev003/dev003_filter.dart';
@@ -49,6 +57,9 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
   @override
   void initState() {
     super.initState();
+    unawaited(SalesAreaApiService().prefetch());
+    // 영업지역 지도 팝업을 열기 전에 Kakao 지도 SDK 를 미리 캐시에 적재 → 첫 로딩 단축.
+    warmKakaoMapSdk();
     final f = ref.read(salesAreaProvider);
     _keywordCtrl = TextEditingController(text: f.keyword);
     _loadBrands();
@@ -105,10 +116,11 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
   }
 
   void _clearChip(SalesAreaNotifier n, CommonSearchFieldId id) {
-    setState(() => _resetFilter(n, id));
+    _resetFilter(n, id);
   }
 
   List<SearchFilterItemData> _mainFilterItems(
+    BuildContext context,
     SalesAreaFilter filter,
     SalesAreaNotifier n,
     List<String> brands,
@@ -125,7 +137,7 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
               label: def.label,
               value: filter.brandCd,
               options: brands,
-              onSelected: (v) => setState(() => n.setBrandCd(v)),
+              onSelected: n.setBrandCd,
             ).toItem(),
           );
           break;
@@ -163,9 +175,7 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
                 initialPresetLabel: '전체',
                 start: filter.rangeStart,
                 end: filter.rangeEnd,
-                onRangeChanged: (a, b) {
-                  setState(() => n.setDateRange(a, b));
-                },
+                onRangeChanged: n.setDateRange,
               ),
             ),
           );
@@ -185,10 +195,8 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
         ActiveFilterChip(
           label: '통합 검색: $kw',
           onClear: () {
-            setState(() {
-              _keywordCtrl.clear();
-              n.setKeyword('');
-            });
+            _keywordCtrl.clear();
+            n.setKeyword('');
           },
         ),
       );
@@ -237,18 +245,10 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
     return chips;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final filter = ref.watch(salesAreaProvider);
-    final n = ref.read(salesAreaProvider.notifier);
-    final listAsync = ref.watch(dev003DataProvider);
-    final regionOptions =
-        ref.watch(salesAreaCodeOptionsProvider(20)).valueOrNull ??
-        const <CodeOption>[];
-    final rawRows = listAsync.valueOrNull ?? const <SalesAreaRow>[];
-    final rows = dev003ApplyClientFilters(filter, rawRows, regionOptions);
-
-    final mainFields = Column(
+  Widget _buildMainSearchColumn(BuildContext context, WidgetRef watchRef) {
+    final filter = watchRef.watch(salesAreaProvider);
+    final n = watchRef.read(salesAreaProvider.notifier);
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SearchFilterTextField(
@@ -260,37 +260,73 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
             color: Colors.grey.shade500,
             size: 22,
           ),
-          onChanged: (_) => setState(() => n.setKeyword(_keywordCtrl.text)),
+          onChanged: n.setKeyword,
         ),
         const SizedBox(height: 8),
         SearchFilterStackedItems(
           items: _mainFilterItems(
+            context,
             filter,
             n,
             _brandChipLabels(),
             _regionChipLabels(),
           ),
         ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 16,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _ListFilterCheck(
+              label: '전략출점지역 보기',
+              value: filter.strategicOpeningOnly,
+              onChanged: n.setStrategicOpeningOnly,
+            ),
+            _ListFilterCheck(
+              label: '영업지역 미설정 포함',
+              value: filter.includeUnsetArea,
+              onChanged: n.setIncludeUnsetArea,
+            ),
+          ],
+        ),
       ],
     );
-    final counts = dev003AreaSummary(rows);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filter = ref.watch(salesAreaProvider);
+    final n = ref.read(salesAreaProvider.notifier);
+    final listAsync = ref.watch(dev003DataProvider);
+    final regionOptions =
+        ref.watch(salesAreaCodeOptionsProvider(20)).valueOrNull ??
+        const <CodeOption>[];
+    final rawRows = listAsync.valueOrNull ?? const <SalesAreaRow>[];
+    final rows = dev003ApplyClientFilters(filter, rawRows, regionOptions);
+
     return ListPageTemplate(
       activeFilters: _chips(filter, n),
-      mainSearchFields: mainFields,
-      belowMainSearch: _SalesAreaSummaryBar(
-        total: counts.total,
-        configured: counts.configured,
-        unset: counts.unset,
+      mainSearchFields: _buildMainSearchColumn(context, ref),
+      filterSheetBuilder: (sheetCtx) => Consumer(
+        builder: (_, sheetRef, _) => _buildMainSearchColumn(sheetCtx, sheetRef),
       ),
+      // belowMainSearch: _SalesAreaSummaryBar(
+      //   total: counts.total,
+      //   configured: counts.configured,
+      //   unset: counts.unset,
+      // ),
       countText: listAsync.when(
         data: (_) => '총 ${rows.length}건이 조회되었습니다.',
         loading: () => '목록을 불러오는 중…',
         error: (_, _) => '목록을 불러오지 못했습니다.',
       ),
-      onRefresh: () {
-        ref.invalidate(dev003DataProvider);
-        setState(() {});
-      },
+      onRefresh: () => ref.invalidate(dev003DataProvider),
+      registerMenuCd: kMenuDev003,
+      // 네이티브 앱에서는 영업지역 등록 버튼을 숨긴다(웹 전용 기능).
+      onRegister: isNativeMobileApp
+          ? null
+          : () => context.go('${AppRoutes.salesAreas}/register'),
       table: listAsync.when(
         loading: () => const Center(
           child: Padding(
@@ -315,99 +351,99 @@ class _SalesAreaListViewState extends ConsumerState<SalesAreaListView> {
   }
 }
 
-class _SalesAreaSummaryBar extends StatelessWidget {
-  const _SalesAreaSummaryBar({
-    required this.total,
-    required this.configured,
-    required this.unset,
-  });
+// class _SalesAreaSummaryBar extends StatelessWidget {
+//   const _SalesAreaSummaryBar({
+//     required this.total,
+//     required this.configured,
+//     required this.unset,
+//   });
 
-  final int total;
-  final int configured;
-  final int unset;
+//   final int total;
+//   final int configured;
+//   final int unset;
 
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        final narrow = c.maxWidth < 720;
-        if (narrow) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _summaryTile(label: '총가맹점', count: total),
-              const SizedBox(height: 7),
-              _summaryTile(label: '설정가맹점', count: configured),
-              const SizedBox(height: 7),
-              _summaryTile(label: '미설정가맹점', count: unset),
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _summaryTile(label: '총가맹점', count: total),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _summaryTile(label: '설정가맹점', count: configured),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _summaryTile(label: '미설정가맹점', count: unset),
-            ),
-          ],
-        );
-      },
-    );
-  }
+//   @override
+//   Widget build(BuildContext context) {
+//     return LayoutBuilder(
+//       builder: (context, c) {
+//         final narrow = c.maxWidth < 720;
+//         if (narrow) {
+//           return Column(
+//             crossAxisAlignment: CrossAxisAlignment.stretch,
+//             children: [
+//               _summaryTile(label: '총가맹점', count: total),
+//               const SizedBox(height: 7),
+//               _summaryTile(label: '설정가맹점', count: configured),
+//               const SizedBox(height: 7),
+//               _summaryTile(label: '미설정가맹점', count: unset),
+//             ],
+//           );
+//         }
+//         return Row(
+//           crossAxisAlignment: CrossAxisAlignment.start,
+//           children: [
+//             Expanded(
+//               child: _summaryTile(label: '총가맹점', count: total),
+//             ),
+//             const SizedBox(width: 10),
+//             Expanded(
+//               child: _summaryTile(label: '설정가맹점', count: configured),
+//             ),
+//             const SizedBox(width: 10),
+//             Expanded(
+//               child: _summaryTile(label: '미설정가맹점', count: unset),
+//             ),
+//           ],
+//         );
+//       },
+//     );
+//   }
 
-  static const _purpleBg = Color.fromRGBO(255, 218, 229, 1);
-  Widget _summaryTile({required String label, required int count}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
-      decoration: BoxDecoration(
-        color: _purpleBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: kSearchFilterTextColor,
-              fontFamilyFallback: AppTheme.koreanFontFallback,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '$count',
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.accentRed,
-              fontFamilyFallback: AppTheme.koreanFontFallback,
-            ),
-          ),
-          Text(
-            '개점',
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: kSearchFilterTextColor,
-              fontFamilyFallback: AppTheme.koreanFontFallback,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//   static const _purpleBg = Color.fromRGBO(255, 218, 229, 1);
+//   Widget _summaryTile({required String label, required int count}) {
+//     return Container(
+//       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+//       decoration: BoxDecoration(
+//         color: _purpleBg,
+//         borderRadius: BorderRadius.circular(8),
+//         border: Border.all(color: const Color(0xFFE5E7EB)),
+//       ),
+//       child: Row(
+//         mainAxisAlignment: MainAxisAlignment.center,
+//         children: [
+//           Text(
+//             label,
+//             style: TextStyle(
+//               fontSize: 14,
+//               fontWeight: FontWeight.w600,
+//               color: kSearchFilterTextColor,
+//               fontFamilyFallback: AppTheme.koreanFontFallback,
+//             ),
+//           ),
+//           const SizedBox(width: 8),
+//           Text(
+//             '$count',
+//             style: const TextStyle(
+//               fontSize: 15,
+//               fontWeight: FontWeight.w800,
+//               color: AppTheme.accentRed,
+//               fontFamilyFallback: AppTheme.koreanFontFallback,
+//             ),
+//           ),
+//           Text(
+//             '개점',
+//             style: const TextStyle(
+//               fontSize: 15,
+//               fontWeight: FontWeight.w800,
+//               color: kSearchFilterTextColor,
+//               fontFamilyFallback: AppTheme.koreanFontFallback,
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }
 
 class _SalesAreaTable extends StatelessWidget {
   const _SalesAreaTable({
@@ -420,11 +456,12 @@ class _SalesAreaTable extends StatelessWidget {
   final List<CodeOption> regionOptions;
   final void Function(SalesAreaRow row) onRowDoubleTap;
 
-  static Widget _cell(Widget child, {required void Function() onDoubleTap}) {
+  static Widget _cell(Widget child, {required void Function() onOpen}) {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onDoubleTap: onDoubleTap,
+        onTap: onOpen,
+        onDoubleTap: onOpen,
         behavior: HitTestBehavior.opaque,
         child: child,
       ),
@@ -433,79 +470,87 @@ class _SalesAreaTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ErpDataTable(
-      minWidth: 1280,
-      tableBuilder: (context, _) => Table(
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        border: kErpTableInnerGridBorder,
-        columnWidths: const {
-          0: FixedColumnWidth(110),
-          1: FlexColumnWidth(1.1),
-          2: FixedColumnWidth(80),
-          3: FixedColumnWidth(80),
-          4: FlexColumnWidth(1.4),
-          5: FixedColumnWidth(120),
-          6: FixedColumnWidth(100),
-          7: FlexColumnWidth(1.2),
-        },
-        children: [
-          TableRow(
-            decoration: const BoxDecoration(color: AppTheme.accentRed),
-            children: const [
-              ErpTableHeaderCell('설정일자'),
-              ErpTableHeaderCell('물건명'),
-              ErpTableHeaderCell('지역'),
-              ErpTableHeaderCell('가맹여부'),
-              ErpTableHeaderCell('가맹점명'),
-              ErpTableHeaderCell('브랜드'),
-              ErpTableHeaderCell('영업지역설정'),
-              ErpTableHeaderCell('영업지역명'),
-            ],
-          ),
-          ...rows.asMap().entries.map((entry) {
-            final e = entry.value;
-            void open() => onRowDoubleTap(e);
-            return TableRow(
-              decoration: BoxDecoration(
-                color: entry.key.isEven
-                    ? AppTheme.tableRowOdd
-                    : AppTheme.tableRowEven,
-              ),
-              children: [
-                _cell(
-                  ErpTableBodyCell(e.settingDateYmd, center: true),
-                  onDoubleTap: open,
-                ),
-                _cell(
-                  ErpTableBodyCell(e.propertyName, center: true),
-                  onDoubleTap: open,
-                ),
-                _cell(
-                  ErpTableBodyCell(
-                    _regionNm(e.region, regionOptions),
-                    center: true,
-                  ),
-                  onDoubleTap: open,
-                ),
-                _cell(
-                  ErpTableBodyCell(e.franchiseLabel, center: true),
-                  onDoubleTap: open,
-                ),
-                _cell(ErpTableBodyCell(e.storeName), onDoubleTap: open),
-                _cell(
-                  ErpTableBodyCell(e.brand, center: true),
-                  onDoubleTap: open,
-                ),
-                _cell(
-                  ErpTableBodyCell(e.areaSettingLabel, center: true),
-                  onDoubleTap: open,
-                ),
-                _cell(ErpTableBodyCell(e.salesAreaName), onDoubleTap: open),
-              ],
-            );
-          }),
+    return ErpVirtualDataTable(
+      minWidth: AppDimensions.tableMinWidthStandard,
+      columnWidths: const {
+        0: FixedColumnWidth(110),
+        1: FlexColumnWidth(1.1),
+        2: FixedColumnWidth(80),
+        3: FixedColumnWidth(80),
+        4: FlexColumnWidth(1.4),
+        5: FixedColumnWidth(120),
+        6: FixedColumnWidth(100),
+        7: FlexColumnWidth(1.2),
+      },
+      headerRow: TableRow(
+        decoration: kErpTableHeaderRowDecoration,
+        children: const [
+          ErpTableHeaderCell('설정일자'),
+          ErpTableHeaderCell('물건명'),
+          ErpTableHeaderCell('지역'),
+          ErpTableHeaderCell('가맹여부'),
+          ErpTableHeaderCell('가맹점명'),
+          ErpTableHeaderCell('브랜드'),
+          ErpTableHeaderCell('영업지역설정'),
+          ErpTableHeaderCell('영업지역명'),
         ],
       ),
+      rowCount: rows.length,
+      rowBuilder: (rowContext, index) {
+        final e = rows[index];
+        void open() => onRowDoubleTap(e);
+        return TableRow(
+          decoration: BoxDecoration(
+            color: index.isEven ? AppTheme.tableRowOdd : AppTheme.tableRowEven,
+          ),
+          children: [
+            _cell(
+              ErpTableBodyCell(e.settingDateYmd, center: true),
+              onOpen: open,
+            ),
+            _cell(ErpTableBodyCell(e.propertyName, center: true), onOpen: open),
+            _cell(
+              ErpTableBodyCell(
+                _dev003RegionCellLabel(e, regionOptions),
+                center: true,
+              ),
+              onOpen: open,
+            ),
+            _cell(
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: StatusBadge(
+                    e.franchiseLabel,
+                    showDot: false,
+                    color: e.franchiseLabel.trim() == '가맹'
+                        ? AppTheme.statusRenewal
+                        : AppTheme.textMuted,
+                  ),
+                ),
+              ),
+              onOpen: open,
+            ),
+            _cell(ErpTableBodyCell(e.storeName), onOpen: open),
+            _cell(ErpTableBodyCell(e.brand, center: true), onOpen: open),
+            _cell(
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: StatusBadge(
+                    e.areaSettingLabel,
+                    color: e.areaSettingLabel.trim() == '설정완료'
+                        ? AppTheme.statusNew
+                        : AppTheme.textMuted,
+                  ),
+                ),
+              ),
+              onOpen: open,
+            ),
+            _cell(ErpTableBodyCell(e.salesAreaName), onOpen: open),
+          ],
+        );
+      },
     );
   }
 }
@@ -516,4 +561,60 @@ String _regionNm(String code, List<CodeOption> options) {
     if (option.codeCd == code) return option.codeNm;
   }
   return code;
+}
+
+String _dev003RegionCellLabel(SalesAreaRow row, List<CodeOption> options) {
+  final code = row.regionCd.trim();
+  if (code.isNotEmpty) {
+    final fromCode = _regionNm(code, options);
+    if (fromCode != '-') return fromCode;
+    return code;
+  }
+  final name = row.region.trim();
+  return name.isEmpty ? '-' : name;
+}
+
+class _ListFilterCheck extends StatelessWidget {
+  const _ListFilterCheck({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Checkbox(
+                value: value,
+                onChanged: (v) => onChanged(v ?? false),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: kSearchFilterValueTextStyle.copyWith(
+                color: kSearchFilterTextColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -16,5 +16,5 @@ public record UserMstCreateRequestDto(
         String userEmail,
         String svYn,
         String positionCd,
-        String tagYn,
+        String ownerYn,
         LocalDate joinDt) {}

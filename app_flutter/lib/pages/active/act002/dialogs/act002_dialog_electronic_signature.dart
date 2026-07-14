@@ -6,34 +6,182 @@ import 'package:flutter/material.dart';
 import 'package:signature/signature.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/core/theme/app_dimensions.dart';
+import 'package:app_flutter/core/theme/form_style_palette.dart';
+import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
 
-/// 다크 톤 헤더·본문(요청 UI에 맞춤).
-const Color _kSigHeaderBg = Color(0xFF1E3A5F);
-const Color _kSigBodyBg = Color(0xFF243B55);
-const Color _kSigAccentBtn = Color(0xFF2563EB);
+/// 전자서명 [저장] 직전 확인 — 미평가 체크리스트 유무에 따라 문구가 달라진다.
+Future<bool> showAct002ElectronicSignatureSaveConfirmDialog(
+  BuildContext context, {
+  required bool hasChecklistGaps,
+}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    useRootNavigator: false,
+    builder: (ctx) => _Act002ElectronicSignatureSaveConfirmDialog(
+      hasChecklistGaps: hasChecklistGaps,
+    ),
+  );
+  return ok == true;
+}
+
+class _Act002ElectronicSignatureSaveConfirmDialog extends StatelessWidget {
+  const _Act002ElectronicSignatureSaveConfirmDialog({
+    required this.hasChecklistGaps,
+  });
+
+  final bool hasChecklistGaps;
+
+  static const TextStyle _bodyStyle = TextStyle(
+    fontSize: 15,
+    height: 1.5,
+    color: FormStylePalette.textPrimary,
+    fontFamilyFallback: AppTheme.koreanFontFallback,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Material(
+          color: FormStylePalette.panelBg,
+          borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ErpDialogHeader(
+                title: '확인',
+                onClose: () => Navigator.of(context).pop(false),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (hasChecklistGaps) ...[
+                      const Text(
+                        '미평가 체크리스트가 존재합니다.',
+                        textAlign: TextAlign.center,
+                        style: _bodyStyle,
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    const Text(
+                      '전자서명을 저장하면 입력된 내용 수정 불가합니다.',
+                      textAlign: TextAlign.center,
+                      style: _bodyStyle,
+                    ),
+                    const SizedBox(height: 10),
+                    RichText(
+                      textAlign: TextAlign.center,
+                      text: const TextSpan(
+                        style: _bodyStyle,
+                        children: [
+                          TextSpan(text: '바로 '),
+                          TextSpan(
+                            text: '상신',
+                            style: TextStyle(
+                              color: AppTheme.accentRed,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          TextSpan(text: ' 하시겠습니까?'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    FilledButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.accentRed,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 28,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: const Text(
+                        '확인',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: FormStylePalette.neutralGray,
+                        side: const BorderSide(color: FormStylePalette.panelBorder),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 28,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: const Text(
+                        '취소',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// 서명 패드 팝업. [저장] 시 PNG 바이트를 반환, 취소·닫기는 `null`.
 ///
-/// [confirmIfChecklistIncomplete] 가 있으면 저장 직전에 호출되며, `false`면 저장하지 않는다.
+/// [hasChecklistGaps] — 미평가 체크리스트 여부. 저장 직전 확인 팝업 문구에 반영된다.
 Future<Uint8List?> showAct002ElectronicSignatureDialog(
   BuildContext context, {
-  Future<bool> Function()? confirmIfChecklistIncomplete,
+  bool Function()? hasChecklistGaps,
 }) {
   return showDialog<Uint8List?>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) => _Act002ElectronicSignatureDialogBody(
-      confirmIfChecklistIncomplete: confirmIfChecklistIncomplete,
+      hasChecklistGaps: hasChecklistGaps,
     ),
   );
 }
 
 class _Act002ElectronicSignatureDialogBody extends StatefulWidget {
   const _Act002ElectronicSignatureDialogBody({
-    this.confirmIfChecklistIncomplete,
+    this.hasChecklistGaps,
   });
 
-  final Future<bool> Function()? confirmIfChecklistIncomplete;
+  final bool Function()? hasChecklistGaps;
 
   @override
   State<_Act002ElectronicSignatureDialogBody> createState() =>
@@ -71,24 +219,35 @@ class _Act002ElectronicSignatureDialogBodyState
       );
       return;
     }
-    final checker = widget.confirmIfChecklistIncomplete;
-    if (checker != null) {
-      final ok = await checker();
-      if (!mounted) return;
-      if (!ok) return;
-    }
-    final bytes = await _controller.toPngBytes();
+    final gaps = widget.hasChecklistGaps?.call() ?? false;
+    final confirmed = await showAct002ElectronicSignatureSaveConfirmDialog(
+      context,
+      hasChecklistGaps: gaps,
+    );
     if (!mounted) return;
-    if (bytes == null || bytes.isEmpty) {
+    if (!confirmed) return;
+    try {
+      final bytes = await _controller.toPngBytes();
+      if (!mounted) return;
+      if (bytes == null || bytes.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('서명을 저장할 수 없습니다. 다시 시도해 주세요.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      Navigator.of(context).pop(bytes);
+    } catch (_) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('서명을 저장할 수 없습니다. 다시 시도해 주세요.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
-      return;
     }
-    Navigator.of(context).pop(bytes);
   }
 
   @override
@@ -100,58 +259,69 @@ class _Act002ElectronicSignatureDialogBodyState
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
         child: Material(
-          color: _kSigBodyBg,
-          borderRadius: BorderRadius.circular(10),
+          color: FormStylePalette.panelBg,
+          borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
           clipBehavior: Clip.antiAlias,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              DecoratedBox(
-                decoration: const BoxDecoration(color: _kSigHeaderBg),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 4, 10),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          '전자서명',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            fontFamilyFallback: AppTheme.koreanFontFallback,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close_rounded, size: 22),
-                        color: Colors.white,
-                        tooltip: '닫기',
-                        style: IconButton.styleFrom(
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          minimumSize: const Size(40, 40),
-                          hoverColor: Colors.white24,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              ErpDialogHeader(
+                title: '전자서명',
+                onClose: () => Navigator.of(context).pop(),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Row(
                   children: [
-                    _HeaderButton(
-                      label: '초기화',
+                    OutlinedButton(
                       onPressed: () {
                         _controller.clear();
                         setState(() {});
                       },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: FormStylePalette.textPrimary,
+                        side: const BorderSide(color: FormStylePalette.panelBorder),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: const Text(
+                        '초기화',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 10),
-                    _HeaderButton(label: '저장', onPressed: _onSave),
+                    FilledButton(
+                      onPressed: _onSave,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.accentRed,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: const Text(
+                        '저장',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -161,10 +331,14 @@ class _Act002ElectronicSignatureDialogBodyState
                   builder: (context, c) {
                     final w = c.maxWidth.isFinite ? c.maxWidth : 520.0;
                     const h = 280.0;
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: ColoredBox(
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
                         color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: FormStylePalette.panelBorder),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
                         child: Signature(
                           key: const ValueKey<String>('act002_sig_pad'),
                           controller: _controller,
@@ -181,32 +355,6 @@ class _Act002ElectronicSignatureDialogBodyState
           ),
         ),
       ),
-    );
-  }
-}
-
-class _HeaderButton extends StatelessWidget {
-  const _HeaderButton({required this.label, required this.onPressed});
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton(
-      onPressed: onPressed,
-      style: FilledButton.styleFrom(
-        backgroundColor: _kSigAccentBtn,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-        textStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          fontFamilyFallback: AppTheme.koreanFontFallback,
-        ),
-      ),
-      child: Text(label),
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
@@ -40,6 +41,27 @@ class Act002Api extends BaseRepository {
       if (storeIdx != null) {
         path = ActiveMstApiPaths.listByStore;
         queryParameters = {ActiveMstApiJsonKeys.storeIdx: storeIdx};
+        final maps = await getDataListMap(
+          path,
+          queryParameters: queryParameters,
+        );
+        var rows = maps.map(ActivityRow.fromJson).toList();
+        // by-store API는 apprStatus를 받지 않음 — 쿼리와 함께 온 경우 클라이언트에서 필터.
+        if (apprStatus != null && apprStatus.isNotEmpty) {
+          final allowed = apprStatus
+              .split(',')
+              .map((s) => s.trim().toUpperCase())
+              .where((s) => s.isNotEmpty)
+              .toSet();
+          if (allowed.isNotEmpty) {
+            rows = rows
+                .where(
+                  (r) => allowed.contains(r.apprStatus.trim().toUpperCase()),
+                )
+                .toList();
+          }
+        }
+        return rows;
       } else if (hasApprNote) {
         path = ActiveMstApiPaths.listByApprNote;
         queryParameters = <String, dynamic>{};
@@ -53,8 +75,7 @@ class Act002Api extends BaseRepository {
         path = ActiveMstApiPaths.listByStatus;
         queryParameters = {
           ActiveMstApiJsonKeys.apprStatus: apprStatus,
-          if (svId != null && svId.isNotEmpty)
-            ActiveMstApiJsonKeys.svId: svId,
+          if (svId != null && svId.isNotEmpty) ActiveMstApiJsonKeys.svId: svId,
           if (relUserId != null && relUserId.isNotEmpty)
             ActiveMstQueryParamKeys.relUserId: relUserId,
         };
@@ -74,10 +95,10 @@ class Act002Api extends BaseRepository {
   /// 임시보관(작성 중) — `apprStatus=DRAFT`, 작성자는 `sv_id`와 동일한 로그인 `user_id`.
   /// 백엔드는 `svId` 우선, 없으면 `relUserId`로 작성자 필터를 적용한다.
   Future<List<ActivityRow>> fetchDraftRows({String? svId}) => fetchList(
-        apprStatus: ActiveMstListApprStatus.draft,
-        svId: svId,
-        relUserId: svId,
-      );
+    apprStatus: ActiveMstListApprStatus.draft,
+    svId: svId,
+    relUserId: svId,
+  );
 
   /// 활동관리결재 「전체」.
   Future<List<ActivityRow>> fetchAllRows() => fetchList();
@@ -133,7 +154,9 @@ class Act002Api extends BaseRepository {
       fetchList(svId: svId, hasApprNote: true);
 
   /// 지시사항 탭(활동관리결재): `appr_notes`·비`PENDING`·`notif_mst`·`appr_id` 결재선.
-  Future<List<ActivityRow>> fetchRowsForApproverMemoInstructions(String userId) async {
+  Future<List<ActivityRow>> fetchRowsForApproverMemoInstructions(
+    String userId,
+  ) async {
     if (userId.isEmpty) return const [];
     try {
       final maps = await getDataListMap(
@@ -148,17 +171,26 @@ class Act002Api extends BaseRepository {
   }
 
   /// 가맹점별 `DRAFT` 후보(등록 화면 중복 임시저장 방지).
-  Future<List<ActivityRow>> fetchDraftRowsForStore(int storeIdx) => fetchList(
-        apprStatus: ActiveMstListApprStatus.draft,
-        storeIdx: storeIdx,
-      );
+  /// [svId]가 있으면 작성자 필터가 적용된 임시보관 목록에서 가맹점만 거른다.
+  Future<List<ActivityRow>> fetchDraftRowsForStore(
+    int storeIdx, {
+    String? svId,
+  }) async {
+    if (svId != null && svId.isNotEmpty) {
+      final drafts = await fetchDraftRows(svId: svId);
+      return drafts.where((r) => r.storeIdx == storeIdx).toList();
+    }
+    return fetchList(
+      apprStatus: ActiveMstListApprStatus.draft,
+      storeIdx: storeIdx,
+    );
+  }
 
   /// 방문 이력 다이얼로그 — 가맹점 + `apprStatus` CSV.
   Future<List<ActivityRow>> fetchRowsForStoreHistory({
     required int storeIdx,
     required String apprStatusCsv,
-  }) =>
-      fetchList(storeIdx: storeIdx, apprStatus: apprStatusCsv);
+  }) => fetchList(storeIdx: storeIdx, apprStatus: apprStatusCsv);
 
   /// 가맹점 지시사항 다이얼로그 — `APPROVED` + `appr_notes` + `store_idx`.
   Future<List<ActivityRow>> fetchRowsForStoreInstructions(int storeIdx) async {
@@ -241,8 +273,138 @@ class Act002Api extends BaseRepository {
     return const [];
   }
 
+  static const int maxAttachmentTotalBytes = 209715200;
+
+  Future<List<ActAttachment>> fetchAttachments(int actIdx) async {
+    try {
+      return await getDataList(
+        ActiveMstApiPaths.attachments(actIdx),
+        fromJson: ActAttachment.fromJson,
+      );
+    } catch (e) {
+      debugPrint('Error fetching activity attachments: $e');
+    }
+    return const [];
+  }
+
+  Future<ActAttachment?> uploadAttachment({
+    required int actIdx,
+    required String fileName,
+    required List<int> bytes,
+    required String userId,
+    void Function(String message)? onServerMessage,
+  }) async {
+    void fail(String m) {
+      if (onServerMessage != null) {
+        onServerMessage(m);
+      } else {
+        debugPrint('uploadAttachment: $m');
+      }
+    }
+
+    try {
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: fileName),
+      });
+      final r = await client.postMultipart(
+        ActiveMstApiPaths.attachments(actIdx),
+        formData: formData,
+        queryParameters: {
+          if (userId.isNotEmpty) ActiveMstApiJsonKeys.userId: userId,
+        },
+      );
+      if (r.data == null) {
+        fail('서버 응답이 비어 있습니다.');
+        return null;
+      }
+      if (!envelopeSuccess(r.data)) {
+        fail(envelopeMessage(r.data) ?? '업로드에 실패했습니다.');
+        return null;
+      }
+      if (!isHttpSuccess(r.statusCode)) {
+        fail('업로드에 실패했습니다.');
+        return null;
+      }
+      return parseDataOrNull(r.data, ActAttachment.fromJson);
+    } catch (e, st) {
+      debugPrint('Error uploading activity attachment: $e\n$st');
+      fail('업로드에 실패했습니다.');
+    }
+    return null;
+  }
+
+  Future<bool> deleteAttachment(int actIdx, int actAttIdx) async {
+    return deleteOk(
+      '${ActiveMstApiPaths.attachments(actIdx)}/$actAttIdx',
+    );
+  }
+
+  Future<Uint8List?> downloadAttachmentBytes(int actIdx, int actAttIdx) async {
+    try {
+      final r = await client.get(
+        ActiveMstApiPaths.attachmentDownload(actIdx, actAttIdx),
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 60),
+          headers: {Headers.acceptHeader: '*/*'},
+        ),
+      );
+      if (!isHttpSuccess(r.statusCode) || r.data == null) return null;
+      final data = r.data;
+      if (data is Uint8List) return data;
+      if (data is List<int>) return Uint8List.fromList(data);
+      return null;
+    } catch (e, st) {
+      debugPrint('downloadAttachmentBytes: $e\n$st');
+      return null;
+    }
+  }
+
+  Future<bool> uploadSignature(int actIdx, Uint8List bytes) async {
+    try {
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: 'signature.png',
+        ),
+      });
+      final r = await client.postMultipart(
+        ActiveMstApiPaths.signature(actIdx),
+        formData: formData,
+      );
+      if (r.data == null) return false;
+      return envelopeSuccess(r.data) && isHttpSuccess(r.statusCode);
+    } catch (e, st) {
+      debugPrint('Error uploading signature: $e\n$st');
+      return false;
+    }
+  }
+
+  Future<Uint8List?> downloadSignatureBytes(int actIdx) async {
+    try {
+      final r = await client.get(
+        ActiveMstApiPaths.signature(actIdx),
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 30),
+          headers: {Headers.acceptHeader: '*/*'},
+        ),
+      );
+      if (!isHttpSuccess(r.statusCode) || r.data == null) return null;
+      final data = r.data;
+      if (data is Uint8List) return data;
+      if (data is List<int>) return Uint8List.fromList(data);
+      return null;
+    } catch (e, st) {
+      debugPrint('downloadSignatureBytes: $e\n$st');
+      return null;
+    }
+  }
+
   /// 등록 화면 — 브랜드별 체크리스트 마스터 `GET /checklists` (`ChkMstApiPaths`).
-  Future<List<ChecklistItem>> fetchChecklistMastersByBrand(String brandCd) async {
+  Future<List<ChecklistItem>> fetchChecklistMastersByBrand(
+    String brandCd,
+  ) async {
     try {
       return await getDataList(
         ChkMstApiPaths.root,

@@ -1,7 +1,7 @@
 // 마스터 mst003 — 메뉴권한 관리.
 
+import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart' as provider;
 
 import 'package:app_flutter/core/auth/auth_provider.dart';
@@ -18,6 +18,7 @@ import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cell
 import 'package:app_flutter/pages/master/mst001/mst001_api.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
 import 'package:app_flutter/pages/master/mst003/mst003_api.dart';
+import 'package:app_flutter/pages/master/mst003/mst003_team_view_section.dart';
 
 /// 메뉴권한 관리
 class MenuPermissionManagementView extends StatefulWidget {
@@ -40,6 +41,7 @@ class _MenuPermissionManagementViewState
   bool _loadingUsers = true;
   bool _loadingPerms = false;
   bool _saving = false;
+  bool _teamViewExpanded = false;
   String? _error;
 
   @override
@@ -79,7 +81,10 @@ class _MenuPermissionManagementViewState
   }
 
   void _selectUser(User user) {
-    setState(() => _selectedUserIdx = user.userIdx);
+    setState(() {
+      _selectedUserIdx = user.userIdx;
+      _teamViewExpanded = false;
+    });
     _loadPermissions(user.userIdx);
   }
 
@@ -139,9 +144,9 @@ class _MenuPermissionManagementViewState
                 (r) => UserMenuPermissionSaveItem(
                   menuCd: r.menuCd,
                   canView: r.canView,
-                  canCreate: r.canCreate,
-                  canUpdate: r.canUpdate,
-                  canDelete: r.canDelete,
+                  canCreate: r.menuCd == kMenuMst002 ? false : r.canCreate,
+                  canUpdate: r.menuCd == kMenuMst002 ? false : r.canUpdate,
+                  canDelete: r.menuCd == kMenuMst002 ? false : r.canDelete,
                 ),
               )
               .toList(),
@@ -155,8 +160,14 @@ class _MenuPermissionManagementViewState
       if (!mounted) return;
       // 본인 권한이 변경된 경우, 로컬 AuthProvider 캐시도 즉시 갱신해
       // 다른 화면(예: dev001 삭제 버튼 노출)이 새 권한을 따르도록 한다.
-      await provider.Provider.of<AuthProvider>(context, listen: false)
-          .applyMenuPermissionsForUser(userIdx, _rows);
+      await provider.Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).applyMenuPermissionsForUser(
+        userIdx,
+        _rows,
+        userId: _selectedUser?.userId,
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -173,9 +184,9 @@ class _MenuPermissionManagementViewState
         if (!r.isLeaf) return r;
         return r.copyWith(
           canView: on,
-          canCreate: on,
-          canUpdate: on,
-          canDelete: on,
+          canCreate: r.menuCd == kMenuMst002 ? false : on,
+          canUpdate: r.menuCd == kMenuMst002 ? false : on,
+          canDelete: r.menuCd == kMenuMst002 ? false : on,
         );
       }).toList();
     });
@@ -183,6 +194,12 @@ class _MenuPermissionManagementViewState
 
   void _setFlag(MenuPermission row, _PermCol col, bool? value) {
     if (!row.isLeaf) return;
+    if (row.menuCd == kMenuMst002 &&
+        (col == _PermCol.create ||
+            col == _PermCol.update ||
+            col == _PermCol.delete)) {
+      return;
+    }
     final on = value ?? false;
     setState(() {
       _rows = _rows.map((r) {
@@ -332,6 +349,7 @@ class _MenuPermissionManagementViewState
                     setState(() {
                       _selectedUserIdx = null;
                       _rows = [];
+                      _teamViewExpanded = false;
                     });
                   },
                 ),
@@ -382,7 +400,8 @@ class _MenuPermissionManagementViewState
                     user.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.jua(
+                    style: TextStyle(
+                      fontFamily: AppTheme.brandFontFamily,
                       fontSize: 15,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                       color: selected
@@ -485,9 +504,13 @@ class _MenuPermissionManagementViewState
                       setState(() {
                         _selectedUserIdx = null;
                         _rows = [];
+                        _teamViewExpanded = false;
                       });
                     },
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 20,
+                    ),
                   ),
                   Expanded(
                     child: _selectedUser == null
@@ -498,6 +521,7 @@ class _MenuPermissionManagementViewState
                               setState(() {
                                 _selectedUserIdx = null;
                                 _rows = [];
+                                _teamViewExpanded = false;
                               });
                             },
                           ),
@@ -564,7 +588,9 @@ class _MenuPermissionManagementViewState
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Text('저장'),
                       ),
@@ -575,11 +601,7 @@ class _MenuPermissionManagementViewState
           if (_selectedUserIdx == null)
             Expanded(
               child: Center(
-                child: Text(
-                  compact
-                      ? '사원을 검색해 선택하세요.'
-                      : '왼쪽에서 사원을 검색해 선택하세요.',
-                ),
+                child: Text(compact ? '사원을 검색해 선택하세요.' : '왼쪽에서 사원을 검색해 선택하세요.'),
               ),
             )
           else if (_loadingPerms)
@@ -594,6 +616,11 @@ class _MenuPermissionManagementViewState
                     rows: _rows,
                     onChanged: _setFlag,
                     width: width,
+                    teamViewUserIdx: _selectedUserIdx,
+                    teamViewUserName: _selectedUser?.name,
+                    teamViewExpanded: _teamViewExpanded,
+                    onTeamViewExpandToggle: () =>
+                        setState(() => _teamViewExpanded = !_teamViewExpanded),
                   ),
                 ),
               ),
@@ -634,7 +661,8 @@ class _SelectedUserChip extends StatelessWidget {
                   user.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.jua(
+                  style: TextStyle(
+                      fontFamily: AppTheme.brandFontFamily,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: AppTheme.accentRed,
@@ -677,59 +705,157 @@ class _PermissionTable extends StatelessWidget {
     required this.rows,
     required this.onChanged,
     required this.width,
+    this.teamViewUserIdx,
+    this.teamViewUserName,
+    this.teamViewExpanded = false,
+    this.onTeamViewExpandToggle,
   });
 
   final List<MenuPermission> rows;
   final void Function(MenuPermission row, _PermCol col, bool? value) onChanged;
   final double width;
+  final int? teamViewUserIdx;
+  final String? teamViewUserName;
+  final bool teamViewExpanded;
+  final VoidCallback? onTeamViewExpandToggle;
 
   static const double _permColMin = 96;
+
+  Map<int, TableColumnWidth> _columnWidths(double menuW, double permW) => {
+    0: FixedColumnWidth(menuW),
+    1: FixedColumnWidth(permW),
+    2: FixedColumnWidth(permW),
+    3: FixedColumnWidth(permW),
+    4: FixedColumnWidth(permW),
+  };
+
+  Table _dataTable({
+    required double menuW,
+    required double permW,
+    required TableRow row,
+  }) {
+    return Table(
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      border: kErpTableInnerGridBorder,
+      columnWidths: _columnWidths(menuW, permW),
+      children: [row],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final permW = ((width - 360) / 4).clamp(_permColMin, 140.0);
     final menuW = width - permW * 4;
+    final columnWidths = _columnWidths(menuW, permW);
 
     return SizedBox(
       width: width,
-      child: Table(
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        border: kErpTableInnerGridBorder,
-        columnWidths: {
-          0: FixedColumnWidth(menuW),
-          1: FixedColumnWidth(permW),
-          2: FixedColumnWidth(permW),
-          3: FixedColumnWidth(permW),
-          4: FixedColumnWidth(permW),
-        },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const TableRow(
-            decoration: BoxDecoration(color: AppTheme.accentRed),
-            children: [
-              ErpTableHeaderCell('메뉴'),
-              ErpTableHeaderCell('조회'),
-              ErpTableHeaderCell('등록'),
-              ErpTableHeaderCell('수정'),
-              ErpTableHeaderCell('삭제'),
+          Table(
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            border: kErpTableInnerGridBorder,
+            columnWidths: columnWidths,
+            children: const [
+              TableRow(
+                decoration: kErpTableHeaderRowDecoration,
+                children: [
+                  ErpTableHeaderCell('메뉴'),
+                  ErpTableHeaderCell('조회'),
+                  ErpTableHeaderCell('등록'),
+                  ErpTableHeaderCell('수정'),
+                  ErpTableHeaderCell('삭제'),
+                ],
+              ),
             ],
           ),
-          ...rows.asMap().entries.map((entry) {
+          ...rows.asMap().entries.expand((entry) {
             final row = entry.value;
             final depth = row.parentMenuCd == null ? 0 : 1;
             final bg = entry.key.isEven
                 ? AppTheme.tableRowOdd
                 : AppTheme.tableRowEven;
-            return TableRow(
-              decoration: BoxDecoration(color: bg),
-              children: [
-                ErpTableBodyCell('${'  ' * depth}${row.menuNm}', center: true),
-                _permCell(row, _PermCol.view),
-                _permCell(row, _PermCol.create),
-                _permCell(row, _PermCol.update),
-                _permCell(row, _PermCol.delete),
-              ],
-            );
+            final isAct004 = row.menuCd == kMenuAct004;
+            final out = <Widget>[
+              _dataTable(
+                menuW: menuW,
+                permW: permW,
+                row: TableRow(
+                  decoration: BoxDecoration(color: bg),
+                  children: [
+                    _menuCell(row, depth),
+                    _permCell(row, _PermCol.view),
+                    _permCell(row, _PermCol.create),
+                    _permCell(row, _PermCol.update),
+                    _permCell(row, _PermCol.delete),
+                  ],
+                ),
+              ),
+            ];
+            if (isAct004 &&
+                teamViewExpanded &&
+                teamViewUserIdx != null &&
+                teamViewUserName != null) {
+              out.add(
+                Align(
+                  alignment: Alignment.center,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: SizedBox(
+                      width: 500,
+                      child: Mst003TeamViewPanel(
+                        userIdx: teamViewUserIdx!,
+                        userName: teamViewUserName!,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+            return out;
           }),
+        ],
+      ),
+    );
+  }
+
+  Widget _menuCell(MenuPermission row, int depth) {
+    final label = '${'  ' * depth}${row.menuNm}';
+    final isAct004 = row.menuCd == kMenuAct004;
+    if (!isAct004 || onTeamViewExpandToggle == null) {
+      return ErpTableBodyCell(label, center: true);
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppDimensions.tableCellPaddingH,
+        vertical: AppDimensions.tableCellPaddingV,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Flexible(
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15, color: Color(0xFF334155)),
+            ),
+          ),
+          InkWell(
+            onTap: onTeamViewExpandToggle,
+            borderRadius: BorderRadius.circular(4),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(
+                teamViewExpanded
+                    ? Icons.keyboard_arrow_up
+                    : Icons.keyboard_arrow_down,
+                size: 20,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -739,6 +865,29 @@ class _PermissionTable extends StatelessWidget {
     if (!row.isLeaf) {
       return const ErpTableBodyCell('', center: true);
     }
+    if (row.menuCd == kMenuMst002 &&
+        (col == _PermCol.create ||
+            col == _PermCol.update ||
+            col == _PermCol.delete)) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppDimensions.tableCellPaddingH,
+          vertical: AppDimensions.tableCellPaddingV,
+        ),
+        child: Center(
+          child: Text(
+            '🔒',
+            style: TextStyle(
+              fontSize: 20,
+              height: 1.2,
+              color: const Color(0xFF6B7280),
+              fontFamilyFallback: AppTheme.koreanFontFallback,
+            ),
+          ),
+        ),
+      );
+    }
+
     final value = switch (col) {
       _PermCol.view => row.canView,
       _PermCol.create => row.canCreate,

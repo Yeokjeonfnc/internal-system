@@ -65,6 +65,10 @@ public interface ActMstMapper {
 
     ChkMstResponseDto chkMstOne(@Param("chkIdx") int chkIdx);
 
+    int delChkDtlByChkIdx(@Param("chkIdx") int chkIdx);
+
+    int delChkMst(@Param("chkIdx") int chkIdx);
+
     List<ActActive> actList(@Param("q") ActiveListQuery q);
 
     List<ActActive> actListApprMemo(
@@ -74,6 +78,8 @@ public interface ActMstMapper {
     List<NotifMstDto> notifList(@Param("userId") String userId);
 
     long notifUnreadCnt(@Param("userId") String userId);
+
+    int notifMarkAllRead(@Param("userId") String userId);
 
     List<ActNotifAckDateRow> apprAckDays(
             @Param("actIdx") int actIdx,

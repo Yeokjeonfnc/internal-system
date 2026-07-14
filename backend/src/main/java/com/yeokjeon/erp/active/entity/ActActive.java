@@ -77,4 +77,12 @@ public class ActActive {
 
     @Column(name = "chk_yn")
     private Character chkYn;
+
+    /** 전자서명 PNG — 디스크 저장 파일명(UUID 기반). */
+    @Column(name = "signature_stored_name", length = 255)
+    private String signatureStoredName;
+
+    /** 활동 상신 시 연결한 출입 태그 usage_log.log_idx */
+    @Column(name = "usage_log_idx")
+    private Long usageLogIdx;
 }

@@ -77,3 +77,12 @@ doc/api/
 .idea/vcs.xml
 .idea/dataSources.xml
 .idea/vcs.xml
+
+# 배포 산출물(zip) - 빌드해서 생성하는 것이라 저장소에 포함 안 함
+/release/
+
+# Claude Code 작업용 로컬 스크래치
+/.claude/
+
+# 런타임 업로드 파일(첨부·서명·문서 등) - 사용자 데이터라 저장소에 포함 안 함
+/backend/storage/

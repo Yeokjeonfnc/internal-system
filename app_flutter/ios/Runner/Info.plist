@@ -48,6 +48,12 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>가맹점 출입 관리를 위해 현재 위치가 필요합니다.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>가맹점 출입 관리를 위해 현재 위치가 필요합니다.</string>
+	<key>NFCReaderUsageDescription</key>
+	<string>가맹점 출입 태그를 위해 NFC 태그를 읽습니다.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

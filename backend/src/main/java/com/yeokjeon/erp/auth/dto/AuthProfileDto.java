@@ -19,7 +19,10 @@ public record AuthProfileDto(
         String positionCd,
         String positionNm,
         String svYn,
-        String tagYn,
+        String ownerYn,
+        String adminYn,
+        Integer storeIdx,
+        String storeNm,
         LocalDate joinDt,
         List<MenuPermissionDto> menuPermissions) {
 
@@ -42,8 +45,19 @@ public record AuthProfileDto(
                 row.positionCd(),
                 row.positionNm(),
                 row.svYn(),
-                row.tagYn(),
+                row.ownerYn(),
+                row.adminYn(),
+                row.storeIdx(),
+                row.storeNm(),
                 row.joinDt(),
                 menuPermissions);
+    }
+
+    /** 슈퍼 관리자 판정 결과를 반영한 사본(컬럼 미적용 시 config 폴백 포함). */
+    public AuthProfileDto withAdminYn(String adminYn) {
+        return new AuthProfileDto(
+                userIdx, userId, userNm, email, deptIdx, userPhone, deptNm,
+                positionCd, positionNm, svYn, ownerYn, adminYn,
+                storeIdx, storeNm, joinDt, menuPermissions);
     }
 }

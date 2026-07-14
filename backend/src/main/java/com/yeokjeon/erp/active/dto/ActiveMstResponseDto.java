@@ -38,6 +38,7 @@ public record ActiveMstResponseDto(
         String suggestions,
         String svNotes,
         String chkYn,
+        Boolean hasSignature,
         Map<String, String> apprAckDateByUserId,
         List<String> apprAckUserIds) {
 
@@ -48,6 +49,7 @@ public record ActiveMstResponseDto(
             String svDeptNm,
             String ssvNm,
             List<String> apprUserIds,
+            Boolean hasSignature,
             Map<String, String> apprAckDateByUserId,
             List<String> apprAckUserIds) {
         return new ActiveMstResponseDto(
@@ -74,6 +76,7 @@ public record ActiveMstResponseDto(
                 active.getSuggestions(),
                 active.getSvNotes(),
                 active.getChkYn() != null ? String.valueOf(active.getChkYn()) : null,
+                hasSignature,
                 apprAckDateByUserId,
                 apprAckUserIds);
     }
@@ -104,6 +107,7 @@ public record ActiveMstResponseDto(
                 suggestions,
                 svNotes,
                 chkYn,
+                hasSignature,
                 apprAckDateByUserId,
                 apprAckUserIds);
     }

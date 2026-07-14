@@ -6,7 +6,6 @@ import 'package:app_flutter/core/date/erp_list_date_presets.dart';
 import 'package:app_flutter/core/api/common_code_api_service.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
-import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
@@ -44,6 +43,8 @@ class _Act002ViewState extends State<Act002View>
   late DateTime _rangeStart;
   late DateTime _rangeEnd;
   late final List<int> _tabEpoch;
+
+  int? _listRowCount;
 
   (DateTime, DateTime) _defRange() => erpPresetDateRange('최근1개월');
 
@@ -102,13 +103,25 @@ class _Act002ViewState extends State<Act002View>
     if (_tabController.indexIsChanging) return;
     final i = _tabController.index;
     if (i == 1) return;
-    setState(() => _tabEpoch[i]++);
+    setState(() {
+      _tabEpoch[i]++;
+      _listRowCount = null;
+    });
   }
 
   void _reloadList() {
     final i = _tabController.index;
     if (i == 1) return;
-    setState(() => _tabEpoch[i]++);
+    setState(() {
+      _tabEpoch[i]++;
+      _listRowCount = null;
+    });
+  }
+
+  void _onListRowCount(int tabIndex, int? count) {
+    if (!mounted || _tabController.index != tabIndex) return;
+    if (_listRowCount == count) return;
+    setState(() => _listRowCount = count);
   }
 
   void _resetFilter(CommonSearchFieldId id) {
@@ -219,19 +232,31 @@ class _Act002ViewState extends State<Act002View>
 
   Widget _tabBar() {
     return Container(
-      color: FormStylePalette.accent,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: AppTheme.hairline)),
+      ),
       child: TabBar(
         controller: _tabController,
         isScrollable: true,
         tabAlignment: TabAlignment.center,
         labelPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 5),
         labelStyle: const TextStyle(
-          fontSize: 17,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
           fontFamilyFallback: AppTheme.koreanFontFallback,
         ),
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.white70,
-        indicatorColor: Colors.white,
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
+        labelColor: AppTheme.textPrimary,
+        unselectedLabelColor: AppTheme.textMuted,
+        indicatorColor: AppTheme.accentRed,
+        indicatorWeight: 2,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
         tabs: const [
           Tab(text: '임시보관'),
           Tab(text: '활동관리 등록'),
@@ -242,10 +267,13 @@ class _Act002ViewState extends State<Act002View>
   }
 
   Widget _listShell(Widget mainFields, Widget table) {
+    final countText = _listRowCount == null
+        ? '조회 중입니다.'
+        : '총 $_listRowCount건이 조회되었습니다.';
     return ListPageTemplate(
       activeFilters: _chips(),
       mainSearchFields: mainFields,
-      countText: '총 0건이 조회되었습니다.',
+      countText: countText,
       onRefresh: _reloadList,
       table: table,
     );
@@ -299,6 +327,9 @@ class _Act002ViewState extends State<Act002View>
                     rowKeywordFilter: _keywordCtrl.text.trim(),
                     brandLabel: _selectedBrandNm,
                     brandCdFilter: _brandFilterCd(),
+                    rangeStart: _rangeStart,
+                    rangeEnd: _rangeEnd,
+                    onFilteredRowCount: (c) => _onListRowCount(0, c),
                   ),
                 ),
                 const ActivityRegisterView(),
@@ -311,6 +342,7 @@ class _Act002ViewState extends State<Act002View>
                     brandCdFilter: _brandFilterCd(),
                     rangeStart: _rangeStart,
                     rangeEnd: _rangeEnd,
+                    onFilteredRowCount: (c) => _onListRowCount(2, c),
                   ),
                 ),
               ],

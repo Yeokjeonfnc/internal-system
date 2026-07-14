@@ -25,9 +25,9 @@ class ActivityHubView extends StatelessWidget {
     if (s == 'status') {
       return ColoredBox(
         color: AppTheme.appSurface,
-        child: ListView(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-          children: const [ActivityStatusDetailView()],
+          child: const ActivityStatusDetailView(),
         ),
       );
     }
@@ -44,37 +44,40 @@ class ActivityHubView extends StatelessWidget {
     /// `/activities` — 세 구역을 한 스크롤에 붙이지 않고, 상위 메뉴만 안내.
     return ColoredBox(
       color: AppTheme.appSurface,
-      child: ListView(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-        children: [
-          Text(
-            '메뉴를 선택하세요',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey.shade600,
-              fontFamilyFallback: AppTheme.koreanFontFallback,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '메뉴를 선택하세요',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade600,
+                fontFamilyFallback: AppTheme.koreanFontFallback,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          _Section(
-            title: '활동관리',
-            items: [
-              _MenuTile(
-                label: '활동현황',
-                onTap: () => context.go(ActivityRoutes.groupStatus),
-              ),
-              _MenuTile(
-                label: '활동관리',
-                onTap: () => context.go(ActivityRoutes.groupManage),
-              ),
-              _MenuTile(
-                label: '활동관리결재',
-                onTap: () => context.go(ActivityRoutes.approvalAll),
-              ),
-            ],
-          ),
-        ],
+            const SizedBox(height: 12),
+            _Section(
+              title: '활동관리',
+              items: [
+                _MenuTile(
+                  label: '활동현황',
+                  onTap: () => context.go(ActivityRoutes.groupStatus),
+                ),
+                _MenuTile(
+                  label: '활동관리',
+                  onTap: () => context.go(ActivityRoutes.groupManage),
+                ),
+                _MenuTile(
+                  label: '활동관리결재',
+                  onTap: () => context.go(ActivityRoutes.approvalAll),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

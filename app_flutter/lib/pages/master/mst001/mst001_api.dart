@@ -1,5 +1,7 @@
 // 사원(mst001) API.
 
+import 'package:flutter/foundation.dart';
+
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/core/user_mst/user_id_availability.dart';
 import 'package:app_flutter/core/user_mst/user_mst_write_request.dart';
@@ -10,11 +12,41 @@ class Mst001ApiService extends BaseRepository {
     final qp = deptIdx != null
         ? <String, dynamic>{UserMstWriteRequest.jsonKeyDeptIdx: deptIdx}
         : null;
-    return getDataList(
-      UserMstApiPaths.root,
-      queryParameters: qp,
-      fromJson: User.fromJson,
-    );
+    try {
+      final r = await client.get(UserMstApiPaths.root, queryParameters: qp);
+      if (r.statusCode != 200 || r.data == null) {
+        debugPrint('getUsers HTTP ${r.statusCode}');
+        return const [];
+      }
+      final root = parseEnvelopeRoot(r.data);
+      if (root == null) {
+        debugPrint('getUsers: invalid envelope');
+        return const [];
+      }
+      final data = root['data'];
+      if (data is! List) {
+        debugPrint('getUsers: data is not a list (${data.runtimeType})');
+        return const [];
+      }
+      final users = <User>[];
+      var skipped = 0;
+      for (final raw in data) {
+        if (raw is! Map) continue;
+        try {
+          users.add(User.fromJson(Map<String, dynamic>.from(raw)));
+        } catch (e, st) {
+          skipped++;
+          debugPrint('getUsers row parse skip: $e\n$raw\n$st');
+        }
+      }
+      if (skipped > 0) {
+        debugPrint('getUsers: parsed ${users.length}, skipped $skipped');
+      }
+      return users;
+    } catch (e, st) {
+      debugPrint('getUsers failed: $e\n$st');
+      rethrow;
+    }
   }
 
   Future<User> getUser(int userIdx) =>

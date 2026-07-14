@@ -82,6 +82,10 @@ public class Property {
     @Column(name = "surveyor", length = 50)
     private String surveyor; // 조사자ID
 
+    /** 영업지역 — {@code sale_zone_mst.zone_idx}. */
+    @Column(name = "zone_idx")
+    private Integer zoneIdx;
+
     @CreatedDate
     @Column(name = "create_dt", nullable = false, updatable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP")
     private LocalDateTime createDt;

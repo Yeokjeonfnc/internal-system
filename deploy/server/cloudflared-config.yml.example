@@ -1,0 +1,9 @@
+tunnel: CHANGE_ME_TUNNEL_UUID
+credentials-file: C:\Users\CHANGE_ME_USER\.cloudflared\CHANGE_ME_TUNNEL_UUID.json
+
+ingress:
+  - hostname: test.yeokjeon.com
+    service: http://localhost:8080
+  - hostname: yeokjeon.com
+    service: http://localhost:8180
+  - service: http_status:404

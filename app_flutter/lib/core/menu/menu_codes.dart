@@ -24,7 +24,14 @@ const String kMenuAct002 = 'act002';
 /// 활동관리 — 활동관리결재
 const String kMenuAct003 = 'act003';
 
+/// 활동관리 — 활동 계획 캘린더
+const String kMenuAct004 = 'act004';
+
+/// 전자결재 — 다우오피스 연동
+const String kMenuEap001 = 'eap001';
+
 /// 사이드바 그룹(폴더) — DB menu_mst.menu_type = G
+const String kMenuGrpEap = 'grp_eap';
 const String kMenuGrpDev = 'grp_dev';
 const String kMenuGrpAct = 'grp_act';
 const String kMenuGrpMst = 'grp_mst';
@@ -40,3 +47,15 @@ const String kMenuMst003 = 'mst003';
 
 /// 마스터 — 체크리스트
 const String kMenuMst004 = 'mst004';
+
+/// 게시판
+const String kMenuBbs001 = 'bbs001';
+
+/// 메신저
+const String kMenuMsg001 = 'msg001';
+
+/// 마스터 — 사용기록 조회
+const String kMenuMst005 = 'mst005';
+
+/// 마스터 — 가맹주관리
+const String kMenuMst006 = 'mst006';

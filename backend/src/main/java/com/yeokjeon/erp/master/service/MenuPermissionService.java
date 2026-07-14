@@ -88,6 +88,16 @@ public class MenuPermissionService {
         if (!StringUtils.hasText(userId)) {
             return false;
         }
+        // 1순위: user_mst.admin_yn = 'Y'
+        try {
+            String adminYn = menuPermissionMapper.selectAdminYnByUserId(userId.trim());
+            if (adminYn != null && "Y".equalsIgnoreCase(adminYn.trim())) {
+                return true;
+            }
+        } catch (Exception e) {
+            log.warn("admin_yn 조회 실패(컬럼 미적용 가능): userId={}, {}", userId, e.getMessage());
+        }
+        // 2순위(폴백): 설정값 menu.permission.super-admin-user-ids
         Set<String> ids = new HashSet<>();
         for (String part : superAdminUserIds.split(",")) {
             if (StringUtils.hasText(part)) {

@@ -24,7 +24,13 @@ int? _historyPart(Object? v) {
   return int.tryParse(v?.toString() ?? '');
 }
 
+String _trimmedString(Object? v) {
+  if (v == null) return '';
+  return v.toString().trim();
+}
+
 String storeHistoryChgDtFromJson(Object? v) {
+  if (v == null) return '';
   if (v is List && v.length >= 3) {
     final y = _historyPart(v[0]);
     final m = _historyPart(v[1]);
@@ -37,13 +43,54 @@ String storeHistoryChgDtFromJson(Object? v) {
       return '$y-${two(m)}-${two(d)} ${two(h)}:${two(min)}:${two(sec)}';
     }
   }
-  return storeHistoryChgDtFormat(v?.toString() ?? '');
+  return storeHistoryChgDtFormat(v.toString());
 }
 
-/// [chgContentJson]은 [storeHistoryChgContentEncode]와 동일 규칙(또는 API 원본을 encode한 값).
+/// [chgType]별 UI 표시 — DB [chg_content]는 그대로 두고 노출만 가공한다.
 String storeHistoryDisplayFromEncoded(
   String chgContentJson,
   String apiPlainContent,
+  String chgType,
+) {
+  final type = chgType.trim().toUpperCase();
+  if (type == 'INSERT') {
+    return '신규 가맹점 등록';
+  }
+  if (type == 'UPDATE') {
+    return _formatHistoryContentUpdateOnly(chgContentJson, apiPlainContent);
+  }
+  if (type == 'ACTIVE') {
+    return _formatHistoryActiveContent(chgContentJson, apiPlainContent);
+  }
+  if (apiPlainContent.isNotEmpty) return apiPlainContent;
+  return _formatHistoryContentVerbose(chgContentJson);
+}
+
+/// 활동관리 결재(active) — [chg_content] 문자열 그대로 노출.
+String _formatHistoryActiveContent(
+  String chgContentJson,
+  String apiPlainContent,
+) {
+  if (apiPlainContent.isNotEmpty) return apiPlainContent;
+  final trimmed = chgContentJson.trim();
+  if (trimmed.isEmpty || trimmed == '[]' || trimmed == 'null') {
+    return '-';
+  }
+  try {
+    final raw = jsonDecode(chgContentJson);
+    if (raw is String && raw.isNotEmpty) return raw;
+  } catch (_) {
+    // JSON 문자열이 아니면 원문 사용
+  }
+  if (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) {
+    return trimmed.substring(1, trimmed.length - 1);
+  }
+  return trimmed;
+}
+
+String _formatHistoryContentUpdateOnly(
+  String chgContentJson,
+  String fallbackContent,
 ) {
   dynamic rawContent;
   try {
@@ -51,27 +98,57 @@ String storeHistoryDisplayFromEncoded(
   } catch (_) {
     rawContent = null;
   }
-  return _formatHistoryContent(rawContent, apiPlainContent);
-}
-
-String _formatHistoryContent(dynamic rawContent, String fallbackContent) {
   if (rawContent is List && rawContent.isNotEmpty) {
-    return rawContent.map(_formatHistoryChange).join(', ');
+    return rawContent.map(_formatHistoryChangeDescOnly).join(', ');
   }
   if (rawContent is Map<String, dynamic>) {
-    return _formatHistoryChange(rawContent);
+    return _formatHistoryChangeDescOnly(rawContent);
   }
   if (fallbackContent.isNotEmpty) return fallbackContent;
   return '-';
 }
 
-String _formatHistoryChange(dynamic rawChange) {
+String _formatHistoryContentVerbose(String chgContentJson) {
+  dynamic rawContent;
+  try {
+    rawContent = jsonDecode(chgContentJson);
+  } catch (_) {
+    return '-';
+  }
+  if (rawContent is List && rawContent.isNotEmpty) {
+    return rawContent.map(_formatHistoryChangeVerbose).join(', ');
+  }
+  if (rawContent is Map<String, dynamic>) {
+    return _formatHistoryChangeVerbose(rawContent);
+  }
+  return '-';
+}
+
+String _formatHistoryChangeDescOnly(dynamic rawChange) {
+  if (rawChange is! Map) return _trimmedString(rawChange);
+  // insertHistorySimple 저장 형식(column_nm=store) — DB는 그대로, 요약은 after_value만 노출
+  final columnNm = _trimmedString(rawChange['column_nm']);
+  if (columnNm == 'store') {
+    final after = _trimmedString(rawChange['after_value']);
+    if (after.isNotEmpty) return after;
+  }
+  final desc = _trimmedString(rawChange['column_desc']);
+  if (desc.isNotEmpty) return desc;
+  final nm = _trimmedString(rawChange['column_nm']);
+  if (nm.isNotEmpty) return nm;
+  return '변경';
+}
+
+String _formatHistoryChangeVerbose(dynamic rawChange) {
   if (rawChange is! Map) return rawChange.toString();
-  final col = rawChange['column_desc']?.toString().trim().isNotEmpty == true
-      ? rawChange['column_desc'].toString()
-      : rawChange['column_nm']?.toString() ??
-            rawChange['col']?.toString() ??
-            '변경값';
+  final desc = _trimmedString(rawChange['column_desc']);
+  final col = desc.isNotEmpty
+      ? desc
+      : _trimmedString(rawChange['column_nm']).isNotEmpty
+      ? _trimmedString(rawChange['column_nm'])
+      : _trimmedString(rawChange['col']).isNotEmpty
+      ? _trimmedString(rawChange['col'])
+      : '변경값';
   final before =
       rawChange['before_value']?.toString() ??
       rawChange['before']?.toString();

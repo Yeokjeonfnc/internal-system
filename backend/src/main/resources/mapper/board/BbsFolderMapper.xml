@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.board.mapper.BbsFolderMapper">
+
+    <resultMap id="bbsFolderRow" type="com.yeokjeon.erp.board.dto.BbsFolderJdbcRow">
+        <constructor>
+            <arg column="folder_idx" javaType="java.lang.Integer"/>
+            <arg column="folder_nm" javaType="java.lang.String"/>
+            <arg column="sort_order" javaType="java.lang.Integer"/>
+            <arg column="use_yn" javaType="java.lang.String"/>
+            <arg column="owner_view_yn" javaType="java.lang.String"/>
+            <arg column="staff_view_yn" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="folderVisibility">
+        use_yn = 'Y'
+        AND (
+            <!-- 사원/관리자: 모든 폴더 조회. 가맹점주: owner_view_yn = 'Y' 폴더만. -->
+            #{viewerIsOwner} = false
+            OR COALESCE(CAST(owner_view_yn AS VARCHAR), 'Y') = 'Y'
+        )
+    </sql>
+
+    <select id="selectFoldersForViewer" resultMap="bbsFolderRow">
+        SELECT folder_idx,
+               folder_nm,
+               sort_order,
+               CAST(use_yn AS VARCHAR) AS use_yn,
+               CAST(owner_view_yn AS VARCHAR) AS owner_view_yn,
+               CAST(staff_view_yn AS VARCHAR) AS staff_view_yn
+        FROM bbs_folder
+        WHERE <include refid="folderVisibility"/>
+        ORDER BY sort_order, folder_idx
+    </select>
+
+    <select id="countPostsByFolderForViewer" resultType="long">
+        SELECT COUNT(*)
+        FROM bbs_post p
+                 INNER JOIN bbs_folder f ON f.folder_idx = p.folder_idx
+        WHERE p.folder_idx = #{folderIdx}
+          AND p.deleted_yn = false
+          AND (
+              COALESCE(CAST(p.private_yn AS VARCHAR), 'N') &lt;&gt; 'Y'
+              OR p.created_by = #{viewerUserId}
+              OR #{viewerIsOwner} = false
+          )
+          AND (
+              #{viewerIsOwner} = false
+              OR COALESCE(CAST(f.owner_view_yn AS VARCHAR), 'Y') = 'Y'
+          )
+    </select>
+
+    <select id="selectFolderById" resultMap="bbsFolderRow">
+        SELECT folder_idx,
+               folder_nm,
+               sort_order,
+               CAST(use_yn AS VARCHAR) AS use_yn,
+               CAST(owner_view_yn AS VARCHAR) AS owner_view_yn,
+               CAST(staff_view_yn AS VARCHAR) AS staff_view_yn
+        FROM bbs_folder
+        WHERE folder_idx = #{folderIdx}
+    </select>
+
+    <insert id="insertFolder" useGeneratedKeys="true" keyProperty="folderIdx" keyColumn="folder_idx">
+        INSERT INTO bbs_folder (
+            folder_nm, sort_order, use_yn, owner_view_yn, staff_view_yn, created_by, updated_at
+        ) VALUES (
+            TRIM(#{folderNm}),
+            COALESCE(#{sortOrder}, 0),
+            COALESCE(NULLIF(TRIM(#{useYn}), ''), 'Y'),
+            COALESCE(NULLIF(TRIM(#{ownerViewYn}), ''), 'Y'),
+            COALESCE(NULLIF(TRIM(#{staffViewYn}), ''), 'Y'),
+            #{userId},
+            CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <update id="updateFolder">
+        UPDATE bbs_folder
+        SET folder_nm = TRIM(#{body.folderNm}),
+            sort_order = COALESCE(#{body.sortOrder}, sort_order),
+            use_yn = COALESCE(NULLIF(TRIM(#{body.useYn}), ''), use_yn),
+            owner_view_yn = COALESCE(NULLIF(TRIM(#{body.ownerViewYn}), ''), owner_view_yn),
+            staff_view_yn = COALESCE(NULLIF(TRIM(#{body.staffViewYn}), ''), staff_view_yn),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE folder_idx = #{folderIdx}
+    </update>
+
+    <delete id="deleteFolder">
+        DELETE FROM bbs_folder WHERE folder_idx = #{folderIdx}
+    </delete>
+</mapper>

@@ -14,7 +14,10 @@ class AuthProfile {
   static const String jsonKeyPositionCd = 'positionCd';
   static const String jsonKeyPositionNm = 'positionNm';
   static const String jsonKeySvYn = 'svYn';
-  static const String jsonKeyTagYn = 'tagYn';
+  static const String jsonKeyOwnerYn = 'ownerYn';
+  static const String jsonKeyAdminYn = 'adminYn';
+  static const String jsonKeyStoreIdx = 'storeIdx';
+  static const String jsonKeyStoreNm = 'storeNm';
   static const String jsonKeyJoinDt = 'joinDt';
 
   const AuthProfile({
@@ -29,7 +32,10 @@ class AuthProfile {
     required this.positionCd,
     required this.positionNm,
     required this.svYn,
-    required this.tagYn,
+    required this.ownerYn,
+    this.adminYn = '',
+    this.storeIdx,
+    required this.storeNm,
     required this.joinDtRaw,
   });
 
@@ -44,8 +50,16 @@ class AuthProfile {
   final String positionCd;
   final String positionNm;
   final String svYn;
-  final String tagYn;
+  final String ownerYn;
+  final String adminYn;
+  final int? storeIdx;
+  final String storeNm;
   final String joinDtRaw;
+
+  bool get isFranchiseOwner => ownerYn.trim().toUpperCase() == 'Y';
+
+  /// 관리자 여부 (`user_mst.admin_yn`) — 전 메뉴/권한 허용.
+  bool get isSuperAdmin => adminYn.trim().toUpperCase() == 'Y';
 
   factory AuthProfile.fromJson(Map<String, dynamic> json) {
     final permsRaw = json[jsonKeyMenuPermissions];
@@ -67,7 +81,10 @@ class AuthProfile {
       positionCd: json.jsonString(jsonKeyPositionCd),
       positionNm: json.jsonString(jsonKeyPositionNm),
       svYn: json.jsonString(jsonKeySvYn),
-      tagYn: json.jsonString(jsonKeyTagYn),
+      ownerYn: json.jsonString(jsonKeyOwnerYn),
+      adminYn: json.jsonString(jsonKeyAdminYn),
+      storeIdx: asJsonIntOpt(json[jsonKeyStoreIdx]),
+      storeNm: json.jsonString(jsonKeyStoreNm),
       joinDtRaw: _joinDtString(json[jsonKeyJoinDt]),
       menuPermissions: permissions,
     );
@@ -84,7 +101,10 @@ class AuthProfile {
         jsonKeyPositionCd: positionCd,
         jsonKeyPositionNm: positionNm,
         jsonKeySvYn: svYn,
-        jsonKeyTagYn: tagYn,
+        jsonKeyOwnerYn: ownerYn,
+        jsonKeyAdminYn: adminYn,
+        if (storeIdx != null) jsonKeyStoreIdx: storeIdx,
+        jsonKeyStoreNm: storeNm,
         jsonKeyJoinDt: joinDtRaw,
         jsonKeyMenuPermissions:
             menuPermissions.map((e) => e.toJson()).toList(),
@@ -108,4 +128,7 @@ class AuthProfile {
     }
     return v.toString();
   }
+
+  /// 출입관리 태그 권한 (`sv_yn`).
+  bool get canUseStoreEntryTag => svYn.trim().toUpperCase() == 'Y';
 }

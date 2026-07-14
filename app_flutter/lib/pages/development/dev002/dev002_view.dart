@@ -5,17 +5,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:app_flutter/core/api/common_code_api_service.dart';
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/menu/menu_access.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
+import 'package:app_flutter/core/widgets/common/common_status_badge.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
-import 'package:app_flutter/core/widgets/common/common_detail_button.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_controller.dart';
@@ -291,32 +293,49 @@ class _PropertyTable extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final showDelete = context.menuCanDelete(kMenuDev002);
+    final compact = useCompactErpLayout(context);
     final regionOptions =
         ref.watch(propertyCodeOptionsProvider(20)).value ??
         const <CodeOption>[];
 
-    return ErpDataTable(
-      minWidth: 2200,
-      tableBuilder: (context, _) => Table(
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        border: kErpTableInnerGridBorder,
-        columnWidths: const {
-          0: FixedColumnWidth(110),
-          1: FlexColumnWidth(1.35),
-          2: FixedColumnWidth(92),
-          3: FixedColumnWidth(110),
-          4: FixedColumnWidth(100),
-          5: FlexColumnWidth(0.8),
-          6: FlexColumnWidth(0.8),
-          7: FlexColumnWidth(0.8),
-          8: FlexColumnWidth(1.5), // 주소
-          9: FixedColumnWidth(140),
-          10: FixedColumnWidth(100),
-        },
-        children: [
-          TableRow(
-            decoration: const BoxDecoration(color: AppTheme.accentRed),
-            children: [
+    final columnWidths = compact
+        ? <int, TableColumnWidth>{
+            0: const FixedColumnWidth(100),
+            1: const FlexColumnWidth(1.5),
+            2: const FixedColumnWidth(80),
+            3: const FixedColumnWidth(124),
+            4: const FixedColumnWidth(100),
+            5: const FixedColumnWidth(100),
+            6: const FixedColumnWidth(100),
+            7: const FlexColumnWidth(1.2),
+          }
+        : <int, TableColumnWidth>{
+            0: const FixedColumnWidth(100),
+            1: const FlexColumnWidth(1.4),
+            2: const FixedColumnWidth(80),
+            3: const FixedColumnWidth(124),
+            4: const FixedColumnWidth(88),
+            5: const FixedColumnWidth(100),
+            6: const FixedColumnWidth(100),
+            7: const FixedColumnWidth(100),
+            8: const FlexColumnWidth(1.2),
+            if (showDelete) 9: const FixedColumnWidth(100),
+          };
+
+    final headerRow = TableRow(
+      decoration: kErpTableHeaderRowDecoration,
+      children: compact
+          ? const [
+              ErpTableHeaderCell('조사일자'),
+              ErpTableHeaderCell('물건명'),
+              ErpTableHeaderCell('지역'),
+              ErpTableHeaderCell('구분'),
+              ErpTableHeaderCell('면적(계약㎡)'),
+              ErpTableHeaderCell('권리금'),
+              ErpTableHeaderCell('임차료'),
+              ErpTableHeaderCell('주소'),
+            ]
+          : [
               const ErpTableHeaderCell('조사일자'),
               const ErpTableHeaderCell('물건명'),
               const ErpTableHeaderCell('지역'),
@@ -326,81 +345,88 @@ class _PropertyTable extends ConsumerWidget {
               const ErpTableHeaderCell('보증금'),
               const ErpTableHeaderCell('임차료'),
               const ErpTableHeaderCell('주소'),
-              const ErpTableHeaderCell('상세보기'),
               if (showDelete) const ErpTableHeaderCell('삭제'),
             ],
+    );
+
+    return ErpVirtualDataTable(
+      minWidth: AppDimensions.tableMinWidthStandard,
+      columnWidths: columnWidths,
+      headerRow: headerRow,
+      rowCount: rows.length,
+      rowBuilder: (rowContext, index) {
+        final row = rows[index];
+        void openDetail() => context.goNamed(
+          AppRouteNames.propertyDetail,
+          pathParameters: {'propertyNo': '${row.propIdx}'},
+        );
+        Widget tap(Widget child) =>
+            ErpTableDoubleTapCell(onDoubleTap: openDetail, child: child);
+        final statusCell = tap(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Center(child: _PropertyStatusChip(status: row.propStatus)),
           ),
-          ...rows.asMap().entries.map(
-            (entry) => TableRow(
-              decoration: BoxDecoration(
-                color: entry.key.isEven
-                    ? AppTheme.tableRowOdd
-                    : AppTheme.tableRowEven,
-              ),
-              children: [
-                ErpTableBodyCell(entry.value.surveyDate, center: true),
-                ErpTableBodyCell(entry.value.name, center: true),
-                ErpTableBodyCell(
-                  _propertyRegionLabel(entry.value.region, regionOptions),
-                  center: true,
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Center(
-                    child: _PropertyStatusChip(status: entry.value.propStatus),
-                  ),
-                ),
-                ErpTableBodyCell(
-                  _formatArea(entry.value.areaSqm),
-                  center: true,
-                ),
-                ErpTableBodyCell(
-                  _formatMoney(entry.value.keyMoney),
-                  alignRight: true,
-                ),
-                ErpTableBodyCell(
-                  _formatMoney(entry.value.deposit),
-                  alignRight: true,
-                ),
-                ErpTableBodyCell(
-                  _formatMoney(entry.value.rent),
-                  alignRight: true,
-                ),
-                // Padding(
-                //   padding: const EdgeInsets.all(8),
-                //   child: Center(
-                //     child: _FranchiseFlagChip(flag: entry.value.franchiseFlag),
-                //   ),
-                // ),
-                ErpTableBodyCell(entry.value.address),
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Center(
-                    child: DetailButton(
-                      onPressed: () => context.goNamed(
-                        AppRouteNames.propertyDetail,
-                        pathParameters: {
-                          'propertyNo': '${entry.value.propIdx}',
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-                if (showDelete)
-                  Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Center(
-                      child: _PropertyDeleteButton(
-                        onPressed: () =>
-                            _confirmAndDelete(context, ref, entry.value),
-                      ),
-                    ),
-                  ),
-              ],
+        );
+
+        if (compact) {
+          return TableRow(
+            decoration: BoxDecoration(
+              color: index.isEven
+                  ? AppTheme.tableRowOdd
+                  : AppTheme.tableRowEven,
             ),
+            children: [
+              tap(ErpTableBodyCell(row.surveyDate, center: true)),
+              tap(ErpTableBodyCell(row.name, center: true)),
+              tap(
+                ErpTableBodyCell(
+                  _propertyRegionLabel(row.region, regionOptions),
+                  center: true,
+                ),
+              ),
+              statusCell,
+              tap(ErpTableBodyCell(_formatArea(row.areaSqm), center: true)),
+              tap(
+                ErpTableBodyCell(_formatMoney(row.keyMoney), alignRight: true),
+              ),
+              tap(ErpTableBodyCell(_formatMoney(row.rent), alignRight: true)),
+              tap(ErpTableBodyCell(row.address)),
+            ],
+          );
+        }
+
+        return TableRow(
+          decoration: BoxDecoration(
+            color: index.isEven ? AppTheme.tableRowOdd : AppTheme.tableRowEven,
           ),
-        ],
-      ),
+          children: [
+            tap(ErpTableBodyCell(row.surveyDate, center: true)),
+            tap(ErpTableBodyCell(row.name, center: true)),
+            tap(
+              ErpTableBodyCell(
+                _propertyRegionLabel(row.region, regionOptions),
+                center: true,
+              ),
+            ),
+            statusCell,
+            tap(ErpTableBodyCell(_formatArea(row.areaSqm), center: true)),
+            tap(ErpTableBodyCell(_formatMoney(row.keyMoney), alignRight: true)),
+            tap(ErpTableBodyCell(_formatMoney(row.deposit), alignRight: true)),
+            tap(ErpTableBodyCell(_formatMoney(row.rent), alignRight: true)),
+            tap(ErpTableBodyCell(row.address)),
+            if (showDelete)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: Center(
+                  child: _PropertyDeleteButton(
+                    onPressed: () => _confirmAndDelete(context, ref, row),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -417,8 +443,9 @@ class _PropertyDeleteButton extends StatelessWidget {
       icon: const Icon(Icons.delete_outline_rounded, size: 18),
       label: const Text('삭제'),
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 30),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: const Size(0, 28),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         foregroundColor: AppTheme.accentRed,
         side: const BorderSide(color: AppTheme.accentRed),
         textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
@@ -434,68 +461,13 @@ class _PropertyStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = switch (status) {
-      PropStatus.contracted => (
-        foreground: const Color(0xFF065F46),
-        background: const Color(0xFFD1FAE5),
-        border: const Color(0xFF6EE7B7),
-      ),
-      PropStatus.pending => (
-        foreground: const Color(0xFF6D28D9),
-        background: const Color(0xFFEDE9FE),
-        border: const Color(0xFFC4B5FD),
-      ),
-      PropStatus.unsuitable => (
-        foreground: const Color(0xFF991B1B),
-        background: const Color(0xFFFEE2E2),
-        border: const Color(0xFFFCA5A5),
-      ),
+    // 물건상태 색(02_screens.md §8) — 체결=초록 · 보류=앰버 · 부적합=빨강.
+    final color = switch (status) {
+      PropStatus.contracted => AppTheme.statusNew,
+      PropStatus.pending => AppTheme.statusPending,
+      PropStatus.unsuitable => AppTheme.statusClosed,
     };
-    return _PropertyPill(
-      text: propStatusLabelKo(status),
-      foreground: colors.foreground,
-      background: colors.background,
-      border: colors.border,
-    );
-  }
-}
-
-class _PropertyPill extends StatelessWidget {
-  const _PropertyPill({
-    required this.text,
-    required this.foreground,
-    required this.background,
-    required this.border,
-  });
-
-  final String text;
-  final Color foreground;
-  final Color background;
-  final Color border;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        child: Text(
-          text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: foreground,
-            fontWeight: FontWeight.w700,
-            fontSize: 13,
-            fontFamilyFallback: AppTheme.koreanFontFallback,
-          ),
-        ),
-      ),
-    );
+    return StatusBadge(propStatusLabelKo(status), color: color);
   }
 }
 

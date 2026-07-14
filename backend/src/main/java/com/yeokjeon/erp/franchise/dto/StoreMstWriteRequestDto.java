@@ -37,6 +37,7 @@ public record StoreMstWriteRequestDto(
         LocalDate contStartDt,
         String businessNumber,
         LocalDate firstContDt,
+        LocalDate transferDate,
         BigDecimal frFee,
         BigDecimal eduFee,
         BigDecimal insuDeposit,

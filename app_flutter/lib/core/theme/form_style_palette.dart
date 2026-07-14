@@ -11,25 +11,25 @@ class FormStylePalette {
   FormStylePalette._();
 
   static const Color panelBg = Colors.white;
-  static const Color panelBorder = Color(0xFFE5E7EB);
-  static const Color inputBg = Color(0xFFF9FAFB);
-  static const Color rowDivider = Color(0xFFEEF1F7);
+  static const Color panelBorder = AppTheme.hairline;
+  static const Color inputBg = Colors.white;
+  static const Color rowDivider = AppTheme.tableRowBorder;
 
-  static const Color textPrimary = Color(0xFF1F2937);
-  static const Color textSecondary = Color(0xFF6B7280);
-  static const Color textMuted = Color(0xFF9CA3AF);
+  static const Color textPrimary = AppTheme.textPrimary;
+  static const Color textSecondary = AppTheme.textSecondary;
+  static const Color textMuted = AppTheme.textMuted;
 
   /// 탭바·강조 버튼에 공통 사용하는 포인트 컬러.
   static const Color accent = AppTheme.accentRed;
 
   /// 경고·취소 계열에 사용하는 중립 그레이.
-  static const Color neutralGray = Color(0xFF6B7280);
+  static const Color neutralGray = AppTheme.textSecondary;
 
   /// 문서 첨부 미첨부 같은 에러 강조용.
-  static const Color danger = Color(0xFFDC2626);
+  static const Color danger = AppTheme.statusClosed;
 
   /// 헤더 행 배경.
-  static const Color tableHeaderBg = Color(0xFFF8FAFC);
+  static const Color tableHeaderBg = AppTheme.tableHeaderBackground;
 
   /// 결재정보 표 — 좌측 열: 목록 [ErpDataTable] 헤더와 동일 ([AppTheme.accentRed] + 흰 글씨).
   /// 본문 칸: 카드·필드와 맞는 밝은 배경 (참고 이미지 틴트 금지).
@@ -44,12 +44,12 @@ class FormStylePalette {
     fontFamilyFallback: AppTheme.koreanFontFallback,
   );
   static const TextStyle hintStyle = TextStyle(
-    color: Color.fromARGB(255, 119, 122, 129),
+    color: textMuted,
     fontSize: 13,
     fontFamilyFallback: AppTheme.koreanFontFallback,
   );
   static const TextStyle readStyle = TextStyle(
-    color: Color.fromARGB(255, 119, 122, 129),
+    color: textMuted,
     fontSize: 15,
     fontFamilyFallback: AppTheme.koreanFontFallback,
   );

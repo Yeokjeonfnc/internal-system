@@ -1,6 +1,5 @@
 // 물건 목록(dev002) 필터 상태.
 
-import 'package:app_flutter/pages/development/dev002/dev002_model.dart';
 
 class PropertyFilter {
   const PropertyFilter({

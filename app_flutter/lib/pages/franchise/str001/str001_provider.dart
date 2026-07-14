@@ -12,6 +12,7 @@ bool _matchesStoreContractStatus(StoreFilter s, Store r) {
     if (label == '신규계약' && code == 'new') return true;
     if (label == '재계약' && code == 'renewal') return true;
     if (label == '양수도' && code == 'transfer') return true;
+    if (label == '폐점' && (code == 'closed' || r.closedYn)) return true;
   }
   return false;
 }

@@ -2,32 +2,47 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 
-/// 관리 리스트의 테이블 헤더 셀. 빨강 배경 + 흰색 굵은 텍스트.
+/// 관리 리스트의 테이블 헤더 셀 — 라이트 헤더(01_design_system.md §4 테이블).
+///
+/// 헤더 행 배경은 [kErpTableHeaderRowDecoration]과 함께 쓴다.
+/// [light]는 리디자인 전환기 호환용으로 남겨둔 파라미터(값과 무관하게 라이트).
 class ErpTableHeaderCell extends StatelessWidget {
-  const ErpTableHeaderCell(this.text, {super.key});
+  const ErpTableHeaderCell(this.text, {super.key, this.light = true});
 
   final String text;
+  final bool light;
 
   @override
   Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppDimensions.tableCellPaddingH,
-        vertical: AppDimensions.tableCellPaddingV,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact
+            ? AppDimensions.tableCellPaddingHCompact
+            : AppDimensions.tableCellPaddingH,
+        vertical: compact
+            ? AppDimensions.tableCellPaddingVCompact
+            : AppDimensions.tableCellPaddingV,
       ),
       child: Center(
         child: Text(
           text,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
+          style: TextStyle(
+            color: AppTheme.textMuted,
+            fontSize: compact
+                ? AppDimensions.tableHeaderFontSizeCompact
+                : 11,
             fontWeight: FontWeight.w600,
             height: 1.2,
             fontFamilyFallback: AppTheme.koreanFontFallback,
           ),
+          maxLines: compact ? 2 : 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
         ),
       ),
     );
@@ -54,13 +69,18 @@ class ErpTableBodyCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
     final align = alignRight
         ? TextAlign.right
         : (center ? TextAlign.center : TextAlign.left);
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppDimensions.tableCellPaddingH,
-        vertical: AppDimensions.tableCellPaddingV,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact
+            ? AppDimensions.tableCellPaddingHCompact
+            : AppDimensions.tableCellPaddingH,
+        vertical: compact
+            ? AppDimensions.tableCellPaddingVCompact
+            : AppDimensions.tableCellPaddingV,
       ),
       child: Align(
         alignment: alignRight
@@ -68,15 +88,56 @@ class ErpTableBodyCell extends StatelessWidget {
             : (center ? Alignment.center : Alignment.centerLeft),
         child: Text(
           text,
-          style: const TextStyle(
-            fontSize: 14,
+          style: TextStyle(
+            fontSize: compact ? AppDimensions.tableBodyFontSizeCompact : 12.5,
             height: 1.2,
-            color: Color(0xFF212529),
+            color: AppTheme.textPrimary,
             fontFamilyFallback: AppTheme.koreanFontFallback,
           ),
-          maxLines: 1,
+          maxLines: compact ? 2 : 1,
           overflow: TextOverflow.ellipsis,
           textAlign: align,
+        ),
+      ),
+    );
+  }
+}
+
+/// 목록 [Table] 행 더블클릭(상세 이동 등). 셀마다 동일 [onDoubleTap]으로 감싼다.
+class ErpTableDoubleTapCell extends StatelessWidget {
+  const ErpTableDoubleTapCell({
+    super.key,
+    required this.onDoubleTap,
+    required this.child,
+  });
+
+  final VoidCallback onDoubleTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = useCompactErpLayout(context);
+    // [Table] 셀은 자식이 텍스트 크기만 잡히면 MouseRegion 커서가 웹에서 안 바뀐다.
+    // Material+InkWell(mouseCursor) + 가로·세로 채우기로 셀 전체를 히트 영역으로 만든다.
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onDoubleTap: onDoubleTap,
+        onTap: compact ? onDoubleTap : null,
+        mouseCursor: SystemMouseCursors.click,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        hoverColor: const Color(0x0A000000),
+        child: SizedBox(
+          width: double.infinity,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: compact
+                  ? AppDimensions.tableRowMinHeightCompact
+                  : AppDimensions.tableRowMinHeight,
+            ),
+            child: child,
+          ),
         ),
       ),
     );

@@ -184,3 +184,60 @@ int _intAny(Object? e) => e.asJsonInt();
 double _doubleAny(Object? e) => e.asJsonDouble();
 
 String _stringAny(Object? e) => e?.toString() ?? '';
+
+/// 물건 첨부 문서 한 행 — 백엔드 `PropertyDocumentDto`.
+class PropertyDocument {
+  const PropertyDocument({
+    this.propertyDocIdx,
+    required this.fileName,
+    required this.modifiedAt,
+    required this.modifiedBy,
+    required this.attached,
+    required this.attachmentBaseDate,
+    required this.attachedAt,
+  });
+
+  final int? propertyDocIdx;
+  final String fileName;
+  final String modifiedAt;
+  final String modifiedBy;
+  final bool attached;
+  final String attachmentBaseDate;
+  final String attachedAt;
+
+  factory PropertyDocument.fromJson(Map<String, dynamic> json) {
+    int? docIdx;
+    final rawIdx = json['propertyDocIdx'];
+    if (rawIdx is int) {
+      docIdx = rawIdx;
+    } else if (rawIdx != null) {
+      docIdx = int.tryParse(rawIdx.toString());
+    }
+    return PropertyDocument(
+      propertyDocIdx: docIdx,
+      fileName: json['fileName']?.toString() ?? '',
+      modifiedAt: json['modifiedAt']?.toString() ?? '',
+      modifiedBy: json['modifiedBy']?.toString() ?? '',
+      attached: json['attached'] == true,
+      attachmentBaseDate: json['attachmentBaseDate']?.toString() ?? '',
+      attachedAt: json['attachedAt']?.toString() ?? '',
+    );
+  }
+}
+
+const Set<String> kPropertyImageExtensions = {
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.gif',
+  '.bmp',
+  '.webp',
+};
+
+bool propertyDocumentIsImage(String fileName) {
+  final lower = fileName.toLowerCase();
+  for (final ext in kPropertyImageExtensions) {
+    if (lower.endsWith(ext)) return true;
+  }
+  return false;
+}

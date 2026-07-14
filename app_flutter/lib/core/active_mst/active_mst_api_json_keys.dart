@@ -30,6 +30,14 @@ abstract final class ActiveMstApiJsonKeys {
   static const String svNotes = 'svNotes';
   static const String apprDt = 'apprDt';
   static const String svDeptNm = 'svDeptNm';
+  static const String hasSignature = 'hasSignature';
+
+  static const String actAttIdx = 'actAttIdx';
+  static const String fileName = 'fileName';
+  static const String modifiedAt = 'modifiedAt';
+  static const String modifiedBy = 'modifiedBy';
+  static const String attached = 'attached';
+  static const String attachedAt = 'attachedAt';
 }
 
 /// `GET /activities/list/*`·`/activities/status/*` 쿼리 파라미터 이름 — `ActController`와 동일.

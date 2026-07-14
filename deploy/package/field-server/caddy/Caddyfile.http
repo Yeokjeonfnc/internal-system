@@ -1,0 +1,36 @@
+:8080 {
+	encode gzip zstd
+
+	# 접근 감사 로그 — 누가 언제 어떤 경로를 호출했는지 JSON 으로 기록(자동 롤링).
+	log {
+		output file {$YON_APP_HOME}\logs\caddyccess.log {
+			roll_size 20MiB
+			roll_keep 10
+			roll_keep_for 720h
+		}
+		format json
+	}
+
+	@app_shell {
+		path / /landing.html /index.html /main.dart.js /flutter.js /flutter_bootstrap.js /version.json /manifest.json
+	}
+	header @app_shell Cache-Control "no-store, no-cache, must-revalidate"
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:3001
+	}
+
+	# 루트(도메인만 접속)는 랜딩 페이지. 앱 내부 새로고침(/#/login 등)은 프래그먼트가
+	# 서버로 전달되지 않으므로, landing.html 자체 스크립트가 감지해 index.html로 넘긴다.
+	handle / {
+		root * "{$YON_APP_HOME}\web"
+		rewrite * /landing.html
+		file_server
+	}
+
+	handle {
+		root * "{$YON_APP_HOME}\web"
+		try_files {path} /index.html
+		file_server
+	}
+}

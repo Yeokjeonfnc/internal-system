@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.franchise.mapper.StoreNfcTagMapper">
+
+    <sql id="storeNfcTagSelect">
+        SELECT t.store_idx     AS storeIdx,
+               t.tag_uid       AS tagUid,
+               CAST(t.use_yn AS VARCHAR) AS useYn,
+               t.registered_at AS registeredAt,
+               t.registered_by AS registeredBy
+        FROM store_nfc_tag t
+    </sql>
+
+    <select id="selectByStoreIdx" resultType="com.yeokjeon.erp.franchise.dto.StoreNfcTagJdbcRow">
+        <include refid="storeNfcTagSelect"/>
+        WHERE t.store_idx = #{storeIdx}
+          AND COALESCE(t.use_yn, 'Y') = 'Y'
+    </select>
+
+    <select id="selectByTagUid" resultType="com.yeokjeon.erp.franchise.dto.StoreNfcTagJdbcRow">
+        <include refid="storeNfcTagSelect"/>
+        WHERE t.tag_uid = #{tagUid}
+          AND COALESCE(t.use_yn, 'Y') = 'Y'
+    </select>
+
+    <select id="selectLookupByTagUid"
+            resultType="com.yeokjeon.erp.franchise.dto.StoreNfcTagLookupDto">
+        SELECT sm.store_idx   AS storeIdx,
+               sm.store_nm    AS storeNm,
+               cm.code_nm     AS brandNm,
+               sm.latitude    AS latitude,
+               sm.longitude   AS longitude,
+               t.tag_uid      AS tagUid
+        FROM store_nfc_tag t
+                 INNER JOIN store_mst sm ON sm.store_idx = t.store_idx
+                 LEFT JOIN code_mst cm
+                           ON sm.brand_cd = cm.code_cd AND cm.grp_cd = 40
+        WHERE t.tag_uid = #{tagUid}
+          AND COALESCE(t.use_yn, 'Y') = 'Y'
+    </select>
+
+    <insert id="upsert">
+        INSERT INTO store_nfc_tag (store_idx, tag_uid, use_yn, registered_by)
+        VALUES (#{storeIdx}, #{tagUid}, 'Y', #{registeredBy})
+        ON CONFLICT (store_idx) DO UPDATE
+            SET tag_uid       = EXCLUDED.tag_uid,
+                use_yn        = 'Y',
+                registered_at = now(),
+                registered_by = EXCLUDED.registered_by
+    </insert>
+
+    <delete id="deleteByStoreIdx">
+        DELETE FROM store_nfc_tag WHERE store_idx = #{storeIdx}
+    </delete>
+
+</mapper>

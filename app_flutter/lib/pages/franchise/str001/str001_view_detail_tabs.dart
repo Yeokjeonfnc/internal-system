@@ -1,12 +1,20 @@
 // 가맹점 상세 화면의 탭·공통 영역·문서 UI·패널을 한 파일로 묶음.
 
 import 'package:flutter/material.dart';
+import 'package:app_flutter/pages/franchise/str001/str001_store_nfc_tag_panel.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:app_flutter/core/file/store_document_file_picker.dart';
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:app_flutter/core/api/common_code_api_service.dart';
+import 'package:app_flutter/core/auth/auth_provider.dart';
+import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
+import 'package:app_flutter/core/menu/menu_access.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/format/display_date.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
@@ -29,6 +37,10 @@ import 'package:app_flutter/pages/master/dialogs/mst001_dialog_lookup.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_controller.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_model.dart';
+import 'package:app_flutter/pages/development/dev003/dev003_model.dart';
+import 'package:app_flutter/pages/development/dev003/dev003_sales_area_map_dialog.dart';
+import 'package:app_flutter/pages/franchise/str001/dialogs/str001_dialog_store_document_preview.dart';
+import 'package:app_flutter/pages/franchise/str001/store_document_preview_kind.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_controller.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_model.dart';
 import 'package:app_flutter/core/store_mst/store_mst_write_request.dart';
@@ -512,6 +524,7 @@ class StoreRegisterDraft {
   String? longitude;
 
   DateTime? firstContDt;
+  DateTime? transferDate;
   DateTime? contractExpiryDate;
   DateTime? leaseStartDate;
   DateTime? leaseEndDate;
@@ -565,6 +578,7 @@ class StoreRegisterDraft {
     status = store.storeStatus;
     notes = store.notes;
     firstContDt = tryParseLooseDate(store.firstContDt);
+    transferDate = tryParseLooseDate(store.transferDate);
     contractExpiryDate = tryParseLooseDate(store.contEndDt);
     contractFirstContDt = tryParseLooseDate(store.firstContDt);
     currentContractStart = tryParseLooseDate(store.contStartDt);
@@ -666,12 +680,16 @@ class _CommonStoreInfoSectionState
   late String _region;
   late String _brand;
   late String _status;
+  late DateTime? _transferDate;
 
   /// draft가 있으면 브랜드·상태·구분·지역은 항상 draft가 단일 소스(탭 간 동일 표시).
   String _effBrand() => widget.registerDraft?.brand ?? _brand;
   String _effStatus() => widget.registerDraft?.status ?? _status;
   String _effType() => widget.registerDraft?.type ?? _type;
   String _effRegion() => widget.registerDraft?.region ?? _region;
+  DateTime? _effTransferDate() =>
+      widget.registerDraft?.transferDate ?? _transferDate;
+  bool _isTransferStatus() => _effStatus().toLowerCase() == 'transfer';
 
   void _notifyDraftChanged() {
     widget.onRegisterDraftChanged?.call();
@@ -721,6 +739,7 @@ class _CommonStoreInfoSectionState
       _status = '';
       _type = '';
       _region = '';
+      _transferDate = draft.transferDate;
       return;
     }
     if (draft != null && store != null) {
@@ -728,11 +747,13 @@ class _CommonStoreInfoSectionState
       if (draft.status.isEmpty) draft.status = store.storeStatus;
       if (draft.type.isEmpty) draft.type = store.storeType;
       if (draft.region.isEmpty) draft.region = store.regionCd;
+      draft.transferDate ??= tryParseLooseDate(store.transferDate);
       widget.storeAreaController.text = draft.region;
       _brand = store.brandCd;
       _status = store.storeStatus;
       _type = store.storeType;
       _region = store.regionCd;
+      _transferDate = draft.transferDate;
       return;
     }
     _storeCodeController.text = store?.storeCd ?? '';
@@ -742,7 +763,14 @@ class _CommonStoreInfoSectionState
     _status = store?.storeStatus ?? '';
     _type = store?.storeType ?? '';
     _region = store?.regionCd ?? '';
+    _transferDate = tryParseLooseDate(store?.transferDate);
     widget.storeAreaController.text = _region;
+  }
+
+  List<CodeOption> _sortedByCodeNm(List<CodeOption> options) {
+    final sorted = List<CodeOption>.from(options);
+    sorted.sort((a, b) => a.codeNm.compareTo(b.codeNm));
+    return sorted;
   }
 
   List<CodeOption> _optionsWithCurrentCode(
@@ -867,15 +895,44 @@ class _CommonStoreInfoSectionState
     }
   }
 
+  void _setTransferDate(DateTime? value) {
+    widget.registerDraft?.transferDate = value;
+    if (widget.registerDraft != null) {
+      _notifyDraftChanged();
+    } else {
+      setState(() => _transferDate = value);
+    }
+  }
+
+  Future<void> _pickTransferDate() async {
+    final picked = await showAccentDatePicker(
+      context: context,
+      initialDate: _effTransferDate(),
+    );
+    if (picked != null && mounted) {
+      _setTransferDate(picked);
+    }
+  }
+
+  String? _dateToYmd(DateTime? value) {
+    if (value == null) return null;
+    return formatYmdOrDash(value);
+  }
+
+  Map<String, dynamic> _transferDatePayload() {
+    if (!_isTransferStatus()) return const {};
+    return {
+      StoreMstWriteRequest.jsonKeyTransferDate: _dateToYmd(_effTransferDate()),
+    };
+  }
+
   StoreMstWriteRequest toUpdatePayload(
     Store store, {
     required String storeTel,
   }) {
     final draft = widget.registerDraft;
-    final codeFromField = draft?.storeCodeController.text.trim() ?? '';
-    final storeCd = codeFromField.isNotEmpty ? codeFromField : store.storeCd;
     return StoreMstWriteRequest.fromMap({
-      StoreMstWriteRequest.jsonKeyStoreCd: storeCd,
+      StoreMstWriteRequest.jsonKeyStoreCd: _storeCodeController.text.trim(),
       StoreMstWriteRequest.jsonKeyStoreNm: _storeNameController.text.trim(),
       StoreMstWriteRequest.jsonKeyOwnerNm: store.ownerNm,
       StoreMstWriteRequest.jsonKeyRegionCd: _effRegion(),
@@ -910,6 +967,7 @@ class _CommonStoreInfoSectionState
       StoreMstWriteRequest.jsonKeyPremiumFee: store.premiumFee,
       StoreMstWriteRequest.jsonKeyMonthlyRent: store.monthlyRent,
       StoreMstWriteRequest.jsonKeyRentDeposit: store.rentDeposit,
+      ..._transferDatePayload(),
     });
   }
 
@@ -952,6 +1010,7 @@ class _CommonStoreInfoSectionState
     if (pid != null) {
       m[StoreMstWriteRequest.jsonKeyPartnerIdx] = pid;
     }
+    m.addAll(_transferDatePayload());
     return StoreMstWriteRequest.fromMap(m);
   }
 
@@ -974,10 +1033,12 @@ class _CommonStoreInfoSectionState
       _effBrand(),
       store?.brandNm ?? '',
     );
-    final statusOptions = _optionsWithCurrentCode(
-      ref.watch(codeOptionsProvider(10)).value ?? const <CodeOption>[],
-      _effStatus(),
-      store?.storeStatusNm ?? '',
+    final statusOptions = _sortedByCodeNm(
+      _optionsWithCurrentCode(
+        ref.watch(codeOptionsProvider(10)).value ?? const <CodeOption>[],
+        _effStatus(),
+        store?.storeStatusNm ?? '',
+      ),
     );
     final regionOptions = _optionsWithCurrentCode(
       ref.watch(codeOptionsProvider(20)).value ?? const <CodeOption>[],
@@ -1060,6 +1121,8 @@ class _CommonStoreInfoSectionState
                 : ReadonlyValue(store?.businessNumber ?? '-'),
           ),
         ),
+        if (store?.storeIdx != null)
+          StoreNfcTagPanel(storeIdx: store!.storeIdx, canEdit: canEdit),
         const SizedBox(height: 12),
         FormRowThree(
           a: FormFieldBlock(
@@ -1158,6 +1221,22 @@ class _CommonStoreInfoSectionState
                   ),
           ),
         ),
+        if (_isTransferStatus()) ...[
+          const SizedBox(height: 12),
+          FormRowTwo(
+            left: FormFieldBlock(
+              label: '양수도 계약일자',
+              child: canEdit
+                  ? DateInputWithPicker(
+                      value: _effTransferDate(),
+                      onPick: _pickTransferDate,
+                      onChanged: (value) => _setTransferDate(value),
+                    )
+                  : ReadonlyValue(formatYmdOrDash(_effTransferDate())),
+            ),
+            right: const SizedBox.shrink(),
+          ),
+        ],
       ],
     );
   }
@@ -1659,7 +1738,6 @@ class DocumentsSelectedRowBar extends StatelessWidget {
       children: [
         _DocumentsActionButton(label: '미리보기', onPressed: onPreview),
         _DocumentsActionButton(label: '다운로드', onPressed: onDownload),
-        _DocumentsActionButton(label: '문서이력', onPressed: onHistory),
       ],
     );
 
@@ -1708,7 +1786,7 @@ class _DocumentsActionButton extends StatelessWidget {
 class DocumentsTopBar extends StatelessWidget {
   const DocumentsTopBar({super.key, required this.onUpload});
 
-  final VoidCallback onUpload;
+  final VoidCallback? onUpload;
 
   @override
   Widget build(BuildContext context) {
@@ -1925,9 +2003,9 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
       _zipCodeController.text = _store?.zipCd ?? '';
       _addressController.text = _store?.address ?? '';
       _addressDetailController.text = _store?.addressDetail ?? '';
-      _rentDepositController.text = _store?.rentDeposit.toString() ?? '0';
-      _premiumFeeController.text = _store?.premiumFee.toString() ?? '0';
-      _monthlyRentController.text = _store?.monthlyRent.toString() ?? '0';
+      _rentDepositController.text = _formatMoneyInput(_store?.rentDeposit);
+      _premiumFeeController.text = _formatMoneyInput(_store?.premiumFee);
+      _monthlyRentController.text = _formatMoneyInput(_store?.monthlyRent);
       _notesController.text = _store?.notes ?? '';
       final d = widget.registerDraft;
       if (d == null) {
@@ -2057,6 +2135,25 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
     showAlertDialog(context, message);
   }
 
+  Future<void> _openSalesAreaMap() async {
+    if (!context.menuCanView(kMenuDev003)) {
+      _snack('영업지역 조회 권한이 없습니다.');
+      return;
+    }
+
+    final storeIdx = _store?.storeIdx;
+    final rowId = salesAreaRowIdFromKeys(
+      storeIdx: storeIdx != null && storeIdx > 0 ? storeIdx : null,
+      propIdx: _propIdx,
+    );
+    if (rowId == null) {
+      _snack('연결된 물건이 없습니다. 물건 상세정보 조회로 물건을 먼저 선택해 주세요.');
+      return;
+    }
+
+    await showSalesAreaMapDialog(context, rowId: rowId);
+  }
+
   Future<void> _openPropertyLookup() async {
     if (!widget.panelEditing) {
       _snack('수정 모드에서 물건 정보를 선택할 수 있습니다.');
@@ -2131,13 +2228,13 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
       _floorController.text = property.floor == '-' ? '' : property.floor;
       _rentDepositController.text = property.deposit == 0
           ? ''
-          : property.deposit.toString();
+          : _formatMoneyInput(property.deposit);
       _premiumFeeController.text = property.keyMoney == 0
           ? ''
-          : property.keyMoney.toString();
+          : _formatMoneyInput(property.keyMoney);
       _monthlyRentController.text = property.rent == 0
           ? ''
-          : property.rent.toString();
+          : _formatMoneyInput(property.rent);
       _latitude = property.latitude;
       _longitude = property.longitude;
       _propIdx = property.propIdx;
@@ -2314,7 +2411,7 @@ class _BasicInfoTabState extends ConsumerState<BasicInfoTab> {
                   ),
                   AccentOutlinedButton(
                     label: '지도보기/영업지역',
-                    onPressed: () => _snack('지도보기는 추후 연결됩니다.'),
+                    onPressed: _openSalesAreaMap,
                   ),
                 ],
               ),
@@ -3061,11 +3158,13 @@ class DocumentsTab extends ConsumerStatefulWidget {
 }
 
 class _DocumentsTabState extends ConsumerState<DocumentsTab> {
+  static const int _maxUploadBytes = 52_428_800;
+
   final TextEditingController _searchController = TextEditingController();
   String _typeFilter = '전체';
   String _committedQuery = '';
-  int? _selectedIndex;
   Document? _selectedRow;
+  bool _uploading = false;
 
   static const List<String> _typeOptions = ['전체', '이미지', '문서'];
   static const Set<String> _imageExtensions = {
@@ -3077,9 +3176,25 @@ class _DocumentsTabState extends ConsumerState<DocumentsTab> {
     '.webp',
   };
 
-  List<Document> get _allRows => widget.store == null
-      ? const <Document>[]
-      : ref.read(documentRepositoryProvider).docs(widget.store!);
+  @override
+  void initState() {
+    super.initState();
+    final idx = widget.store?.storeIdx;
+    if (idx != null && idx > 0) {
+      Future.microtask(() => ref.invalidate(storeDocumentsProvider(idx)));
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant DocumentsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final idx = widget.store?.storeIdx;
+    final oldIdx = oldWidget.store?.storeIdx;
+    if (idx != null && idx > 0 && idx != oldIdx) {
+      ref.invalidate(storeDocumentsProvider(idx));
+      setState(() => _selectedRow = null);
+    }
+  }
 
   String _inferDocType(String fileName) {
     final lower = fileName.toLowerCase();
@@ -3089,9 +3204,9 @@ class _DocumentsTabState extends ConsumerState<DocumentsTab> {
     return '문서';
   }
 
-  List<Document> get _filteredRows {
+  List<Document> _filteredRows(List<Document> allRows) {
     final query = _committedQuery.trim().toLowerCase();
-    return _allRows.where((row) {
+    return allRows.where((row) {
       if (_typeFilter != '전체' && _inferDocType(row.fileName) != _typeFilter) {
         return false;
       }
@@ -3103,42 +3218,27 @@ class _DocumentsTabState extends ConsumerState<DocumentsTab> {
   }
 
   void _applyFilter() {
-    setState(() {
-      _committedQuery = _searchController.text;
-      _recomputeSelection();
-    });
+    setState(() => _committedQuery = _searchController.text);
   }
 
   void _applyTypeFilter(String? value) {
     if (value == null) return;
-    setState(() {
-      _typeFilter = value;
-      _recomputeSelection();
-    });
+    setState(() => _typeFilter = value);
   }
 
-  void _recomputeSelection() {
-    final rows = _filteredRows;
-    if (_selectedRow == null) {
-      _selectedIndex = null;
-      return;
-    }
-    final idx = rows.indexWhere((r) => r.fileName == _selectedRow!.fileName);
-    if (idx == -1) {
-      _selectedIndex = null;
-      _selectedRow = null;
-    } else {
-      _selectedIndex = idx;
-    }
+  int? _selectedIndexIn(List<Document> rows) {
+    final selected = _selectedRow;
+    if (selected?.storeDocIdx == null) return null;
+    final idx = rows.indexWhere((r) => r.storeDocIdx == selected!.storeDocIdx);
+    return idx >= 0 ? idx : null;
   }
 
   void _onRowTap(int i, List<Document> rows) {
     setState(() {
-      if (_selectedIndex == i) {
-        _selectedIndex = null;
+      final current = _selectedIndexIn(rows);
+      if (current == i) {
         _selectedRow = null;
       } else {
-        _selectedIndex = i;
         _selectedRow = rows[i];
       }
     });
@@ -3155,23 +3255,143 @@ class _DocumentsTabState extends ConsumerState<DocumentsTab> {
     showAlertDialog(context, message);
   }
 
-  /// 선택된 문서가 없으면 가이드 스낵바, 있으면 실제 액션 스낵바.
+  Future<void> _uploadDocument() async {
+    final storeIdx = widget.store?.storeIdx;
+    if (storeIdx == null || storeIdx <= 0) {
+      _snack('가맹점 정보를 불러온 뒤 다시 시도해주세요.');
+      return;
+    }
+    if (_uploading) return;
+
+    final userId = context.read<AuthProvider>().userId.trim();
+
+    final picked = await pickStoreDocumentFiles();
+    if (!mounted || picked.isEmpty) return;
+
+    setState(() => _uploading = true);
+    try {
+      var successCount = 0;
+      for (final file in picked) {
+        if (!mounted) return;
+        if (file.bytes.length > _maxUploadBytes) {
+          _snack('${file.name}: 파일 크기는 50MB까지 가능합니다.');
+          continue;
+        }
+
+        final uploaded = await ref
+            .read(storeApiServiceProvider)
+            .uploadStoreDocument(
+              storeIdx: storeIdx,
+              fileName: file.name,
+              bytes: file.bytes,
+              userId: userId,
+              onServerMessage: _snack,
+            );
+        if (uploaded != null) successCount++;
+      }
+      if (!mounted) return;
+      if (successCount > 0) {
+        ref.invalidate(storeDocumentsProvider(storeIdx));
+        ref.invalidate(storeHistoriesProvider(storeIdx));
+        _snack(
+          successCount == picked.length
+              ? '$successCount개 문서가 업로드되었습니다.'
+              : '$successCount/${picked.length}개 문서가 업로드되었습니다.',
+        );
+      }
+    } catch (e, st) {
+      debugPrint('upload document failed: $e\n$st');
+      if (mounted) {
+        _snack('파일 선택 또는 업로드 중 오류가 발생했습니다.\n$e');
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _previewSelected(Document? selected, List<Document> rows) async {
+    if (selected == null) {
+      _snack('문서를 먼저 선택해주세요.');
+      return;
+    }
+    final storeIdx = widget.store?.storeIdx;
+    final docIdx = selected.storeDocIdx;
+    if (storeIdx == null || docIdx == null) {
+      _snack('미리보기할 문서 정보가 없습니다.');
+      return;
+    }
+    if (storeDocumentPreviewKindFor(selected.fileName) ==
+        StoreDocumentPreviewKind.unsupported) {
+      _snack('이 파일 형식은 미리보기를 지원하지 않습니다.\n(이미지·PDF만 가능)');
+      return;
+    }
+    // 미리보기 가능한 문서만 모아 좌우로 넘겨볼 수 있게 한다(선택 문서에서 시작).
+    final api = ref.read(storeApiServiceProvider);
+    final previewable = rows
+        .where(
+          (r) =>
+              r.storeDocIdx != null &&
+              storeDocumentPreviewKindFor(r.fileName) !=
+                  StoreDocumentPreviewKind.unsupported,
+        )
+        .toList(growable: false);
+    final initialIndex = previewable.indexWhere((r) => r.storeDocIdx == docIdx);
+    if (!mounted) return;
+    await showStoreDocumentGalleryPreviewDialog(
+      context: context,
+      items: previewable
+          .map(
+            (r) => StoreDocumentPreviewItem(
+              fileName: r.fileName,
+              loadBytes: () =>
+                  api.downloadStoreDocumentBytes(storeIdx, r.storeDocIdx!),
+            ),
+          )
+          .toList(growable: false),
+      initialIndex: initialIndex < 0 ? 0 : initialIndex,
+    );
+  }
+
+  Future<void> _downloadSelected(Document? selected) async {
+    if (selected == null) {
+      _snack('문서를 먼저 선택해주세요.');
+      return;
+    }
+    final storeIdx = widget.store?.storeIdx;
+    final docIdx = selected.storeDocIdx;
+    if (storeIdx == null || docIdx == null) {
+      _snack('다운로드할 문서 정보가 없습니다.');
+      return;
+    }
+
+    final href = ref
+        .read(storeApiServiceProvider)
+        .storeDocumentDownloadUrl(storeIdx, docIdx);
+    final uri = href.startsWith('http')
+        ? Uri.parse(href)
+        : Uri.parse('${Uri.base.origin}$href');
+    if (!await launchUrl(uri, webOnlyWindowName: '_blank')) {
+      _snack('다운로드를 시작할 수 없습니다.');
+    }
+  }
+
   VoidCallback _guardedAction(Document? selected, String readyMessage) {
     return () =>
         selected == null ? _snack('문서를 먼저 선택해주세요.') : _snack(readyMessage);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final rows = _filteredRows;
-    final selected = (_selectedIndex != null && _selectedIndex! < rows.length)
-        ? rows[_selectedIndex!]
-        : null;
+  Widget _buildUploadBar() {
+    return DocumentsTopBar(onUpload: _uploading ? null : _uploadDocument);
+  }
+
+  Widget _buildDocumentBody(List<Document> allRows) {
+    final rows = _filteredRows(allRows);
+    final selectedIndex = _selectedIndexIn(rows);
+    final selected = selectedIndex == null ? null : rows[selectedIndex];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        DocumentsTopBar(onUpload: () => _snack('문서 업로드는 추후 연결됩니다.')),
-        const SizedBox(height: 12),
         DocumentsFilterRow(
           typeValue: _typeFilter,
           typeOptions: _typeOptions,
@@ -3182,17 +3402,66 @@ class _DocumentsTabState extends ConsumerState<DocumentsTab> {
         const SizedBox(height: 10),
         DocumentsSelectedRowBar(
           selectedFileName: selected?.fileName ?? '',
-          onPreview: _guardedAction(selected, '미리보기는 추후 연결됩니다.'),
-          onDownload: _guardedAction(selected, '다운로드는 추후 연결됩니다.'),
+          onPreview: () => _previewSelected(selected, rows),
+          onDownload: () => _downloadSelected(selected),
           onHistory: _guardedAction(selected, '문서 이력은 추후 연결됩니다.'),
         ),
         const SizedBox(height: 12),
         DocumentsTable(
           rows: rows,
-          selectedIndex: _selectedIndex,
+          selectedIndex: selectedIndex,
           onRowTap: (i) => _onRowTap(i, rows),
         ),
         const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final storeIdx = widget.store?.storeIdx;
+    if (storeIdx == null || storeIdx <= 0) {
+      return const Center(
+        child: Text(
+          '가맹점 정보를 불러온 뒤 다시 시도해주세요.',
+          style: TextStyle(
+            color: FormStylePalette.textMuted,
+            fontSize: 13,
+            fontFamilyFallback: AppTheme.koreanFontFallback,
+          ),
+        ),
+      );
+    }
+
+    final docsAsync = ref.watch(storeDocumentsProvider(storeIdx));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildUploadBar(),
+        if (_uploading) ...[
+          const SizedBox(height: 8),
+          const CommonLoadingIndicator(),
+        ],
+        const SizedBox(height: 12),
+        docsAsync.when(
+          data: _buildDocumentBody,
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CommonLoadingIndicator()),
+          ),
+          error: (error, stack) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              '문서 목록 조회 중 오류가 발생했습니다.\n업로드는 위 버튼으로 가능합니다.\n$error',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: FormStylePalette.textMuted,
+                fontSize: 13,
+                fontFamilyFallback: AppTheme.koreanFontFallback,
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -3412,6 +3681,12 @@ class _HistoryHeaderCell extends StatelessWidget {
   }
 }
 
+String _historyCellText(String? value, {bool emptyAsDash = false}) {
+  final text = value?.trim() ?? '';
+  if (text.isEmpty && emptyAsDash) return '-';
+  return text;
+}
+
 class _HistoryTableRow extends StatelessWidget {
   const _HistoryTableRow({required this.entry});
 
@@ -3428,10 +3703,15 @@ class _HistoryTableRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       child: Row(
         children: [
-          _HistoryValueCell(text: entry.chgDt),
-          _HistoryValueCell(text: entry.content, flex: 3),
           _HistoryValueCell(
-            text: entry.chgUserId.isEmpty ? '-' : entry.chgUserId,
+            text: _historyCellText(entry.chgDt, emptyAsDash: true),
+          ),
+          _HistoryValueCell(
+            text: _historyCellText(entry.content, emptyAsDash: true),
+            flex: 3,
+          ),
+          _HistoryValueCell(
+            text: _historyCellText(entry.chgUserId, emptyAsDash: true),
           ),
         ],
       ),
@@ -3685,9 +3965,11 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
     await showAlertDialog(context, '저장되었습니다.');
 
     // 저장 후 데이터 새로고침
-    if (mounted) {
-      setState(() {});
-    }
+    // if (mounted) {
+    //   setState(() {});
+    // }
+    if (!mounted) return;
+    context.go(AppRoutes.stores);
   }
 
   Future<void> _createStore(_CommonStoreInfoSectionState commonInfo) async {

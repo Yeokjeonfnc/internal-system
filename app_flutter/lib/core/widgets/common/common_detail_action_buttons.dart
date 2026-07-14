@@ -19,9 +19,11 @@ class DetailActionButton extends StatelessWidget {
     required this.label,
     required this.backgroundColor,
     required this.foregroundColor,
+    this.enabled = true,
   });
 
   final FutureOr<void> Function() onPressed;
+  final bool enabled;
   final IconData icon;
   final String label;
   final Color backgroundColor;
@@ -30,7 +32,9 @@ class DetailActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FilledButton.icon(
-      onPressed: () => unawaited(Future<void>.sync(onPressed)),
+      onPressed: enabled
+          ? () => unawaited(Future<void>.sync(onPressed))
+          : null,
       icon: Icon(icon, size: 16),
       label: Text(
         label,
@@ -79,9 +83,11 @@ class SaveActionButton extends ConsumerWidget {
     required this.onPressed,
     this.menuCd,
     this.forCreate = false,
+    this.enabled = true,
   });
 
   final FutureOr<void> Function() onPressed;
+  final bool enabled;
 
   /// 지정 시 **등록**([forCreate]) 또는 **수정** 권한이 없으면 숨긴다.
   final String? menuCd;
@@ -101,6 +107,7 @@ class SaveActionButton extends ConsumerWidget {
     }
     return DetailActionButton(
       onPressed: () => _runAndRefresh(context, ref, onPressed),
+      enabled: enabled,
       icon: Icons.check_rounded,
       label: '저장',
       backgroundColor: FormStylePalette.accent,

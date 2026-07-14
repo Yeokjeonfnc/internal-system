@@ -2,7 +2,10 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:app_flutter/pages/dashboard/dsh001/dsh001_view_model.dart';
+import 'package:app_flutter/core/perf/session_list_cache.dart';
+import 'package:app_flutter/pages/dashboard/dsh001/dsh001_screen.dart'
+    show dashboardHomeDataProvider;
+
 import 'package:app_flutter/pages/master/mst001/mst001_controller.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_controller.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_controller.dart';
@@ -10,7 +13,8 @@ import 'package:app_flutter/pages/development/dev003/dev003_controller.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_controller.dart';
 
 void refreshAllScreenData(WidgetRef ref) {
-  ref.invalidate(dashboardViewModelProvider);
+  SessionListCache.clearAll();
+  ref.invalidate(dashboardHomeDataProvider);
   ref.invalidate(storeDataProvider);
   ref.invalidate(regionNamesProvider);
   ref.invalidate(brandNamesProvider);

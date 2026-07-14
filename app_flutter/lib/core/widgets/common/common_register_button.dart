@@ -31,7 +31,9 @@ class RegisterButton extends StatelessWidget {
         backgroundColor: AppTheme.accentRed,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );

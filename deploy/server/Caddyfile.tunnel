@@ -1,0 +1,23 @@
+:8080 {
+	encode gzip zstd
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:3001
+	}
+
+	root * "C:\y-on\internal-system\app_flutter\build\web"
+	try_files {path} /index.html
+	file_server
+}
+
+:8180 {
+	encode gzip zstd
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:3011
+	}
+
+	root * "C:\y-on\internal-system\app_flutter\build\web"
+	try_files {path} /index.html
+	file_server
+}

@@ -18,21 +18,65 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="역전 F&C 매장 운영 시스템">
+  <meta name="theme-color" content="#BC1F26">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="app_flutter">
+  <meta name="apple-mobile-web-app-title" content="역전 F&C">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>app_flutter</title>
+  <title>역전 F&C — 매장 운영 시스템</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Kakao 지도(영업지역 지도 팝업) 첫 로딩 단축 — 연결 사전 워밍 -->
+  <link rel="preconnect" href="https://dapi.kakao.com" crossorigin>
+  <link rel="dns-prefetch" href="https://dapi.kakao.com">
+  <link rel="preconnect" href="https://t1.daumcdn.net" crossorigin>
+  <link rel="dns-prefetch" href="https://t1.daumcdn.net">
+  <link rel="preconnect" href="https://map.daumcdn.net" crossorigin>
+  <link rel="dns-prefetch" href="https://map.daumcdn.net">
+
+  <!--
+    Kakao 지도 SDK 사전 적재(워밍).
+    앱 키가 localStorage 에 있으면(이전에 지도를 한 번이라도 연 적이 있으면)
+    SDK 스크립트를 부모 페이지에서 미리 받아 HTTP 캐시에 올려둔다.
+    이후 영업지역 지도 iframe 이 동일 URL 을 캐시에서 즉시 로드 → 팝업이 빨리 뜬다.
+    autoload=false 이므로 실제 지도 초기화는 하지 않아 부모 페이지에 영향이 없다.
+  -->
+  <script>
+    (function () {
+      try {
+        var key = window.localStorage.getItem('YJ_KAKAO_MAP_APP_KEY')
+          || window.YJ_KAKAO_MAP_APP_KEY
+          || '';
+        if (!key) return;
+        var url = 'https://dapi.kakao.com/v2/maps/sdk.js'
+          + '?appkey=' + encodeURIComponent(key)
+          + '&autoload=false&libraries=drawing,services';
+        var s = document.createElement('script');
+        s.src = url;
+        s.async = true;
+        document.head.appendChild(s);
+      } catch (e) { /* 워밍 실패는 무시 — iframe 이 정상 경로로 로드 */ }
+    })();
+  </script>
 </head>
 <body>
+  <script src='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.min.mjs' type='module'></script>
+  <script type='module'>
+  var { pdfjsLib } = globalThis;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.mjs';
+
+  var pdfRenderOptions = {
+    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/cmaps/',
+    cMapPacked: true,
+  }
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

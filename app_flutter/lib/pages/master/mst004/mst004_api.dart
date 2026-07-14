@@ -57,4 +57,15 @@ class MasterChecklistApiService extends BaseRepository {
     }
     return [];
   }
+
+  /// 체크리스트 마스터 삭제
+  Future<bool> deleteChecklist(int chkIdx) async {
+    try {
+      final response = await client.delete(ChkMstApiPaths.one(chkIdx));
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Error deleting checklist: $e');
+      return false;
+    }
+  }
 }

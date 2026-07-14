@@ -4,17 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/menu/menu_access.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
-import 'package:app_flutter/core/widgets/common/common_detail_button.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_multi_select.dart';
@@ -45,7 +46,10 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
     super.initState();
     final s = ref.read(storeProvider);
     _keywordCtrl = TextEditingController(text: s.storeKeyword);
-    Future.microtask(() => ref.read(storeProvider.notifier).refresh());
+    // 진입 시에는 목록만 배경 갱신(이전 데이터는 그대로 보이므로 스피너 없음).
+    Future.microtask(
+      () => ref.read(storeProvider.notifier).refresh(includeCodes: false),
+    );
   }
 
   @override
@@ -87,7 +91,7 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
       } else if (def.id == CommonSearchFieldId.storeStatus) {
         items.add(
           const _StoreContractStatusMultiSlot(
-            availableStatuses: ['신규계약', '재계약', '양수도'],
+            availableStatuses: ['신규계약', '재계약', '양수도', '폐점'],
           ).toItem(),
         );
       } else if (def.id == CommonSearchFieldId.regionCd) {
@@ -301,6 +305,32 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
   }
 }
 
+Color _contractStatusChipColor(String label, {required bool selected}) {
+  if (!selected) return kSearchFilterTextColor;
+  return switch (label) {
+    '신규계약' => AppTheme.statusNew,
+    '재계약' => AppTheme.statusRenewal,
+    '양수도' => AppTheme.statusTransfer,
+    '폐점' => AppTheme.statusClosed,
+    _ => AppTheme.accentRed,
+  };
+}
+
+Color _contractStatusChipBorder(String label, bool selected) {
+  if (!selected) return const Color(0xFFE5E7EB);
+  return _contractStatusChipColor(label, selected: true);
+}
+
+Color _contractStatusChipSelectedBg(String label) {
+  return switch (label) {
+    '신규계약' => const Color(0xFFE8F5E9),
+    '재계약' => const Color(0xFFE3F2FD),
+    '양수도' => const Color(0xFFF3E8FF),
+    '폐점' => const Color(0xFFFFF1F2),
+    _ => const Color(0xFFFFF1F2),
+  };
+}
+
 /// 계약상태: [FilterChip] 으로 중복 선택.
 class _StoreContractStatusMultiSlot implements FilterSlotConfig {
   const _StoreContractStatusMultiSlot({required this.availableStatuses});
@@ -358,20 +388,22 @@ class _StoreContractStatusMultiSlot implements FilterSlotConfig {
                       fontWeight: filter.storeStatus.contains(s)
                           ? FontWeight.w700
                           : FontWeight.w500,
-                      color: filter.storeStatus.contains(s)
-                          ? AppTheme.accentRed
-                          : kSearchFilterTextColor,
+                      color: _contractStatusChipColor(
+                        s,
+                        selected: filter.storeStatus.contains(s),
+                      ),
                       fontFamilyFallback: AppTheme.koreanFontFallback,
                     ),
                   ),
                   selected: filter.storeStatus.contains(s),
                   onSelected: (_) => notifier.toggleContractStatus(s),
-                  selectedColor: const Color(0xFFFFF1F2),
+                  selectedColor: _contractStatusChipSelectedBg(s),
                   backgroundColor: Colors.white,
                   side: BorderSide(
-                    color: filter.storeStatus.contains(s)
-                        ? AppTheme.accentRed
-                        : const Color(0xFFE5E7EB),
+                    color: _contractStatusChipBorder(
+                      s,
+                      filter.storeStatus.contains(s),
+                    ),
                     width: filter.storeStatus.contains(s) ? 1.4 : 1,
                   ),
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -435,29 +467,51 @@ class _StoreTable extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final showDelete = context.menuCanDelete(kMenuStr001);
-    return ErpDataTable(
-      minWidth: 2000,
-      tableBuilder: (context, _) => Table(
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        border: kErpTableInnerGridBorder,
-        columnWidths: const {
-          0: IntrinsicColumnWidth(),
-          1: IntrinsicColumnWidth(),
-          2: IntrinsicColumnWidth(),
-          3: IntrinsicColumnWidth(),
-          4: IntrinsicColumnWidth(),
-          5: IntrinsicColumnWidth(),
-          6: IntrinsicColumnWidth(),
-          7: IntrinsicColumnWidth(),
-          8: IntrinsicColumnWidth(),
-          9: IntrinsicColumnWidth(),
-          10: IntrinsicColumnWidth(),
-          11: IntrinsicColumnWidth(),
-        },
-        children: [
-          TableRow(
-            decoration: const BoxDecoration(color: AppTheme.accentRed),
-            children: [
+    final compact = useCompactErpLayout(context);
+
+    // 앱(컴팩트): 영업지역 목록과 동일 8열·좁은 Fixed 폭 — 가맹점명이 잘리지 않게.
+    final columnWidths = compact
+        ? <int, TableColumnWidth>{
+            0: const FixedColumnWidth(40),
+            1: const FixedColumnWidth(120),
+            2: const FlexColumnWidth(1),
+            3: const FixedColumnWidth(120),
+            4: const FixedColumnWidth(88),
+            5: const FixedColumnWidth(100),
+            6: const FixedColumnWidth(150),
+            7: const FlexColumnWidth(2),
+            8: const FixedColumnWidth(100),
+            9: const FixedColumnWidth(100),
+          }
+        : <int, TableColumnWidth>{
+            0: const FixedColumnWidth(40),
+            1: const FixedColumnWidth(120),
+            2: const FlexColumnWidth(1),
+            3: const FixedColumnWidth(120),
+            4: const FixedColumnWidth(88),
+            5: const FixedColumnWidth(100),
+            6: const FixedColumnWidth(150),
+            7: const FlexColumnWidth(2),
+            8: const FixedColumnWidth(100),
+            9: const FixedColumnWidth(100),
+            if (showDelete) 10: const FixedColumnWidth(80),
+          };
+
+    final headerRow = TableRow(
+      decoration: kErpTableHeaderRowDecoration,
+      children: compact
+          ? const [
+              ErpTableHeaderCell('No'),
+              ErpTableHeaderCell('브랜드'),
+              ErpTableHeaderCell('가맹점명'),
+              ErpTableHeaderCell('가맹점코드'),
+              ErpTableHeaderCell('계약상태'),
+              ErpTableHeaderCell('가맹점 소유자'),
+              ErpTableHeaderCell('연락처'),
+              ErpTableHeaderCell('주소'),
+              ErpTableHeaderCell('개업일자'),
+            ]
+          : [
               const ErpTableHeaderCell('No'),
               const ErpTableHeaderCell('브랜드'),
               const ErpTableHeaderCell('가맹점명'),
@@ -468,70 +522,82 @@ class _StoreTable extends ConsumerWidget {
               const ErpTableHeaderCell('주소'),
               const ErpTableHeaderCell('개업일자'),
               const ErpTableHeaderCell('계약 만료일자'),
-              const ErpTableHeaderCell('상세보기'),
               if (showDelete) const ErpTableHeaderCell('삭제'),
             ],
-          ),
-          ...rows.asMap().entries.map(
-            (entry) => TableRow(
-              decoration: BoxDecoration(
-                color: entry.key.isEven
-                    ? AppTheme.tableRowOdd
-                    : AppTheme.tableRowEven,
+    );
+
+    return ErpVirtualDataTable(
+      minWidth: AppDimensions.tableMinWidthStandard,
+      columnWidths: columnWidths,
+      headerRow: headerRow,
+      rowCount: rows.length,
+      rowBuilder: (rowContext, index) {
+        final row = rows[index];
+        void openDetail() => context.goNamed(
+          AppRouteNames.storeDetail,
+          pathParameters: {'storeIdx': '${row.storeIdx}'},
+        );
+        Widget tap(Widget child) =>
+            ErpTableDoubleTapCell(onDoubleTap: openDetail, child: child);
+        final statusCell = tap(
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Center(
+              child: _StatusChip(
+                storeStatus: row.storeStatus,
+                storeStatusNm: row.storeStatusNm,
               ),
-              children: [
-                ErpTableBodyCell('${entry.key + 1}', center: true),
-                ErpTableBodyCell(entry.value.brandNm, center: true),
-                ErpTableBodyCell(entry.value.storeNm, center: true),
-                ErpTableBodyCell(entry.value.storeCd, center: true),
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Center(
-                    child: _StatusChip(
-                      storeStatus: entry.value.storeStatus,
-                      storeStatusNm: entry.value.storeStatusNm,
-                    ),
-                  ),
-                ),
-                ErpTableBodyCell(entry.value.ownerNm, center: true),
-                ErpTableBodyCell(entry.value.storeTel, center: true),
-                ErpTableBodyCell(entry.value.address),
-                ErpTableBodyCell(entry.value.contStartDt, center: true),
-                ErpTableBodyCell(entry.value.contEndDt, center: true),
-                Padding(
-                  padding: const EdgeInsets.all(1),
-                  child: Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        DetailButton(
-                          onPressed: () => context.goNamed(
-                            AppRouteNames.storeDetail,
-                            pathParameters: {
-                              'storeIdx': '${entry.value.storeIdx}',
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                    ),
-                  ),
-                ),
-                if (showDelete)
-                  Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Center(
-                      child: _StoreDeleteButton(
-                        onPressed: () =>
-                            _confirmAndDelete(context, ref, entry.value),
-                      ),
-                    ),
-                  ),
-              ],
             ),
           ),
-        ],
-      ),
+        );
+
+        if (compact) {
+          return TableRow(
+            decoration: BoxDecoration(
+              color: index.isEven
+                  ? AppTheme.tableRowOdd
+                  : AppTheme.tableRowEven,
+            ),
+            children: [
+              tap(ErpTableBodyCell('${index + 1}', center: true)),
+              tap(ErpTableBodyCell(row.brandNm, center: true)),
+              tap(ErpTableBodyCell(row.storeNm, center: true)),
+              tap(ErpTableBodyCell(row.storeCd, center: true)),
+              statusCell,
+              tap(ErpTableBodyCell(row.storeTel, center: true)),
+              tap(ErpTableBodyCell(row.address)),
+              tap(ErpTableBodyCell(row.contStartDt, center: true)),
+            ],
+          );
+        }
+
+        return TableRow(
+          decoration: BoxDecoration(
+            color: index.isEven ? AppTheme.tableRowOdd : AppTheme.tableRowEven,
+          ),
+          children: [
+            tap(ErpTableBodyCell('${index + 1}', center: true)),
+            tap(ErpTableBodyCell(row.brandNm, center: true)),
+            tap(ErpTableBodyCell(row.storeNm, center: true)),
+            tap(ErpTableBodyCell(row.storeCd, center: true)),
+            statusCell,
+            tap(ErpTableBodyCell(row.ownerNm, center: true)),
+            tap(ErpTableBodyCell(row.storeTel, center: true)),
+            tap(ErpTableBodyCell(row.address)),
+            tap(ErpTableBodyCell(row.contStartDt, center: true)),
+            tap(ErpTableBodyCell(row.contEndDt, center: true)),
+            if (showDelete)
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Center(
+                  child: _StoreDeleteButton(
+                    onPressed: () => _confirmAndDelete(context, ref, row),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -569,7 +635,7 @@ class _StatusChip extends StatelessWidget {
   final String storeStatusNm;
   @override
   Widget build(BuildContext context) {
-    Color color = Colors.black;
+    Color color = AppTheme.textMuted;
     String displayName = storeStatusNm.isNotEmpty ? storeStatusNm : storeStatus;
     // 영어 코드로 색상 결정
     final statusLower = storeStatus.toLowerCase();
@@ -582,23 +648,37 @@ class _StatusChip extends StatelessWidget {
     } else if (statusLower == 'transfer') {
       color = AppTheme.statusTransfer;
       displayName = '양수도';
+    } else if (statusLower == 'closed') {
+      color = AppTheme.statusClosed;
+      displayName = '폐점';
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.circle, size: 10, color: color),
-        const SizedBox(width: 4),
-        Text(
-          displayName,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-            fontFamilyFallback: AppTheme.koreanFontFallback,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-        ),
-      ],
+          const SizedBox(width: 5),
+          Text(
+            displayName,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+              fontFamilyFallback: AppTheme.koreanFontFallback,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

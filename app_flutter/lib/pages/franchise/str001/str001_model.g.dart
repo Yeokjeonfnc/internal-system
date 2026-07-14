@@ -10,12 +10,16 @@ Store _$StoreFromJson(Map<String, dynamic> json) => Store(
   storeIdx: _intAny(json['storeIdx']),
   storeNm: json['storeNm'] == null ? '' : _stringAny(json['storeNm']),
   brandCd: json['brandCd'] == null ? '' : _stringAny(json['brandCd']),
-  brandNm: _stringAny(json['brandNm']),
-  storeCd: _stringAny(json['storeCd']),
-  storeStatus: json['storeStatus'] == null ? '' : _stringAny(json['storeStatus']),
-  storeStatusNm:
-      json['storeStatusNm'] == null ? '' : _stringAny(json['storeStatusNm']),
-  ownerNm: _stringAny(json['ownerNm']),
+  brandNm: json['brandNm'] == null ? '' : _stringAny(json['brandNm']),
+  storeCd: json['storeCd'] == null ? '' : _stringAny(json['storeCd']),
+  storeStatus: json['storeStatus'] == null
+      ? ''
+      : _stringAny(json['storeStatus']),
+  storeStatusNm: json['storeStatusNm'] == null
+      ? ''
+      : _stringAny(json['storeStatusNm']),
+  closedYn: json['closedYn'] as bool? ?? false,
+  ownerNm: json['ownerNm'] == null ? '' : _stringAny(json['ownerNm']),
   storeTel: json['storeTel'] == null ? '' : _stringAny(json['storeTel']),
   zipCd: json['zipCd'] == null ? '' : _stringAny(json['zipCd']),
   address: json['address'] == null ? '' : _stringAny(json['address']),
@@ -23,6 +27,7 @@ Store _$StoreFromJson(Map<String, dynamic> json) => Store(
   contStartDt: _stringAny(json['contStartDt']),
   contEndDt: _stringAny(json['contEndDt']),
   firstContDt: json['firstContDt'] as String? ?? '',
+  transferDate: json['transferDate'] as String? ?? '',
   frFee: _stringAny(json['frFee']),
   eduFee: _stringAny(json['eduFee']),
   insuDeposit: _stringAny(json['insuDeposit']),
@@ -60,6 +65,7 @@ Map<String, dynamic> _$StoreToJson(Store instance) => <String, dynamic>{
   'storeCd': instance.storeCd,
   'storeStatus': instance.storeStatus,
   'storeStatusNm': instance.storeStatusNm,
+  'closedYn': instance.closedYn,
   'ownerNm': instance.ownerNm,
   'storeTel': instance.storeTel,
   'zipCd': instance.zipCd,
@@ -68,6 +74,7 @@ Map<String, dynamic> _$StoreToJson(Store instance) => <String, dynamic>{
   'contStartDt': instance.contStartDt,
   'contEndDt': instance.contEndDt,
   'firstContDt': instance.firstContDt,
+  'transferDate': instance.transferDate,
   'contManager': instance.contManager,
   'contManagerNm': instance.contManagerNm,
   'eduManager': instance.eduManager,
@@ -91,15 +98,8 @@ Map<String, dynamic> _$StoreToJson(Store instance) => <String, dynamic>{
   'monthlyRent': instance.monthlyRent,
   'rentDeposit': instance.rentDeposit,
   'premiumFee': instance.premiumFee,
-  if (instance.propIdx != null) 'propIdx': instance.propIdx,
-  if (instance.partnerIdx != null) 'partnerIdx': instance.partnerIdx,
+  'propIdx': ?instance.propIdx,
+  'partnerIdx': ?instance.partnerIdx,
   'latitude': instance.latitude,
   'longitude': instance.longitude,
 };
-
-HistoryEntry _$HistoryEntryFromJson(Map<String, dynamic> json) => HistoryEntry(
-  chgDt: storeHistoryChgDtFromJson(json['chgDt']),
-  chgContent: storeHistoryChgContentEncode(json['chgContent']),
-  plainApiContent: _stringAny(json['content']),
-  chgUserId: _stringAny(json['chgUserId']),
-);

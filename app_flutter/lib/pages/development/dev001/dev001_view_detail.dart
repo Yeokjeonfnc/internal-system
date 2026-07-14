@@ -18,6 +18,7 @@ import 'package:app_flutter/core/widgets/common/common_detail_action_buttons.dar
 import 'package:app_flutter/core/widgets/common/form/common_accent_outline_button.dart';
 import 'package:app_flutter/core/widgets/common/form/common_date_input_with_picker.dart';
 import 'package:app_flutter/core/widgets/common/form/common_labeled_form_row.dart';
+import 'package:app_flutter/core/widgets/common/code_options_dropdown_field.dart';
 import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_controller.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_model.dart';
@@ -361,15 +362,20 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
     final regionCd = dev001PartnerRegionCode(_region.trim(), regionOptions);
     return PartnerMstWriteRequest.fromMap({
       PartnerMstWriteRequest.jsonKeyPartnerNm: _nameController.text.trim(),
-      PartnerMstWriteRequest.jsonKeyPartnerStatus: statusLabelKo(_partnerStatus),
+      PartnerMstWriteRequest.jsonKeyPartnerStatus: statusLabelKo(
+        _partnerStatus,
+      ),
       PartnerMstWriteRequest.jsonKeyPartnerTel: _phoneController.text.trim(),
       PartnerMstWriteRequest.jsonKeyPartnerEmail: _emailController.text.trim(),
-      PartnerMstWriteRequest.jsonKeyGender: _gender == Gender.female ? 'F' : 'M',
+      PartnerMstWriteRequest.jsonKeyGender: _gender == Gender.female
+          ? 'F'
+          : 'M',
       PartnerMstWriteRequest.jsonKeyPartnerBirth: _formatYmd(_birthDate),
       PartnerMstWriteRequest.jsonKeyPZipCd: _zipCodeController.text.trim(),
       PartnerMstWriteRequest.jsonKeyPAddress: _addressController.text.trim(),
-      PartnerMstWriteRequest.jsonKeyPAddressDetail:
-          _addressDetailController.text.trim(),
+      PartnerMstWriteRequest.jsonKeyPAddressDetail: _addressDetailController
+          .text
+          .trim(),
       PartnerMstWriteRequest.jsonKeyPRegion: regionCd,
     });
   }
@@ -414,8 +420,8 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
 
   @override
   Widget build(BuildContext context) {
-    final regionOptions =
-        ref.watch(partnerCodeOptionsProvider(20)).value ?? const <CodeOption>[];
+    final regionAsync = ref.watch(partnerCodeOptionsProvider(20));
+    final regionOptions = regionAsync.value ?? const <CodeOption>[];
     _syncRegionCode(regionOptions);
     final regionCd = dev001PartnerRegionCode(_region, regionOptions);
     return Column(
@@ -466,9 +472,7 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
                   keyboardType: TextInputType.phone,
                   inputFormatters: [_PhoneNumberTextInputFormatter()],
                 )
-              : ReadonlyValue(
-                  _phoneDash(widget.founder?.partnerTel ?? ''),
-                ),
+              : ReadonlyValue(_phoneDash(widget.founder?.partnerTel ?? '')),
         ),
         const SizedBox(height: 10),
         LabeledFormRow(
@@ -561,12 +565,15 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
         LabeledFormRow(
           label: '지역',
           child: widget.isEditing
-              ? _PartnerRegionDropdown(
+              ? CodeOptionsDropdownField(
+                  async: regionAsync,
                   value: regionCd,
-                  options: regionOptions,
+                  decoration: _registerDropdownDecor(),
                   onChanged: (v) => setState(() => _region = v ?? ''),
                 )
-              : ReadonlyValue(dev001PartnerRegionLabel(regionCd, regionOptions)),
+              : ReadonlyValue(
+                  dev001PartnerRegionLabel(regionCd, regionOptions),
+                ),
         ),
       ],
     );
@@ -586,7 +593,6 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
     String two(int value) => value.toString().padLeft(2, '0');
     return '${date.year}-${two(date.month)}-${two(date.day)}';
   }
-
 }
 
 /// 예비창업자 신규 등록 화면.
@@ -692,22 +698,27 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
     final regionOptions =
         ref.read(partnerCodeOptionsProvider(20)).value ?? const <CodeOption>[];
     final regionCd = dev001PartnerRegionCode(_region, regionOptions);
-    final saved = await ref.read(partnerApiServiceProvider).create(
+    final saved = await ref
+        .read(partnerApiServiceProvider)
+        .create(
           PartnerMstWriteRequest.fromMap({
-            PartnerMstWriteRequest.jsonKeyPartnerNm: _nameController.text.trim(),
-            PartnerMstWriteRequest.jsonKeyPartnerStatus:
-                statusLabelKo(_partnerStatus),
-            PartnerMstWriteRequest.jsonKeyPartnerTel:
-                _phoneController.text.trim(),
-            PartnerMstWriteRequest.jsonKeyPartnerEmail:
-                _emailController.text.trim(),
-            PartnerMstWriteRequest.jsonKeyGender:
-                _gender == Gender.female ? 'F' : 'M',
+            PartnerMstWriteRequest.jsonKeyPartnerNm: _nameController.text
+                .trim(),
+            PartnerMstWriteRequest.jsonKeyPartnerStatus: statusLabelKo(
+              _partnerStatus,
+            ),
+            PartnerMstWriteRequest.jsonKeyPartnerTel: _phoneController.text
+                .trim(),
+            PartnerMstWriteRequest.jsonKeyPartnerEmail: _emailController.text
+                .trim(),
+            PartnerMstWriteRequest.jsonKeyGender: _gender == Gender.female
+                ? 'F'
+                : 'M',
             PartnerMstWriteRequest.jsonKeyPartnerBirth: _formatYmd(_birthDate),
-            PartnerMstWriteRequest.jsonKeyPZipCd:
-                _postalCodeController.text.trim(),
-            PartnerMstWriteRequest.jsonKeyPAddress:
-                _addressController.text.trim(),
+            PartnerMstWriteRequest.jsonKeyPZipCd: _postalCodeController.text
+                .trim(),
+            PartnerMstWriteRequest.jsonKeyPAddress: _addressController.text
+                .trim(),
             PartnerMstWriteRequest.jsonKeyPAddressDetail:
                 _addressDetailController.text.trim(),
             PartnerMstWriteRequest.jsonKeyPRegion: regionCd,
@@ -782,8 +793,8 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
   }
 
   Widget _buildForm() {
-    final regionOptions =
-        ref.watch(partnerCodeOptionsProvider(20)).value ?? const <CodeOption>[];
+    final regionAsync = ref.watch(partnerCodeOptionsProvider(20));
+    final regionOptions = regionAsync.value ?? const <CodeOption>[];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -891,9 +902,10 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
         const SizedBox(height: 10),
         LabeledFormRow(
           label: '지역',
-          child: _PartnerRegionDropdown(
+          child: CodeOptionsDropdownField(
+            async: regionAsync,
             value: dev001PartnerRegionCode(_region, regionOptions),
-            options: regionOptions,
+            decoration: _registerDropdownDecor(),
             onChanged: (v) => setState(() => _region = v ?? ''),
           ),
         ),
@@ -1096,55 +1108,6 @@ class _PartnerStatusDropdown extends StatelessWidget {
       ],
       onChanged: onChanged,
       decoration: _registerDropdownDecor(),
-    );
-  }
-}
-
-class _PartnerRegionDropdown extends StatelessWidget {
-  const _PartnerRegionDropdown({
-    required this.value,
-    required this.options,
-    required this.onChanged,
-  });
-
-  final String value;
-  final List<CodeOption> options;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final codes = options.map((e) => e.codeCd).toSet();
-    final selected = value.isNotEmpty && codes.contains(value) ? value : null;
-    return InputDecorator(
-      decoration: _registerDropdownDecor(),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          value: selected,
-          hint: const Text(
-            '선택',
-            style: TextStyle(
-              fontSize: 14,
-              color: FormStylePalette.textPrimary,
-              fontFamilyFallback: AppTheme.koreanFontFallback,
-            ),
-          ),
-          items: [
-            for (final option in options)
-              DropdownMenuItem<String>(
-                value: option.codeCd,
-                child: Text(
-                  option.codeNm,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontFamilyFallback: AppTheme.koreanFontFallback,
-                  ),
-                ),
-              ),
-          ],
-          onChanged: (v) => onChanged(v),
-        ),
-      ),
     );
   }
 }

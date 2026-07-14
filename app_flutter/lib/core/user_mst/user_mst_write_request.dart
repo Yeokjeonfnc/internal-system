@@ -9,7 +9,7 @@ class UserMstWriteRequest {
   static const String jsonKeyUserPhone = UserMstApiJsonKeys.userPhone;
   static const String jsonKeyUserEmail = UserMstApiJsonKeys.userEmail;
   static const String jsonKeySvYn = UserMstApiJsonKeys.svYn;
-  static const String jsonKeyTagYn = UserMstApiJsonKeys.tagYn;
+  static const String jsonKeyOwnerYn = UserMstApiJsonKeys.ownerYn;
   static const String jsonKeyPositionCd = UserMstApiJsonKeys.positionCd;
   static const String jsonKeyJoinDt = UserMstApiJsonKeys.joinDt;
 
@@ -23,12 +23,10 @@ class UserMstWriteRequest {
       UserMstWriteRequest._(Map<String, dynamic>.from(map));
 }
 
-/// 사원 REST 경로 — 백엔드 `MstController` (`/users`).
 abstract final class UserMstApiPaths {
   static const String root = '/users';
 
   static String one(int userIdx) => '$root/$userIdx';
 
-  /// `GET` 쿼리 파라미터 이름 — `UserMstApiJsonKeys.userId`와 동일 문자열.
   static const String checkUserId = '$root/check-user-id';
 }

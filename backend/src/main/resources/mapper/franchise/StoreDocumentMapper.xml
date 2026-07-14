@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.franchise.mapper.StoreDocumentMapper">
+
+    <sql id="storeDocumentSelect">
+        SELECT sd.store_doc_idx   AS storeDocIdx,
+               sd.store_idx       AS storeIdx,
+               sd.file_name       AS fileName,
+               sd.stored_name     AS storedName,
+               sd.file_size       AS fileSize,
+               sd.content_type    AS contentType,
+               sd.attachment_base_date AS attachmentBaseDate,
+               CAST(sd.attached_at AS TIMESTAMP) AS attachedAt,
+               CAST(sd.modified_at AS TIMESTAMP) AS modifiedAt,
+               sd.modified_by     AS modifiedBy,
+               um.user_name       AS modifiedByNm,
+               sd.deleted_yn      AS deletedYn
+        FROM store_doc sd
+                 LEFT JOIN user_mst um ON um.user_id = sd.modified_by
+    </sql>
+
+    <select id="selectByStoreIdx" resultType="com.yeokjeon.erp.franchise.dto.StoreDocumentJdbcRow">
+        <include refid="storeDocumentSelect"/>
+        WHERE sd.store_idx = #{storeIdx}
+          AND sd.deleted_yn = false
+        ORDER BY sd.attached_at DESC, sd.store_doc_idx DESC
+    </select>
+
+    <select id="selectByDocIdxAndStoreIdx"
+            resultType="com.yeokjeon.erp.franchise.dto.StoreDocumentJdbcRow">
+        <include refid="storeDocumentSelect"/>
+        WHERE sd.store_doc_idx = #{storeDocIdx}
+          AND sd.store_idx = #{storeIdx}
+          AND sd.deleted_yn = false
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="storeDocIdx" keyColumn="store_doc_idx">
+        INSERT INTO store_doc (
+            store_idx,
+            file_name,
+            stored_name,
+            file_size,
+            content_type,
+            attachment_base_date,
+            modified_by
+        )
+        VALUES (
+            #{storeIdx},
+            #{fileName},
+            #{storedName},
+            #{fileSize},
+            #{contentType},
+            #{attachmentBaseDate},
+            #{modifiedBy}
+        )
+    </insert>
+
+    <update id="markDeleted">
+        UPDATE store_doc
+        SET deleted_yn = true,
+            modified_at = CURRENT_TIMESTAMP
+        WHERE store_doc_idx = #{storeDocIdx}
+          AND store_idx = #{storeIdx}
+          AND deleted_yn = false
+    </update>
+</mapper>

@@ -1,0 +1,111 @@
+param(
+    [string]$OutputRoot = 'C:\y-on\release',
+    [string]$PackageName = 'yon-field-server',
+    [string]$ApiBaseUrl = '/api',
+    [string]$KakaoMapJavaScriptKey = '3649c96a39bc8cff269119d8cffbe4e0',
+    [switch]$Build
+)
+
+$ErrorActionPreference = 'Stop'
+
+function Resolve-CommandOrFallback {
+    param(
+        [string[]]$Names,
+        [string[]]$Fallbacks
+    )
+
+    foreach ($name in $Names) {
+        $cmd = Get-Command $name -ErrorAction SilentlyContinue
+        if ($cmd) {
+            return $cmd.Source
+        }
+    }
+
+    foreach ($fallback in $Fallbacks) {
+        if (Test-Path -LiteralPath $fallback) {
+            return $fallback
+        }
+    }
+
+    throw "Required command not found: $($Names -join ', ')"
+}
+
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Resolve-Path (Join-Path $scriptDir '..\..')
+$repoRoot = $repoRoot.Path
+
+if ($Build) {
+    $javaHome = 'C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot'
+    if (Test-Path -LiteralPath $javaHome) {
+        $env:JAVA_HOME = $javaHome
+        $env:Path = "$env:JAVA_HOME\bin;$env:Path"
+    }
+
+    $mvn = Resolve-CommandOrFallback `
+        -Names @('mvn.cmd', 'mvn.exe', 'mvn') `
+        -Fallbacks @('C:\tmp\apache-maven-3.9.16\bin\mvn.cmd', 'C:\tmp\apache-maven-3.9.16\bin\mvn.exe')
+
+    $flutter = Resolve-CommandOrFallback `
+        -Names @('flutter.bat', 'flutter.exe', 'flutter') `
+        -Fallbacks @('C:\Users\PC\.puro\envs\stable\flutter\bin\flutter.bat')
+
+    Push-Location (Join-Path $repoRoot 'backend')
+    try {
+        & $mvn -q -DskipTests package
+    } finally {
+        Pop-Location
+    }
+
+    Push-Location (Join-Path $repoRoot 'app_flutter')
+    try {
+        # --no-tree-shake-icons: 전체 MaterialIcons 폰트를 항상 포함한다.
+        # (트리셰이킹 시 새로 추가한 아이콘이 캐시된 옛 부분폰트에 없어 안 보이는 문제 방지)
+        # --pwa-strategy=none: 서비스워커 오프라인 캐시 비활성화.
+        # (재배포 후에도 브라우저가 옛 main.dart.js 를 계속 실행하는 문제 방지 — 내부 ERP 는 항상 서버 최신본 사용)
+        & $flutter build web --no-pub --no-tree-shake-icons --pwa-strategy=none "--dart-define=API_BASE_URL=$ApiBaseUrl" "--dart-define=KAKAO_MAP_JAVASCRIPT_KEY=$KakaoMapJavaScriptKey"
+    } finally {
+        Pop-Location
+    }
+}
+
+$jarPath = Join-Path $repoRoot 'backend\target\erp-backend-1.0.0.jar'
+$webPath = Join-Path $repoRoot 'app_flutter\build\web'
+$templatePath = Join-Path $scriptDir 'field-server'
+$dbSourcePath = Join-Path $repoRoot 'deploy\db'
+
+if (-not (Test-Path -LiteralPath $jarPath)) {
+    throw "Backend jar not found: $jarPath. Run this script with -Build first."
+}
+if (-not (Test-Path -LiteralPath (Join-Path $webPath 'index.html'))) {
+    throw "Flutter web build not found: $webPath. Run this script with -Build first."
+}
+if (-not (Test-Path -LiteralPath $templatePath)) {
+    throw "Package template not found: $templatePath"
+}
+if (-not (Test-Path -LiteralPath $dbSourcePath)) {
+    throw "DB scripts not found: $dbSourcePath"
+}
+
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$packageDir = Join-Path $OutputRoot "$PackageName-$stamp"
+$zipPath = "$packageDir.zip"
+
+New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $packageDir 'backend') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $packageDir 'web') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $packageDir 'logs') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $packageDir 'db') | Out-Null
+
+Copy-Item -LiteralPath $jarPath -Destination (Join-Path $packageDir 'backend\erp-backend-1.0.0.jar') -Force
+Copy-Item -Path (Join-Path $webPath '*') -Destination (Join-Path $packageDir 'web') -Recurse -Force
+Copy-Item -Path (Join-Path $templatePath '*') -Destination $packageDir -Recurse -Force
+Copy-Item -Path (Join-Path $dbSourcePath '*') -Destination (Join-Path $packageDir 'db') -Recurse -Force
+
+if (Test-Path -LiteralPath $zipPath) {
+    Remove-Item -LiteralPath $zipPath -Force
+}
+Compress-Archive -Path (Join-Path $packageDir '*') -DestinationPath $zipPath -Force
+
+Write-Host "[OK] Field server package created:"
+Write-Host "     Folder: $packageDir"
+Write-Host "     Zip:    $zipPath"

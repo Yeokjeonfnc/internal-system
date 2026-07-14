@@ -224,9 +224,16 @@
                COALESCE(CRD.answer_val, '미평가') AS answer_val,
                COALESCE(CRD.answer_score, 0) AS answer_score
         FROM chk_mst CM
-                 LEFT OUTER JOIN chk_result_dtl CRD
-                                 ON CM.chk_idx = CRD.chk_idx AND CRD.act_idx = #{actIdx}
-                 INNER JOIN code_mst COD ON CM.chk_type = COD.code_cd AND COD.grp_cd = '50'
+                 LEFT OUTER JOIN (
+            SELECT DISTINCT ON (chk_idx) chk_idx,
+                                          answer_val,
+                                          answer_score
+            FROM chk_result_dtl
+            WHERE act_idx = #{actIdx}
+            ORDER BY chk_idx, res_idx DESC
+        ) CRD ON CM.chk_idx = CRD.chk_idx
+                 INNER JOIN code_mst COD ON CAST(COD.code_cd AS TEXT) = CAST(CM.chk_type AS TEXT)
+                     AND COD.grp_cd = 50
                  INNER JOIN active_mst ACT ON ACT.act_idx = #{actIdx}
                  INNER JOIN store_mst SM ON SM.store_idx = ACT.store_idx
         WHERE CM.brand_cd = SM.brand_cd
@@ -270,7 +277,8 @@
                c.use_yn,
                c.display_order
         FROM chk_mst c
-                 LEFT JOIN code_mst cm ON cm.grp_cd = '50' AND cm.code_cd = c.chk_type
+                 LEFT JOIN code_mst cm ON cm.grp_cd = 50
+                     AND CAST(cm.code_cd AS TEXT) = CAST(c.chk_type AS TEXT)
         WHERE 1 = 1
         <if test="brandCd != null and brandCd != ''">
             AND c.brand_cd = #{brandCd}
@@ -291,9 +299,18 @@
                c.use_yn,
                c.display_order
         FROM chk_mst c
-                 LEFT JOIN code_mst cm ON cm.grp_cd = '50' AND cm.code_cd = c.chk_type
+                 LEFT JOIN code_mst cm ON cm.grp_cd = 50
+                     AND CAST(cm.code_cd AS TEXT) = CAST(c.chk_type AS TEXT)
         WHERE c.chk_idx = #{chkIdx}
     </select>
+
+    <delete id="delChkDtlByChkIdx">
+        DELETE FROM chk_result_dtl WHERE chk_idx = #{chkIdx}
+    </delete>
+
+    <delete id="delChkMst">
+        DELETE FROM chk_mst WHERE chk_idx = #{chkIdx}
+    </delete>
 
     <!--
       ActService 목록 공통 — ActiveListQuery.mode 분기.
@@ -386,6 +403,13 @@
         WHERE user_id = #{userId}
           AND read_yn = 'N'
     </select>
+
+    <update id="notifMarkAllRead">
+        UPDATE notif_mst
+        SET read_yn = 'Y'
+        WHERE user_id = #{userId}
+          AND read_yn = 'N'
+    </update>
 
     <!--
       ActService.approvalAckDateMapForActivity — 상세 결재도장용.

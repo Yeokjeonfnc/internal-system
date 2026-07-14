@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.master.mapper.UsageLogMapper">
+
+    <resultMap id="usageLogRow" type="com.yeokjeon.erp.master.dto.UsageLogRowDto">
+        <constructor>
+            <arg column="log_idx" javaType="java.lang.Long"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="user_nm" javaType="java.lang.String"/>
+            <arg column="dept_nm" javaType="java.lang.String"/>
+            <arg column="position_nm" javaType="java.lang.String"/>
+            <arg column="sv_yn" javaType="java.lang.String"/>
+            <arg column="use_type" javaType="java.lang.String"/>
+            <arg column="use_type_nm" javaType="java.lang.String"/>
+            <arg column="use_detail" javaType="java.lang.String"/>
+            <arg column="menu_cd" javaType="java.lang.String"/>
+            <arg column="store_idx" javaType="java.lang.Integer"/>
+            <arg column="store_nm_join" javaType="java.lang.String"/>
+            <arg column="tag_uid" javaType="java.lang.String"/>
+            <arg column="distance_m" javaType="java.lang.Integer"/>
+            <arg column="used_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="usageLogSelectColumns">
+        l.log_idx,
+        l.user_id,
+        l.user_nm,
+        l.dept_nm,
+        l.position_nm,
+        CAST(l.sv_yn AS VARCHAR) AS sv_yn,
+        l.use_type,
+        CASE l.use_type
+            WHEN 'LOGIN' THEN '로그인'
+            WHEN 'MENU' THEN '메뉴사용'
+            WHEN 'TAG' THEN '출입태그'
+            ELSE l.use_type
+        END AS use_type_nm,
+        l.use_detail,
+        l.menu_cd,
+        l.store_idx,
+        sm.store_nm AS store_nm_join,
+        l.tag_uid,
+        l.distance_m,
+        l.used_at
+    </sql>
+
+    <insert id="insertLogin">
+        INSERT INTO usage_log (
+            user_id, user_nm, dept_nm, position_nm, sv_yn, use_type, use_detail
+        ) VALUES (
+            #{userId},
+            #{userNm},
+            #{deptNm},
+            #{positionNm},
+            COALESCE(NULLIF(TRIM(#{svYn}), ''), 'N'),
+            'LOGIN',
+            '로그인하였습니다.'
+        )
+    </insert>
+
+    <insert id="insertMenu">
+        INSERT INTO usage_log (
+            user_id, user_nm, dept_nm, position_nm, sv_yn, use_type, use_detail, menu_cd
+        ) VALUES (
+            #{userId},
+            #{userNm},
+            #{deptNm},
+            #{positionNm},
+            COALESCE(NULLIF(TRIM(#{svYn}), ''), 'N'),
+            'MENU',
+            #{useDetail},
+            NULLIF(TRIM(#{menuCd}), '')
+        )
+    </insert>
+
+    <insert id="insertTag">
+        INSERT INTO usage_log (
+            user_id, user_nm, dept_nm, position_nm, sv_yn, use_type, use_detail, menu_cd,
+            store_idx, tag_uid, tag_lat, tag_lng, distance_m
+        ) VALUES (
+            #{userId},
+            #{userNm},
+            #{deptNm},
+            #{positionNm},
+            COALESCE(NULLIF(TRIM(#{svYn}), ''), 'Y'),
+            'TAG',
+            #{useDetail},
+            NULLIF(TRIM(#{menuCd}), ''),
+            #{storeIdx},
+            #{tagUid},
+            #{tagLat},
+            #{tagLng},
+            #{distanceM}
+        )
+    </insert>
+
+    <select id="selectList" resultMap="usageLogRow">
+        SELECT
+        <include refid="usageLogSelectColumns"/>
+        FROM usage_log l
+        LEFT JOIN store_mst sm ON sm.store_idx = l.store_idx
+        <where>
+            <if test="userNm != null and userNm != ''">
+                AND l.user_nm ILIKE CONCAT('%', #{userNm}, '%')
+            </if>
+            <if test="useType != null and useType != ''">
+                AND l.use_type = #{useType}
+            </if>
+            <if test="publicOnly">
+                AND COALESCE(l.sv_yn, 'N') = 'Y'
+            </if>
+            <if test="startDt != null">
+                AND l.used_at &gt;= #{startDt}::date
+            </if>
+            <if test="endDt != null">
+                AND l.used_at &lt; (#{endDt}::date + INTERVAL '1 day')
+            </if>
+        </where>
+        ORDER BY l.used_at DESC, l.log_idx DESC
+        LIMIT 2000
+    </select>
+
+    <select id="selectEntryTagsForActivity" resultMap="usageLogRow">
+        SELECT
+        <include refid="usageLogSelectColumns"/>
+        FROM usage_log l
+        LEFT JOIN store_mst sm ON sm.store_idx = l.store_idx
+        WHERE l.use_type = 'TAG'
+          AND l.user_id = #{userId}
+          AND l.store_idx = #{storeIdx}
+          AND l.used_at >= now() - interval '24 hours'
+        <if test="unlinkedOnly">
+            AND NOT EXISTS (
+                SELECT 1 FROM active_mst a WHERE a.usage_log_idx = l.log_idx
+            )
+        </if>
+        ORDER BY l.used_at DESC, l.log_idx DESC
+        LIMIT 100
+    </select>
+
+</mapper>

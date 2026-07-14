@@ -9,11 +9,12 @@ import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/core/search/common_search_field_catalog.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
+import 'package:app_flutter/core/widgets/common/common_status_badge.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
-import 'package:app_flutter/core/widgets/common/common_detail_button.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_controller.dart';
@@ -279,118 +280,88 @@ class _PartnerTable extends ConsumerWidget {
     final regionOptions =
         ref.watch(partnerCodeOptionsProvider(20)).value ?? const <CodeOption>[];
     final showDelete = context.menuCanDelete(kMenuDev001);
-    return ErpDataTable(
-      minWidth: 1600,
-      tableBuilder: (context, _) => Table(
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        border: kErpTableInnerGridBorder,
-        columnWidths: const {
-          0: FixedColumnWidth(50),
-          1: FixedColumnWidth(140),
-          2: FlexColumnWidth(0.2),
-          3: FixedColumnWidth(150),
-          4: FlexColumnWidth(0.3),
-          5: FixedColumnWidth(300),
-          6: FlexColumnWidth(0.3),
-          7: FixedColumnWidth(130),
-          8: FixedColumnWidth(150),
-          9: FixedColumnWidth(130),
-        },
+    return ErpVirtualDataTable(
+      minWidth: AppDimensions.tableMinWidthStandard,
+      columnWidths: <int, TableColumnWidth>{
+        0: const FixedColumnWidth(50),
+        1: const FixedColumnWidth(100),
+        2: const FlexColumnWidth(0.9),
+        3: const FixedColumnWidth(100),
+        4: const FixedColumnWidth(150),
+        5: const FlexColumnWidth(1.2),
+        6: const FixedColumnWidth(80),
+        7: const FixedColumnWidth(70),
+        if (showDelete) 8: const FixedColumnWidth(100),
+      },
+      headerRow: TableRow(
+        decoration: kErpTableHeaderRowDecoration,
         children: [
-          TableRow(
-            decoration: BoxDecoration(color: AppTheme.accentRed),
-            children: [
-              ErpTableHeaderCell('No'), // 0
-              ErpTableHeaderCell('등록일자'), // 1
-              ErpTableHeaderCell('이름'), // 2
-              ErpTableHeaderCell('상태'), // 3
-              ErpTableHeaderCell('휴대전화'), // 4
-              ErpTableHeaderCell('이메일'), // 5
-              ErpTableHeaderCell('지역'), // 6
-              ErpTableHeaderCell('성별'), // 7
-              ErpTableHeaderCell('상세보기'),
-              if (showDelete) ErpTableHeaderCell('삭제'),
-            ],
-          ),
-          ...rows.asMap().entries.map(
-            (entry) => TableRow(
-              decoration: BoxDecoration(
-                color: entry.key.isEven
-                    ? AppTheme.tableRowOdd
-                    : AppTheme.tableRowEven,
-              ),
-              children: [
-                ErpTableBodyCell('${entry.value.partnerIdx}', center: true),
-                ErpTableBodyCell(entry.value.createDt, center: true),
-                ErpTableBodyCell(entry.value.partnerNm, center: true),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 10,
-                  ),
-                  child: Center(
-                    child: Text(
-                      statusLabelKo(entry.value.partnerStatus),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _partnerStatusColor(entry.value.partnerStatus),
-                        fontFamilyFallback: AppTheme.koreanFontFallback,
-                      ),
-                    ),
-                  ),
-                ),
-                ErpTableBodyCell(entry.value.partnerTel, center: true),
-                ErpTableBodyCell(entry.value.partnerEmail, center: true),
-                ErpTableBodyCell(
-                  _regionNm(entry.value.pRegion, regionOptions),
-                  center: true,
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 10,
-                  ),
-                  child: Center(
-                    child: Text(
-                      entry.value.gender == Gender.male ? '남성' : '여성',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _genderColor(entry.value.gender),
-                        fontFamilyFallback: AppTheme.koreanFontFallback,
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Center(
-                    child: DetailButton(
-                      onPressed: () => context.goNamed(
-                        AppRouteNames.founderDetail,
-                        pathParameters: {
-                          'partnerIdx': '${entry.value.partnerIdx}',
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-                if (showDelete)
-                  Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Center(
-                      child: _PartnerDeleteButton(
-                        onPressed: () =>
-                            _confirmAndDelete(context, ref, entry.value),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          const ErpTableHeaderCell('No'),
+          const ErpTableHeaderCell('등록일자'),
+          const ErpTableHeaderCell('이름'),
+          const ErpTableHeaderCell('상태'),
+          const ErpTableHeaderCell('휴대전화'),
+          const ErpTableHeaderCell('이메일'),
+          const ErpTableHeaderCell('지역'),
+          const ErpTableHeaderCell('성별'),
+          if (showDelete) const ErpTableHeaderCell('삭제'),
         ],
       ),
+      rowCount: rows.length,
+      rowBuilder: (rowContext, index) {
+        final partner = rows[index];
+        void openDetail() => rowContext.goNamed(
+          AppRouteNames.founderDetail,
+          pathParameters: {'partnerIdx': '${partner.partnerIdx}'},
+        );
+        Widget tap(Widget child) =>
+            ErpTableDoubleTapCell(onDoubleTap: openDetail, child: child);
+        return TableRow(
+          decoration: BoxDecoration(
+            color: index.isEven ? AppTheme.tableRowOdd : AppTheme.tableRowEven,
+          ),
+          children: [
+            tap(ErpTableBodyCell('${index + 1}', center: true)),
+            tap(ErpTableBodyCell(partner.createDt, center: true)),
+            tap(ErpTableBodyCell(partner.partnerNm, center: true)),
+            tap(
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Center(
+                  child: StatusBadge(
+                    statusLabelKo(partner.partnerStatus),
+                    color: _partnerStatusColor(partner.partnerStatus),
+                  ),
+                ),
+              ),
+            ),
+            tap(ErpTableBodyCell(partner.partnerTel, center: true)),
+            tap(ErpTableBodyCell(partner.partnerEmail, center: true)),
+            tap(
+              ErpTableBodyCell(
+                _regionNm(partner.pRegion, regionOptions),
+                center: true,
+              ),
+            ),
+            tap(
+              ErpTableBodyCell(
+                partner.gender == Gender.male ? '남성' : '여성',
+                center: true,
+              ),
+            ),
+            if (showDelete)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: Center(
+                  child: _PartnerDeleteButton(
+                    onPressed: () =>
+                        _confirmAndDelete(rowContext, ref, partner),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -402,16 +373,11 @@ class _PartnerTable extends ConsumerWidget {
     return code;
   }
 
-  Color _genderColor(Gender gender) {
-    return gender == Gender.female
-        ? const Color(0xFFE91E63)
-        : const Color(0xFF1E3A8A);
-  }
-
+  /// 구분 배지 색(02_screens.md §7) — 예비창업자=파랑, 가맹점사업자=초록.
   Color _partnerStatusColor(PartnerStatus status) {
     return status == PartnerStatus.prospect
-        ? const Color(0xFFC2185B)
-        : const Color(0xFF7B1FA2);
+        ? AppTheme.statusRenewal
+        : AppTheme.statusNew;
   }
 }
 
@@ -427,8 +393,9 @@ class _PartnerDeleteButton extends StatelessWidget {
       icon: const Icon(Icons.delete_outline_rounded, size: 18),
       label: const Text('삭제'),
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 30),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: const Size(0, 28),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         foregroundColor: AppTheme.accentRed,
         side: const BorderSide(color: AppTheme.accentRed),
         textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),

@@ -22,9 +22,6 @@ public class AuthProfileUpdateRequestDto {
     private String svYn;
     private boolean svYnPresent;
 
-    private String tagYn;
-    private boolean tagYnPresent;
-
     private Integer deptIdx;
     private boolean deptIdxPresent;
 
@@ -84,19 +81,6 @@ public class AuthProfileUpdateRequestDto {
 
     public boolean isSvYnPresent() {
         return svYnPresent;
-    }
-
-    public String getTagYn() {
-        return tagYn;
-    }
-
-    public void setTagYn(String tagYn) {
-        this.tagYn = tagYn;
-        this.tagYnPresent = true;
-    }
-
-    public boolean isTagYnPresent() {
-        return tagYnPresent;
     }
 
     public Integer getDeptIdx() {

@@ -43,11 +43,17 @@ public class MstUser {
     @Column(name = "sv_yn", length = 1)
     private Character svYn;
 
+    @Column(name = "owner_yn", length = 1)
+    private Character ownerYn;
+
+    @Column(name = "admin_yn", length = 1)
+    private Character adminYn;
+
+    @Column(name = "store_idx")
+    private Integer storeIdx;
+
     @Column(name = "position_cd", length = 10)
     private String positionCd;
-
-    @Column(name = "tag_yn", length = 1)
-    private Character tagYn;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

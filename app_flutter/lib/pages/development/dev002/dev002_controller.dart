@@ -60,6 +60,12 @@ final propertyDetailProvider = FutureProvider.family<Property?, int>((
   return ref.watch(propertyRepositoryProvider).find(propIdx);
 });
 
+final propertyDocumentsProvider =
+    FutureProvider.family<List<PropertyDocument>, int>((ref, propIdx) async {
+      if (propIdx <= 0) return const [];
+      return ref.watch(propertyApiServiceProvider).getPropertyDocuments(propIdx);
+    });
+
 final propertyProvider = NotifierProvider<PropertyNotifier, PropertyFilter>(
   PropertyNotifier.new,
 );

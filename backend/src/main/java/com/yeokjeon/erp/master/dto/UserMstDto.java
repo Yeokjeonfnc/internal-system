@@ -1,5 +1,7 @@
 package com.yeokjeon.erp.master.dto;
 
+import com.yeokjeon.erp.master.entity.MstUser;
+
 import java.time.Instant;
 import java.time.LocalDate;
 
@@ -17,7 +19,7 @@ public record UserMstDto(
         Character svYn,
         String positionCd,
         String positionNm,
-        Character tagYn,
+        Character ownerYn,
         LocalDate joinDt,
         Instant createdAt,
         Instant updatedAt) {
@@ -34,10 +36,29 @@ public record UserMstDto(
                 firstChar(r.svYn()),
                 r.positionCd(),
                 r.positionNm(),
-                firstChar(r.tagYn()),
+                firstChar(r.ownerYn()),
                 r.joinDt(),
                 r.createdAt() != null ? r.createdAt().toInstant() : null,
                 r.updatedAt() != null ? r.updatedAt().toInstant() : null);
+    }
+
+    /** JOIN 조회 실패 시 저장 직후 응답용(직급·부서명 없음). */
+    public static UserMstDto fromEntity(MstUser u) {
+        return new UserMstDto(
+                u.getUserIdx(),
+                u.getUserName(),
+                u.getUserId(),
+                u.getDeptIdx(),
+                null,
+                u.getUserPhone(),
+                u.getUserEmail(),
+                u.getSvYn(),
+                u.getPositionCd(),
+                null,
+                u.getOwnerYn(),
+                u.getJoinDt(),
+                u.getCreatedAt() != null ? u.getCreatedAt().toInstant() : null,
+                u.getUpdatedAt() != null ? u.getUpdatedAt().toInstant() : null);
     }
 
     private static Character firstChar(String s) {

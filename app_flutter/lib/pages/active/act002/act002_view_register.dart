@@ -4,7 +4,6 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'package:app_flutter/core/layout/app_compact_layout.dart';
@@ -22,6 +21,7 @@ import 'package:app_flutter/pages/active/act002/act002_api.dart';
 import 'package:app_flutter/pages/active/act002/act002_model.dart';
 import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_approval_line.dart';
 import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_instructions.dart';
+import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_tag_history.dart';
 import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_visit_history.dart';
 import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_electronic_signature.dart';
 import 'package:app_flutter/pages/active/act002/dialogs/act002_dialog_lookup.dart';
@@ -29,6 +29,11 @@ import 'package:app_flutter/pages/active/act002/act002_model_checklist.dart';
 import 'package:app_flutter/core/notifications/notification_api_service.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_api.dart';
+import 'package:app_flutter/core/file/store_document_file_picker.dart';
+import 'package:app_flutter/core/widgets/common/form/common_accent_outline_button.dart';
+import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
+import 'package:app_flutter/pages/franchise/str001/dialogs/str001_dialog_store_document_preview.dart';
+import 'package:app_flutter/pages/franchise/str001/store_document_preview_kind.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_api.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_model.dart';
 
@@ -258,8 +263,12 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   final _apprNotesController = TextEditingController();
   final _svNotesController = TextEditingController();
 
-  /// 전자서명 팝업에서 저장한 PNG(미연동 시 로컬만).
+  /// 전자서명 PNG — 서버 저장 후 조회 시에도 사용.
   Uint8List? _electronicSignaturePng;
+
+  List<ActAttachment> _attachments = const [];
+  bool _uploadingAttachment = false;
+  int? _selectedUsageLogIdx;
 
   // 체크리스트 블록에 접근하기 위한 GlobalKey
   final _checklistKey = GlobalKey<_ChecklistBlockState>();
@@ -429,8 +438,39 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
 
     await _syncApprovalFromAct(detail);
 
+    if (detail.hasSignature) {
+      final sigBytes = await Act002Api().downloadSignatureBytes(actIdx);
+      if (mounted && sigBytes != null) {
+        setState(() => _electronicSignaturePng = sigBytes);
+      }
+    } else if (mounted) {
+      setState(() => _electronicSignaturePng = null);
+    }
+
+    await _reloadAttachments(actIdx);
+
     // 체크리스트 결과 로드
     _pullChkResults(actIdx);
+  }
+
+  Future<void> _reloadAttachments(int actIdx) async {
+    final rows = await Act002Api().fetchAttachments(actIdx);
+    if (!mounted) return;
+    setState(() {
+      _attachments = rows.where((e) => e.attached).toList(growable: false);
+    });
+  }
+
+  Future<int?> _ensureActIdxForFiles() async {
+    final existing = _draftActIdx ?? widget.actIdx;
+    if (existing != null) return existing;
+    if (_selectedStore == null) return null;
+    final saved = await _pushAct('DRAFT');
+    if (saved?.actIdx != null) {
+      _draftActIdx = saved!.actIdx;
+      return saved.actIdx;
+    }
+    return null;
   }
 
   Future<void> _pullChkResults(int actIdx) async {
@@ -612,11 +652,13 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     // 체크리스트 결과 수집
     final checklistResults = _chkSavePayload();
     final approvers = _peerApproverIds();
+    // 임시저장(DRAFT)은 저장 시점의 작성일(오늘)로 act_dt 반영.
+    final actDate = apprStatus == 'DRAFT' ? _today : _activityDate;
 
     return ActivityWriteRequest(
       storeIdx: store.storeIdx,
       actType: _activityKind,
-      actDt: _formatYmd(_activityDate),
+      actDt: _formatYmd(actDate),
       memoTxt: _specialNotesController.text.trim(),
       actNotes: _activityNotesController.text.trim(),
       svId: userId.isEmpty ? null : userId,
@@ -625,7 +667,29 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
       svNotes: _svNotesController.text.trim(),
       apprUserIds: approvers.isEmpty ? null : approvers,
       checklistResults: checklistResults,
+      usageLogIdx: _selectedUsageLogIdx,
     );
+  }
+
+  Future<bool> _pickTagHistoryIfPending(String apprStatus) async {
+    if (apprStatus != 'PENDING') return true;
+    final store = _selectedStore;
+    if (store == null) return true;
+    final userId = context.read<AuthProvider>().userId.trim();
+    if (userId.isEmpty) return true;
+
+    final picked = await showActivityTagHistoryPicker(
+      context: context,
+      userId: userId,
+      storeIdx: store.storeIdx,
+      storeNm: store.storeNm,
+    );
+    if (!mounted) return false;
+    if (picked == null) return false;
+    if (picked > 0) {
+      setState(() => _selectedUsageLogIdx = picked);
+    }
+    return true;
   }
 
   /// 체크리스트 결과를 JSON 형식으로 반환
@@ -763,6 +827,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
         }
       }
       if (!await _confirmChecklistGapsBeforeStrictAction()) return;
+      if (!await _pickTagHistoryIfPending(apprStatus)) return;
     }
 
     if (_saving) return;
@@ -810,6 +875,9 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   }
 
   Future<ActivitySaveResult?> _pushAct(String apprStatus) async {
+    if (apprStatus == 'DRAFT' && mounted) {
+      setState(() => _activityDate = _today);
+    }
     final payload = _payload(apprStatus);
     if (payload == null) return null;
     final api = Act002Api();
@@ -818,11 +886,15 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
       return api.update(actIdx, payload);
     }
 
-    // 자동 임시저장/임시보관에서 같은 가맹점의 DRAFT가 있으면 create 대신 update.
     if (apprStatus == 'DRAFT' && _selectedStore != null) {
-      final rows = await api.fetchDraftRowsForStore(_selectedStore!.storeIdx);
+      final writerId = context.read<AuthProvider>().userId.trim();
+      final rows = await api.fetchDraftRowsForStore(
+        _selectedStore!.storeIdx,
+        svId: writerId.isEmpty ? null : writerId,
+      );
       int? existingDraftActIdx;
       for (final row in rows) {
+        if (row.apprStatus.trim().toUpperCase() != 'DRAFT') continue;
         final rowStoreIdx = row.storeIdx;
         if (rowStoreIdx != _selectedStore!.storeIdx) continue;
         final rowActIdx = row.actIdx;
@@ -848,10 +920,296 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     if (_isApprovalWorkflowView) return;
     final bytes = await showAct002ElectronicSignatureDialog(
       context,
-      confirmIfChecklistIncomplete: _confirmChecklistGapsBeforeStrictAction,
+      hasChecklistGaps: _chkHasGaps,
     );
     if (!mounted || bytes == null) return;
-    setState(() => _electronicSignaturePng = bytes);
+    await _submitWithSignature(bytes);
+  }
+
+  Future<void> _submitWithSignature(Uint8List bytes) async {
+    if (_selectedStore == null) {
+      _toast('가맹점을 먼저 선택해 주세요.');
+      return;
+    }
+
+    final approvers = _peerApproverIds();
+    if (approvers.isEmpty) {
+      _toast('결재자를 한 명 이상(본인 제외) 지정해 주세요.');
+      return;
+    }
+    for (var i = 1; i < kActivityApprovalLineSlotCount; i++) {
+      final nm = _approvalLineStampSlots[i].trim();
+      final rk = _rankLineStampSlots[i].trim();
+      final id = _approvalLineUserIds[i].trim();
+      if ((nm.isNotEmpty || rk.isNotEmpty) && id.isEmpty) {
+        _toast('결재란 ${i + 1}열에 이름·직급이 있으면 결재자(사용자)를 선택한 뒤 상신해 주세요.');
+        return;
+      }
+    }
+    if (_saving) return;
+
+    // 서명 이미지는 우선 미리보기로만 둔다. 서버 업로드는 상신(PENDING) 저장이
+    // 성공한 뒤에만 수행한다. (저장 실패·취소 시 임시저장 건에 서명이 남는 문제 방지)
+    setState(() {
+      _electronicSignaturePng = bytes;
+      _saving = true;
+    });
+
+    // 임시저장 건 상신 시 활동일자는 상신일(오늘)로 반영
+    if (_isSubmittingFromDraft) {
+      setState(() => _activityDate = _today);
+    }
+
+    // 1) 태그이력 선택 — 취소하면 상신·서명 업로드 모두 하지 않는다.
+    if (!await _pickTagHistoryIfPending('PENDING')) {
+      setState(() => _saving = false);
+      return;
+    }
+
+    // 2) 상신(PENDING) 저장 — 성공한 경우에만 서명을 업로드한다.
+    final saved = await _pushAct('PENDING');
+    if (!mounted) return;
+    if (saved == null) {
+      setState(() => _saving = false);
+      _toast('상신에 실패했습니다.');
+      return;
+    }
+    final id = saved.actIdx;
+    if (id != null) {
+      _draftActIdx = id;
+    }
+
+    // 3) 서명 업로드 — 상신이 확정된 문서에만 저장한다.
+    if (id != null) {
+      final sigOk = await Act002Api().uploadSignature(id, bytes);
+      if (!mounted) return;
+      if (!sigOk) {
+        setState(() => _saving = false);
+        _toast('상신은 완료되었으나 전자서명 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _saving = false);
+    _submitted = true;
+    _autoSaveTimer?.cancel();
+
+    await showAlertDialog(context, '상신되었습니다.');
+    if (!mounted) return;
+
+    setState(() {
+      _selectedStore = null;
+      _activityDate = _today;
+      _activityKind = '방문';
+      _activityNotesController.clear();
+      _suggestionsController.clear();
+      _specialNotesController.clear();
+      _svNotesController.clear();
+      _draftActIdx = null;
+      _submitted = false;
+      _electronicSignaturePng = null;
+      _attachments = const [];
+    });
+    _checklistKey.currentState?.setChecklistResults(<ChkResultRow>[]);
+    _initApprovalLine();
+  }
+
+  Future<void> _pickAttachment() async {
+    if (_isApprovalWorkflowView) return;
+    if (_selectedStore == null) {
+      _toast('가맹점을 먼저 선택해 주세요.');
+      return;
+    }
+    if (_uploadingAttachment) return;
+
+    final picked = await pickStoreDocumentFiles();
+    if (!mounted || picked.isEmpty) return;
+
+    for (final file in picked) {
+      if (file.bytes.length > Act002Api.maxAttachmentTotalBytes) {
+        _toast('${file.name}: 첨부파일은 200MB 이하만 가능합니다.');
+        return;
+      }
+    }
+
+    setState(() => _uploadingAttachment = true);
+    final actIdx = await _ensureActIdxForFiles();
+    if (!mounted) return;
+    if (actIdx == null) {
+      setState(() => _uploadingAttachment = false);
+      _toast('임시 저장에 실패했습니다. 다시 시도해 주세요.');
+      return;
+    }
+
+    final userId = context.read<AuthProvider>().userId.trim();
+    var successCount = 0;
+    String? lastError;
+    try {
+      for (final file in picked) {
+        if (!mounted) return;
+        String? serverMsg;
+        final uploaded = await Act002Api().uploadAttachment(
+          actIdx: actIdx,
+          fileName: file.name,
+          bytes: file.bytes,
+          userId: userId,
+          onServerMessage: (m) => serverMsg = m,
+        );
+        if (uploaded != null) {
+          successCount++;
+        } else {
+          lastError = serverMsg ?? '첨부 업로드에 실패했습니다.';
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingAttachment = false);
+    }
+    if (!mounted) return;
+    if (successCount == 0) {
+      _toast(lastError ?? '첨부 업로드에 실패했습니다.');
+      return;
+    }
+    if (successCount < picked.length) {
+      _toast('$successCount/${picked.length}개 첨부가 업로드되었습니다.');
+    }
+    await _reloadAttachments(actIdx);
+  }
+
+  Future<void> _previewAttachment(ActAttachment row) async {
+    final actIdx = _draftActIdx ?? widget.actIdx;
+    if (actIdx == null) {
+      _toast('미리보기할 활동 정보가 없습니다.');
+      return;
+    }
+    final previewable = _attachments
+        .where(
+          (a) =>
+              storeDocumentPreviewKindFor(a.fileName) !=
+              StoreDocumentPreviewKind.unsupported,
+        )
+        .toList(growable: false);
+    if (previewable.isEmpty) {
+      _toast('이 파일 형식은 미리보기를 지원하지 않습니다.\n(이미지·PDF만 가능)');
+      return;
+    }
+    final initialIndex = previewable.indexWhere(
+      (a) => a.actAttIdx == row.actAttIdx,
+    );
+    if (!mounted) return;
+    final api = Act002Api();
+    await showStoreDocumentGalleryPreviewDialog(
+      context: context,
+      items: previewable
+          .map(
+            (a) => StoreDocumentPreviewItem(
+              fileName: a.fileName,
+              loadBytes: () => api.downloadAttachmentBytes(actIdx, a.actAttIdx),
+            ),
+          )
+          .toList(growable: false),
+      initialIndex: initialIndex < 0 ? 0 : initialIndex,
+    );
+  }
+
+  Future<void> _deleteAttachment(ActAttachment row) async {
+    if (_isApprovalWorkflowView) return;
+    final actIdx = _draftActIdx ?? widget.actIdx;
+    if (actIdx == null) return;
+    final ok = await Act002Api().deleteAttachment(actIdx, row.actAttIdx);
+    if (!mounted) return;
+    if (!ok) {
+      _toast('첨부 삭제에 실패했습니다.');
+      return;
+    }
+    await _reloadAttachments(actIdx);
+  }
+
+  Widget _buildAttachmentSection() {
+    final canEdit = !_isApprovalWorkflowView;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            FilledButton(
+              onPressed: canEdit && !_uploadingAttachment
+                  ? _pickAttachment
+                  : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.statusNew,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+              ),
+              child: Text(_uploadingAttachment ? '업로드 중...' : '첨부'),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '* 전체 200MB까지 첨부 가능',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.statusNew,
+                  fontWeight: FontWeight.w600,
+                  fontFamilyFallback: AppTheme.koreanFontFallback,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_attachments.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          ..._attachments.map((row) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ReadonlyInputShell(
+                      child: Text(
+                        row.fileName,
+                        style: FormStylePalette.valueStyle.copyWith(
+                          fontSize: 14,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    onPressed: () => _previewAttachment(row),
+                    style: accentOutlineButtonStyle(iconOnly: false),
+                    child: const Text(
+                      '미리보기',
+                      style: TextStyle(
+                        color: FormStylePalette.accent,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        fontFamilyFallback: AppTheme.koreanFontFallback,
+                      ),
+                    ),
+                  ),
+                  if (canEdit) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      onPressed: () => _deleteAttachment(row),
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      tooltip: '삭제',
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+        ],
+      ],
+    );
   }
 
   static const TextStyle _signatureLabelStyle = TextStyle(
@@ -861,11 +1219,12 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     fontFamilyFallback: AppTheme.koreanFontFallback,
   );
 
-  static final TextStyle _signatureDisclaimerStyle = GoogleFonts.notoSansKr(
+  static const TextStyle _signatureDisclaimerStyle = TextStyle(
     fontSize: 14,
     color: AppTheme.accentRed,
     height: 1.4,
     fontWeight: FontWeight.w600,
+    fontFamilyFallback: AppTheme.koreanFontFallback,
   );
 
   Widget _buildSignatureBox() {
@@ -998,11 +1357,12 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                   textAlign: useCompactErpLayout(context)
                       ? TextAlign.left
                       : TextAlign.right,
-                  style: GoogleFonts.notoSansKr(
+                  style: TextStyle(
                     fontSize: useCompactErpLayout(context) ? 12 : 13,
                     color: AppTheme.accentRed,
                     fontWeight: FontWeight.w600,
                     height: 1.4,
+                    fontFamilyFallback: AppTheme.koreanFontFallback,
                   ),
                 ),
                 SizedBox(height: useCompactErpLayout(context) ? 8 : 16),
@@ -1102,7 +1462,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                             ),
                           ),
                         ),
-                        right: const _FormColSpacer(),
+                        right: const SizedBox.shrink(),
                       ),
                     ],
                   ),
@@ -1166,36 +1526,7 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    FilledButton(
-                      onPressed: !_isApprovalWorkflowView
-                          ? () => _toast('첨부 기능은 추후 연결됩니다.')
-                          : null,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppTheme.statusNew,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                      ),
-                      child: const Text('첨부'),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '* 전체 200MB까지 첨부 가능',
-                        style: GoogleFonts.notoSansKr(
-                          fontSize: 13,
-                          color: AppTheme.statusNew,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                _buildAttachmentSection(),
                 SizedBox(height: useCompactErpLayout(context) ? 12 : 20),
                 _buildElectronicSignatureSection(context),
                 SizedBox(height: useCompactErpLayout(context) ? 8 : 10),
@@ -1312,11 +1643,12 @@ class _SearchInputSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final hint = Text(
       '(* 가맹점을 먼저 선택해 주세요.)',
-      style: GoogleFonts.notoSansKr(
+      style: const TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w600,
         color: AppTheme.accentRed,
         height: 1.35,
+        fontFamilyFallback: AppTheme.koreanFontFallback,
       ),
     );
     final lineButton = FilledButton(
@@ -1440,10 +1772,11 @@ class _StoreBasicInfoPanel extends StatelessWidget {
             store == null
                 ? '가맹점 검색 후 선택하면 사업자·계약·임대·면적 정보가 자동 입력됩니다.'
                 : '선택한 가맹점의 기본정보가 자동 입력되었습니다.',
-            style: GoogleFonts.notoSansKr(
+            style: const TextStyle(
               fontSize: 12,
               color: FormStylePalette.textSecondary,
               height: 1.35,
+              fontFamilyFallback: AppTheme.koreanFontFallback,
             ),
           ),
           const SizedBox(height: 8),
@@ -1943,6 +2276,16 @@ class _ApprovalTable extends StatelessWidget {
   static const double _rowRankGridH = 40;
   static const double _rowSealGridH = 56;
   static const double _rowDateGridH = 34;
+
+  /// 모바일 가로 스크롤 래퍼 높이 — [IntrinsicHeight] 대신 고정(무한 세로 제약 시 멈춤 방지).
+  static const double _compactTableScrollHeight =
+      _rowSingleH +
+      _rowDeptH +
+      _rowSingleH +
+      _rowRankGridH +
+      _rowSealGridH +
+      _rowDateGridH +
+      6;
   static int get _slotCount => kActivityApprovalLineSlotCount;
   static const double _textSize = 13.0;
   static const double _sealDiameter = 52;
@@ -2064,14 +2407,11 @@ class _ApprovalTable extends StatelessWidget {
       );
     }
 
-    // 가로 ScrollView는 세로 maxHeight가 무한이면 뷰포트만큼 늘어남 → IntrinsicHeight로 본문 높이만 사용.
-    return IntrinsicHeight(
-      child: Scrollbar(
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(width: _tableMinWidth, child: table),
-        ),
+    return SizedBox(
+      height: _compactTableScrollHeight,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(width: _tableMinWidth, child: table),
       ),
     );
   }
@@ -2679,12 +3019,9 @@ class _ChecklistTable extends StatelessWidget {
 
     if (!compact) return bordered;
 
-    return Scrollbar(
-      thumbVisibility: true,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(width: _minTableWidth, child: bordered),
-      ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SizedBox(width: _minTableWidth, child: bordered),
     );
   }
 }

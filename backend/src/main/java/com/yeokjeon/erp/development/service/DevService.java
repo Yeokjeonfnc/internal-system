@@ -5,6 +5,10 @@ import com.yeokjeon.erp.development.dto.PartnerMstWriteRequestDto;
 import com.yeokjeon.erp.development.dto.PropertyMstDto;
 import com.yeokjeon.erp.development.dto.PropertyMstWriteRequestDto;
 import com.yeokjeon.erp.development.dto.SalesAreaDto;
+import com.yeokjeon.erp.development.dto.SalesAreaMapPointDto;
+import com.yeokjeon.erp.development.dto.SalesAreaSaveRequest;
+import com.yeokjeon.erp.development.dto.SalesAreaZoneInfoSaveRequest;
+import com.yeokjeon.erp.development.util.GeometryJson;
 import com.yeokjeon.erp.development.entity.Partner;
 import com.yeokjeon.erp.development.entity.Property;
 import com.yeokjeon.erp.development.mapper.DevMstMapper;
@@ -18,7 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -143,11 +149,208 @@ public class DevService {
             log.info("영업지역 목록(sale_zone_mst 연동): {}건", rows.size());
             return rows;
         } catch (Exception ex) {
-            log.warn("영업지역 sale_zone_mst 조회 실패 — 가맹점 기준 fallback: {}", ex.toString());
-            List<SalesAreaDto> rows = devMstMapper.selectSalesAreasStoresOnly();
-            log.info("영업지역 목록(store_mst fallback): {}건", rows.size());
-            return rows;
+            log.warn("영업지역 sale_zone_mst 조회 실패 — 가맹점 기준 fallback", ex);
+            try {
+                List<SalesAreaDto> rows = devMstMapper.selectSalesAreasStoresOnly();
+                log.info("영업지역 목록(store_mst fallback): {}건", rows.size());
+                return rows;
+            } catch (Exception fallbackEx) {
+                log.error("영업지역 목록 fallback 조회 실패", fallbackEx);
+                throw fallbackEx;
+            }
         }
+    }
+
+    public List<SalesAreaMapPointDto> listSalesAreaMapPoints() {
+        return listSalesAreaMapPoints(false);
+    }
+
+    public List<SalesAreaMapPointDto> listSalesAreaMapPoints(boolean includeGeometry) {
+        try {
+            if (includeGeometry) {
+                return devMstMapper.selectSalesAreaMapPointsWithGeometry();
+            }
+            return devMstMapper.selectSalesAreaMapPoints();
+        } catch (Exception ex) {
+            log.warn("영업지역 지도 포인트 조회 실패: {}", ex.toString());
+            return List.of();
+        }
+    }
+
+    public SalesAreaDto salesAreaDetailByStore(Integer storeIdx) {
+        if (storeIdx == null || storeIdx <= 0) {
+            throw new IllegalArgumentException("storeIdx는(는) 필수입니다.");
+        }
+        SalesAreaDto row = devMstMapper.selectSalesAreaDetailByStoreIdx(storeIdx);
+        if (row == null) {
+            throw new ResourceNotFoundException("가맹점", "storeIdx", storeIdx);
+        }
+        return row;
+    }
+
+    public SalesAreaDto salesAreaDetailByZone(Integer zoneIdx) {
+        if (zoneIdx == null || zoneIdx <= 0) {
+            throw new IllegalArgumentException("zoneIdx는(는) 필수입니다.");
+        }
+        SalesAreaDto row = devMstMapper.selectSalesAreaDetailByZoneIdx(zoneIdx);
+        if (row == null) {
+            throw new ResourceNotFoundException("영업지역", "zoneIdx", zoneIdx);
+        }
+        return row;
+    }
+
+    public SalesAreaDto salesAreaDetailByProperty(Integer propIdx) {
+        if (propIdx == null || propIdx <= 0) {
+            throw new IllegalArgumentException("propIdx는(는) 필수입니다.");
+        }
+        propertyRepository
+                .findById(propIdx)
+                .orElseThrow(() -> new ResourceNotFoundException("물건", "propIdx", propIdx));
+        SalesAreaDto row = devMstMapper.selectSalesAreaDetailByPropIdx(propIdx);
+        if (row == null) {
+            throw new ResourceNotFoundException("물건", "propIdx", propIdx);
+        }
+        return row;
+    }
+
+    @Transactional
+    public SalesAreaDto saveSalesArea(SalesAreaSaveRequest req) {
+        if (req == null) {
+            throw new IllegalArgumentException("요청 본문이 비어 있습니다.");
+        }
+        if (!StringUtils.hasText(req.zoneNm())) {
+            throw new IllegalArgumentException("zoneNm은(는) 필수입니다.");
+        }
+        String geometryType = req.geometryType().trim().toUpperCase();
+        GeometryJson.validate(geometryType, req.geometryData());
+        String geometryJson = GeometryJson.toJson(req.geometryData());
+
+        final Integer reqPropIdx = req.propIdx();
+        Integer propIdx = reqPropIdx;
+        Integer storeIdx = req.storeIdx();
+        if (propIdx != null && propIdx > 0) {
+            final Integer validatedPropIdx = propIdx;
+            propertyRepository
+                    .findById(validatedPropIdx)
+                    .orElseThrow(() -> new ResourceNotFoundException("물건", "propIdx", validatedPropIdx));
+            if (storeIdx == null || storeIdx <= 0) {
+                storeIdx = devMstMapper.selectStoreIdxByPropIdx(propIdx);
+            }
+        } else {
+            propIdx = null;
+        }
+
+        Integer zoneIdx = req.zoneIdx();
+        if (zoneIdx == null || zoneIdx <= 0) {
+            if (propIdx != null && propIdx > 0) {
+                zoneIdx = devMstMapper.selectZoneIdxByPropIdx(propIdx);
+            }
+            if ((zoneIdx == null || zoneIdx <= 0) && storeIdx != null && storeIdx > 0) {
+                zoneIdx = devMstMapper.selectZoneIdxByStoreIdx(storeIdx);
+            }
+        }
+        String brandCd = StringUtils.hasText(req.brandCd()) ? req.brandCd().trim() : null;
+
+        if (zoneIdx == null || zoneIdx <= 0) {
+            Map<String, Object> ins = new HashMap<>();
+            ins.put("zoneNm", req.zoneNm().trim());
+            ins.put("brandCd", brandCd);
+            ins.put("geometryType", geometryType);
+            ins.put("geometryDataJson", geometryJson);
+            ins.put("useYn", propIdx != null && propIdx > 0);
+            devMstMapper.insertSaleZone(ins);
+            zoneIdx = (Integer) ins.get("zoneIdx");
+            if (zoneIdx == null) {
+                throw new IllegalStateException("sale_zone_mst INSERT 후 zone_idx를 받지 못했습니다.");
+            }
+        } else {
+            int updated = devMstMapper.updateSaleZone(
+                    zoneIdx,
+                    req.zoneNm().trim(),
+                    brandCd,
+                    geometryType,
+                    geometryJson);
+            if (updated == 0) {
+                throw new IllegalStateException(
+                        "sale_zone_mst UPDATE 실패: zoneIdx=" + zoneIdx);
+            }
+        }
+
+        if (propIdx != null && propIdx > 0) {
+            devMstMapper.clearPropertyZoneFromOtherProperties(zoneIdx, propIdx);
+            devMstMapper.updatePropertyZoneIdx(propIdx, zoneIdx);
+            devMstMapper.updateSaleZoneUseYn(zoneIdx, true);
+        } else {
+            devMstMapper.updateSaleZoneUseYn(zoneIdx, false);
+        }
+
+        log.info(
+                "영업지역 저장: zoneIdx={}, storeIdx={}, propIdx={}, geometryType={}",
+                zoneIdx,
+                storeIdx,
+                propIdx,
+                geometryType);
+
+        if (storeIdx != null && storeIdx > 0) {
+            return salesAreaDetailByStore(storeIdx);
+        }
+        if (propIdx != null) {
+            return salesAreaDetailByProperty(propIdx);
+        }
+        return salesAreaDetailByZone(zoneIdx);
+    }
+
+    @Transactional
+    public SalesAreaDto saveSalesAreaZoneInfo(SalesAreaZoneInfoSaveRequest req) {
+        if (req == null) {
+            throw new IllegalArgumentException("요청 본문이 비어 있습니다.");
+        }
+        Integer zoneIdx = req.zoneIdx();
+        final Integer reqPropIdx = req.propIdx();
+        Integer propIdx = reqPropIdx;
+        Integer storeIdx = req.storeIdx();
+
+        if (propIdx != null && propIdx > 0) {
+            final Integer validatedPropIdx = propIdx;
+            propertyRepository
+                    .findById(validatedPropIdx)
+                    .orElseThrow(() -> new ResourceNotFoundException("물건", "propIdx", validatedPropIdx));
+            if (storeIdx == null || storeIdx <= 0) {
+                storeIdx = devMstMapper.selectStoreIdxByPropIdx(propIdx);
+            }
+        } else {
+            propIdx = null;
+        }
+
+        if (zoneIdx == null || zoneIdx <= 0) {
+            if (propIdx != null && propIdx > 0) {
+                zoneIdx = devMstMapper.selectZoneIdxByPropIdx(propIdx);
+            }
+            if ((zoneIdx == null || zoneIdx <= 0) && storeIdx != null && storeIdx > 0) {
+                zoneIdx = devMstMapper.selectZoneIdxByStoreIdx(storeIdx);
+            }
+        }
+
+        if (zoneIdx == null || zoneIdx <= 0) {
+            throw new IllegalArgumentException(
+                    "영업지역이 아직 등록되지 않았습니다. 지도에서 영역을 저장한 후 비고를 입력할 수 있습니다.");
+        }
+
+        String zoneInfo = req.zoneInfo() != null ? req.zoneInfo().trim() : "";
+        int updated = devMstMapper.updateSaleZoneInfo(zoneIdx, zoneInfo);
+        if (updated == 0) {
+            throw new IllegalStateException("sale_zone_mst UPDATE 실패: zoneIdx=" + zoneIdx);
+        }
+
+        log.info("영업지역정보 저장: zoneIdx={}", zoneIdx);
+
+        if (storeIdx != null && storeIdx > 0) {
+            return salesAreaDetailByStore(storeIdx);
+        }
+        if (propIdx != null) {
+            return salesAreaDetailByProperty(propIdx);
+        }
+        return salesAreaDetailByZone(zoneIdx);
     }
 
     public PropertyMstDto oneProperty(Integer propIdx) {
@@ -192,6 +395,7 @@ public class DevService {
                 .build();
         applyCoordinates(property, body, true);
         Property saved = propertyRepository.save(property);
+        syncLinkedStoreCoordinates(saved);
         log.info("물건 생성 완료: {}", saved.getPropIdx());
         return PropertyMstDto.fromEntity(saved);
     }
@@ -265,6 +469,7 @@ public class DevService {
         applyCoordinates(property, body, addressChanged || needsCoordinates);
 
         Property saved = propertyRepository.save(property);
+        syncLinkedStoreCoordinates(saved);
         log.info("물건 수정 완료: {}", saved.getPropIdx());
         return PropertyMstDto.fromEntity(saved);
     }
@@ -275,6 +480,24 @@ public class DevService {
                 .orElseThrow(() -> new ResourceNotFoundException("물건", "propIdx", propIdx));
         propertyRepository.delete(property);
         log.info("물건 삭제 완료: {}", propIdx);
+    }
+
+    /** 물건 `property_mst` 좌표를 `prop_idx` 로 연결된 `store_mst` 에 반영. */
+    private void syncLinkedStoreCoordinates(Property property) {
+        Integer propIdx = property.getPropIdx();
+        if (propIdx == null) {
+            return;
+        }
+        int updated = devMstMapper.updateStoreCoordinatesByPropIdx(
+                propIdx, property.getLatitude(), property.getLongitude());
+        if (updated > 0) {
+            log.info(
+                    "물건 좌표 → 가맹점 연동: propIdx={}, 갱신 가맹점 {}건, lat={}, lon={}",
+                    propIdx,
+                    updated,
+                    property.getLatitude(),
+                    property.getLongitude());
+        }
     }
 
     private void applyCoordinates(Property property, PropertyMstWriteRequestDto body, boolean shouldGeocode) {
@@ -336,4 +559,5 @@ public class DevService {
         String t = s.trim();
         return t.isEmpty() ? null : t;
     }
+
 }

@@ -83,9 +83,10 @@ class _UserLookupDialogState extends State<UserLookupDialog> {
 
               final users = _filter(snapshot.data ?? const <User>[]);
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+              return ErpLookupHorizontalSyncScope(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                   TextField(
                     controller: _keywordController,
                     onChanged: (_) => setState(() {}),
@@ -165,7 +166,8 @@ class _UserLookupDialogState extends State<UserLookupDialog> {
                   ),
                   const SizedBox(height: 12),
                   erpLookupDialogCloseFooter(context),
-                ],
+                  ],
+                ),
               );
             },
           ),

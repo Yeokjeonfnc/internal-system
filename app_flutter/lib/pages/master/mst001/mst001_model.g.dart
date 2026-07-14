@@ -14,7 +14,10 @@ User _$UserFromJson(Map<String, dynamic> json) => User(
   mobilePhone: json['userPhone'] as String,
   email: json['userEmail'] as String,
   joinDt: _joinDtFromJson(json['joinDt']),
-  tagYn: _tagYnFromJsonField(json['tagYn']),
+  svYn: _svYnFromJsonField(json['svYn']),
+  ownerYn: json['ownerYn'] == null
+      ? OwnerYn.no
+      : _ownerYnFromJsonField(json['ownerYn']),
   userId: json['userId'] as String? ?? '',
   deptIdx: (json['deptIdx'] as num?)?.toInt(),
   positionCd: json['positionCd'] as String?,
@@ -31,5 +34,6 @@ Map<String, dynamic> _$UserToJson(User instance) => <String, dynamic>{
   'userEmail': instance.email,
   'joinDt': instance.joinDt,
   'userId': instance.userId,
-  'tagYn': _tagYnToJson(instance.tagYn),
+  'svYn': _svYnToJson(instance.svYn),
+  'ownerYn': _ownerYnToJson(instance.ownerYn),
 };

@@ -51,6 +51,9 @@ public class ActiveMstWriteRequestDto {
 
     private Character chkYn;
 
+    private Long usageLogIdx;
+    private boolean usageLogIdxPresent;
+
     private List<ChkResultDtlSaveDto> checklistResults;
 
     public List<ChkResultDtlSaveDto> checklistResultsOrEmpty() {
@@ -219,6 +222,19 @@ public class ActiveMstWriteRequestDto {
 
     public Character getChkYn() {
         return chkYn;
+    }
+
+    public void setUsageLogIdx(Long usageLogIdx) {
+        this.usageLogIdx = usageLogIdx;
+        this.usageLogIdxPresent = true;
+    }
+
+    public boolean isUsageLogIdxPresent() {
+        return usageLogIdxPresent;
+    }
+
+    public Long getUsageLogIdx() {
+        return usageLogIdx;
     }
 
     public void setChecklistResults(List<ChkResultDtlSaveDto> checklistResults) {

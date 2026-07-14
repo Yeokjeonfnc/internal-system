@@ -683,7 +683,7 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
       child: TextButton(
         onPressed: () {},
         style: TextButton.styleFrom(
-          foregroundColor: AppTheme.statusNew,
+          foregroundColor: AppTheme.accentRed,
           padding: const EdgeInsets.symmetric(horizontal: 6),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -691,8 +691,9 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
         child: Text(
           text,
           style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            fontFeatures: [FontFeature.tabularFigures()],
             fontFamilyFallback: AppTheme.koreanFontFallback,
           ),
         ),
@@ -706,26 +707,30 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
     return t.isEmpty ? '\u00a0' : t;
   }
 
+  /// 방문 count 셀 — 레드 틴트 배지, 값이 클수록 배경을 진하게(02_screens.md §11).
   Widget _dayCell(ThemeData theme, int? value) {
     if (value == null) {
       return _cell(theme, '-', center: true);
     }
+    final tint = (0.06 + 0.05 * (value.clamp(1, 6) - 1)).clamp(0.06, 0.3);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: TextButton(
-        onPressed: () {},
-        style: TextButton.styleFrom(
-          foregroundColor: AppTheme.statusNew,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        child: Text(
-          '$value',
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            fontFamilyFallback: AppTheme.koreanFontFallback,
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppTheme.accentRed.withValues(alpha: tint.toDouble()),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            '$value',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.accentRed,
+              fontFeatures: [FontFeature.tabularFigures()],
+              fontFamilyFallback: AppTheme.koreanFontFallback,
+            ),
           ),
         ),
       ),

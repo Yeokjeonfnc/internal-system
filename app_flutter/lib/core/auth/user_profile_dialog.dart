@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'package:app_flutter/core/auth/auth_api_service.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
+import 'package:app_flutter/pages/franchise/str001/str001_api.dart';
 
 class PhoneNumberFormatter extends TextInputFormatter {
   @override
@@ -59,16 +59,17 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
   final _nameController = TextEditingController();
   final _deptController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _storeNmController = TextEditingController();
+  final _joinDateController = TextEditingController();
+  final _positionController = TextEditingController();
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  String? _email;
-  String? _joinDate;
   String? _positionCd;
-  String _positionNm = '사원';
   bool _svYn = false;
-  bool _tagYn = false;
+  bool _isFranchiseOwner = false;
   bool _isLoading = false;
   bool _showPasswordFields = false;
 
@@ -92,19 +93,32 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
       if (!mounted) return;
 
       if (user != null) {
+        var storeNm = user.storeNm;
+        if (storeNm.isEmpty && user.storeIdx != null && user.storeIdx! > 0) {
+          try {
+            final store = await StoreApiService().getStoreByIndex(user.storeIdx!);
+            storeNm = store?.storeNm ?? '';
+          } catch (_) {
+            // 프로필 storeNm 보조 조회 실패 시 빈 값 유지
+          }
+        }
+
         setState(() {
+          _isFranchiseOwner = user.isFranchiseOwner;
           _nameController.text = user.userNm;
-          _email = user.email;
+          _emailController.text = user.email;
+          _storeNmController.text = storeNm;
           _deptController.text = user.deptNm;
           _phoneController.text = _formatPhoneNumber(
             user.userPhone.isEmpty ? null : user.userPhone,
           );
-          _joinDate =
-              user.joinDtRaw.isEmpty ? '미입력' : user.joinDtRaw.split('T').first;
+          _joinDateController.text = user.joinDtRaw.isEmpty
+              ? '미입력'
+              : user.joinDtRaw.split('T').first;
           _positionCd = user.positionCd.isEmpty ? null : user.positionCd;
-          _positionNm = user.positionNm.isEmpty ? '사원' : user.positionNm;
+          _positionController.text =
+              user.positionNm.isEmpty ? '사원' : user.positionNm;
           _svYn = user.svYn == 'Y';
-          _tagYn = user.tagYn == 'Y';
         });
       }
     } catch (e) {
@@ -123,6 +137,10 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
     _nameController.dispose();
     _deptController.dispose();
     _phoneController.dispose();
+    _emailController.dispose();
+    _storeNmController.dispose();
+    _joinDateController.dispose();
+    _positionController.dispose();
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
@@ -183,9 +201,8 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
         userName: _nameController.text.trim(),
         userPassword: _showPasswordFields ? _newPasswordController.text : null,
         userPhone: _phoneController.text.replaceAll(RegExp(r'[^0-9]'), ''),
-        positionCd: _positionCd,
-        svYn: _svYn ? 'Y' : 'N',
-        tagYn: _tagYn ? 'Y' : 'N',
+        positionCd: _isFranchiseOwner ? null : _positionCd,
+        svYn: _isFranchiseOwner ? null : (_svYn ? 'Y' : 'N'),
       );
 
       if (!mounted) return;
@@ -232,7 +249,8 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
           child: Text(
             message,
             textAlign: TextAlign.center,
-            style: GoogleFonts.notoSansKr(
+            style: TextStyle(
+              fontFamily: AppTheme.brandFontFamily,
               fontSize: 15,
               color: FormStylePalette.textPrimary,
             ),
@@ -255,7 +273,8 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
                 ),
                 child: Text(
                   '확인',
-                  style: GoogleFonts.notoSansKr(
+                  style: TextStyle(
+              fontFamily: AppTheme.brandFontFamily,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -280,7 +299,8 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
           child: Text(
             message,
             textAlign: TextAlign.center,
-            style: GoogleFonts.notoSansKr(
+            style: TextStyle(
+              fontFamily: AppTheme.brandFontFamily,
               fontSize: 15,
               color: FormStylePalette.textPrimary,
             ),
@@ -303,7 +323,8 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
                 ),
                 child: Text(
                   '확인',
-                  style: GoogleFonts.notoSansKr(
+                  style: TextStyle(
+              fontFamily: AppTheme.brandFontFamily,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -334,7 +355,8 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
               children: [
                 Text(
                   '사용자 정보',
-                  style: GoogleFonts.notoSansKr(
+                  style: TextStyle(
+              fontFamily: AppTheme.brandFontFamily,
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
                     color: FormStylePalette.textPrimary,
@@ -357,104 +379,9 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // 이름
-                      _buildLabel('이름'),
-                      _buildTextField(
-                        controller: _nameController,
-                        hintText: '',
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 부서 (읽기 전용)
-                      _buildLabel('부서'),
-                      _buildTextField(
-                        controller: _deptController,
-                        hintText: '',
-                        enabled: false,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 핸드폰번호
-                      _buildLabel('핸드폰번호'),
-                      _buildTextField(
-                        controller: _phoneController,
-                        hintText: '010-0000-0000',
-                        inputFormatters: [PhoneNumberFormatter()],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 이메일 (읽기 전용)
-                      _buildLabel('이메일 주소'),
-                      _buildTextField(
-                        controller: TextEditingController(text: _email),
-                        hintText: '',
-                        enabled: false,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 입사년월일 (읽기 전용)
-                      _buildLabel('입사년월일'),
-                      _buildTextField(
-                        controller: TextEditingController(text: _joinDate),
-                        hintText: '',
-                        enabled: false,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 직급 (읽기 전용)
-                      _buildLabel('직급'),
-                      _buildTextField(
-                        controller: TextEditingController(text: _positionNm),
-                        hintText: '',
-                        enabled: false,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 비밀번호 변경
-                      Row(
-                        children: [
-                          Text(
-                            '비밀번호 변경',
-                            style: GoogleFonts.notoSansKr(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: FormStylePalette.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Checkbox(
-                            value: _showPasswordFields,
-                            onChanged: (v) {
-                              setState(() => _showPasswordFields = v ?? false);
-                            },
-                          ),
-                        ],
-                      ),
-
-                      if (_showPasswordFields) ...[
-                        const SizedBox(height: 16),
-                        _buildLabel('현재 비밀번호'),
-                        _buildTextField(
-                          controller: _currentPasswordController,
-                          hintText: '',
-                          obscureText: true,
-                        ),
-                        const SizedBox(height: 16),
-                        _buildLabel('신규 비밀번호'),
-                        _buildTextField(
-                          controller: _newPasswordController,
-                          hintText: '영어,숫자,특수문자 조합 8자 이상',
-                          obscureText: true,
-                        ),
-                        const SizedBox(height: 16),
-                        _buildLabel('신규 비밀번호 확인'),
-                        _buildTextField(
-                          controller: _confirmPasswordController,
-                          hintText: '영어,숫자,특수문자 조합 8자 이상',
-                          obscureText: true,
-                        ),
-                      ],
-
+                      if (_isFranchiseOwner) ..._buildOwnerFields(),
+                      if (!_isFranchiseOwner) ..._buildEmployeeFields(),
+                      ..._buildPasswordSection(),
                       const SizedBox(height: 24),
                     ],
                   ),
@@ -487,7 +414,8 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
                     )
                   : Text(
                       '정보 저장',
-                      style: GoogleFonts.notoSansKr(
+                      style: TextStyle(
+              fontFamily: AppTheme.brandFontFamily,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -499,12 +427,139 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
     );
   }
 
+  List<Widget> _buildOwnerFields() {
+    return [
+      _buildLabel('가맹점명'),
+      _buildTextField(
+        controller: _storeNmController,
+        hintText: '',
+        enabled: false,
+      ),
+      const SizedBox(height: 16),
+      _buildLabel('이름'),
+      _buildTextField(
+        controller: _nameController,
+        hintText: '',
+      ),
+      const SizedBox(height: 16),
+      _buildLabel('핸드폰번호'),
+      _buildTextField(
+        controller: _phoneController,
+        hintText: '010-0000-0000',
+        inputFormatters: [PhoneNumberFormatter()],
+      ),
+      const SizedBox(height: 16),
+      _buildLabel('이메일 주소'),
+      _buildTextField(
+        controller: _emailController,
+        hintText: '',
+        enabled: false,
+      ),
+      const SizedBox(height: 16),
+    ];
+  }
+
+  List<Widget> _buildEmployeeFields() {
+    return [
+      _buildLabel('이름'),
+      _buildTextField(
+        controller: _nameController,
+        hintText: '',
+      ),
+      const SizedBox(height: 16),
+      _buildLabel('부서'),
+      _buildTextField(
+        controller: _deptController,
+        hintText: '',
+        enabled: false,
+      ),
+      const SizedBox(height: 16),
+      _buildLabel('핸드폰번호'),
+      _buildTextField(
+        controller: _phoneController,
+        hintText: '010-0000-0000',
+        inputFormatters: [PhoneNumberFormatter()],
+      ),
+      const SizedBox(height: 16),
+      _buildLabel('이메일 주소'),
+      _buildTextField(
+        controller: _emailController,
+        hintText: '',
+        enabled: false,
+      ),
+      const SizedBox(height: 16),
+      _buildLabel('입사년월일'),
+      _buildTextField(
+        controller: _joinDateController,
+        hintText: '',
+        enabled: false,
+      ),
+      const SizedBox(height: 16),
+      _buildLabel('직급'),
+      _buildTextField(
+        controller: _positionController,
+        hintText: '',
+        enabled: false,
+      ),
+      const SizedBox(height: 16),
+    ];
+  }
+
+  List<Widget> _buildPasswordSection() {
+    return [
+      Row(
+        children: [
+          Text(
+            '비밀번호 변경',
+            style: TextStyle(
+              fontFamily: AppTheme.brandFontFamily,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: FormStylePalette.textPrimary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Checkbox(
+            value: _showPasswordFields,
+            onChanged: (v) {
+              setState(() => _showPasswordFields = v ?? false);
+            },
+          ),
+        ],
+      ),
+      if (_showPasswordFields) ...[
+        const SizedBox(height: 16),
+        _buildLabel('현재 비밀번호'),
+        _buildTextField(
+          controller: _currentPasswordController,
+          hintText: '',
+          obscureText: true,
+        ),
+        const SizedBox(height: 16),
+        _buildLabel('신규 비밀번호'),
+        _buildTextField(
+          controller: _newPasswordController,
+          hintText: '영어,숫자,특수문자 조합 8자 이상',
+          obscureText: true,
+        ),
+        const SizedBox(height: 16),
+        _buildLabel('신규 비밀번호 확인'),
+        _buildTextField(
+          controller: _confirmPasswordController,
+          hintText: '영어,숫자,특수문자 조합 8자 이상',
+          obscureText: true,
+        ),
+      ],
+    ];
+  }
+
   Widget _buildLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: GoogleFonts.notoSansKr(
+        style: TextStyle(
+              fontFamily: AppTheme.brandFontFamily,
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: FormStylePalette.textPrimary,
@@ -554,7 +609,8 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
           vertical: 14,
         ),
       ),
-      style: GoogleFonts.notoSansKr(
+      style: TextStyle(
+              fontFamily: AppTheme.brandFontFamily,
         fontSize: 14,
         color: enabled
             ? FormStylePalette.textPrimary

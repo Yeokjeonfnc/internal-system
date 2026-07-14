@@ -55,7 +55,6 @@ class AuthApiService extends BaseRepository {
     String? userPhone,
     String? positionCd,
     String? svYn,
-    String? tagYn,
   }) async {
     try {
       final body = AuthProfileUpdateRequest(
@@ -64,7 +63,6 @@ class AuthApiService extends BaseRepository {
         userPhone: userPhone,
         positionCd: positionCd,
         svYn: svYn,
-        tagYn: tagYn,
       );
 
       final response = await client.put(

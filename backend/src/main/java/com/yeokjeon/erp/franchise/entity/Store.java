@@ -59,6 +59,9 @@ public class Store {
     @Formula("(select cm.code_nm from code_mst cm where cm.code_cd = store_status and cm.grp_cd = 10)")
     private String storeStatusNm;
 
+    @Column(name = "closed_yn", length = 1)
+    private String closedYn;
+
     @Column(name = "cont_end_dt")
     private LocalDate contEndDt;
 
@@ -107,6 +110,9 @@ public class Store {
 
     @Column(name = "first_cont_dt")
     private LocalDate firstContDt;
+
+    @Column(name = "transfer_date")
+    private LocalDate transferDate;
 
     @Column(name = "fr_fee")
     private BigDecimal frFee;

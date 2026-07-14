@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart' as provider;
 
 import 'package:app_flutter/core/api/common_code_api_service.dart';
+import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/menu/menu_access.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
@@ -14,9 +16,11 @@ import 'package:app_flutter/core/widgets/common/common_erp_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_register_button.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
+import 'package:app_flutter/core/widgets/common/common_status_badge.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 import 'package:app_flutter/core/checklist/chk_mst_write_request.dart';
+import 'package:app_flutter/pages/master/mst003/mst003_api.dart';
 import 'package:app_flutter/pages/master/mst004/mst004_api.dart';
 import 'package:app_flutter/pages/master/mst004/mst004_model.dart';
 
@@ -41,6 +45,26 @@ class _MasterChecklistManagementViewState
     super.initState();
     _rowsFuture = _fetchRows();
     _loadOptions();
+    Future.microtask(_syncMenuPermissionsFromServer);
+  }
+
+  /// 메뉴권한 화면에서 저장한 뒤 돌아왔을 때 삭제·등록 버튼이 즉시 맞도록 서버 권한을 다시 읽는다.
+  Future<void> _syncMenuPermissionsFromServer() async {
+    final auth = provider.Provider.of<AuthProvider>(context, listen: false);
+    final profile = auth.profile;
+    final userIdx = profile?.userIdx;
+    if (profile == null || userIdx == null) return;
+    try {
+      final rows = await Mst003ApiService().fetchUserPermissions(userIdx);
+      if (!mounted) return;
+      await auth.applyMenuPermissionsForUser(
+        userIdx,
+        rows,
+        userId: profile.userId,
+      );
+    } catch (_) {
+      // 조회 실패 시 로그인·저장 시점 캐시 유지
+    }
   }
 
   Future<void> _loadOptions() async {
@@ -189,6 +213,7 @@ class _MasterChecklistManagementViewState
             rows: rows,
             loading: snapshot.connectionState != ConnectionState.done,
             onEdit: _openEditDialog,
+            onRefresh: _refresh,
           ),
         );
       },
@@ -305,14 +330,53 @@ class _ChecklistTable extends StatelessWidget {
     required this.rows,
     required this.loading,
     required this.onEdit,
+    required this.onRefresh,
   });
 
   final List<MasterChecklistItem> rows;
   final bool loading;
   final ValueChanged<MasterChecklistItem> onEdit;
+  final VoidCallback onRefresh;
 
+  Future<void> _confirmAndDelete(
+    BuildContext context,
+    MasterChecklistItem item,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('체크리스트 삭제'),
+        content: Text('${item.chkContent} 항목을 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.accentRed),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final deleted = await MasterChecklistApiService().deleteChecklist(
+      item.chkIdx,
+    );
+    if (!context.mounted) return;
+
+    if (deleted) {
+      onRefresh();
+      await showAlertDialog(context, '삭제되었습니다.');
+    } else {
+      await showAlertDialog(context, '삭제에 실패했습니다.');
+    }
+  }
   @override
   Widget build(BuildContext context) {
+    final showDelete = context.menuCanDelete(kMenuMst004);
     if (loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -320,24 +384,26 @@ class _ChecklistTable extends StatelessWidget {
       return const Center(child: Text('조회된 체크리스트 항목이 없습니다.'));
     }
     return ErpDataTable(
-      minWidth: AppDimensions.tableMinWidthCompact,
+      minWidth: AppDimensions.tableMinWidthStandard,
       tableBuilder: (context, width) => Table(
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         border: kErpTableInnerGridBorder,
-        columnWidths: const {
-          0: FlexColumnWidth(0.5),
-          1: FlexColumnWidth(3),
-          2: FlexColumnWidth(0.6),
-          3: FlexColumnWidth(0.5),
-        },
+        columnWidths: erpTableColumnWidths(context, {
+          0: const FlexColumnWidth(0.5),
+          1: const FlexColumnWidth(3),
+          2: const FlexColumnWidth(0.6),
+          3: const FlexColumnWidth(0.5),
+          if (showDelete) 4: const FlexColumnWidth(0.5),
+        }),
         children: [
-          const TableRow(
-            decoration: BoxDecoration(color: AppTheme.accentRed),
+          TableRow(
+            decoration: kErpTableHeaderRowDecoration,
             children: [
               ErpTableHeaderCell('구분'),
               ErpTableHeaderCell('체크항목'),
               ErpTableHeaderCell('사용여부'),
               ErpTableHeaderCell('배점'),
+              if (showDelete) const ErpTableHeaderCell('삭제'),
             ],
           ),
           for (final row in rows)
@@ -346,7 +412,16 @@ class _ChecklistTable extends StatelessWidget {
               children: [
                 _DoubleTapCell(
                   onDoubleTap: () => onEdit(row),
-                  child: ErpTableBodyCell(_text(row.chkTypeNm), center: true),
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: StatusBadge(
+                        _text(row.chkTypeNm),
+                        showDot: false,
+                        color: _chkTypeColor(row.chkTypeNm),
+                      ),
+                    ),
+                  ),
                 ),
                 _DoubleTapCell(
                   onDoubleTap: () => onEdit(row),
@@ -354,9 +429,16 @@ class _ChecklistTable extends StatelessWidget {
                 ),
                 _DoubleTapCell(
                   onDoubleTap: () => onEdit(row),
-                  child: ErpTableBodyCell(
-                    _requiredText(row.useYn),
-                    center: true,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: StatusBadge(
+                        row.useYn.trim().toUpperCase() == 'Y' ? '사용' : '미사용',
+                        color: row.useYn.trim().toUpperCase() == 'Y'
+                            ? AppTheme.statusNew
+                            : AppTheme.textMuted,
+                      ),
+                    ),
                   ),
                 ),
                 _DoubleTapCell(
@@ -366,6 +448,15 @@ class _ChecklistTable extends StatelessWidget {
                     center: true,
                   ),
                 ),
+                if (showDelete)
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Center(
+                      child: _ChecklistDeleteButton(
+                        onPressed: () => _confirmAndDelete(context, row),
+                      ),
+                    ),
+                  ),
               ],
             ),
         ],
@@ -378,8 +469,13 @@ class _ChecklistTable extends StatelessWidget {
     return text.isEmpty ? '-' : text;
   }
 
-  static String _requiredText(String value) {
-    return value.trim().toUpperCase() == 'Y' ? 'Y' : 'N';
+  /// 점검유형 배지 색(02_screens.md §18) — 위생=파랑 · 서비스=초록 · 시설=앰버.
+  static Color _chkTypeColor(String chkTypeNm) {
+    final t = chkTypeNm.trim();
+    if (t.contains('위생')) return AppTheme.statusRenewal;
+    if (t.contains('서비스')) return AppTheme.statusNew;
+    if (t.contains('시설')) return AppTheme.statusPending;
+    return AppTheme.textMuted;
   }
 }
 
@@ -416,11 +512,11 @@ Future<bool?> showMasterChecklistDialog(
         backgroundColor: Colors.transparent,
         insetPadding: EdgeInsets.all(compact ? 12 : 20),
         child: _ChecklistCreateDialog(
-        brandOptions: brandOptions,
-        checklistTypeOptions: checklistTypeOptions,
-        initialBrandCd: initialBrandCd,
-        initialChkType: initialChkType,
-        item: item,
+          brandOptions: brandOptions,
+          checklistTypeOptions: checklistTypeOptions,
+          initialBrandCd: initialBrandCd,
+          initialChkType: initialChkType,
+          item: item,
         ),
       );
     },
@@ -829,6 +925,32 @@ class _DialogDropdown extends StatelessWidget {
           ),
       ],
       onChanged: options.isEmpty ? null : onChanged,
+    );
+  }
+}
+
+class _ChecklistDeleteButton extends StatelessWidget {
+  const _ChecklistDeleteButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+      label: const Text('삭제'),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 24),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        foregroundColor: AppTheme.accentRed,
+        side: const BorderSide(color: AppTheme.accentRed),
+        textStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
+        ),
+      ),
     );
   }
 }

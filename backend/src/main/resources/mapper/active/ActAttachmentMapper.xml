@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.active.mapper.ActAttachmentMapper">
+
+    <sql id="actAttachmentSelect">
+        SELECT aa.act_att_idx   AS actAttIdx,
+               aa.act_idx       AS actIdx,
+               aa.file_name     AS fileName,
+               aa.stored_name   AS storedName,
+               aa.file_size     AS fileSize,
+               aa.content_type  AS contentType,
+               CAST(aa.attached_at AS TIMESTAMP) AS attachedAt,
+               CAST(aa.modified_at AS TIMESTAMP) AS modifiedAt,
+               aa.modified_by   AS modifiedBy,
+               um.user_name     AS modifiedByNm,
+               aa.deleted_yn    AS deletedYn
+        FROM active_att aa
+                 LEFT JOIN user_mst um ON um.user_id = aa.modified_by
+    </sql>
+
+    <select id="selectByActIdx" resultType="com.yeokjeon.erp.active.dto.ActAttachmentJdbcRow">
+        <include refid="actAttachmentSelect"/>
+        WHERE aa.act_idx = #{actIdx}
+          AND aa.deleted_yn = false
+        ORDER BY aa.attached_at DESC, aa.act_att_idx DESC
+    </select>
+
+    <select id="selectByAttIdxAndActIdx"
+            resultType="com.yeokjeon.erp.active.dto.ActAttachmentJdbcRow">
+        <include refid="actAttachmentSelect"/>
+        WHERE aa.act_att_idx = #{actAttIdx}
+          AND aa.act_idx = #{actIdx}
+          AND aa.deleted_yn = false
+    </select>
+
+    <select id="sumFileSizeByActIdx" resultType="long">
+        SELECT COALESCE(SUM(aa.file_size), 0)
+        FROM active_att aa
+        WHERE aa.act_idx = #{actIdx}
+          AND aa.deleted_yn = false
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="actAttIdx" keyColumn="act_att_idx">
+        INSERT INTO active_att (
+            act_idx,
+            file_name,
+            stored_name,
+            file_size,
+            content_type,
+            modified_by
+        )
+        VALUES (
+            #{actIdx},
+            #{fileName},
+            #{storedName},
+            #{fileSize},
+            #{contentType},
+            #{modifiedBy}
+        )
+    </insert>
+
+    <update id="markDeleted">
+        UPDATE active_att
+        SET deleted_yn = true,
+            modified_at = CURRENT_TIMESTAMP
+        WHERE act_att_idx = #{actAttIdx}
+          AND act_idx = #{actIdx}
+          AND deleted_yn = false
+    </update>
+</mapper>

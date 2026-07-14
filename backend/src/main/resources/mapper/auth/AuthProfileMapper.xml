@@ -3,31 +3,56 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.yeokjeon.erp.auth.mapper.AuthProfileMapper">
 
+    <resultMap id="authProfileRow" type="com.yeokjeon.erp.auth.dto.AuthProfileRowDto">
+        <constructor>
+            <arg column="user_idx" javaType="java.lang.Integer"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="user_nm" javaType="java.lang.String"/>
+            <arg column="email" javaType="java.lang.String"/>
+            <arg column="dept_idx" javaType="java.lang.Integer"/>
+            <arg column="user_phone" javaType="java.lang.String"/>
+            <arg column="dept_nm" javaType="java.lang.String"/>
+            <arg column="position_cd" javaType="java.lang.String"/>
+            <arg column="position_nm" javaType="java.lang.String"/>
+            <arg column="sv_yn" javaType="java.lang.String"/>
+            <arg column="owner_yn" javaType="java.lang.String"/>
+            <arg column="admin_yn" javaType="java.lang.String"/>
+            <arg column="store_idx" javaType="java.lang.Integer"/>
+            <arg column="store_nm" javaType="java.lang.String"/>
+            <arg column="join_dt" javaType="java.time.LocalDate"/>
+        </constructor>
+    </resultMap>
+
     <sql id="profileSelect">
-        SELECT um.user_idx     AS userIdx,
-               um.user_id      AS userId,
-               um.user_name   AS userNm,
-               um.user_email  AS email,
-               um.dept_idx     AS deptIdx,
-               um.user_phone  AS userPhone,
-               dm.dept_nm     AS deptNm,
-               um.position_cd  AS positionCd,
-               cm.code_nm     AS positionNm,
-               CAST(um.sv_yn AS VARCHAR) AS svYn,
-               CAST(um.tag_yn AS VARCHAR) AS tagYn,
-               um.join_dt     AS joinDt
+        SELECT um.user_idx,
+               um.user_id,
+               um.user_name     AS user_nm,
+               um.user_email    AS email,
+               um.dept_idx,
+               um.user_phone,
+               dm.dept_nm,
+               um.position_cd,
+               cm.code_nm       AS position_nm,
+               CAST(um.sv_yn AS VARCHAR)   AS sv_yn,
+               CAST(um.owner_yn AS VARCHAR) AS owner_yn,
+               CAST(um.admin_yn AS VARCHAR) AS admin_yn,
+               um.store_idx,
+               sm.store_nm,
+               um.join_dt
         FROM user_mst um
                  LEFT OUTER JOIN dept_mst dm ON um.dept_idx = dm.dept_idx
-                 LEFT OUTER JOIN code_mst cm ON um.position_cd = cm.code_cd AND cm.grp_cd = '60'
+                 LEFT OUTER JOIN store_mst sm ON sm.store_idx = um.store_idx
+                 LEFT OUTER JOIN code_mst cm ON CAST(cm.code_cd AS TEXT) = CAST(um.position_cd AS TEXT)
+                     AND cm.grp_cd = 60
     </sql>
 
-    <select id="selectByUserIdAndPassword" resultType="com.yeokjeon.erp.auth.dto.AuthProfileRowDto">
+    <select id="selectByUserIdAndPassword" resultMap="authProfileRow">
         <include refid="profileSelect"/>
         WHERE um.user_id = #{userId}
           AND um.user_password = #{userPassword}
     </select>
 
-    <select id="selectByUserId" resultType="com.yeokjeon.erp.auth.dto.AuthProfileRowDto">
+    <select id="selectByUserId" resultMap="authProfileRow">
         <include refid="profileSelect"/>
         WHERE um.user_id = #{userId}
     </select>
@@ -61,13 +86,6 @@
             </if>
             <if test="body.isPositionCdPresent()">
                 position_cd = NULLIF(TRIM(#{body.positionCd}), ''),
-            </if>
-            <if test="body.isTagYnPresent()">
-                tag_yn =
-                <choose>
-                    <when test="body.tagYn == null or body.tagYn == ''">NULL</when>
-                    <otherwise>SUBSTRING(TRIM(#{body.tagYn}), 1, 1)</otherwise>
-                </choose>,
             </if>
         </set>
         WHERE user_id = #{userId}

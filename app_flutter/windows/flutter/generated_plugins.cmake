@@ -3,6 +3,9 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  file_selector_windows
+  geolocator_windows
+  pdfx
   url_launcher_windows
   webview_windows
 )

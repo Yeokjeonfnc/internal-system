@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
+import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_view_detail.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_model.dart';
 
@@ -22,13 +23,27 @@ class PropertyRegisterView extends StatefulWidget {
 class _PropertyRegisterViewState extends State<PropertyRegisterView> {
   final _draft = PropertyRegisterDraft();
   Property? _createdProperty;
+  bool _isEditing = true;
   int _formSessionEpoch = 0;
 
   void _handleSaved(Property property) {
     setState(() {
       _createdProperty = property;
+      _isEditing = false;
       _formSessionEpoch++;
     });
+  }
+
+  Future<void> _handleSharedCancelEditing() async {
+    if (_createdProperty != null) {
+      _draft.hydrateFromProperty(_createdProperty!);
+    }
+    setState(() {
+      _isEditing = false;
+      _formSessionEpoch++;
+    });
+    if (!mounted) return;
+    await showAlertDialog(context, '취소되었습니다.');
   }
 
   @override
@@ -41,18 +56,22 @@ class _PropertyRegisterViewState extends State<PropertyRegisterView> {
         PropertyInfoPanel(
           key: ValueKey('prop_reg_0_$_formSessionEpoch'),
           property: _createdProperty,
-          initiallyEditing: true,
           fixedTabIndex: 0,
           onSaved: _handleSaved,
           registerDraft: _draft,
+          sharedEditing: _isEditing,
+          onEditModeChanged: (value) => setState(() => _isEditing = value),
+          onSharedCancelEditing: _handleSharedCancelEditing,
         ),
         PropertyInfoPanel(
           key: ValueKey('prop_reg_1_$_formSessionEpoch'),
           property: _createdProperty,
-          initiallyEditing: true,
           fixedTabIndex: 1,
           onSaved: _handleSaved,
           registerDraft: _draft,
+          sharedEditing: _isEditing,
+          onEditModeChanged: (value) => setState(() => _isEditing = value),
+          onSharedCancelEditing: _handleSharedCancelEditing,
         ),
       ],
     );
