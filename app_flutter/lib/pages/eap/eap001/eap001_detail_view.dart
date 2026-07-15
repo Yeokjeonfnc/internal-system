@@ -1,91 +1,104 @@
-// 전자결재 문서 상세 — 본문·결재선·첨부 확인.
+// 전자결재 문서 상세 — API 연동.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:app_flutter/core/data/mock/mock_eap_documents.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_content_html_preview.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_model.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_provider.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_widgets.dart';
 import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 
-class Eap001DetailView extends StatelessWidget {
+class Eap001DetailView extends ConsumerWidget {
   const Eap001DetailView({super.key, required this.docId});
 
   final String docId;
 
   @override
-  Widget build(BuildContext context) {
-    final doc = MockEapDocuments.find(docId);
-    if (doc == null) {
-      return ColoredBox(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final docAsync = ref.watch(eapDocumentDetailProvider(docId));
+
+    return docAsync.when(
+      loading: () => const ColoredBox(
         color: AppTheme.appSurface,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                '문서를 찾을 수 없습니다.',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: AppTheme.textSecondary,
-                  fontFamilyFallback: AppTheme.koreanFontFallback,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
+      error: (_, _) => _notFound(context),
+      data: (doc) {
+        if (doc == null) return _notFound(context);
+        return DetailScreenScrollBody(
+          title: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: '목록으로',
+                  onPressed: () => context.pop(),
+                  icon: const Icon(Icons.arrow_back_rounded),
                 ),
-              ),
+                Expanded(
+                  child: Text(
+                    doc.title,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      fontFamilyFallback: AppTheme.koreanFontFallback,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                EapStatusBadge(status: doc.status),
+                const SizedBox(width: 8),
+              ],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _MetaCard(doc: doc),
               const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => context.go(EapRoutes.home),
-                child: const Text('전자결재 홈으로'),
-              ),
+              _ContentCard(doc: doc),
+              if (doc.attachmentCount > 0) ...[
+                const SizedBox(height: 12),
+                _AttachmentCard(count: doc.attachmentCount),
+              ],
+              const SizedBox(height: 12),
+              _ApprovalLineCard(status: doc.status),
+              const SizedBox(height: 24),
             ],
           ),
-        ),
-      );
-    }
+        );
+      },
+    );
+  }
 
-    return DetailScreenScrollBody(
-      title: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-        child: Row(
+  Widget _notFound(BuildContext context) {
+    return ColoredBox(
+      color: AppTheme.appSurface,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              tooltip: '목록으로',
-              onPressed: () => context.pop(),
-              icon: const Icon(Icons.arrow_back_rounded),
-            ),
-            Expanded(
-              child: Text(
-                doc.title,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  fontFamilyFallback: AppTheme.koreanFontFallback,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            const Text(
+              '문서를 찾을 수 없습니다.',
+              style: TextStyle(
+                fontSize: 15,
+                color: AppTheme.textSecondary,
+                fontFamilyFallback: AppTheme.koreanFontFallback,
               ),
             ),
-            EapStatusBadge(status: doc.status),
-            const SizedBox(width: 8),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => context.go(EapRoutes.home),
+              child: const Text('전자결재 홈으로'),
+            ),
           ],
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _MetaCard(doc: doc),
-          const SizedBox(height: 12),
-          _ContentCard(doc: doc),
-          if (doc.attachmentCount > 0) ...[
-            const SizedBox(height: 12),
-            _AttachmentCard(count: doc.attachmentCount),
-          ],
-          const SizedBox(height: 12),
-          _ApprovalLineCard(status: doc.status),
-          const SizedBox(height: 24),
-        ],
       ),
     );
   }
@@ -104,6 +117,7 @@ class _MetaCard extends StatelessWidget {
         children: [
           _metaRow('문서번호', doc.docNum.isEmpty ? '(미부여)' : doc.docNum),
           _metaRow('결재양식', doc.formName),
+          if (doc.formCode.isNotEmpty) _metaRow('양식코드', doc.formCode),
           _metaRow('기안일', doc.draftDateLabel),
           _metaRow('기안자', doc.drafterName.isEmpty ? '-' : doc.drafterName),
           _metaRow('긴급', doc.urgent ? 'Y' : 'N'),
@@ -152,17 +166,19 @@ class _ContentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final html = doc.contentHtml.trim();
     return _SectionCard(
-      title: '본문',
-      child: SelectableText(
-        doc.contentHtml,
-        style: const TextStyle(
-          fontSize: 14,
-          height: 1.6,
-          color: AppTheme.textSecondary,
-          fontFamilyFallback: AppTheme.koreanFontFallback,
-        ),
-      ),
+      title: '본문 (연동 HTML)',
+      child: html.isEmpty
+          ? const Text(
+              '저장된 본문이 없습니다.',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppTheme.textMuted,
+                fontFamilyFallback: AppTheme.koreanFontFallback,
+              ),
+            )
+          : eapContentHtmlPreview(html),
     );
   }
 }
@@ -244,8 +260,7 @@ class _ApprovalLineCard extends StatelessWidget {
                   steps[i].$1,
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight:
-                        steps[i].$2 ? FontWeight.w600 : FontWeight.w500,
+                    fontWeight: steps[i].$2 ? FontWeight.w600 : FontWeight.w500,
                     color: steps[i].$2
                         ? AppTheme.accentRed
                         : AppTheme.textMuted,

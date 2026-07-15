@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.eap.mapper.EapApprovalMappingMapper">
+
+    <resultMap id="eapApprovalMappingRow" type="com.yeokjeon.erp.eap.dto.EapApprovalMappingJdbcRow">
+        <constructor>
+            <arg column="id" javaType="java.lang.Long"/>
+            <arg column="erp_menu_id" javaType="java.lang.String"/>
+            <arg column="erp_source_id" javaType="java.lang.String"/>
+            <arg column="daou_document_id" javaType="java.lang.String"/>
+            <arg column="daou_form_code" javaType="java.lang.String"/>
+            <arg column="form_name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="draft_user_id" javaType="java.lang.String"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="content_html" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="selectJoin">
+        SELECT m.id,
+               m.erp_menu_id,
+               m.erp_source_id,
+               m.daou_document_id,
+               m.daou_form_code,
+               f.form_name,
+               m.status,
+               m.draft_user_id,
+               m.title,
+               m.content_html,
+               m.created_at,
+               m.updated_at
+        FROM erp_approval_mappings m
+                 LEFT JOIN eap_form_config f ON f.form_code = m.daou_form_code
+    </sql>
+
+    <sql id="selectJoinList">
+        SELECT m.id,
+               m.erp_menu_id,
+               m.erp_source_id,
+               m.daou_document_id,
+               m.daou_form_code,
+               f.form_name,
+               m.status,
+               m.draft_user_id,
+               m.title,
+               CAST(NULL AS TEXT) AS content_html,
+               m.created_at,
+               m.updated_at
+        FROM erp_approval_mappings m
+                 LEFT JOIN eap_form_config f ON f.form_code = m.daou_form_code
+    </sql>
+
+    <select id="selectByFolder" resultMap="eapApprovalMappingRow">
+        <include refid="selectJoinList"/>
+        <where>
+            <choose>
+                <when test="folder == 'pending' or folder == 'received' or folder == 'cc-pending' or folder == 'scheduled'">
+                    m.status IN ('WRITING', 'DRAFT', 'TEMPSAVE', 'INPROGRESS')
+                </when>
+                <when test="folder == 'drafted' or folder == 'sent'">
+                    m.status IN ('WRITING', 'DRAFT', 'TEMPSAVE', 'INPROGRESS', 'COMPLETE', 'RETURN', 'CANCEL')
+                </when>
+                <when test="folder == 'temp-saved'">
+                    m.status IN ('TEMPSAVE', 'DRAFT')
+                </when>
+                <when test="folder == 'writing'">
+                    m.status = 'WRITING'
+                </when>
+                <when test="folder == 'approved' or folder == 'cc-read'">
+                    m.status = 'COMPLETE'
+                </when>
+                <when test="folder == 'cancelled' or folder == 'canceled'">
+                    m.status = 'CANCEL'
+                </when>
+                <otherwise>
+                    1 = 1
+                </otherwise>
+            </choose>
+        </where>
+        ORDER BY m.created_at DESC, m.id DESC
+    </select>
+
+    <select id="selectByDocumentId" resultMap="eapApprovalMappingRow">
+        <include refid="selectJoin"/>
+        WHERE m.daou_document_id = #{documentId}
+           OR CAST(m.id AS VARCHAR) = #{documentId}
+           OR CONCAT('MAP-', m.id) = #{documentId}
+           OR CONCAT('ERP-', m.id) = #{documentId}
+           OR CONCAT('REDIRECT-', m.id) = #{documentId}
+           OR CONCAT('LOCAL-', m.id) = #{documentId}
+        LIMIT 1
+    </select>
+
+    <select id="selectById" resultMap="eapApprovalMappingRow">
+        <include refid="selectJoin"/>
+        WHERE m.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO erp_approval_mappings (
+            erp_menu_id, erp_source_id, daou_document_id, daou_form_code,
+            status, draft_user_id, title, content_html, created_at, updated_at
+        ) VALUES (
+            #{erpMenuId},
+            #{erpSourceId},
+            #{daouDocumentId},
+            #{daouFormCode},
+            #{status},
+            #{draftUserId},
+            #{title},
+            #{contentHtml},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <update id="updateStatusByDocumentId">
+        UPDATE erp_approval_mappings
+        SET status = #{status},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE daou_document_id = #{documentId}
+    </update>
+
+    <update id="updateStatusByLookup">
+        UPDATE erp_approval_mappings
+        SET status = #{status},
+            daou_document_id = CASE
+                WHEN #{newDaouDocumentId} IS NOT NULL AND #{newDaouDocumentId} != ''
+                    THEN #{newDaouDocumentId}
+                ELSE daou_document_id
+            END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE daou_document_id = #{lookupId}
+           OR CAST(id AS VARCHAR) = #{lookupId}
+           OR CONCAT('MAP-', id) = #{lookupId}
+           OR CONCAT('ERP-', id) = #{lookupId}
+           OR CONCAT('REDIRECT-', id) = #{lookupId}
+           OR CONCAT('LOCAL-', id) = #{lookupId}
+    </update>
+
+    <update id="updateDaouDocument">
+        UPDATE erp_approval_mappings
+        SET daou_document_id = #{daouDocumentId},
+            status = #{status},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+</mapper>

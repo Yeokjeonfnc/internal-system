@@ -62,12 +62,16 @@ public class EapConnectionService {
         Map<String, String> form = new LinkedHashMap<>();
         form.put("clientId", daouOfficeProperties.getClientId());
         form.put("clientSecret", daouOfficeProperties.getClientSecret());
-        form.put("formCode", blankTo(daouOfficeProperties.getFormCode(), "connection_test"));
+        // 다우 관리자 양식 코드(전자결재연동_v4)와 동일해야 함 — 예: yeokjeon_eap01
+        form.put("formCode", blankTo(daouOfficeProperties.getFormCode(), "yeokjeon_eap01"));
         form.put("title", "ERP 연결 테스트");
         form.put("content", "<p>연결 테스트용 문서입니다.</p>");
+        // 가이드: callbackUrl 필수, 포트 80/443만 허용 (localhost:3001 불가)
         form.put("callbackUrl", blankTo(
                 daouOfficeProperties.getCallbackUrl(),
                 "https://test.yeokjeon.com/api/eap/status"));
+        form.put("productName", "yeokjeon-erp");
+        form.put("partnerDocId", "ERP-CONNECTION-TEST");
 
         String body = form.entrySet().stream()
                 .map(e -> encode(e.getKey()) + "=" + encode(e.getValue()))

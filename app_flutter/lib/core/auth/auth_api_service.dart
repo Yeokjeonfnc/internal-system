@@ -23,13 +23,17 @@ class AuthApiService extends BaseRepository {
       if (response.statusCode == 200 && response.data != null) {
         return parseDataOrNull(response.data, AuthProfile.fromJson);
       }
+      return null;
     } on DioException catch (e) {
-      debugPrint('로그인 에러: $e');
-      rethrow;
+      debugPrint('로그인 에러: ${dioErrorMessage(e)}');
+      // 401 등 — 화면에서 서버 message를 보여주도록 재던짐(원문 Dio 덤프는 숨김)
+      throw StateError(
+        dioErrorMessage(e, fallback: '아이디 또는 비밀번호가 일치하지 않습니다.'),
+      );
     } catch (e) {
       debugPrint('로그인 에러: $e');
+      rethrow;
     }
-    return null;
   }
 
   Future<AuthProfile?> getUserProfile(String userId) async {

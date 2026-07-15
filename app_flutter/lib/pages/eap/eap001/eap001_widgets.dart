@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:app_flutter/core/data/mock/mock_eap_documents.dart';
 import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
@@ -96,7 +95,6 @@ class EapNavPanel extends StatelessWidget {
                         label: '참조/열람 대기 문서',
                         path: EapRoutes.ccPending,
                         currentPath: currentPath,
-                        badge: MockEapDocuments.all.length > 3 ? '295' : null,
                         onTap: () => go(EapRoutes.ccPending),
                       ),
                       _EapNavItem(
@@ -208,7 +206,6 @@ class _EapNavItem extends StatelessWidget {
     required this.path,
     required this.currentPath,
     required this.onTap,
-    this.badge,
     this.icon,
   });
 
@@ -216,7 +213,6 @@ class _EapNavItem extends StatelessWidget {
   final String path;
   final String currentPath;
   final VoidCallback onTap;
-  final String? badge;
   final IconData? icon;
 
   bool get _selected =>
@@ -253,23 +249,6 @@ class _EapNavItem extends StatelessWidget {
                   ),
                 ),
               ),
-              if (badge != null)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppTheme.accentRed,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    badge!,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
@@ -283,10 +262,12 @@ class EapPageHeader extends StatelessWidget {
     super.key,
     required this.title,
     this.showSearch = true,
+    this.trailing,
   });
 
   final String title;
   final bool showSearch;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -305,6 +286,10 @@ class EapPageHeader extends StatelessWidget {
             ),
           ),
           const Spacer(),
+          if (trailing != null) ...[
+            trailing!,
+            const SizedBox(width: 4),
+          ],
           if (showSearch && !compact)
             SizedBox(
               width: 280,
@@ -555,6 +540,10 @@ class EapStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, fg) = switch (status) {
+      EapDocStatus.writing => (
+          const Color(0xFFFFF7E8),
+          const Color(0xFFB45309),
+        ),
       EapDocStatus.inProgress => (
           const Color(0xFFE8F5EC),
           const Color(0xFF1E8E4E),
@@ -566,6 +555,10 @@ class EapStatusBadge extends StatelessWidget {
       EapDocStatus.returned => (
           const Color(0xFFFDEEEE),
           AppTheme.accentRed,
+        ),
+      EapDocStatus.cancelled => (
+          const Color(0xFFF3F4F6),
+          const Color(0xFF6B7280),
         ),
       EapDocStatus.tempSave => (
           const Color(0xFFEFF6FF),
