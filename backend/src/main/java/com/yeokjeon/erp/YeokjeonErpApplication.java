@@ -21,6 +21,8 @@ public class YeokjeonErpApplication {
     }
 
     public static void main(String[] args) {
+        // DB/API 시각을 서울 기준으로 통일 (TIMESTAMPTZ OffsetDateTime)
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Seoul"));
         SpringApplication.run(YeokjeonErpApplication.class, args);
     }
 }

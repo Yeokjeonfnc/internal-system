@@ -13,9 +13,11 @@ import 'package:app_flutter/pages/eap/eap001/eap001_transfer_html_form_stub.dart
 export 'package:app_flutter/pages/eap/eap001/eap001_transfer_html_form_stub.dart'
     show EapTransferHtmlExport, EapTransferHtmlFormController;
 
-const _kIframeClass = 'yj-eap-transfer-iframe';
+const _kIframeClassTransfer = 'yj-eap-transfer-iframe';
+const _kIframeClassBasic = 'yj-eap-basic-iframe';
 
-Uri eapTransferFormPageUri({
+Uri eapFormPageUri({
+  required String htmlFile,
   required String user,
   required String dept,
   required String date,
@@ -24,9 +26,7 @@ Uri eapTransferFormPageUri({
   final baseHref =
       html.document.querySelector('base')?.getAttribute('href') ?? '/';
   final base = Uri.parse(origin).resolve(baseHref);
-  return base
-      .resolve('eap_transfer_form.html')
-      .replace(
+  return base.resolve(htmlFile).replace(
         queryParameters: {
           'user': user,
           'dept': dept,
@@ -36,14 +36,32 @@ Uri eapTransferFormPageUri({
       );
 }
 
+Uri eapTransferFormPageUri({
+  required String user,
+  required String dept,
+  required String date,
+}) =>
+    eapFormPageUri(
+      htmlFile: 'eap_transfer_form.html',
+      user: user,
+      dept: dept,
+      date: date,
+    );
+
 /// 다른 화면으로 이동해도 DOM 에 남는 iframe 을 강제 제거한다.
 void removeEapTransferHtmlOverlays() {
-  html.document.querySelectorAll('iframe.$_kIframeClass').forEach((n) {
+  for (final cls in [_kIframeClassTransfer, _kIframeClassBasic]) {
+    html.document.querySelectorAll('iframe.$cls').forEach((n) {
+      n.remove();
+    });
+  }
+}
+
+void _removeStaleIframes(String iframeClass) {
+  html.document.querySelectorAll('iframe.$iframeClass').forEach((n) {
     n.remove();
   });
 }
-
-void _removeStaleIframes() => removeEapTransferHtmlOverlays();
 
 class EapTransferHtmlFormHost extends StatefulWidget {
   const EapTransferHtmlFormHost({
@@ -52,12 +70,21 @@ class EapTransferHtmlFormHost extends StatefulWidget {
     required this.draftDept,
     required this.draftDate,
     required this.controller,
+    this.formHtmlFile = 'eap_transfer_form.html',
+    this.iframeClass = _kIframeClassTransfer,
+    this.initialSubject,
+    this.initialBodyHtml,
   });
 
   final String draftUser;
   final String draftDept;
   final String draftDate;
   final EapTransferHtmlFormController controller;
+  /// web/ 기준 HTML 파일명 (예: eap_basic_form.html)
+  final String formHtmlFile;
+  final String iframeClass;
+  final String? initialSubject;
+  final String? initialBodyHtml;
 
   @override
   State<EapTransferHtmlFormHost> createState() =>
@@ -100,12 +127,13 @@ class _EapTransferHtmlFormHostWebState extends State<EapTransferHtmlFormHost>
     if (_disposed) return;
     final existing = _iframe;
     if (existing != null && existing.isConnected == true) return;
-    _removeStaleIframes();
+    _removeStaleIframes(widget.iframeClass);
     _iframe = null;
 
     final iframe = html.IFrameElement()
-      ..classes.add(_kIframeClass)
-      ..src = eapTransferFormPageUri(
+      ..classes.add(widget.iframeClass)
+      ..src = eapFormPageUri(
+        htmlFile: widget.formHtmlFile,
         user: widget.draftUser,
         dept: widget.draftDept,
         date: widget.draftDate,
@@ -155,6 +183,8 @@ class _EapTransferHtmlFormHostWebState extends State<EapTransferHtmlFormHost>
       'user': widget.draftUser,
       'dept': widget.draftDept,
       'date': widget.draftDate,
+      if (widget.initialSubject != null) 'subject': widget.initialSubject,
+      if (widget.initialBodyHtml != null) 'bodyHtml': widget.initialBodyHtml,
     });
   }
 
@@ -224,7 +254,7 @@ class _EapTransferHtmlFormHostWebState extends State<EapTransferHtmlFormHost>
   void _removeIframe() {
     _iframe?.remove();
     _iframe = null;
-    _removeStaleIframes();
+    _removeStaleIframes(widget.iframeClass);
   }
 
   void _setIframeVisible(bool visible) {

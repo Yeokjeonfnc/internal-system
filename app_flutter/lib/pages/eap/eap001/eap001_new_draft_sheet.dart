@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_basic_draft_view.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_provider.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_transfer_draft_view.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_transfer_form_data.dart';
@@ -21,6 +22,13 @@ Future<void> showEapNewDraftSheet(BuildContext context) async {
   await Future<void>.delayed(const Duration(milliseconds: 320));
   if (!context.mounted) return;
 
+  // 업무기안(yeokjeon_eap01)
+  if (formCode == kEapBasicFormCode ||
+      formCode.toLowerCase().contains('eap01')) {
+    await openEapBasicDraft(context, formCode: formCode);
+    return;
+  }
+
   // 양수도·명의변경(yeokjeon_eap02) — ERP 전용 작성 화면
   if (formCode == kEapTransferFormCode ||
       formCode.toLowerCase().contains('eap02')) {
@@ -32,6 +40,7 @@ Future<void> showEapNewDraftSheet(BuildContext context) async {
     SnackBar(
       content: Text(
         '선택한 양식($formCode)용 작성 화면은 아직 없습니다.\n'
+        '업무기안($kEapBasicFormCode) 또는 '
         '양수도 / 명의변경 품의서($kEapTransferFormCode)를 선택해 주세요.',
       ),
       duration: const Duration(seconds: 5),

@@ -24,6 +24,8 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
+      # TIMESTAMPTZ / CURRENT_TIMESTAMP 를 서울(+09)로 적재·조회
+      connection-init-sql: SET TIME ZONE 'Asia/Seoul'
   
   jpa:
     hibernate:

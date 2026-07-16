@@ -35,4 +35,10 @@ public interface EapApprovalMappingMapper {
             @Param("id") long id,
             @Param("daouDocumentId") String daouDocumentId,
             @Param("status") String status);
+
+    /** 작성중 문서 제목·본문 수정 (updated_at 갱신) */
+    int updateDraftContent(
+            @Param("id") long id,
+            @Param("title") String title,
+            @Param("contentHtml") String contentHtml);
 }

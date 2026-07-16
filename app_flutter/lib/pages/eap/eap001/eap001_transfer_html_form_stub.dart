@@ -18,12 +18,20 @@ class EapTransferHtmlFormHost extends StatefulWidget {
     required this.draftDept,
     required this.draftDate,
     required this.controller,
+    this.formHtmlFile = 'eap_transfer_form.html',
+    this.iframeClass = 'yj-eap-transfer-iframe',
+    this.initialSubject,
+    this.initialBodyHtml,
   });
 
   final String draftUser;
   final String draftDept;
   final String draftDate;
   final EapTransferHtmlFormController controller;
+  final String formHtmlFile;
+  final String iframeClass;
+  final String? initialSubject;
+  final String? initialBodyHtml;
 
   @override
   State<EapTransferHtmlFormHost> createState() =>

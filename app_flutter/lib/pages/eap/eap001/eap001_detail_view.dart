@@ -7,7 +7,9 @@ import 'package:go_router/go_router.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_basic_draft_view.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_content_html_preview.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_form_preview_html.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_model.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_provider.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_widgets.dart';
@@ -53,6 +55,13 @@ class Eap001DetailView extends ConsumerWidget {
                   ),
                 ),
                 EapStatusBadge(status: doc.status),
+                if (doc.isWritable) ...[
+                  const SizedBox(width: 8),
+                  FilledButton.tonal(
+                    onPressed: () => _openEdit(context, ref, doc),
+                    child: const Text('수정'),
+                  ),
+                ],
                 const SizedBox(width: 8),
               ],
             ),
@@ -75,6 +84,26 @@ class Eap001DetailView extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<void> _openEdit(
+    BuildContext context,
+    WidgetRef ref,
+    EapDocument doc,
+  ) async {
+    final code = doc.formCode.trim().toLowerCase();
+    if (code.contains('eap02')) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('양수도 품의서는 작성중 이어쓰기를 곧 지원합니다. 업무기안만 수정 가능합니다.'),
+        ),
+      );
+      return;
+    }
+    await openEapBasicDraft(context, editDoc: doc);
+    ref.invalidate(eapDocumentDetailProvider(docId));
+    ref.invalidate(eapDocumentsProvider);
   }
 
   Widget _notFound(BuildContext context) {
@@ -111,6 +140,7 @@ class _MetaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final updated = doc.updatedDateTimeLabel;
     return _SectionCard(
       title: '문서 정보',
       child: Column(
@@ -118,7 +148,8 @@ class _MetaCard extends StatelessWidget {
           _metaRow('문서번호', doc.docNum.isEmpty ? '(미부여)' : doc.docNum),
           _metaRow('결재양식', doc.formName),
           if (doc.formCode.isNotEmpty) _metaRow('양식코드', doc.formCode),
-          _metaRow('기안일', doc.draftDateLabel),
+          _metaRow('기안일시', doc.draftDateTimeLabel),
+          if (updated != null) _metaRow('수정일시', updated),
           _metaRow('기안자', doc.drafterName.isEmpty ? '-' : doc.drafterName),
           _metaRow('긴급', doc.urgent ? 'Y' : 'N'),
         ],
@@ -166,10 +197,20 @@ class _ContentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final html = doc.contentHtml.trim();
+    final raw = doc.contentHtml.trim();
+    final previewHtml = raw.isEmpty
+        ? ''
+        : buildEapFormPreviewHtml(
+            formCode: doc.formCode,
+            title: doc.title,
+            contentHtml: raw,
+            drafterName: doc.drafterName,
+            draftDateLabel: doc.draftDateLabel,
+            docNum: doc.docNum,
+          );
     return _SectionCard(
-      title: '본문 (연동 HTML)',
-      child: html.isEmpty
+      title: '본문 미리보기',
+      child: previewHtml.isEmpty
           ? const Text(
               '저장된 본문이 없습니다.',
               style: TextStyle(
@@ -178,7 +219,7 @@ class _ContentCard extends StatelessWidget {
                 fontFamilyFallback: AppTheme.koreanFontFallback,
               ),
             )
-          : eapContentHtmlPreview(html),
+          : eapContentHtmlPreview(previewHtml),
     );
   }
 }
@@ -226,7 +267,7 @@ class _ApprovalLineCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final steps = [
       ('기안', true),
-      ('검토', status != EapDocStatus.draft),
+      ('검토', status != EapDocStatus.draft && status != EapDocStatus.writing),
       ('승인', status == EapDocStatus.complete),
     ];
 

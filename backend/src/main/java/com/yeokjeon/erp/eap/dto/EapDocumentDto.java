@@ -1,11 +1,14 @@
 package com.yeokjeon.erp.eap.dto;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 
 public record EapDocumentDto(
+        Long mappingId,
         String docId,
         String docNum,
         OffsetDateTime draftDate,
+        OffsetDateTime updatedAt,
         String formName,
         String formCode,
         String title,
@@ -14,6 +17,8 @@ public record EapDocumentDto(
         String contentHtml,
         String erpMenuId,
         String erpSourceId) {
+
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     public static EapDocumentDto fromRow(EapApprovalMappingJdbcRow row) {
         return fromRow(row, row.contentHtml());
@@ -30,9 +35,11 @@ public record EapDocumentDto(
                 ? contentHtml
                 : (row.contentHtml() == null ? "" : row.contentHtml());
         return new EapDocumentDto(
+                row.id(),
                 docId,
                 docNum,
-                row.createdAt(),
+                toSeoul(row.createdAt()),
+                toSeoul(row.updatedAt()),
                 row.formName() == null ? "" : row.formName(),
                 row.daouFormCode(),
                 row.title() == null ? "" : row.title(),
@@ -41,5 +48,12 @@ public record EapDocumentDto(
                 html,
                 row.erpMenuId(),
                 row.erpSourceId());
+    }
+
+    static OffsetDateTime toSeoul(OffsetDateTime value) {
+        if (value == null) {
+            return null;
+        }
+        return value.atZoneSameInstant(SEOUL).toOffsetDateTime();
     }
 }

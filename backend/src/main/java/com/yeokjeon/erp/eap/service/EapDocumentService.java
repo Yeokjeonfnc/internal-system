@@ -89,8 +89,31 @@ public class EapDocumentService {
         }
 
         String erpMenuId = blankTo(body.erpMenuId(), blankTo(form.erpSourceMenu(), "eap001"));
-        String erpSourceId = blankTo(body.erpSourceId(), "TMP-" + UUID.randomUUID().toString().substring(0, 8));
         String title = body.title().trim();
+        Long mappingId = body.mappingId();
+        String erpSourceId;
+        boolean isUpdate = mappingId != null && mappingId > 0;
+
+        if (isUpdate) {
+            EapApprovalMappingJdbcRow existing = approvalMappingMapper.selectById(mappingId);
+            if (existing == null) {
+                throw new IllegalArgumentException("수정할 결재 문서를 찾을 수 없습니다: " + mappingId);
+            }
+            String st = existing.status() == null ? "" : existing.status().trim().toUpperCase(Locale.ROOT);
+            if (!"WRITING".equals(st)) {
+                throw new IllegalArgumentException("작성중 문서만 수정·재기안할 수 있습니다. 현재 상태: " + existing.status());
+            }
+            erpSourceId = blankTo(existing.erpSourceId(), blankTo(body.erpSourceId(), "TMP-" + mappingId));
+            String content = normalizeDaouContent(
+                    blankTo(body.contentHtml(), buildSimpleHtml(title, form.formName(), erpMenuId, erpSourceId)));
+            int updated = approvalMappingMapper.updateDraftContent(mappingId, title, content);
+            if (updated == 0) {
+                throw new IllegalStateException("작성중 문서 수정에 실패했습니다. 상태가 변경되었을 수 있습니다.");
+            }
+            return submitDaouAfterSave(mappingId, form, title, content, body.draftUserId(), true);
+        }
+
+        erpSourceId = blankTo(body.erpSourceId(), "TMP-" + UUID.randomUUID().toString().substring(0, 8));
         String content = normalizeDaouContent(
                 blankTo(body.contentHtml(), buildSimpleHtml(title, form.formName(), erpMenuId, erpSourceId)));
 
@@ -104,8 +127,19 @@ public class EapDocumentService {
         param.setTitle(title);
         param.setContentHtml(content);
         approvalMappingMapper.insert(param);
-        Long mappingId = param.getId();
+        mappingId = param.getId();
 
+        return submitDaouAfterSave(mappingId, form, title, content, body.draftUserId(), false);
+    }
+
+    private EapDraftResultDto submitDaouAfterSave(
+            Long mappingId,
+            EapFormConfigJdbcRow form,
+            String title,
+            String content,
+            String draftUserId,
+            boolean revised) {
+        String revisePrefix = revised ? "수정·재기안: " : "";
         if (!daouOfficeProperties.isCredentialConfigured()) {
             String placeholderDocId = "LOCAL-" + mappingId;
             approvalMappingMapper.updateDaouDocument(mappingId, placeholderDocId, "WRITING");
@@ -116,34 +150,35 @@ public class EapDocumentService {
                     "WRITING",
                     title,
                     false,
-                    "다우 인증키가 없어 ERP 매핑만 저장했습니다. DAOU_CLIENT_ID/SECRET 설정 후 재기안하세요.",
+                    revisePrefix + "다우 인증키가 없어 ERP 매핑만 저장했습니다. DAOU_CLIENT_ID/SECRET 설정 후 재기안하세요.",
                     null);
         }
 
         try {
             log.info(
-                    "다우 기안 준비 formCode={} titleLen={} contentLen={} marker={} preview={}",
+                    "다우 기안 준비 formCode={} mappingId={} revised={} titleLen={} contentLen={}",
                     form.formCode(),
+                    mappingId,
+                    revised,
                     title.length(),
-                    content.length(),
-                    content.contains("ERP 양수도") || content.contains("data-erp-eap"),
-                    content.length() > 160
-                            ? content.substring(0, 160).replace('\n', ' ')
-                            : content.replace('\n', ' '));
-            // 공식 가이드: 성공 시 HTTP 302 + Location(결재문서 URL). ERP UI에만 남기면 안 됨.
+                    content.length());
             DaouSubmitResult submit = submitToDaou(
                     form.formCode(),
                     title,
                     content,
-                    blankTo(body.draftUserId(), null),
+                    blankTo(draftUserId, null),
                     "ERP-" + mappingId);
-            // 302 리다이렉트만으로는 작성중. TEMPSAVE/INPROGRESS 등은 다우 콜백으로만 반영.
             String status = submit.ok() ? "WRITING" : "DRAFT";
-            // partnerDocId 와 동일 키(ERP-{id})를 fallback 으로 쓰면 콜백 매칭이 안정적
             String docId = submit.documentId() != null
                     ? submit.documentId()
                     : (submit.ok() ? "ERP-" + mappingId : "PENDING-" + mappingId);
             approvalMappingMapper.updateDaouDocument(mappingId, docId, status);
+            String msg = submit.message();
+            if (revised && (msg == null || msg.isBlank())) {
+                msg = submit.ok() ? "수정 내용을 반영해 다우 기안 화면을 열었습니다." : "수정은 저장됐으나 다우 기안에 실패했습니다.";
+            } else if (revised && msg != null && !msg.isBlank()) {
+                msg = revisePrefix + msg;
+            }
             return new EapDraftResultDto(
                     mappingId,
                     docId,
@@ -151,7 +186,7 @@ public class EapDocumentService {
                     status,
                     title,
                     submit.ok(),
-                    submit.message(),
+                    msg,
                     submit.redirectUrl());
         } catch (Exception e) {
             log.warn("다우 기안 호출 실패 mappingId={}", mappingId, e);
@@ -164,7 +199,7 @@ public class EapDocumentService {
                     "DRAFT",
                     title,
                     false,
-                    "다우 기안 호출 실패: " + e.getMessage(),
+                    revisePrefix + "다우 기안 호출 실패: " + e.getMessage(),
                     null);
         }
     }

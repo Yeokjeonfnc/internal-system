@@ -73,7 +73,7 @@ class _EapContentHtmlPreviewWebState extends State<_EapContentHtmlPreviewWeb> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 520,
+      height: 640,
       width: double.infinity,
       child: HtmlElementView(viewType: _viewType),
     );

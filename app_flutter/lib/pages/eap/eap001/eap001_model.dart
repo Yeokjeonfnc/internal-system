@@ -12,24 +12,24 @@ enum EapDocStatus {
 
 extension EapDocStatusX on EapDocStatus {
   String get label => switch (this) {
-        EapDocStatus.writing => '작성중',
-        EapDocStatus.draft => '상신',
-        EapDocStatus.inProgress => '진행중',
-        EapDocStatus.complete => '완료',
-        EapDocStatus.returned => '반려',
-        EapDocStatus.cancelled => '상신취소',
-        EapDocStatus.tempSave => '임시저장',
-      };
+    EapDocStatus.writing => '작성중',
+    EapDocStatus.draft => '상신',
+    EapDocStatus.inProgress => '진행중',
+    EapDocStatus.complete => '완료',
+    EapDocStatus.returned => '반려',
+    EapDocStatus.cancelled => '상신취소',
+    EapDocStatus.tempSave => '임시저장',
+  };
 
   String get daouCode => switch (this) {
-        EapDocStatus.writing => 'WRITING',
-        EapDocStatus.draft => 'DRAFT',
-        EapDocStatus.inProgress => 'INPROGRESS',
-        EapDocStatus.complete => 'COMPLETE',
-        EapDocStatus.returned => 'RETURN',
-        EapDocStatus.cancelled => 'CANCEL',
-        EapDocStatus.tempSave => 'TEMPSAVE',
-      };
+    EapDocStatus.writing => 'WRITING',
+    EapDocStatus.draft => 'DRAFT',
+    EapDocStatus.inProgress => 'INPROGRESS',
+    EapDocStatus.complete => 'COMPLETE',
+    EapDocStatus.returned => 'RETURN',
+    EapDocStatus.cancelled => 'CANCEL',
+    EapDocStatus.tempSave => 'TEMPSAVE',
+  };
 
   static EapDocStatus fromDaouCode(String? code) {
     final c = (code ?? '').trim().toUpperCase();
@@ -40,21 +40,21 @@ extension EapDocStatusX on EapDocStatus {
       'IN_PROGRESS' ||
       'PROGRESS' ||
       'RECV_WAITING' ||
-      'RECEIVED' =>
-        EapDocStatus.inProgress,
-      'COMPLETE' || 'DONE' || 'APPROVED' || 'COMPLETED' => EapDocStatus.complete,
+      'RECEIVED' => EapDocStatus.inProgress,
+      'COMPLETE' ||
+      'DONE' ||
+      'APPROVED' ||
+      'COMPLETED' => EapDocStatus.complete,
       'RETURN' ||
       'REJECT' ||
       'REJECTED' ||
       'RETURNED' ||
-      'FORCED_RETURN' =>
-        EapDocStatus.returned,
+      'FORCED_RETURN' => EapDocStatus.returned,
       'CANCEL' ||
       'CANCELED' ||
       'CANCELLED' ||
       'DELETE' ||
-      'FORCE_DELETE' =>
-        EapDocStatus.cancelled,
+      'FORCE_DELETE' => EapDocStatus.cancelled,
       'TEMPSAVE' || 'TEMP_SAVE' => EapDocStatus.tempSave,
       _ => EapDocStatus.writing,
     };
@@ -69,6 +69,8 @@ class EapDocument {
     required this.formName,
     required this.title,
     required this.status,
+    this.mappingId,
+    this.updatedAt,
     this.formCode = '',
     this.drafterName = '',
     this.contentHtml = '',
@@ -84,10 +86,17 @@ class EapDocument {
     if (draftRaw != null && draftRaw.isNotEmpty) {
       draftDate = DateTime.tryParse(draftRaw) ?? draftDate;
     }
+    DateTime? updatedAt;
+    final updatedRaw = json['updatedAt']?.toString();
+    if (updatedRaw != null && updatedRaw.isNotEmpty) {
+      updatedAt = DateTime.tryParse(updatedRaw);
+    }
     return EapDocument(
+      mappingId: (json['mappingId'] as num?)?.toInt(),
       docId: json['docId']?.toString() ?? '',
       docNum: json['docNum']?.toString() ?? '',
       draftDate: draftDate,
+      updatedAt: updatedAt,
       formName: json['formName']?.toString() ?? '',
       formCode: json['formCode']?.toString() ?? '',
       title: json['title']?.toString() ?? '',
@@ -99,9 +108,11 @@ class EapDocument {
     );
   }
 
+  final int? mappingId;
   final String docId;
   final String docNum;
   final DateTime draftDate;
+  final DateTime? updatedAt;
   final String formName;
   final String formCode;
   final String title;
@@ -113,8 +124,34 @@ class EapDocument {
   final String erpMenuId;
   final String erpSourceId;
 
-  String get draftDateLabel =>
-      '${draftDate.year}-${draftDate.month.toString().padLeft(2, '0')}-${draftDate.day.toString().padLeft(2, '0')}';
+  bool get isWritable => status == EapDocStatus.writing;
+
+  bool get hasBeenRevised {
+    final u = updatedAt;
+    if (u == null) return false;
+    return u.difference(draftDate).inSeconds.abs() > 2;
+  }
+
+  String get draftDateLabel => _fmtDate(draftDate);
+
+  String get draftDateTimeLabel => _fmtDateTime(draftDate);
+
+  String? get updatedDateTimeLabel {
+    final u = updatedAt;
+    if (u == null || !hasBeenRevised) return null;
+    return _fmtDateTime(u);
+  }
+
+  static String _fmtDate(DateTime d) {
+    final local = d.toLocal();
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+  }
+
+  static String _fmtDateTime(DateTime d) {
+    final local = d.toLocal();
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} '
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
 }
 
 class EapFormConfig {
@@ -145,27 +182,27 @@ class EapFormConfig {
   }
 
   Map<String, dynamic> toCreateBody() => {
-        'formCode': formCode,
-        'formName': formName,
-        'integrationType': integrationType,
-        'erpSourceMenu': erpSourceMenu.isEmpty ? null : erpSourceMenu,
-        'htmlTemplateKey': htmlTemplateKey.isEmpty ? null : htmlTemplateKey,
-        'useEmail': useEmail,
-        'useBoard': useBoard,
-        'enabled': enabled,
-        'sortOrder': sortOrder,
-      };
+    'formCode': formCode,
+    'formName': formName,
+    'integrationType': integrationType,
+    'erpSourceMenu': erpSourceMenu.isEmpty ? null : erpSourceMenu,
+    'htmlTemplateKey': htmlTemplateKey.isEmpty ? null : htmlTemplateKey,
+    'useEmail': useEmail,
+    'useBoard': useBoard,
+    'enabled': enabled,
+    'sortOrder': sortOrder,
+  };
 
   Map<String, dynamic> toUpdateBody() => {
-        'formName': formName,
-        'integrationType': integrationType,
-        'erpSourceMenu': erpSourceMenu.isEmpty ? null : erpSourceMenu,
-        'htmlTemplateKey': htmlTemplateKey.isEmpty ? null : htmlTemplateKey,
-        'useEmail': useEmail,
-        'useBoard': useBoard,
-        'enabled': enabled,
-        'sortOrder': sortOrder,
-      };
+    'formName': formName,
+    'integrationType': integrationType,
+    'erpSourceMenu': erpSourceMenu.isEmpty ? null : erpSourceMenu,
+    'htmlTemplateKey': htmlTemplateKey.isEmpty ? null : htmlTemplateKey,
+    'useEmail': useEmail,
+    'useBoard': useBoard,
+    'enabled': enabled,
+    'sortOrder': sortOrder,
+  };
 
   final String formCode;
   final String formName;
@@ -186,16 +223,18 @@ class EapDraftRequest {
     this.erpSourceId,
     this.draftUserId,
     this.contentHtml,
+    this.mappingId,
   });
 
   Map<String, dynamic> toJson() => {
-        'formCode': formCode,
-        'title': title,
-        'erpMenuId': erpMenuId,
-        if (erpSourceId != null) 'erpSourceId': erpSourceId,
-        if (draftUserId != null) 'draftUserId': draftUserId,
-        if (contentHtml != null) 'contentHtml': contentHtml,
-      };
+    'formCode': formCode,
+    'title': title,
+    'erpMenuId': erpMenuId,
+    if (erpSourceId != null) 'erpSourceId': erpSourceId,
+    if (draftUserId != null) 'draftUserId': draftUserId,
+    if (contentHtml != null) 'contentHtml': contentHtml,
+    if (mappingId != null) 'mappingId': mappingId,
+  };
 
   final String formCode;
   final String title;
@@ -203,6 +242,7 @@ class EapDraftRequest {
   final String? erpSourceId;
   final String? draftUserId;
   final String? contentHtml;
+  final int? mappingId;
 }
 
 class EapDraftResult {
@@ -238,6 +278,7 @@ class EapDraftResult {
   final String title;
   final bool daouSubmitted;
   final String message;
+
   /// 다우 302 Location — 브라우저에서 열어야 실제 기안 화면
   final String? redirectUrl;
 }
