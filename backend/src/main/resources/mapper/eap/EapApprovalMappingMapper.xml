@@ -113,15 +113,15 @@
             #{draftUserId},
             #{title},
             #{contentHtml},
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP
+            NOW(),
+            NOW()
         )
     </insert>
 
     <update id="updateStatusByDocumentId">
         UPDATE erp_approval_mappings
         SET status = #{status},
-            updated_at = CURRENT_TIMESTAMP
+            updated_at = NOW()
         WHERE daou_document_id = #{documentId}
     </update>
 
@@ -133,7 +133,7 @@
                     THEN #{newDaouDocumentId}
                 ELSE daou_document_id
             END,
-            updated_at = CURRENT_TIMESTAMP
+            updated_at = NOW()
         WHERE daou_document_id = #{lookupId}
            OR CAST(id AS VARCHAR) = #{lookupId}
            OR CONCAT('MAP-', id) = #{lookupId}
@@ -146,7 +146,16 @@
         UPDATE erp_approval_mappings
         SET daou_document_id = #{daouDocumentId},
             status = #{status},
-            updated_at = CURRENT_TIMESTAMP
+            updated_at = NOW()
         WHERE id = #{id}
+    </update>
+
+    <update id="updateDraftContent">
+        UPDATE erp_approval_mappings
+        SET title = #{title},
+            content_html = #{contentHtml},
+            updated_at = NOW()
+        WHERE id = #{id}
+          AND UPPER(COALESCE(status, '')) = 'WRITING'
     </update>
 </mapper>

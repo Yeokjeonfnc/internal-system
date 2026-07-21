@@ -14,7 +14,6 @@ import 'package:app_flutter/core/layout/app_shell_top_banner.dart';
 import '../router/app_router.dart';
 import '../router/route_meta.dart';
 import 'package:app_flutter/pages/active/shared/activity_routes.dart';
-import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 import '../theme/app_colors.dart';
 import '../theme/shell_tab_chrome.dart';
 import '../auth/auth_provider.dart';
@@ -637,15 +636,7 @@ class _SidebarNavigation extends StatelessWidget {
                     currentPath.startsWith('${AppRoutes.activities}/'),
                 children: actChildren,
               ),
-            if (can(kMenuEap001) || can(kMenuAct002) || can(kMenuAct003))
-              _SidebarMenuItem(
-                icon: Icons.approval_outlined,
-                title: '전자결재',
-                selected:
-                    currentPath == EapRoutes.root ||
-                    currentPath.startsWith('${EapRoutes.root}/'),
-                onTap: () => navigate(() => context.go(EapRoutes.home)),
-              ),
+            // 전자결재 메뉴 임시 비표시 (라우트·기능은 유지)
             if (mstChildren.isNotEmpty)
               _SidebarExpandableMenuItem(
                 icon: Icons.people_alt,

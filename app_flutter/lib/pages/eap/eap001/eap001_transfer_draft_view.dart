@@ -18,11 +18,13 @@ import 'package:app_flutter/pages/eap/eap001/eap001_transfer_html_form.dart';
 import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 
 Future<void> openEapTransferDraft(BuildContext context, {String? formCode}) {
-  return Navigator.of(context).push<void>(
-    MaterialPageRoute<void>(
-      builder: (_) => EapTransferDraftView(initialFormCode: formCode),
-    ),
-  ).whenComplete(removeEapTransferHtmlOverlays);
+  return Navigator.of(context)
+      .push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => EapTransferDraftView(initialFormCode: formCode),
+        ),
+      )
+      .whenComplete(removeEapTransferHtmlOverlays);
 }
 
 class EapTransferDraftView extends ConsumerStatefulWidget {
