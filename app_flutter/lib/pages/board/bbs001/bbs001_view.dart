@@ -1309,7 +1309,7 @@ class _BoardPostDetailDialogState extends State<_BoardPostDetailDialog> {
               ),
             ),
           ],
-          const Spacer(),
+          const Spacer(flex: 7),
           if (widget.canEdit)
             TextButton(
               onPressed: widget.onEdit,
@@ -1383,11 +1383,7 @@ class _BoardPostDetailDialogState extends State<_BoardPostDetailDialog> {
             color: AppTheme.textSecondary,
           ),
         if (p.storeNm.trim().isNotEmpty)
-          StatusBadge(
-            p.storeNm,
-            showDot: false,
-            color: AppTheme.statusRenewal,
-          ),
+          StatusBadge(p.storeNm, showDot: false, color: AppTheme.statusRenewal),
       ],
     );
   }
