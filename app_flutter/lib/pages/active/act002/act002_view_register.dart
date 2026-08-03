@@ -948,8 +948,8 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     }
     if (_saving) return;
 
-    // 서명 이미지는 우선 미리보기로만 둔다. 서버 업로드는 상신(PENDING) 저장이
-    // 성공한 뒤에만 수행한다. (저장 실패·취소 시 임시저장 건에 서명이 남는 문제 방지)
+    // 서명 미리보기만 먼저 두고, 서버 업로드는 DRAFT 확정(actIdx) 직후·상신 전에 한다.
+    // (서버는 DRAFT에서만 서명 변경을 허용 — PENDING 이후 업로드 시 400 발생)
     setState(() {
       _electronicSignaturePng = bytes;
       _saving = true;
@@ -966,28 +966,36 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
       return;
     }
 
-    // 2) 상신(PENDING) 저장 — 성공한 경우에만 서명을 업로드한다.
-    final saved = await _pushAct('PENDING');
+    // 2) DRAFT로 저장해 actIdx 확보(이미 있으면 최신 내용 동기화)
+    final draftSaved = await _pushAct('DRAFT');
     if (!mounted) return;
-    if (saved == null) {
+    if (draftSaved == null || draftSaved.actIdx == null) {
       setState(() => _saving = false);
       _toast('상신에 실패했습니다.');
       return;
     }
-    final id = saved.actIdx;
-    if (id != null) {
-      _draftActIdx = id;
+    final id = draftSaved.actIdx!;
+    _draftActIdx = id;
+
+    // 3) 서명 업로드 — DRAFT 상태에서 저장
+    final sigOk = await Act002Api().uploadSignature(id, bytes);
+    if (!mounted) return;
+    if (!sigOk) {
+      setState(() => _saving = false);
+      _toast('전자서명 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+      return;
     }
 
-    // 3) 서명 업로드 — 상신이 확정된 문서에만 저장한다.
-    if (id != null) {
-      final sigOk = await Act002Api().uploadSignature(id, bytes);
-      if (!mounted) return;
-      if (!sigOk) {
-        setState(() => _saving = false);
-        _toast('상신은 완료되었으나 전자서명 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-        return;
-      }
+    // 4) 상신(PENDING)
+    final saved = await _pushAct('PENDING');
+    if (!mounted) return;
+    if (saved == null) {
+      setState(() => _saving = false);
+      _toast('전자서명은 저장되었으나 상신에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
+    if (saved.actIdx != null) {
+      _draftActIdx = saved.actIdx;
     }
 
     if (!mounted) return;
@@ -2723,7 +2731,7 @@ class _ApprovalTable extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: FormStylePalette.textPrimary,
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: FontWeight.w700,
                   fontFamilyFallback: AppTheme.koreanFontFallback,
                 ),
