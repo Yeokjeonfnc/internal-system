@@ -52,7 +52,10 @@ public class ActSignatureService {
                 .orElseThrow(() -> new ResourceNotFoundException("활동관리", "actIdx", actIdx));
 
         String status = active.getApprStatus() == null ? "" : active.getApprStatus().trim().toUpperCase();
-        if ("PENDING".equals(status) || "APPROVED".equals(status)) {
+        // 상신(PENDING) 직후 최초 서명 업로드는 허용한다. (등록 화면: DRAFT→PENDING 후 서명 또는 DRAFT 서명 후 PENDING)
+        // 이미 서명이 있거나 결재완료(APPROVED)인 경우만 변경을 막는다.
+        boolean hasExisting = StringUtils.hasText(active.getSignatureStoredName());
+        if ("APPROVED".equals(status) || ("PENDING".equals(status) && hasExisting)) {
             throw new IllegalArgumentException("결재 진행·완료된 활동은 전자서명을 변경할 수 없습니다.");
         }
 
