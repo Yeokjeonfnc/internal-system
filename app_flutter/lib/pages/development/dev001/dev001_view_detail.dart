@@ -125,13 +125,24 @@ class _PartnerInfoPanelState extends ConsumerState<_PartnerInfoPanel> {
     final founder = _displayFounder ?? widget.founder;
     final regionOptions =
         ref.read(partnerCodeOptionsProvider(20)).value ?? const <CodeOption>[];
-    final payload = _formKey.currentState?.payload(regionOptions);
+    final form = _formKey.currentState;
+    final payload = form?.payload(regionOptions);
     if (founder == null || payload == null || !_validate(payload)) return;
+    if (!(form?.isEmailDuplicateCheckOk() ?? false)) {
+      _snack('이메일 중복확인을 해주세요');
+      return;
+    }
 
     setState(() => _saving = true);
     final saved = await ref
         .read(partnerApiServiceProvider)
-        .update(founder.partnerIdx, payload);
+        .update(
+          founder.partnerIdx,
+          payload,
+          onServerMessage: (msg) {
+            if (mounted) _snack(msg);
+          },
+        );
     if (!mounted) return;
     setState(() {
       _saving = false;
@@ -143,7 +154,7 @@ class _PartnerInfoPanelState extends ConsumerState<_PartnerInfoPanel> {
     });
 
     if (saved == null) {
-      _snack('저장에 실패했습니다.');
+      // onServerMessage 에서 이미 안내한 경우(이메일 중복 등) 중복 토스트 생략
       return;
     }
     ref.invalidate(partnerDataProvider);
@@ -225,6 +236,10 @@ class _PartnerInfoPanelState extends ConsumerState<_PartnerInfoPanel> {
     }
     if (payload.isPartnerTelBlank) {
       missing.add('휴대전화');
+    }
+    final email = (_formKey.currentState?._emailController.text ?? '').trim();
+    if (email.isEmpty) {
+      missing.add('이메일주소');
     }
     if (missing.isEmpty) return true;
     _snack('${missing.join(', ')} 항목을 입력해 주세요.');
@@ -309,6 +324,10 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
   Gender _gender = Gender.male;
   String _region = '';
 
+  /// 중복확인 통과한 이메일(trim). 입력이 바뀌면 null.
+  String? _verifiedEmailTrim;
+  bool _checkingEmail = false;
+
   @override
   void initState() {
     super.initState();
@@ -318,6 +337,7 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
     _zipCodeController = TextEditingController();
     _addressController = TextEditingController();
     _addressDetailController = TextEditingController();
+    _emailController.addListener(_onEmailTextChanged);
     _bindFrom(widget.founder);
   }
 
@@ -335,6 +355,7 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
 
   @override
   void dispose() {
+    _emailController.removeListener(_onEmailTextChanged);
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
@@ -342,6 +363,55 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
     _addressController.dispose();
     _addressDetailController.dispose();
     super.dispose();
+  }
+
+  void _onEmailTextChanged() {
+    final t = _emailController.text.trim();
+    final v = _verifiedEmailTrim;
+    if (v != null && v != t) {
+      setState(() => _verifiedEmailTrim = null);
+    }
+  }
+
+  bool isEmailDuplicateCheckOk() {
+    final t = _emailController.text.trim();
+    if (t.isEmpty) return false;
+    return _verifiedEmailTrim == t;
+  }
+
+  Future<void> _checkEmailDuplicate() async {
+    if (_checkingEmail) return;
+    final t = _emailController.text.trim();
+    if (t.isEmpty) {
+      await showAlertDialog(context, '이메일주소를 입력한 뒤 중복확인을 해 주세요.');
+      return;
+    }
+    setState(() => _checkingEmail = true);
+    try {
+      final available = await ref
+          .read(partnerApiServiceProvider)
+          .isEmailAvailable(
+            t,
+            excludePartnerIdx: widget.founder?.partnerIdx,
+          );
+      if (!mounted) return;
+      setState(() {
+        _checkingEmail = false;
+        _verifiedEmailTrim = available ? t : null;
+      });
+      if (available) {
+        await showAlertDialog(context, '사용 가능한 이메일주소입니다.');
+      } else {
+        await showAlertDialog(context, '이미 등록된 이메일주소입니다.');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _checkingEmail = false;
+        _verifiedEmailTrim = null;
+      });
+      await showAlertDialog(context, '이메일 중복확인에 실패했습니다.');
+    }
   }
 
   void _bindFrom(Partner? partner) {
@@ -356,6 +426,7 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
     _addressController.text = partner?.pAddress ?? '';
     _addressDetailController.text = partner?.pAddressDetail ?? '';
     _region = partner?.pRegion ?? '';
+    _verifiedEmailTrim = null;
   }
 
   PartnerMstWriteRequest payload(List<CodeOption> regionOptions) {
@@ -479,10 +550,21 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
           label: '이메일주소',
           requiredField: true,
           child: widget.isEditing
-              ? _PartnerRegisterTextInput(
-                  controller: _emailController,
-                  hint: '이메일 주소를 입력하세요.',
-                  keyboardType: TextInputType.emailAddress,
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: _PartnerRegisterTextInput(
+                        controller: _emailController,
+                        hint: '이메일 주소를 입력하세요.',
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AccentOutlinedButton(
+                      label: _checkingEmail ? '확인중...' : '중복확인',
+                      onPressed: _checkingEmail ? () {} : _checkEmailDuplicate,
+                    ),
+                  ],
                 )
               : ReadonlyValue(widget.founder?.partnerEmail ?? '-'),
         ),
@@ -638,8 +720,19 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
   String _region = '';
   bool _saving = false;
 
+  /// 중복확인 통과한 이메일(trim). 입력이 바뀌면 null.
+  String? _verifiedEmailTrim;
+  bool _checkingEmail = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController.addListener(_onEmailTextChanged);
+  }
+
   @override
   void dispose() {
+    _emailController.removeListener(_onEmailTextChanged);
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
@@ -647,6 +740,52 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
     _addressController.dispose();
     _addressDetailController.dispose();
     super.dispose();
+  }
+
+  void _onEmailTextChanged() {
+    final t = _emailController.text.trim();
+    final v = _verifiedEmailTrim;
+    if (v != null && v != t) {
+      setState(() => _verifiedEmailTrim = null);
+    }
+  }
+
+  bool _isEmailDuplicateCheckOk() {
+    final t = _emailController.text.trim();
+    if (t.isEmpty) return false;
+    return _verifiedEmailTrim == t;
+  }
+
+  Future<void> _checkEmailDuplicate() async {
+    if (_checkingEmail) return;
+    final t = _emailController.text.trim();
+    if (t.isEmpty) {
+      await showAlertDialog(context, '이메일주소를 입력한 뒤 중복확인을 해 주세요.');
+      return;
+    }
+    setState(() => _checkingEmail = true);
+    try {
+      final available = await ref
+          .read(partnerApiServiceProvider)
+          .isEmailAvailable(t);
+      if (!mounted) return;
+      setState(() {
+        _checkingEmail = false;
+        _verifiedEmailTrim = available ? t : null;
+      });
+      if (available) {
+        await showAlertDialog(context, '사용 가능한 이메일주소입니다.');
+      } else {
+        await showAlertDialog(context, '이미 등록된 이메일주소입니다.');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _checkingEmail = false;
+        _verifiedEmailTrim = null;
+      });
+      await showAlertDialog(context, '이메일 중복확인에 실패했습니다.');
+    }
   }
 
   Future<void> _pickRegistrationDate() async {
@@ -693,11 +832,16 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
 
   Future<void> _save() async {
     if (!_validate()) return;
+    if (!_isEmailDuplicateCheckOk()) {
+      await showAlertDialog(context, '이메일 중복확인을 해주세요');
+      return;
+    }
 
     setState(() => _saving = true);
     final regionOptions =
         ref.read(partnerCodeOptionsProvider(20)).value ?? const <CodeOption>[];
     final regionCd = dev001PartnerRegionCode(_region, regionOptions);
+    String? serverMsg;
     final saved = await ref
         .read(partnerApiServiceProvider)
         .create(
@@ -723,12 +867,16 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
                 _addressDetailController.text.trim(),
             PartnerMstWriteRequest.jsonKeyPRegion: regionCd,
           }),
+          onServerMessage: (msg) => serverMsg = msg,
         );
     if (!mounted) return;
     setState(() => _saving = false);
 
     if (saved == null) {
-      await showAlertDialog(context, '등록에 실패했습니다.');
+      await showAlertDialog(
+        context,
+        serverMsg ?? '등록에 실패했습니다.',
+      );
       return;
     }
     ref.invalidate(partnerDataProvider);
@@ -840,10 +988,23 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
         LabeledFormRow(
           label: '이메일주소',
           requiredField: true,
-          child: _PartnerRegisterTextInput(
-            controller: _emailController,
-            hint: '이메일 주소를 입력하세요.',
-            keyboardType: TextInputType.emailAddress,
+          child: Row(
+            children: [
+              Expanded(
+                child: _PartnerRegisterTextInput(
+                  controller: _emailController,
+                  hint: '이메일 주소를 입력하세요.',
+                  keyboardType: TextInputType.emailAddress,
+                ),
+              ),
+              const SizedBox(width: 8),
+              AccentOutlinedButton(
+                label: _checkingEmail ? '확인중...' : '중복확인',
+                onPressed: _checkingEmail || _saving
+                    ? () {}
+                    : _checkEmailDuplicate,
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 10),

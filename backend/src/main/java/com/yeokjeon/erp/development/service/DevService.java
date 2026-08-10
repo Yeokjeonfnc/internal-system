@@ -50,6 +50,17 @@ public class DevService {
         return PartnerMstDto.fromEntity(partner);
     }
 
+    /**
+     * 이메일 사용 가능 여부. 비어 있으면 false.
+     * {@code excludePartnerIdx} 는 수정 화면에서 본인 제외용.
+     */
+    public boolean isPartnerEmailAvailable(String email, Integer excludePartnerIdx) {
+        if (!StringUtils.hasText(email)) {
+            return false;
+        }
+        return !partnerRepository.existsDuplicateEmail(email.trim(), excludePartnerIdx);
+    }
+
     @Transactional
     public PartnerMstDto createPartner(PartnerMstWriteRequestDto body) {
         if (body.getPartnerNm() == null || body.getPartnerNm().isBlank()) {
@@ -60,11 +71,13 @@ public class DevService {
         }
         String partnerNm = body.getPartnerNm().trim();
         String partnerTel = body.getPartnerTel().trim();
+        String partnerEmail = trimToNull(body.getPartnerEmail());
+        assertPartnerEmailUnique(partnerEmail, null);
         Partner partner = Partner.builder()
                 .partnerNm(partnerNm)
                 .partnerStatus(trimToNull(body.getPartnerStatus()))
                 .partnerTel(partnerTel)
-                .partnerEmail(trimToNull(body.getPartnerEmail()))
+                .partnerEmail(partnerEmail)
                 .gender(trimToNull(body.getGender()))
                 .partnerBirth(body.getPartnerBirth())
                 .pZipCd(trimToNull(body.getPZipCd()))
@@ -116,6 +129,10 @@ public class DevService {
             throw new IllegalArgumentException("요청 본문이 비어 있습니다.");
         }
 
+        if (body.isPartnerEmailPresent()) {
+            assertPartnerEmailUnique(trimToNull(body.getPartnerEmail()), partnerIdx);
+        }
+
         applyPartnerWriteBody(partner, body);
 
         Partner saved = partnerRepository.save(partner);
@@ -124,6 +141,16 @@ public class DevService {
                 saved.getPartnerIdx(),
                 saved.getPRegion());
         return PartnerMstDto.fromEntity(saved);
+    }
+
+    /** 이메일 중복 — 비어 있으면 검사 생략. 수정 시 {@code excludePartnerIdx}로 본인 제외. */
+    private void assertPartnerEmailUnique(String email, Integer excludePartnerIdx) {
+        if (!StringUtils.hasText(email)) {
+            return;
+        }
+        if (partnerRepository.existsDuplicateEmail(email.trim(), excludePartnerIdx)) {
+            throw new IllegalArgumentException("이미 등록된 이메일주소입니다.");
+        }
     }
 
     @Transactional

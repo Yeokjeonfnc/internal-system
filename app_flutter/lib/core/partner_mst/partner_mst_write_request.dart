@@ -34,6 +34,7 @@ class PartnerMstWriteRequest {
 /// 예비창업자 REST 경로 — 백엔드 `DevController` (`/partners`).
 abstract final class PartnerMstApiPaths {
   static const String root = '/partners';
+  static const String checkEmail = '$root/check-email';
 
   static String one(int partnerIdx) => '$root/$partnerIdx';
 }

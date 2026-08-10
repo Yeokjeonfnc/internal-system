@@ -1,6 +1,7 @@
 package com.yeokjeon.erp.development.controller;
 
 import com.yeokjeon.erp.common.ApiResponse;
+import com.yeokjeon.erp.development.dto.PartnerEmailAvailabilityDto;
 import com.yeokjeon.erp.development.dto.PartnerMstDto;
 import com.yeokjeon.erp.development.dto.PartnerMstWriteRequestDto;
 import com.yeokjeon.erp.development.dto.PropertyDocumentDto;
@@ -40,6 +41,15 @@ public class DevController {
     public ResponseEntity<ApiResponse<List<PartnerMstDto>>> partnersList() {
         log.info("예비창업자 목록 조회 요청");
         return ResponseEntity.ok(ApiResponse.success(devService.listPartners()));
+    }
+
+    /** 이메일 중복 확인 — {@code excludePartnerIdx} 있으면 해당 건(본인) 제외. */
+    @GetMapping("/partners/check-email")
+    public ResponseEntity<ApiResponse<PartnerEmailAvailabilityDto>> partnerCheckEmail(
+            @RequestParam String email,
+            @RequestParam(required = false) Integer excludePartnerIdx) {
+        boolean available = devService.isPartnerEmailAvailable(email, excludePartnerIdx);
+        return ResponseEntity.ok(ApiResponse.success(new PartnerEmailAvailabilityDto(available)));
     }
 
     @GetMapping("/partners/{partnerIdx}")
