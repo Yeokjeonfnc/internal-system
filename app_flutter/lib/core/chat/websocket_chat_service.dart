@@ -24,6 +24,7 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'package:app_flutter/core/api/api_client.dart';
+import 'package:app_flutter/core/auth/auth_token_store.dart';
 import 'package:app_flutter/core/chat/chat_model.dart';
 import 'package:app_flutter/core/chat/chat_service.dart';
 
@@ -157,12 +158,17 @@ class WebSocketChatService implements ChatService {
         : origin.path;
     // 프래그먼트가 들어가면 'WebSocket URL must not contain fragment' 로 실패하므로
     // 깨끗한 Uri 를 새로 구성한다(쿼리/프래그먼트 미포함).
+    // 브라우저 WebSocket API 는 커스텀 헤더를 못 넣으므로 인증 토큰을 쿼리로 전달한다.
+    // (서버 AuthTokenFilter 가 /ws/chat 만 ?token= 을 허용한다.)
     final uri = Uri(
       scheme: wsScheme,
       host: origin.host,
       port: origin.hasPort ? origin.port : null,
       path: '$basePath/ws/chat',
-      queryParameters: {'userId': _currentUserId},
+      queryParameters: {
+        'userId': _currentUserId,
+        if (AuthTokenStore.hasToken) 'token': AuthTokenStore.token,
+      },
     ).removeFragment(); // 혹시 모를 프래그먼트까지 한 번 더 제거
     return uri.toString();
   }
@@ -435,7 +441,12 @@ class WebSocketChatService implements ChatService {
   String? attachmentUrl(ChatMessage message) {
     if (!message.hasAttachment) return null;
     final uid = Uri.encodeQueryComponent(_currentUserId);
-    return '${_httpBase()}/chat/attachments/${message.id}/download?userId=$uid';
+    // 이 URL 은 <img src> 나 새 탭으로 직접 열려 Authorization 헤더를 못 싣는다.
+    // 서버가 /download 경로에 한해 쿼리 토큰을 허용하므로 함께 붙인다.
+    final token = AuthTokenStore.hasToken
+        ? '&token=${Uri.encodeQueryComponent(AuthTokenStore.token)}'
+        : '';
+    return '${_httpBase()}/chat/attachments/${message.id}/download?userId=$uid$token';
   }
 
   /// REST 절대 base URL. 웹에서 base 가 상대('/api')면 현재 origin 을 붙여

@@ -1,5 +1,7 @@
 package com.yeokjeon.erp.development.controller;
 
+import com.yeokjeon.erp.auth.access.MenuAccessGuard;
+import com.yeokjeon.erp.auth.access.MenuCodes;
 import com.yeokjeon.erp.common.ApiResponse;
 import com.yeokjeon.erp.development.dto.PartnerMstDto;
 import com.yeokjeon.erp.development.dto.PartnerMstWriteRequestDto;
@@ -12,6 +14,7 @@ import com.yeokjeon.erp.development.dto.SalesAreaSaveRequest;
 import com.yeokjeon.erp.development.dto.SalesAreaZoneInfoSaveRequest;
 import com.yeokjeon.erp.development.service.DevService;
 import com.yeokjeon.erp.development.service.PropertyDocumentService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -35,6 +38,7 @@ public class DevController {
 
     private final DevService devService;
     private final PropertyDocumentService propertyDocumentService;
+    private final MenuAccessGuard menuAccessGuard;
 
     @GetMapping("/partners")
     public ResponseEntity<ApiResponse<List<PartnerMstDto>>> partnersList() {
@@ -49,9 +53,17 @@ public class DevController {
         return ResponseEntity.ok(ApiResponse.success(devService.onePartner(partnerIdx)));
     }
 
+    /*
+     * 아래 3개는 예비창업자(가맹 상담 대상자) 원장을 만들고 바꾸고 지운다.
+     * 담당자별로 나뉜 개인정보·상담 이력이라 권한 검사가 없으면 로그인한
+     * 아무나 남의 담당 건을 고치거나 지울 수 있다. 예비창업자(dev001) 권한을 요구한다.
+     */
+
     @PostMapping("/partners")
     public ResponseEntity<ApiResponse<PartnerMstDto>> partnerCreate(
-            @RequestBody PartnerMstWriteRequestDto body) {
+            @RequestBody PartnerMstWriteRequestDto body, HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.DEV001, MenuAccessGuard.Action.CREATE);
         log.info("예비창업자 생성 요청: {}", body != null ? body.getPartnerNm() : null);
         PartnerMstDto created = devService.createPartner(body);
         return ResponseEntity
@@ -62,14 +74,20 @@ public class DevController {
     @PutMapping("/partners/{partnerIdx}")
     public ResponseEntity<ApiResponse<PartnerMstDto>> partnerUpdate(
             @PathVariable Integer partnerIdx,
-            @RequestBody PartnerMstWriteRequestDto body) {
+            @RequestBody PartnerMstWriteRequestDto body,
+            HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.DEV001, MenuAccessGuard.Action.UPDATE);
         log.info("예비창업자 수정 요청: {}", partnerIdx);
         PartnerMstDto updated = devService.updatePartner(partnerIdx, body);
         return ResponseEntity.ok(ApiResponse.success("예비창업자가 수정되었습니다", updated));
     }
 
     @DeleteMapping("/partners/{partnerIdx}")
-    public ResponseEntity<ApiResponse<Void>> partnerRemove(@PathVariable Integer partnerIdx) {
+    public ResponseEntity<ApiResponse<Void>> partnerRemove(
+            @PathVariable Integer partnerIdx, HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.DEV001, MenuAccessGuard.Action.DELETE);
         log.info("예비창업자 삭제 요청: {}", partnerIdx);
         devService.removePartner(partnerIdx);
         return ResponseEntity.ok(ApiResponse.success("예비창업자가 삭제되었습니다", null));
@@ -87,9 +105,17 @@ public class DevController {
         return ResponseEntity.ok(ApiResponse.success(devService.oneProperty(propIdx)));
     }
 
+    /*
+     * 물건(출점 후보지) 원장의 생성·수정·삭제. 임대조건·계약금액 등 영업상 민감한
+     * 정보이고 영업지역·가맹점 데이터가 여기에 물려 있어서, 권한 없는 사용자가
+     * 손대면 남의 담당 물건이 조용히 바뀌거나 사라진다. 물건(dev002) 권한을 요구한다.
+     */
+
     @PostMapping("/properties")
     public ResponseEntity<ApiResponse<PropertyMstDto>> propertyCreate(
-            @RequestBody PropertyMstWriteRequestDto body) {
+            @RequestBody PropertyMstWriteRequestDto body, HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.DEV002, MenuAccessGuard.Action.CREATE);
         log.info("물건 생성 요청: {}", body != null ? body.getPropNm() : null);
         PropertyMstDto created = devService.createProperty(body);
         return ResponseEntity
@@ -100,14 +126,20 @@ public class DevController {
     @PutMapping("/properties/{propIdx}")
     public ResponseEntity<ApiResponse<PropertyMstDto>> propertyUpdate(
             @PathVariable Integer propIdx,
-            @RequestBody PropertyMstWriteRequestDto body) {
+            @RequestBody PropertyMstWriteRequestDto body,
+            HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.DEV002, MenuAccessGuard.Action.UPDATE);
         log.info("물건 수정 요청: {}", propIdx);
         PropertyMstDto updated = devService.updateProperty(propIdx, body);
         return ResponseEntity.ok(ApiResponse.success("물건이 수정되었습니다", updated));
     }
 
     @DeleteMapping("/properties/{propIdx}")
-    public ResponseEntity<ApiResponse<Void>> propertyRemove(@PathVariable Integer propIdx) {
+    public ResponseEntity<ApiResponse<Void>> propertyRemove(
+            @PathVariable Integer propIdx, HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.DEV002, MenuAccessGuard.Action.DELETE);
         log.info("물건 삭제 요청: {}", propIdx);
         devService.removeProperty(propIdx);
         return ResponseEntity.ok(ApiResponse.success("물건이 삭제되었습니다", null));
@@ -126,7 +158,13 @@ public class DevController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "userId", required = false) String userId,
             @RequestParam(value = "attachmentBaseDate", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate attachmentBaseDate) {
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate attachmentBaseDate,
+            HttpServletRequest request) {
+        // 문서는 물건에 딸린 자료(계약서·등기부 등)라 물건 원장과 같은 권한으로 다룬다.
+        // userId 파라미터는 AuthTokenFilter 가 사칭만 막을 뿐, 남의 물건에 파일을
+        // 붙이는 것 자체는 걸러주지 못한다.
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.DEV002, MenuAccessGuard.Action.CREATE);
         log.info("물건 문서 업로드: propIdx={}, file={}", propIdx, file.getOriginalFilename());
         PropertyDocumentDto created = propertyDocumentService.upload(
                 propIdx, file, userId, attachmentBaseDate);
@@ -157,7 +195,11 @@ public class DevController {
     @DeleteMapping("/properties/{propIdx}/documents/{propertyDocIdx}")
     public ResponseEntity<ApiResponse<Void>> deletePropertyDocument(
             @PathVariable Integer propIdx,
-            @PathVariable Integer propertyDocIdx) {
+            @PathVariable Integer propertyDocIdx,
+            HttpServletRequest request) {
+        // 첨부 삭제는 되돌릴 수 없다(원본 파일까지 없어진다). 물건(dev002) 삭제 권한을 요구한다.
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.DEV002, MenuAccessGuard.Action.DELETE);
         log.info("물건 문서 삭제: propIdx={}, docIdx={}", propIdx, propertyDocIdx);
         propertyDocumentService.delete(propIdx, propertyDocIdx);
         return ResponseEntity.ok(ApiResponse.success("문서가 삭제되었습니다", null));
@@ -197,9 +239,17 @@ public class DevController {
         return ResponseEntity.ok(ApiResponse.success(devService.salesAreaDetailByProperty(propIdx)));
     }
 
+    /*
+     * 아래 2개는 가맹점의 영업지역 경계·구역정보를 덮어쓴다(신규/기존 구분 없는 upsert라
+     * UPDATE 로 본다). 영업지역은 가맹점 간 상권 분쟁의 기준이 되는 값이라, 권한 없는
+     * 사용자가 남의 점포 경계선을 조용히 바꿔 놓으면 되돌리기 어렵다. 영업지역(dev003) 권한을 요구한다.
+     */
+
     @PostMapping("/sales-areas/save")
     public ResponseEntity<ApiResponse<SalesAreaDto>> salesAreaSave(
-            @RequestBody SalesAreaSaveRequest body) {
+            @RequestBody SalesAreaSaveRequest body, HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.DEV003, MenuAccessGuard.Action.UPDATE);
         log.info("영업지역 저장: storeIdx={}", body != null ? body.storeIdx() : null);
         SalesAreaDto saved = devService.saveSalesArea(body);
         return ResponseEntity.ok(ApiResponse.success("영업지역이 저장되었습니다", saved));
@@ -207,7 +257,9 @@ public class DevController {
 
     @PostMapping("/sales-areas/zone-info")
     public ResponseEntity<ApiResponse<SalesAreaDto>> salesAreaZoneInfoSave(
-            @RequestBody SalesAreaZoneInfoSaveRequest body) {
+            @RequestBody SalesAreaZoneInfoSaveRequest body, HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.DEV003, MenuAccessGuard.Action.UPDATE);
         log.info("영업지역정보 저장: zoneIdx={}", body != null ? body.zoneIdx() : null);
         SalesAreaDto saved = devService.saveSalesAreaZoneInfo(body);
         return ResponseEntity.ok(ApiResponse.success("영업지역정보가 저장되었습니다", saved));

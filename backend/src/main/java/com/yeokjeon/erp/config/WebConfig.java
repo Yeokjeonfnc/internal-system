@@ -14,7 +14,9 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOriginPatterns(
                         "http://localhost:*",
                         "http://127.0.0.1:*",
-                        "https://test.yeokjeon.com",
+                        // 운영 / 테스트 (구 test.yeokjeon.com 은 폐기)
+                        "https://on.yeokjeon.com",
+                        "https://on-test.yeokjeon.com",
                         "https://yeokjeon.com",
                         "https://www.yeokjeon.com")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")

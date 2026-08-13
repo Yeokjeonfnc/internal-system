@@ -39,6 +39,14 @@ public class MenuPermissionService {
         return menuPermissionMapper.selectPermissionsByUserIdx(userIdx);
     }
 
+    /** 로그인 ID 로 내부 userIdx 를 찾는다. 없으면 null. */
+    public Integer findUserIdx(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        return menuPermissionMapper.selectUserIdxByUserId(userId.trim());
+    }
+
     public List<MenuPermissionDto> resolveForLogin(String userId) {
         if (!StringUtils.hasText(userId)) {
             return List.of();
@@ -98,6 +106,10 @@ public class MenuPermissionService {
             log.warn("admin_yn 조회 실패(컬럼 미적용 가능): userId={}, {}", userId, e.getMessage());
         }
         // 2순위(폴백): 설정값 menu.permission.super-admin-user-ids
+        // 이 메서드는 로그인 경로에서 호출된다 — 설정이 비어 있어도 절대 터지면 안 된다.
+        if (!StringUtils.hasText(superAdminUserIds)) {
+            return false;
+        }
         Set<String> ids = new HashSet<>();
         for (String part : superAdminUserIds.split(",")) {
             if (StringUtils.hasText(part)) {

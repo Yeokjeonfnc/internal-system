@@ -1,14 +1,23 @@
-:8080 {
+﻿:8080 {
 	encode gzip zstd
 
 	# 접근 감사 로그 — 누가 언제 어떤 경로를 호출했는지 JSON 으로 기록(자동 롤링).
 	log {
-		output file {$YON_APP_HOME}\logs\caddyccess.log {
+		output file {$YON_APP_HOME}\logs\caddy\access.log {
 			roll_size 20MiB
 			roll_keep 10
 			roll_keep_for 720h
 		}
 		format json
+	}
+
+	# 공통 보안 헤더 — 클릭재킹·MIME 스니핑·리퍼러 유출 차단.
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# 서버 종류 노출 최소화
+		-Server
 	}
 
 	@app_shell {

@@ -2,7 +2,12 @@
 	email admin@yeokjeon.com
 }
 
-test.yeokjeon.com {
+# 참고: 현재 현장 서버가 실제로 쓰는 설정은 이 파일이 아니라
+# deploy/package/field-server/caddy/Caddyfile.http 다(호스트명 없이 :8080 수신,
+# Cloudflare Origin Rule 이 호스트명으로 라우팅). 도메인이 바뀌어도 그쪽은 수정할 게 없다.
+
+# 운영 / 테스트 — 구 test.yeokjeon.com 은 폐기
+on.yeokjeon.com, on-test.yeokjeon.com {
 	encode gzip zstd
 
 	handle /api/* {

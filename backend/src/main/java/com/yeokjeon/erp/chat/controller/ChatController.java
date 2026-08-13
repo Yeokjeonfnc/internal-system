@@ -101,14 +101,22 @@ public class ChatController {
                 .replace("+", "%20");
         // 이미지는 미리보기를 위해 inline, 그 외 파일은 다운로드(attachment).
         // ?download=true 면 이미지도 강제로 내려받게 한다.
-        boolean inline = !forceDownload && payload.contentType().startsWith("image/");
+        //
+        // 보안: contentType 은 업로더(클라이언트)가 보낸 값이라 신뢰할 수 없다.
+        // image/svg+xml 처럼 스크립트를 품을 수 있는 타입을 inline 으로 내려주면
+        // 같은 출처에서 실행되어 저장형 XSS 가 된다. 그래서 inline 은 안전한
+        // 래스터 이미지 타입만 허용하고, 그 외에는 무조건 attachment 로 내린다.
+        boolean inline = !forceDownload && isInlineSafeImage(payload.contentType());
         String disposition = inline ? "inline" : "attachment";
         return ResponseEntity.ok()
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
                         disposition + "; filename=\"" + payload.fileName()
                                 + "\"; filename*=UTF-8''" + encoded)
-                .contentType(MediaType.parseMediaType(payload.contentType()))
+                // 브라우저가 선언된 타입을 무시하고 스니핑해서 실행하는 것도 차단.
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(MediaType.parseMediaType(
+                        inline ? payload.contentType() : MediaType.APPLICATION_OCTET_STREAM_VALUE))
                 .body(payload.resource());
     }
 
@@ -116,5 +124,22 @@ public class ChatController {
     public ResponseEntity<ApiResponse<List<ChatMemberDto>>> directory(
             @RequestParam String userId) {
         return ResponseEntity.ok(ApiResponse.success(chatService.directory(userId)));
+    }
+
+    /** inline 미리보기를 허용할 이미지 타입 — 스크립트 실행이 불가능한 래스터 포맷만. */
+    private static boolean isInlineSafeImage(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        String t = contentType.trim().toLowerCase();
+        int semicolon = t.indexOf(';');
+        if (semicolon >= 0) {
+            t = t.substring(0, semicolon).trim();
+        }
+        return t.equals("image/jpeg")
+                || t.equals("image/png")
+                || t.equals("image/gif")
+                || t.equals("image/webp")
+                || t.equals("image/bmp");
     }
 }

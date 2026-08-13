@@ -91,13 +91,15 @@
             <scope>test</scope>
         </dependency>
         
-        <!-- Spring Security (나중에 필요 시) -->
         <!--
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
-        </dependency>
+          비밀번호 해싱(BCrypt) 전용. spring-boot-starter-security 를 쓰면 자동으로
+          전 엔드포인트 차단 필터체인이 붙어 파급이 크므로, 암호화 모듈만 가져온다.
+          인증 자체는 auth/token 패키지(AuthTokenFilter)가 담당한다.
         -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
     </dependencies>
     
     <build>

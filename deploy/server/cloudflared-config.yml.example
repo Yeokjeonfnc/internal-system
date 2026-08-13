@@ -2,7 +2,10 @@ tunnel: CHANGE_ME_TUNNEL_UUID
 credentials-file: C:\Users\CHANGE_ME_USER\.cloudflared\CHANGE_ME_TUNNEL_UUID.json
 
 ingress:
-  - hostname: test.yeokjeon.com
+  # 운영 / 테스트 — 구 test.yeokjeon.com 은 폐기
+  - hostname: on.yeokjeon.com
+    service: http://localhost:8080
+  - hostname: on-test.yeokjeon.com
     service: http://localhost:8080
   - hostname: yeokjeon.com
     service: http://localhost:8180

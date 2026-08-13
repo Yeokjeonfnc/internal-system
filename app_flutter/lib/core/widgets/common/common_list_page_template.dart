@@ -26,6 +26,7 @@ class ListPageTemplate extends StatelessWidget {
     required this.table,
     this.onRegister,
     this.registerMenuCd,
+    this.extraHeaderActions,
     this.onRefresh,
     this.mainSearchFields,
     this.filterSheetBuilder,
@@ -52,6 +53,9 @@ class ListPageTemplate extends StatelessWidget {
 
   /// 지정 시 [onRegister] 는 해당 메뉴의 **등록** 권한이 있을 때만 표시.
   final String? registerMenuCd;
+
+  /// 등록 버튼 왼쪽에 붙는 보조 버튼들(일괄 다운로드·업로드 등).
+  final List<Widget>? extraHeaderActions;
 
   final VoidCallback? onRefresh;
 
@@ -189,6 +193,11 @@ class ListPageTemplate extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (extraHeaderActions != null)
+                          for (final action in extraHeaderActions!) ...[
+                            action,
+                            const SizedBox(width: 8),
+                          ],
                         if (onRegister != null &&
                             (registerMenuCd == null ||
                                 context.menuCanCreate(registerMenuCd!)))

@@ -65,9 +65,10 @@ public class EapConnectionService {
         form.put("formCode", blankTo(daouOfficeProperties.getFormCode(), "connection_test"));
         form.put("title", "ERP 연결 테스트");
         form.put("content", "<p>연결 테스트용 문서입니다.</p>");
+        // 기본값은 운영 도메인 — 테스트 서버에서는 DAOU_CALLBACK_URL 환경변수로 덮어쓴다.
         form.put("callbackUrl", blankTo(
                 daouOfficeProperties.getCallbackUrl(),
-                "https://test.yeokjeon.com/api/eap/status"));
+                "https://on.yeokjeon.com/api/eap/status"));
 
         String body = form.entrySet().stream()
                 .map(e -> encode(e.getKey()) + "=" + encode(e.getValue()))

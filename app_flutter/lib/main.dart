@@ -11,12 +11,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart' as provider;
 
 import 'core/api/api_client.dart';
+import 'core/accessibility/app_text_scale_shell.dart';
+import 'core/accessibility/font_scale_provider.dart';
 import 'core/map/kakao_map_app_key_io.dart';
 import 'core/router/app_router.dart' show appRouter, createAppRouter;
 import 'core/theme/app_colors.dart';
 import 'core/auth/auth_provider.dart';
 
 late final AuthProvider _rootAuthProvider;
+late final FontScaleProvider _fontScaleProvider;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,9 +35,11 @@ Future<void> main() async {
   ApiClient.applyBaseUrl();
 
   _rootAuthProvider = AuthProvider();
+  _fontScaleProvider = FontScaleProvider();
   // 로컬 세션(SharedPreferences) 복원만 기다린다. 자동 로그인(네트워크)은
   // 내부에서 백그라운드로 처리되어 첫 프레임을 막지 않는다.
   await _rootAuthProvider.ensureSessionRestored();
+  await _fontScaleProvider.restore();
   appRouter = createAppRouter(_rootAuthProvider);
 
   runApp(const ProviderScope(child: YeokjeonApp()));
@@ -50,12 +55,17 @@ class YeokjeonApp extends StatelessWidget {
         provider.ChangeNotifierProvider<AuthProvider>.value(
           value: _rootAuthProvider,
         ),
+        provider.ChangeNotifierProvider<FontScaleProvider>.value(
+          value: _fontScaleProvider,
+        ),
       ],
       child: MaterialApp.router(
         debugShowCheckedModeBanner: false,
         title: '(주)역전에프앤씨',
         theme: AppTheme.light,
         routerConfig: appRouter,
+        builder: (context, child) =>
+            AppTextScaleShell(child: child ?? const SizedBox.shrink()),
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,

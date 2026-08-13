@@ -1,5 +1,7 @@
 import 'package:app_flutter/core/api/api_base_url_config.dart';
 import 'package:app_flutter/core/api/api_runtime_platform.dart';
+import 'package:app_flutter/core/auth/auth_token_store.dart';
+import 'package:app_flutter/core/auth/auth_write_request.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -11,7 +13,7 @@ class ApiClient {
   late final Dio dio;
 
   /// 1) `--dart-define=API_BASE_URL=...` (회사 서버·로컬 PC 모두)
-  /// 2) Android → [kCompanyApiBaseUrl] (기본: test.yeokjeon.com)
+  /// 2) Android → [kCompanyApiBaseUrl] (기본: on.yeokjeon.com)
   /// 3) 그 외 → 로컬 개발 PC localhost
   static String resolveBaseUrl() {
     const fromEnv = String.fromEnvironment('API_BASE_URL');
@@ -56,7 +58,23 @@ class ApiClient {
       InterceptorsWrapper(
         onRequest: (options, handler) {
           options.baseUrl = resolveBaseUrl();
+          // 로그인 토큰을 모든 요청에 실어 보낸다(서버 AuthTokenFilter 가 검증).
+          // 로그인 요청 자체는 아직 토큰이 없으므로 자연스럽게 생략된다.
+          if (AuthTokenStore.hasToken) {
+            options.headers['Authorization'] = 'Bearer ${AuthTokenStore.token}';
+          }
           handler.next(options);
+        },
+        onError: (err, handler) {
+          // 401 = 세션이 끊겼다는 뜻(만료·무효화·서버 재시작·인증 도입 전 세션).
+          // 여기서 알리지 않으면 화면은 로그인 상태로 남고 모든 목록이 빈 채로
+          // 그려져, 사용자에겐 데이터가 사라진 것처럼 보인다.
+          final isLoginRequest =
+              err.requestOptions.path.contains(AuthApiPaths.login);
+          if (err.response?.statusCode == 401 && !isLoginRequest) {
+            AuthTokenStore.notifySessionExpired();
+          }
+          handler.next(err);
         },
       ),
     );

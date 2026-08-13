@@ -59,4 +59,6 @@ abstract final class AuthApiPaths {
   static const String login = '/auth/login';
 
   static const String profile = '/auth/profile';
+
+  static const String changePassword = '/auth/change-password';
 }

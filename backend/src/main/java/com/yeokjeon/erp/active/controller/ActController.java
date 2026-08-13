@@ -11,7 +11,10 @@ import com.yeokjeon.erp.active.dto.ActAttachmentDto;
 import com.yeokjeon.erp.active.service.ActAttachmentService;
 import com.yeokjeon.erp.active.service.ActService;
 import com.yeokjeon.erp.active.service.ActSignatureService;
+import com.yeokjeon.erp.auth.access.MenuAccessGuard;
+import com.yeokjeon.erp.auth.access.MenuCodes;
 import com.yeokjeon.erp.common.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +40,7 @@ public class ActController {
     private final ActService actService;
     private final ActSignatureService actSignatureService;
     private final ActAttachmentService actAttachmentService;
+    private final MenuAccessGuard menuAccessGuard;
 
     @GetMapping("/activities/status/by-store")
     public ResponseEntity<ApiResponse<List<ActivityStatusPivotRowDto>>> statusByStore(
@@ -136,11 +140,20 @@ public class ActController {
         return ResponseEntity.ok(ApiResponse.success(actAttachmentService.list(actIdx)));
     }
 
+    /*
+     * 첨부는 남의 활동 건에도 붙일 수 있다(actIdx 만 알면 된다). 권한 검사가 없으면
+     * 로그인한 아무나 임의의 활동에 파일을 끼워 넣거나 증빙을 지울 수 있으므로
+     * 활동 등록(act002) 권한을 요구한다.
+     */
+
     @PostMapping(value = "/activities/{actIdx}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<ActAttachmentDto>> uploadAttachment(
             @PathVariable Integer actIdx,
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "userId", required = false) String userId) {
+            @RequestParam(value = "userId", required = false) String userId,
+            HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.ACT002, MenuAccessGuard.Action.CREATE);
         log.info("활동 첨부 업로드: actIdx={}, file={}", actIdx, file.getOriginalFilename());
         ActAttachmentDto created = actAttachmentService.upload(actIdx, file, userId);
         return ResponseEntity
@@ -160,16 +173,27 @@ public class ActController {
     @DeleteMapping("/activities/{actIdx}/attachments/{actAttIdx}")
     public ResponseEntity<ApiResponse<Void>> deleteAttachment(
             @PathVariable Integer actIdx,
-            @PathVariable Integer actAttIdx) {
+            @PathVariable Integer actAttIdx,
+            HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.ACT002, MenuAccessGuard.Action.DELETE);
         log.info("활동 첨부 삭제: actIdx={}, attIdx={}", actIdx, actAttIdx);
         actAttachmentService.delete(actIdx, actAttIdx);
         return ResponseEntity.ok(ApiResponse.success("첨부파일이 삭제되었습니다", null));
     }
 
+    /*
+     * 전자서명은 "가맹점주가 이 활동 내용을 확인했다"는 증거로 쓰인다. 호출자를 전혀
+     * 확인하지 않으면 actIdx 만 알아도 남의 활동 건에 임의의 서명 이미지를 덮어쓸 수
+     * 있다(서명 위조). 활동 등록(act002) 권한을 요구한다.
+     */
     @PostMapping(value = "/activities/{actIdx}/signature", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Void>> uploadSignature(
             @PathVariable Integer actIdx,
-            @RequestParam("file") MultipartFile file) {
+            @RequestParam("file") MultipartFile file,
+            HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.ACT002, MenuAccessGuard.Action.CREATE);
         log.info("활동 전자서명 업로드: actIdx={}", actIdx);
         actSignatureService.upload(actIdx, file);
         return ResponseEntity.ok(ApiResponse.success("전자서명이 저장되었습니다", null));
@@ -212,9 +236,16 @@ public class ActController {
                 .body(payload.resource());
     }
 
+    /*
+     * 활동 기록은 가맹점 방문 이력·결재의 원본이다. 로그인만 하면 누구나 남의 활동을
+     * 고치거나 지울 수 있었으므로 활동 등록(act002) 권한을 요구한다.
+     */
+
     @PostMapping("/activities")
     public ResponseEntity<ApiResponse<ActiveMstResponseDto>> activityCreate(
-            @RequestBody ActiveMstWriteRequestDto body) {
+            @RequestBody ActiveMstWriteRequestDto body, HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.ACT002, MenuAccessGuard.Action.CREATE);
         log.info("활동관리 생성 요청");
         ActiveMstResponseDto created = actService.create(body);
         return ResponseEntity
@@ -225,14 +256,20 @@ public class ActController {
     @PutMapping("/activities/{actIdx}")
     public ResponseEntity<ApiResponse<ActiveMstResponseDto>> activityUpdate(
             @PathVariable Integer actIdx,
-            @RequestBody ActiveMstWriteRequestDto body) {
+            @RequestBody ActiveMstWriteRequestDto body,
+            HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.ACT002, MenuAccessGuard.Action.UPDATE);
         log.info("활동관리 수정 요청: {}", actIdx);
         ActiveMstResponseDto updated = actService.update(actIdx, body);
         return ResponseEntity.ok(ApiResponse.success("활동관리가 수정되었습니다", updated));
     }
 
     @DeleteMapping("/activities/{actIdx}")
-    public ResponseEntity<ApiResponse<Void>> activityRemove(@PathVariable Integer actIdx) {
+    public ResponseEntity<ApiResponse<Void>> activityRemove(
+            @PathVariable Integer actIdx, HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.ACT002, MenuAccessGuard.Action.DELETE);
         log.info("활동관리 삭제 요청: {}", actIdx);
         actService.remove(actIdx);
         return ResponseEntity.ok(ApiResponse.success("활동관리가 삭제되었습니다", null));
@@ -247,9 +284,16 @@ public class ActController {
                 actService.getChecklists(brandCd, chkType)));
     }
 
+    /*
+     * 체크리스트는 전 가맹점 점검 항목의 기준 마스터다. 항목을 바꾸거나 지우면 이후
+     * 모든 활동 점검 결과가 함께 흔들리므로 체크리스트 관리(mst004) 권한을 요구한다.
+     */
+
     @PostMapping("/checklists")
     public ResponseEntity<ApiResponse<ChkMstResponseDto>> createChecklist(
-            @Valid @RequestBody ChkMstWriteRequestDto body) {
+            @Valid @RequestBody ChkMstWriteRequestDto body, HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.MST004, MenuAccessGuard.Action.CREATE);
         log.info("체크리스트 생성 요청: brandCd={}, chkType={}", body.brandCd(), body.chkType());
         ChkMstResponseDto created = actService.createChecklist(body);
         return ResponseEntity
@@ -260,14 +304,20 @@ public class ActController {
     @PutMapping("/checklists/{chkIdx}")
     public ResponseEntity<ApiResponse<ChkMstResponseDto>> updateChecklist(
             @PathVariable Integer chkIdx,
-            @Valid @RequestBody ChkMstWriteRequestDto body) {
+            @Valid @RequestBody ChkMstWriteRequestDto body,
+            HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.MST004, MenuAccessGuard.Action.UPDATE);
         log.info("체크리스트 수정 요청: chkIdx={}", chkIdx);
         ChkMstResponseDto updated = actService.updateChecklist(chkIdx, body);
         return ResponseEntity.ok(ApiResponse.success(updated));
     }
 
     @DeleteMapping("/checklists/{chkIdx}")
-    public ResponseEntity<ApiResponse<Void>> deleteChecklist(@PathVariable Integer chkIdx) {
+    public ResponseEntity<ApiResponse<Void>> deleteChecklist(
+            @PathVariable Integer chkIdx, HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.MST004, MenuAccessGuard.Action.DELETE);
         log.info("체크리스트 삭제 요청: chkIdx={}", chkIdx);
         actService.deleteChecklist(chkIdx);
         return ResponseEntity.ok(ApiResponse.success("체크리스트가 삭제되었습니다", null));
@@ -298,11 +348,20 @@ public class ActController {
         return ResponseEntity.ok(ApiResponse.success("모든 알림을 읽음 처리했습니다.", null));
     }
 
+    /*
+     * 경로는 `/notifications` 지만 실제로는 결재 행위 그 자체다 — 활동 건의
+     * appr_status 를 APPROVED 로 바꾸고 appr_notes(지시사항)를 덮어쓴다. 즉 내 알림이
+     * 아니라 기안자의 데이터를 바꾸는 작업이라 활동관리결재(act003) 권한을 요구한다.
+     * (위 읽음처리들과 달리 userId 대조만으로는 부족하다.)
+     */
     @PatchMapping("/notifications/activity-approval")
     public ResponseEntity<ApiResponse<Void>> notifAcknowledgeActivityApproval(
             @RequestParam String userId,
             @RequestParam Integer actIdx,
-            @RequestParam(required = false) String apprNotes) {
+            @RequestParam(required = false) String apprNotes,
+            HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.ACT003, MenuAccessGuard.Action.UPDATE);
         actService.markActivityApprovalAcknowledged(userId, actIdx, apprNotes);
         return ResponseEntity.ok(ApiResponse.success("결재 확인이 반영되었습니다.", null));
     }

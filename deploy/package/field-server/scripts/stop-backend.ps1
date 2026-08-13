@@ -21,15 +21,17 @@ if (Test-Path -LiteralPath $pidFile) {
         Stop-Process -Id ([int]$pidValue) -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
         Write-Host "[OK] Backend stopped. PID=$pidValue"
-        exit 0
     }
 }
 
+# PID 파일이 오래되었거나, 이전 실행이 별도 프로세스로 남은 경우도 포트 기준으로
+# 정리해야 다음 백엔드 기동이 막히지 않는다.
 $existing = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
 if ($existing) {
     Stop-Process -Id $existing.OwningProcess -Force -ErrorAction SilentlyContinue
     Write-Host "[OK] Backend stopped by port. PID=$($existing.OwningProcess)"
-    exit 0
 }
 
-Write-Host "[INFO] Backend was not running."
+if (-not $pidValue -and -not $existing) {
+    Write-Host "[INFO] Backend was not running."
+}

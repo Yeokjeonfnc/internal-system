@@ -2,12 +2,16 @@ package com.yeokjeon.erp.exception;
 
 import com.yeokjeon.erp.common.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,6 +26,16 @@ public class GlobalExceptionHandler {
         log.error("Resource not found: {}", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    /** 로그인은 했으나 권한이 없는 경우. */
+    @ExceptionHandler(com.yeokjeon.erp.auth.access.AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(
+            com.yeokjeon.erp.auth.access.AccessDeniedException ex) {
+        log.warn("Access denied: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
@@ -70,11 +84,63 @@ public class GlobalExceptionHandler {
                         .build());
     }
 
+    /** 필수 쿼리 파라미터 누락 — 서버 오류가 아니라 잘못된 요청이다. */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingParam(
+            MissingServletRequestParameterException ex) {
+        log.warn("Missing request parameter: {}", ex.getParameterName());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("필수 항목이 빠졌습니다: " + ex.getParameterName()));
+    }
+
+    /** 파라미터 타입 불일치(예: 숫자 자리에 문자). */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex) {
+        log.warn("Parameter type mismatch: {}={}", ex.getName(), ex.getValue());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("입력 형식이 올바르지 않습니다: " + ex.getName()));
+    }
+
+    /** 본문 JSON 파싱 실패(형식 오류·잘못된 인코딩 등). */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(
+            HttpMessageNotReadableException ex) {
+        log.warn("Malformed request body: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("요청 형식이 올바르지 않습니다."));
+    }
+
+    /**
+     * 무결성 제약 위반 — 대부분 "하위 데이터가 있는데 상위를 지우려는" 경우다.
+     * (예: 게시글이 남아 있는 폴더 삭제) DB 오류 원문을 노출하지 않고 사유만 알린다.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(
+            DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation", ex);
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(
+                        "연결된 데이터가 있어 처리할 수 없습니다. "
+                                + "하위 항목을 먼저 정리한 뒤 다시 시도해 주세요."));
+    }
+
+    /**
+     * 그 밖의 예상치 못한 오류.
+     *
+     * <p>예외 메시지를 그대로 내려주면 SQL 문·테이블명·제약조건명 같은 내부 구조가
+     * 클라이언트에 노출된다(정보 노출). 상세 내용은 서버 로그에만 남기고
+     * 사용자에게는 일반 문구만 전달한다.
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleAllExceptions(Exception ex) {
         log.error("Unexpected error occurred: ", ex);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("서버 오류가 발생했습니다: " + ex.getMessage()));
+                .body(ApiResponse.error("서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."));
     }
 }

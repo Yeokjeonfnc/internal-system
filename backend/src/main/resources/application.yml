@@ -14,9 +14,12 @@ spring:
       enabled: false
   
   datasource:
-    url: jdbc:postgresql://localhost:5432/yeokjeon_db
-    username: postgres
-    password: alsyalsyrla1!
+    # 실제 접속 정보는 저장소에 두지 않는다(공개 저장소 유출 방지).
+    # 운영: start-backend.ps1 이 config\backend.env 값을 --spring.datasource.* 로 주입한다.
+    # 로컬: 환경변수 DB_URL / DB_USER / DB_PASSWORD 를 설정하고 실행한다.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/yeokjeon_db}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -62,6 +65,17 @@ server:
       enabled: true
       force: true
 
+auth:
+  token:
+    # 로그인 토큰 서명 키 — 반드시 config\backend.env 의 AUTH_TOKEN_SECRET 으로 주입할 것.
+    # 미설정 시 기동할 때마다 임의 키가 생성되어 재시작 시 전원 재로그인이 필요하다.
+    secret: ${AUTH_TOKEN_SECRET:}
+    validity-hours: ${AUTH_TOKEN_VALIDITY_HOURS:12}
+  # 신규 계정 생성 시 비밀번호를 비워두거나, 관리자가 "비밀번호 초기화"를 누르면
+  # 이 값으로 설정된다. DB 비밀번호와 같은 값을 쓰지 않는 것을 권장 — 하나가
+  # 유출되면 둘 다 위험해진다.
+  default-password: ${DEFAULT_USER_PASSWORD:durwjs1982}
+
 menu:
   permission:
     # 콤마 구분 — DB 권한 없이 전 메뉴 조회 허용
@@ -69,7 +83,8 @@ menu:
 
 external:
   kakao:
-    rest-api-key: 15c5f01644e0aa8f06fc80b5afd310da
+    # 저장소에 키를 두지 않는다 — 환경변수 KAKAO_REST_API_KEY 로 주입.
+    rest-api-key: ${KAKAO_REST_API_KEY:}
 
 daou:
   office:
@@ -89,15 +104,11 @@ logging:
   charset:
     file: UTF-8
   level:
-    com.yeokjeon: DEBUG
-    com.yeokjeon.erp.common.mapper: DEBUG
-    com.yeokjeon.erp.auth.mapper: DEBUG
-    com.yeokjeon.erp.master.mapper: DEBUG
-    com.yeokjeon.erp.franchise.mapper: DEBUG
-    com.yeokjeon.erp.active.mapper: DEBUG
-    com.yeokjeon.erp.development.mapper: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    # 주의: mapper DEBUG + BasicBinder TRACE 를 켜면 SQL 바인딩 값이 그대로 로그에 남는다.
+    # (로그인 쿼리의 비밀번호·개인정보 포함) 로컬 디버깅이 필요할 때만 임시로 올릴 것.
+    com.yeokjeon: ${LOG_LEVEL_APP:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL_SQL:WARN}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_LEVEL_SQL_PARAMS:WARN}
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
 

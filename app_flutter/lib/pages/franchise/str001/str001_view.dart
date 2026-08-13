@@ -3,8 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart' as provider;
 
 import 'package:app_flutter/core/layout/app_compact_layout.dart';
+import 'package:app_flutter/core/api/user_page_filter_api_service.dart';
+import 'package:app_flutter/core/api/base_repository.dart';
+import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/menu/menu_access.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/router/app_router.dart';
@@ -16,20 +20,20 @@ import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart'
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
-import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
+import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_multi_select.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_controller.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_filter.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_model.dart';
 
-/// 가맹점 목록 본문에 항상 노출하는 필터(브랜드·계약상태·지역). 통합 검색은 상단 필드로 제공.
 const Set<CommonSearchFieldId> kStoreListSupportedSearchFields = {
   CommonSearchFieldId.brandCd,
   CommonSearchFieldId.storeStatus,
   CommonSearchFieldId.regionCd,
 };
 
+/// 가맹점 목록 본문에 항상 노출하는 필터(브랜드·계약상태·지역). 통합 검색은 상단 필드로 제공.
 /// 가맹점 목록.
 class StoreListView extends ConsumerStatefulWidget {
   const StoreListView({super.key});
@@ -40,12 +44,14 @@ class StoreListView extends ConsumerStatefulWidget {
 
 class _StoreListViewState extends ConsumerState<StoreListView> {
   late final TextEditingController _keywordCtrl;
+  final UserPageFilterApiService _savedFilterApi = UserPageFilterApiService();
+  bool _isSavingFilter = false;
+  String? _loadedFilterUserId;
 
   @override
   void initState() {
     super.initState();
-    final s = ref.read(storeProvider);
-    _keywordCtrl = TextEditingController(text: s.storeKeyword);
+    _keywordCtrl = TextEditingController();
     // 진입 시에는 목록만 배경 갱신(이전 데이터는 그대로 보이므로 스피너 없음).
     Future.microtask(
       () => ref.read(storeProvider.notifier).refresh(includeCodes: false),
@@ -53,9 +59,77 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final userId = provider.Provider.of<AuthProvider>(context).userId.trim();
+    if (userId.isEmpty || _loadedFilterUserId == userId) return;
+    _loadedFilterUserId = userId;
+    Future.microtask(() => _loadSavedFilter(userId));
+  }
+
+  @override
   void dispose() {
     _keywordCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSavedFilter(String userId) async {
+    try {
+      final saved = await _savedFilterApi.load(
+        userId: userId,
+        pageCode: 'STR001',
+      );
+      if (!mounted || saved == null) return;
+      final filter = StoreFilter.fromJson(saved);
+      ref.read(storeProvider.notifier).replaceFilter(filter);
+    } catch (e, st) {
+      debugPrint('STR001 saved filter load failed: $e\n$st');
+    }
+  }
+
+  Future<void> _saveFilter() async {
+    if (_isSavingFilter) return;
+    final userId = provider.Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).userId.trim();
+    if (userId.isEmpty) return;
+    setState(() => _isSavingFilter = true);
+    try {
+      await _savedFilterApi.save(
+        userId: userId,
+        pageCode: 'STR001',
+        filter: ref.read(storeProvider).toJson(),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '\uAC80\uC0C9 \uC870\uAC74\uC744 \uC800\uC7A5\uD588\uC2B5\uB2C8\uB2E4.',
+            ),
+          ),
+        );
+      }
+    } catch (e, st) {
+      debugPrint('STR001 saved filter save failed: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 20),
+            content: SelectionArea(
+              child: Text(
+              formatApiUserMessage(
+                e,
+                fallback: '검색 조건 저장에 실패했습니다.',
+              ),
+              ),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingFilter = false);
+    }
   }
 
   List<SearchFilterItemData> _mainFilterItems(
@@ -125,9 +199,16 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
         );
       }
     }
+    items.add(
+      SearchFilterItemData(
+        label: '\uC0C1\uC138 \uC870\uAC74',
+        child: _StoreDetailedConditions(filter: filter, notifier: n),
+      ),
+    );
     return items;
   }
 
+  // ignore: unused_element
   Widget _buildMainSearchColumn(
     BuildContext context,
     WidgetRef watchRef,
@@ -176,25 +257,25 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
                 final rows = n.getFilteredList();
 
                 return ListPageTemplate(
-                  activeFilters: _activeFilterChips(filter, n),
+                  activeFilters: const <ActiveFilterChip>[],
                   countText: '총 ${rows.length}개의 가맹점이 조회되었습니다.',
                   registerMenuCd: kMenuStr001,
                   onRegister: () =>
                       context.goNamed(AppRouteNames.storeRegister),
                   onRefresh: () => n.refresh(),
                   table: _StoreTable(rows: rows),
-                  mainSearchFields: _buildMainSearchColumn(
-                    context,
-                    ref,
-                    brands,
-                    regions,
+                  mainSearchFields: _StoreConditionFilter(
+                    filter: filter,
+                    notifier: n,
+                    onSave: _saveFilter,
+                    isSaving: _isSavingFilter,
                   ),
                   filterSheetBuilder: (sheetCtx) => Consumer(
-                    builder: (_, sheetRef, _) => _buildMainSearchColumn(
-                      sheetCtx,
-                      sheetRef,
-                      brands,
-                      regions,
+                    builder: (_, sheetRef, _) => _StoreConditionFilter(
+                      filter: sheetRef.watch(storeProvider),
+                      notifier: sheetRef.read(storeProvider.notifier),
+                      onSave: _saveFilter,
+                      isSaving: _isSavingFilter,
                     ),
                   ),
                 );
@@ -262,6 +343,7 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
     );
   }
 
+  // ignore: unused_element
   List<ActiveFilterChip> _activeFilterChips(StoreFilter f, StoreNotifier n) {
     final chips = <ActiveFilterChip>[];
     if (f.storeKeyword.trim().isNotEmpty) {
@@ -301,8 +383,327 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
         ),
       );
     }
+    if (f.conditions.isNotEmpty) {
+      chips.add(
+        ActiveFilterChip(
+          label:
+              '\uC0C1\uC138 \uC870\uAC74: ${f.conditions.where((e) => e.value.trim().isNotEmpty).length}\uAC1C',
+          onClear: () => n.replaceFilter(
+            f.copy(conditions: const <StoreFilterCondition>[]),
+          ),
+        ),
+      );
+    }
     return chips;
   }
+}
+
+class _StoreDetailedConditions extends StatelessWidget {
+  const _StoreDetailedConditions({
+    required this.filter,
+    required this.notifier,
+  });
+
+  final StoreFilter filter;
+  final StoreNotifier notifier;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < filter.conditions.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: DropdownButtonFormField<StoreFilterField>(
+                    initialValue: filter.conditions[i].field,
+                    isExpanded: true,
+                    decoration: const InputDecoration(isDense: true),
+                    items: StoreFilterField.values
+                        .map(
+                          (field) => DropdownMenuItem<StoreFilterField>(
+                            value: field,
+                            child: Text(field.label),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (field) {
+                      if (field == null) return;
+                      notifier.updateCondition(
+                        i,
+                        filter.conditions[i].copyWith(field: field),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 5,
+                  child: TextFormField(
+                    key: ValueKey<String>(
+                      'store-filter-$i-${filter.conditions[i].field.name}',
+                    ),
+                    initialValue: filter.conditions[i].value,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      hintText: '\uD3EC\uD568 \uAC80\uC0C9',
+                    ),
+                    onChanged: (value) => notifier.updateCondition(
+                      i,
+                      filter.conditions[i].copyWith(value: value),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '\uC870\uAC74 \uC0AD\uC81C',
+                  onPressed: () => notifier.removeCondition(i),
+                  icon: const Icon(Icons.remove_circle_outline),
+                ),
+              ],
+            ),
+          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: notifier.addCondition,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('\uC0C1\uC138 \uC870\uAC74 \uCD94\uAC00'),
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          '\uC0C1\uC138 \uC870\uAC74\uC740 \uBAA8\uB450 \uB3D9\uC2DC\uC5D0 \uB9CC\uC871\uD574\uC57C \uD569\uB2C8\uB2E4.',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+}
+
+class _StoreConditionFilter extends StatelessWidget {
+  const _StoreConditionFilter({
+    required this.filter,
+    required this.notifier,
+    required this.onSave,
+    required this.isSaving,
+  });
+
+  final StoreFilter filter;
+  final StoreNotifier notifier;
+  final Future<void> Function() onSave;
+  final bool isSaving;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.tune_rounded,
+                  size: 19,
+                  color: AppTheme.accentRed,
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  '\uAC80\uC0C9 \uC870\uAC74',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const Spacer(),
+                FilledButton.icon(
+                  onPressed: isSaving ? null : onSave,
+                  icon: isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.bookmark_outline_rounded, size: 18),
+                  label: const Text('\uAC80\uC0C9 \uC870\uAC74 \uC800\uC7A5'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 13,
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                if (filter.conditions.isNotEmpty)
+                  TextButton(
+                    onPressed: () =>
+                        notifier.replaceFilter(const StoreFilter()),
+                    child: const Text('\uCD08\uAE30\uD654'),
+                  ),
+              ],
+            ),
+            if (filter.conditions.isNotEmpty) const SizedBox(height: 12),
+            for (var i = 0; i < filter.conditions.length; i++) ...[
+              _StoreConditionRow(
+                key: ValueKey<String>(
+                  'store-condition-$i-${filter.conditions[i].field.name}',
+                ),
+                condition: filter.conditions[i],
+                onChanged: (value) => notifier.updateCondition(i, value),
+                onRemove: () => notifier.removeCondition(i),
+              ),
+              if (i != filter.conditions.length - 1) const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: notifier.addCondition,
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('\uC870\uAC74 \uCD94\uAC00'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.accentRed,
+                  side: const BorderSide(color: AppTheme.accentRed),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 13,
+                    vertical: 10,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StoreConditionRow extends StatelessWidget {
+  const _StoreConditionRow({
+    super.key,
+    required this.condition,
+    required this.onChanged,
+    required this.onRemove,
+  });
+
+  final StoreFilterCondition condition;
+  final ValueChanged<StoreFilterCondition> onChanged;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final field = DropdownButtonFormField<StoreFilterField>(
+      initialValue: condition.field,
+      isExpanded: true,
+      decoration: const InputDecoration(isDense: true),
+      items: StoreFilterField.values
+          .map(
+            (value) => DropdownMenuItem<StoreFilterField>(
+              value: value,
+              child: Text(value.label),
+            ),
+          )
+          .toList(growable: false),
+      onChanged: (value) {
+        if (value != null) onChanged(condition.copyWith(field: value));
+      },
+    );
+    final value = _StoreConditionValueField(
+      initialValue: condition.value,
+      onChanged: (next) => onChanged(condition.copyWith(value: next)),
+    );
+    final remove = IconButton(
+      tooltip: '\uC870\uAC74 \uC0AD\uC81C',
+      onPressed: onRemove,
+      icon: const Icon(Icons.close_rounded),
+      color: AppTheme.textMuted,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 620) {
+          return Column(
+            children: [
+              field,
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: value),
+                  remove,
+                ],
+              ),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 4, child: field),
+            const SizedBox(width: 10),
+            Expanded(flex: 6, child: value),
+            remove,
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _StoreConditionValueField extends StatefulWidget {
+  const _StoreConditionValueField({
+    required this.initialValue,
+    required this.onChanged,
+  });
+
+  final String initialValue;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_StoreConditionValueField> createState() =>
+      _StoreConditionValueFieldState();
+}
+
+class _StoreConditionValueFieldState extends State<_StoreConditionValueField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialValue,
+  );
+
+  @override
+  void didUpdateWidget(covariant _StoreConditionValueField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialValue != _controller.text) {
+      _controller.text = widget.initialValue;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => TextField(
+    controller: _controller,
+    decoration: const InputDecoration(
+      isDense: true,
+      hintText: '\uAC80\uC0C9\uD560 \uAC12 \uC785\uB825',
+      prefixIcon: Icon(Icons.search_rounded, size: 19),
+    ),
+    onChanged: widget.onChanged,
+  );
 }
 
 Color _contractStatusChipColor(String label, {required bool selected}) {

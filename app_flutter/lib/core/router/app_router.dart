@@ -47,6 +47,7 @@ import 'package:app_flutter/core/store_mst/store_mst_write_request.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/menu/menu_route_access.dart';
+import 'package:app_flutter/core/auth/change_password_view.dart';
 import 'package:app_flutter/core/auth/login_view.dart';
 import '../layout/main_frame_layout.dart';
 import 'app_data_refresh.dart';
@@ -54,6 +55,9 @@ import 'app_route_def.dart';
 
 class AppRoutes {
   static const String dashboard = '/';
+
+  /// 비밀번호 변경(초기화된 계정은 여기로 강제 이동).
+  static const String changePassword = '/change-password';
   static const String stores = StoreMstApiPaths.root;
   static const String storeRegister = '${StoreMstApiPaths.root}/new';
   static const String storeDetail = '${StoreMstApiPaths.root}/:storeIdx';
@@ -109,6 +113,8 @@ Page<dynamic> _eapPage(BuildContext context, GoRouterState state) {
 }
 
 class AppRouteNames {
+  static const String changePassword = 'changePassword';
+
   AppRouteNames._();
 
   static const String dashboard = 'dashboard';
@@ -619,6 +625,16 @@ GoRouter createAppRouter(AuthProvider auth) {
         return '/login';
       }
 
+      // 초기화된 비밀번호로 로그인한 경우 — 변경 전까지 다른 화면을 열 수 없다.
+      final isChangePasswordRoute = state.uri.path == AppRoutes.changePassword;
+      if (isLoggedIn && (auth.profile?.mustChangePassword ?? false)) {
+        return isChangePasswordRoute ? null : AppRoutes.changePassword;
+      }
+      // 변경이 끝났는데 아직 변경 화면에 있으면 원래 진입 화면으로 보낸다.
+      if (isLoggedIn && isChangePasswordRoute) {
+        return auth.firstAllowedPath ?? '/';
+      }
+
       // 이미 로그인했는데 로그인 페이지로 가려고 하면 홈으로 리다이렉트
       if (isLoggedIn && isLoginRoute) {
         final next = auth.firstAllowedPath;
@@ -660,6 +676,13 @@ GoRouter createAppRouter(AuthProvider auth) {
         name: 'login',
         pageBuilder: (context, state) =>
             NoTransitionPage(child: const LoginView()),
+      ),
+      // 셸(사이드바) 밖에 두어 비밀번호 변경 전에는 메뉴로 못 빠져나가게 한다.
+      GoRoute(
+        path: AppRoutes.changePassword,
+        name: AppRouteNames.changePassword,
+        pageBuilder: (context, state) =>
+            NoTransitionPage(child: const ChangePasswordView()),
       ),
       GoRoute(
         path: AppRoutes.storeEntry,

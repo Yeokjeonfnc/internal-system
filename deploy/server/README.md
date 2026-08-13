@@ -2,7 +2,7 @@
 
 ## Domain plan
 
-- Field/development test: `test.yeokjeon.com`
+- Field/development test: `on.yeokjeon.com`
 - Production: `yeokjeon.com`
 - Public server IP: `203.234.249.145`
 - Current constraint: public `80/tcp` and `443/tcp` cannot be used by this server.
@@ -11,10 +11,10 @@
 
 Use Cloudflare DNS proxy with an Origin Rule.
 
-This keeps FortiGate inbound `80/443` untouched. Users access the service with normal HTTPS, and Cloudflare forwards `test.yeokjeon.com` traffic to the origin on port `8080`.
+This keeps FortiGate inbound `80/443` untouched. Users access the service with normal HTTPS, and Cloudflare forwards `on.yeokjeon.com` traffic to the origin on port `8080`.
 
 ```text
-https://test.yeokjeon.com/#/login
+https://on.yeokjeon.com/#/login
 ```
 
 Do not create FortiGate VIPs for Y-ON `80` or `443`.
@@ -26,7 +26,7 @@ Do not expose PostgreSQL `5432` to the public internet.
 - Production backend: `127.0.0.1:3011`, DB `yj_db_prod`
 - Local field web gateway: `127.0.0.1:8080`
 - Local production web gateway: `127.0.0.1:8180`
-- Cloudflare Origin Rule routes `https://test.yeokjeon.com` to origin port `8080`.
+- Cloudflare Origin Rule routes `https://on.yeokjeon.com` to origin port `8080`.
 
 ## Field test account
 
@@ -44,7 +44,7 @@ The test seed file `deploy\db\002_seed_test.sql` creates this account. The appli
 Add both domains to Kakao Developers > JavaScript SDK domain:
 
 ```text
-https://test.yeokjeon.com
+https://on.yeokjeon.com
 https://yeokjeon.com
 ```
 
@@ -67,7 +67,7 @@ TTL: Auto
 ```text
 Rules > Origin Rules > Create rule
 Name: YON field test origin port
-If incoming requests match: Hostname equals test.yeokjeon.com
+If incoming requests match: Hostname equals on.yeokjeon.com
 Destination Port: Rewrite to 8080
 ```
 
@@ -93,7 +93,7 @@ mvn -DskipTests package
 
 ```powershell
 cd C:\y-on\internal-system\app_flutter
-flutter build web --no-pub --dart-define=API_BASE_URL=https://test.yeokjeon.com/api --dart-define=KAKAO_MAP_JAVASCRIPT_KEY=3649c96a39bc8cff269119d8cffbe4e0
+flutter build web --no-pub --dart-define=API_BASE_URL=https://on.yeokjeon.com/api --dart-define=KAKAO_MAP_JAVASCRIPT_KEY=3649c96a39bc8cff269119d8cffbe4e0
 ```
 
 10. Create field backend env:
@@ -121,7 +121,7 @@ http://localhost:8080/#/login
 13. Test from outside:
 
 ```text
-https://test.yeokjeon.com/#/login
+https://on.yeokjeon.com/#/login
 ```
 
 ## Production later

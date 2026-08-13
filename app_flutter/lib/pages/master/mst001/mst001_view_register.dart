@@ -247,6 +247,8 @@ class _UserRegisterViewState extends ConsumerState<UserRegisterView> {
   Future<void> _save() async {
     if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
+    // 비밀번호는 선택 입력이다 — 비워두면 서버가 초기 비밀번호로 생성하고
+    // 최초 로그인 시 변경을 강제한다. 한쪽만 채웠거나 서로 다르면 막는다.
     if (_passwordCtrl.text != _passwordConfirmCtrl.text) {
       await showAlertDialog(context, '비밀번호가 일치하지 않습니다.');
       return;
@@ -432,33 +434,21 @@ class _UserRegisterViewState extends ConsumerState<UserRegisterView> {
                           const SizedBox(height: 15),
                           LabeledFormRow(
                             label: '비밀번호',
-                            requiredField: true,
                             child: TextFormField(
                               controller: _passwordCtrl,
                               obscureText: true,
-                              decoration: _fieldDecoration('비밀번호를 입력하세요.'),
-                              validator: (v) {
-                                if (v == null || v.isEmpty) {
-                                  return '비밀번호를 입력하세요.';
-                                }
-                                return null;
-                              },
+                              decoration: _fieldDecoration(
+                                '비워두면 초기 비밀번호로 자동 생성됩니다.',
+                              ),
                             ),
                           ),
                           const SizedBox(height: 15),
                           LabeledFormRow(
                             label: '비밀번호 확인',
-                            requiredField: true,
                             child: TextFormField(
                               controller: _passwordConfirmCtrl,
                               obscureText: true,
                               decoration: _fieldDecoration('비밀번호를 다시 입력하세요.'),
-                              validator: (v) {
-                                if (v == null || v.isEmpty) {
-                                  return '비밀번호 확인을 입력하세요.';
-                                }
-                                return null;
-                              },
                             ),
                           ),
                           const SizedBox(height: 15),

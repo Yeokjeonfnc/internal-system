@@ -74,15 +74,15 @@ final storeDetailProvider = FutureProvider.family<Store?, int>((
 
 final storeHistoriesProvider = FutureProvider.autoDispose
     .family<List<HistoryEntry>, int>((ref, storeIdx) async {
-  if (storeIdx <= 0) return const <HistoryEntry>[];
-  return ref.read(storeApiServiceProvider).getStoreHistories(storeIdx);
-});
+      if (storeIdx <= 0) return const <HistoryEntry>[];
+      return ref.read(storeApiServiceProvider).getStoreHistories(storeIdx);
+    });
 
 final storeDocumentsProvider = FutureProvider.autoDispose
     .family<List<Document>, int>((ref, storeIdx) async {
-  if (storeIdx <= 0) return const <Document>[];
-  return ref.read(storeApiServiceProvider).getStoreDocuments(storeIdx);
-});
+      if (storeIdx <= 0) return const <Document>[];
+      return ref.read(storeApiServiceProvider).getStoreDocuments(storeIdx);
+    });
 
 // --- 목록 필터 (Riverpod) ---
 
@@ -122,32 +122,49 @@ class StoreNotifier extends BaseListNotifier<StoreFilter, Store> {
     ref.invalidate(codeOptionsProvider(40));
   }
 
-  void setStoreKeyword(String v) => state = state.copy(storeKeyword: v);
-  void setBrand(String v) => state = state.copy(brandCd: v);
-
+  // Legacy controls are retained for compatibility while the old UI is removed.
+  void setStoreKeyword(String value) => state = state.copy(storeKeyword: value);
+  void setBrand(String value) => state = state.copy(brandCd: value);
   void toggleRegion(String name) {
     final next = Set<String>.from(state.regionNms);
-    if (next.contains(name)) {
-      next.remove(name);
-    } else {
-      next.add(name);
-    }
+    next.contains(name) ? next.remove(name) : next.add(name);
     state = state.copy(regionNms: next);
   }
 
   void clearRegions() => state = state.copy(clearRegions: true);
-
-  void toggleContractStatus(String s) {
+  void toggleContractStatus(String value) {
     final next = Set<String>.from(state.storeStatus);
-    if (next.contains(s)) {
-      next.remove(s);
-    } else {
-      next.add(s);
-    }
+    next.contains(value) ? next.remove(value) : next.add(value);
     state = state.copy(storeStatus: next);
   }
 
-  void clearContractStatuses() {
-    state = state.copy(clearStatuses: true);
+  void clearContractStatuses() => state = state.copy(clearStatuses: true);
+
+  void addCondition() {
+    state = state.copy(
+      conditions: <StoreFilterCondition>[
+        ...state.conditions,
+        const StoreFilterCondition(
+          field: StoreFilterField.storeName,
+          value: '',
+        ),
+      ],
+    );
   }
+
+  void updateCondition(int index, StoreFilterCondition value) {
+    if (index < 0 || index >= state.conditions.length) return;
+    final next = List<StoreFilterCondition>.from(state.conditions);
+    next[index] = value;
+    state = state.copy(conditions: next);
+  }
+
+  void removeCondition(int index) {
+    if (index < 0 || index >= state.conditions.length) return;
+    final next = List<StoreFilterCondition>.from(state.conditions)
+      ..removeAt(index);
+    state = state.copy(conditions: next);
+  }
+
+  void replaceFilter(StoreFilter value) => state = value;
 }

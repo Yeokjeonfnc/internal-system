@@ -16,6 +16,7 @@ import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_detail_action_buttons.dart';
 import 'package:app_flutter/core/widgets/common/form/common_labeled_form_row.dart';
 import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
+import 'package:app_flutter/pages/master/mst001/mst001_api.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_controller.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
 import 'package:app_flutter/pages/master/mst002/mst002_model.dart';
@@ -431,6 +432,14 @@ class _UserInfoPanelState extends ConsumerState<_UserInfoPanel> {
                                   : _userIdCtrl.text.trim(),
                             ),
                           ),
+                          const SizedBox(height: 15),
+                          LabeledFormRow(
+                            label: '사번',
+                            // 로그인ID·업로드 매칭에 쓰는 토큰번호와는 다른, 회사가
+                            // 실제로 관리하는 사원번호다. 선택 입력이라 독립적으로
+                            // 조회·저장한다(메인 저장 흐름과 무관).
+                            child: _EmpNoField(userIdx: widget.userIdx),
+                          ),
                           if (_isEditing) ...[
                             const SizedBox(height: 15),
                             LabeledFormRow(
@@ -713,6 +722,110 @@ class _UserInfoPanelState extends ConsumerState<_UserInfoPanel> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 사번(선택 항목) — 메인 저장 흐름과 무관하게 자체적으로 조회·저장한다.
+///
+/// 로그인ID·CSV 업로드 매칭에 쓰는 내부 토큰번호(userIdx)와는 다른 개념이다.
+/// 서버에 컬럼이 아직 없을 수 있으므로(선택 기능), 실패해도 화면 전체가
+/// 깨지지 않도록 이 위젯 안에서만 오류를 처리한다.
+class _EmpNoField extends StatefulWidget {
+  const _EmpNoField({required this.userIdx});
+
+  final int userIdx;
+
+  @override
+  State<_EmpNoField> createState() => _EmpNoFieldState();
+}
+
+class _EmpNoFieldState extends State<_EmpNoField> {
+  final _api = Mst001ApiService();
+  final _ctrl = TextEditingController();
+  bool _loading = true;
+  bool _saving = false;
+  String? _savedValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final v = await _api.getEmpNo(widget.userIdx);
+    if (!mounted) return;
+    setState(() {
+      _ctrl.text = v ?? '';
+      _savedValue = v ?? '';
+      _loading = false;
+    });
+  }
+
+  Future<void> _save() async {
+    if (_saving || _ctrl.text.trim() == (_savedValue ?? '')) return;
+    setState(() => _saving = true);
+    final failure = await _api.updateEmpNo(widget.userIdx, _ctrl.text.trim());
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (failure != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(failure)));
+      return;
+    }
+    setState(() => _savedValue = _ctrl.text.trim());
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('사번이 저장되었습니다.')));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const SizedBox(
+        height: 20,
+        width: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _ctrl,
+            decoration: const InputDecoration(
+              isDense: true,
+              hintText: '선택 입력',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 10,
+              ),
+            ),
+            onSubmitted: (_) => _save(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          height: 36,
+          child: OutlinedButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    height: 14,
+                    width: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('저장'),
+          ),
+        ),
+      ],
     );
   }
 }

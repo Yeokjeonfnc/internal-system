@@ -192,7 +192,7 @@ http://localhost:8080/#/login
 외부 필드 테스트:
 
 ```text
-https://test.yeokjeon.com/#/login
+https://on.yeokjeon.com/#/login
 ```
 
 ## Login account
@@ -208,7 +208,7 @@ Cloudflare:
 
 ```text
 DNS A record: test -> 203.234.249.145, Proxied
-Origin Rule: Hostname equals test.yeokjeon.com, Destination Port = 8080
+Origin Rule: Hostname equals on.yeokjeon.com, Destination Port = 8080
 SSL/TLS mode: Flexible
 ```
 
@@ -216,7 +216,7 @@ The frontend calls `/api` on the same host. This means both local and external U
 
 ```text
 http://localhost:8080/api
-https://test.yeokjeon.com/api
+https://on.yeokjeon.com/api
 ```
 
 The app shell files are served with `Cache-Control: no-store` so browsers do not keep an old API base URL after a field package update.
@@ -230,5 +230,5 @@ FortiGate:
 Kakao Developers JavaScript SDK domain:
 
 ```text
-https://test.yeokjeon.com
+https://on.yeokjeon.com
 ```

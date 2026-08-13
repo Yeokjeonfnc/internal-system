@@ -70,7 +70,8 @@ Write-Host ''
 
 # 2) HTTP 헬스
 Show-Http -Name 'Web /' -Url 'http://127.0.0.1:8080/'
-Show-Http -Name 'API codes' -Url "http://127.0.0.1:$backendPort/api/codes?grpCd=10"
+# 업무 엔드포인트는 로그인 토큰이 필요하므로 인증 불필요한 /api/health 로 확인한다.
+Show-Http -Name 'API health' -Url "http://127.0.0.1:$backendPort/api/health"
 Write-Host ''
 
 # 3) DB 연결

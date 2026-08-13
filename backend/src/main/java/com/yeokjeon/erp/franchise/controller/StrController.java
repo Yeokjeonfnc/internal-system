@@ -1,5 +1,7 @@
 package com.yeokjeon.erp.franchise.controller;
 
+import com.yeokjeon.erp.auth.access.MenuAccessGuard;
+import com.yeokjeon.erp.auth.access.MenuCodes;
 import com.yeokjeon.erp.common.ApiResponse;
 import com.yeokjeon.erp.franchise.dto.StoreDocumentDto;
 import com.yeokjeon.erp.franchise.dto.StoreHistoryRowDto;
@@ -7,6 +9,7 @@ import com.yeokjeon.erp.franchise.dto.StoreMstDto;
 import com.yeokjeon.erp.franchise.dto.StoreMstWriteRequestDto;
 import com.yeokjeon.erp.franchise.service.StoreDocumentService;
 import com.yeokjeon.erp.franchise.service.StrService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -30,6 +33,7 @@ public class StrController {
 
     private final StrService strService;
     private final StoreDocumentService storeDocumentService;
+    private final MenuAccessGuard menuAccessGuard;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<StoreMstDto>>> getAllStores() {
@@ -61,13 +65,23 @@ public class StrController {
         return ResponseEntity.ok(ApiResponse.success(storeDocumentService.list(storeIdx)));
     }
 
+    /*
+     * 아래 문서 업로드·삭제는 남의 가맹점에 붙은 계약서·서류를 건드리는 작업이다.
+     * userId 파라미터는 "누가 올렸는지" 기록용일 뿐 권한을 뜻하지 않아서,
+     * 검사가 없으면 로그인만 한 사람이 아무 가맹점 문서나 올리고 지울 수 있다.
+     * 가맹점 관리(str001) 권한을 요구한다.
+     */
+
     @PostMapping(value = "/{storeIdx}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<StoreDocumentDto>> uploadStoreDocument(
             @PathVariable Integer storeIdx,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "userId", required = false) String userId,
             @RequestParam(value = "attachmentBaseDate", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate attachmentBaseDate) {
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate attachmentBaseDate,
+            HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.STR001, MenuAccessGuard.Action.CREATE);
         log.info("가맹점 문서 업로드: storeIdx={}, file={}", storeIdx, file.getOriginalFilename());
         StoreDocumentDto created = storeDocumentService.upload(
                 storeIdx, file, userId, attachmentBaseDate);
@@ -98,15 +112,26 @@ public class StrController {
     @DeleteMapping("/{storeIdx}/documents/{storeDocIdx}")
     public ResponseEntity<ApiResponse<Void>> deleteStoreDocument(
             @PathVariable Integer storeIdx,
-            @PathVariable Integer storeDocIdx) {
+            @PathVariable Integer storeDocIdx,
+            HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.STR001, MenuAccessGuard.Action.DELETE);
         log.info("가맹점 문서 삭제: storeIdx={}, docIdx={}", storeIdx, storeDocIdx);
         storeDocumentService.delete(storeIdx, storeDocIdx);
         return ResponseEntity.ok(ApiResponse.success("문서가 삭제되었습니다", null));
     }
 
+    /*
+     * 가맹점 마스터 자체를 만들고 바꾸고 지우는 작업이다. 로그인 여부만 보던
+     * 기존 상태에서는 아무 직원이나 남의 가맹점 정보를 수정하거나 통째로
+     * 삭제할 수 있었다. 가맹점 관리(str001) 권한을 요구한다.
+     */
+
     @PostMapping
     public ResponseEntity<ApiResponse<StoreMstDto>> createStore(
-            @RequestBody StoreMstWriteRequestDto body) {
+            @RequestBody StoreMstWriteRequestDto body, HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.STR001, MenuAccessGuard.Action.CREATE);
         log.info("가맹점 생성 요청: {}", body.storeCd());
         StoreMstDto createdStore = strService.create(body);
         return ResponseEntity
@@ -117,7 +142,10 @@ public class StrController {
     @PutMapping("/{storeIdx}")
     public ResponseEntity<ApiResponse<StoreMstDto>> updateStore(
             @PathVariable Integer storeIdx,
-            @RequestBody StoreMstWriteRequestDto body) {
+            @RequestBody StoreMstWriteRequestDto body,
+            HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.STR001, MenuAccessGuard.Action.UPDATE);
         log.info("가맹점 수정 요청: {}", storeIdx);
         StoreMstDto updatedStore = strService.update(storeIdx, body);
         return ResponseEntity.ok(
@@ -126,7 +154,9 @@ public class StrController {
 
     @DeleteMapping("/{storeIdx}")
     public ResponseEntity<ApiResponse<Void>> deleteStore(
-            @PathVariable Integer storeIdx) {
+            @PathVariable Integer storeIdx, HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.STR001, MenuAccessGuard.Action.DELETE);
         log.info("가맹점 삭제 요청: {}", storeIdx);
         strService.remove(storeIdx);
         return ResponseEntity.ok(

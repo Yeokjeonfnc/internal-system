@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.master.mapper.UserPageFilterMapper">
+
+    <select id="selectUserIdxByUserId" resultType="java.lang.Integer">
+        SELECT user_idx
+        FROM user_mst
+        WHERE user_id = #{userId}
+        LIMIT 1
+    </select>
+
+    <select id="selectByUserIdxAndPageCode"
+            resultType="com.yeokjeon.erp.master.dto.UserPageFilterDto">
+        SELECT page_code AS pageCode,
+               filter_json::text AS filterJson
+        FROM user_page_filter
+        WHERE user_idx = #{userIdx}
+          AND page_code = #{pageCode}
+    </select>
+
+    <insert id="upsert">
+        INSERT INTO user_page_filter (user_idx, page_code, filter_json, created_at, updated_at)
+        VALUES (#{userIdx}, #{pageCode}, CAST(#{filterJson} AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_idx, page_code)
+        DO UPDATE SET filter_json = EXCLUDED.filter_json,
+                      updated_at = CURRENT_TIMESTAMP
+    </insert>
+</mapper>

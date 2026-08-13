@@ -24,7 +24,11 @@ public record AuthProfileDto(
         Integer storeIdx,
         String storeNm,
         LocalDate joinDt,
-        List<MenuPermissionDto> menuPermissions) {
+        List<MenuPermissionDto> menuPermissions,
+        /** 로그인 응답에만 채워지는 인증 토큰. 이후 모든 요청의 Authorization 헤더에 사용한다. */
+        String accessToken,
+        /** 초기화된 비밀번호로 로그인함 — 프론트가 비밀번호 변경을 강제해야 한다. */
+        boolean mustChangePassword) {
 
     public AuthProfileDto {
         if (menuPermissions == null) {
@@ -50,7 +54,9 @@ public record AuthProfileDto(
                 row.storeIdx(),
                 row.storeNm(),
                 row.joinDt(),
-                menuPermissions);
+                menuPermissions,
+                null,
+                false);
     }
 
     /** 슈퍼 관리자 판정 결과를 반영한 사본(컬럼 미적용 시 config 폴백 포함). */
@@ -58,6 +64,25 @@ public record AuthProfileDto(
         return new AuthProfileDto(
                 userIdx, userId, userNm, email, deptIdx, userPhone, deptNm,
                 positionCd, positionNm, svYn, ownerYn, adminYn,
-                storeIdx, storeNm, joinDt, menuPermissions);
+                storeIdx, storeNm, joinDt, menuPermissions, accessToken,
+                mustChangePassword);
+    }
+
+    /** 로그인 성공 시 발급한 토큰을 실은 사본. */
+    public AuthProfileDto withAccessToken(String accessToken) {
+        return new AuthProfileDto(
+                userIdx, userId, userNm, email, deptIdx, userPhone, deptNm,
+                positionCd, positionNm, svYn, ownerYn, adminYn,
+                storeIdx, storeNm, joinDt, menuPermissions, accessToken,
+                mustChangePassword);
+    }
+
+    /** 비밀번호 변경 강제 여부를 반영한 사본. */
+    public AuthProfileDto withMustChangePassword(boolean mustChangePassword) {
+        return new AuthProfileDto(
+                userIdx, userId, userNm, email, deptIdx, userPhone, deptNm,
+                positionCd, positionNm, svYn, ownerYn, adminYn,
+                storeIdx, storeNm, joinDt, menuPermissions, accessToken,
+                mustChangePassword);
     }
 }

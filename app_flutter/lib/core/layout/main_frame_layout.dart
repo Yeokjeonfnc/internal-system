@@ -466,18 +466,9 @@ class _SidebarNavigation extends StatelessWidget {
     ];
 
     final actChildren = <Widget>[
-      if (can(kMenuAct001))
-        _SidebarSubMenuItem(
-          title: '활동현황',
-          selected:
-              currentPath == ActivityRoutes.groupStatus ||
-              currentPath.startsWith('${ActivityRoutes.groupStatus}/') ||
-              currentPath.startsWith('$kActivitiesRoot/status/'),
-          onTap: () => navigate(() => context.go(ActivityRoutes.groupStatus)),
-        ),
       if (can(kMenuAct002))
         _SidebarSubMenuItem(
-          title: '활동관리',
+          title: '활동 등록',
           selected:
               currentPath == ActivityRoutes.groupManage ||
               currentPath.startsWith('${ActivityRoutes.groupManage}/') ||
@@ -486,6 +477,15 @@ class _SidebarNavigation extends StatelessWidget {
               currentPath == ActivityRoutes.instructions ||
               currentPath == ActivityRoutes.checklist,
           onTap: () => navigate(() => context.go(ActivityRoutes.groupManage)),
+        ),
+      if (can(kMenuAct001))
+        _SidebarSubMenuItem(
+          title: '활동 현황',
+          selected:
+              currentPath == ActivityRoutes.groupStatus ||
+              currentPath.startsWith('${ActivityRoutes.groupStatus}/') ||
+              currentPath.startsWith('$kActivitiesRoot/status/'),
+          onTap: () => navigate(() => context.go(ActivityRoutes.groupStatus)),
         ),
       if (can(kMenuAct004) || can(kMenuAct002))
         _SidebarSubMenuItem(
@@ -504,6 +504,73 @@ class _SidebarNavigation extends StatelessWidget {
               currentPath.startsWith('$kActivitiesRoot/approval/'),
           onTap: () => navigate(() => context.go(ActivityRoutes.approvalAll)),
         ),
+    ];
+
+    final eapChildren = <Widget>[
+      if (can(kMenuEap001) || can(kMenuAct002) || can(kMenuAct003)) ...[
+        const _SidebarGroupLabel('결재하기'),
+        _SidebarSubMenuItem(
+          title: '결재 대기 문서',
+          selected: currentPath == EapRoutes.pending,
+          onTap: () => navigate(() => context.go(EapRoutes.pending)),
+        ),
+        _SidebarSubMenuItem(
+          title: '결재 수신 문서',
+          selected: currentPath == EapRoutes.received,
+          onTap: () => navigate(() => context.go(EapRoutes.received)),
+        ),
+        _SidebarSubMenuItem(
+          title: '참조/열람 대기 문서',
+          selected: currentPath == EapRoutes.ccPending,
+          onTap: () => navigate(() => context.go(EapRoutes.ccPending)),
+        ),
+        _SidebarSubMenuItem(
+          title: '결재 예정 문서',
+          selected: currentPath == EapRoutes.scheduled,
+          onTap: () => navigate(() => context.go(EapRoutes.scheduled)),
+        ),
+        const _SidebarGroupLabel('개인 문서함'),
+        _SidebarSubMenuItem(
+          title: '기안 문서함',
+          selected: currentPath == EapRoutes.drafted,
+          onTap: () => navigate(() => context.go(EapRoutes.drafted)),
+        ),
+        _SidebarSubMenuItem(
+          title: '임시 저장함',
+          selected: currentPath == EapRoutes.tempSaved,
+          onTap: () => navigate(() => context.go(EapRoutes.tempSaved)),
+        ),
+        _SidebarSubMenuItem(
+          title: '결재 문서함',
+          selected: currentPath == EapRoutes.approved,
+          onTap: () => navigate(() => context.go(EapRoutes.approved)),
+        ),
+        _SidebarSubMenuItem(
+          title: '참조/열람 문서함',
+          selected: currentPath == EapRoutes.ccRead,
+          onTap: () => navigate(() => context.go(EapRoutes.ccRead)),
+        ),
+        _SidebarSubMenuItem(
+          title: '수신 문서함',
+          selected: currentPath == EapRoutes.inbox,
+          onTap: () => navigate(() => context.go(EapRoutes.inbox)),
+        ),
+        _SidebarSubMenuItem(
+          title: '발송 문서함',
+          selected: currentPath == EapRoutes.sent,
+          onTap: () => navigate(() => context.go(EapRoutes.sent)),
+        ),
+        _SidebarSubMenuItem(
+          title: '공문 문서함',
+          selected: currentPath == EapRoutes.official,
+          onTap: () => navigate(() => context.go(EapRoutes.official)),
+        ),
+        _SidebarSubMenuItem(
+          title: '전자결재 환경설정',
+          selected: currentPath == EapRoutes.settings,
+          onTap: () => navigate(() => context.go(EapRoutes.settings)),
+        ),
+      ],
     ];
 
     final mstChildren = <Widget>[
@@ -631,20 +698,21 @@ class _SidebarNavigation extends StatelessWidget {
             if (actChildren.isNotEmpty)
               _SidebarExpandableMenuItem(
                 icon: Icons.edit_note,
-                title: '활동관리',
+                title: '활동 관리',
                 initiallyExpanded:
                     currentPath == AppRoutes.activities ||
                     currentPath.startsWith('${AppRoutes.activities}/'),
                 children: actChildren,
               ),
-            if (can(kMenuEap001) || can(kMenuAct002) || can(kMenuAct003))
-              _SidebarMenuItem(
+            if (eapChildren.isNotEmpty)
+              _SidebarExpandableMenuItem(
                 icon: Icons.approval_outlined,
                 title: '전자결재',
-                selected:
+                initiallyExpanded:
                     currentPath == EapRoutes.root ||
                     currentPath.startsWith('${EapRoutes.root}/'),
-                onTap: () => navigate(() => context.go(EapRoutes.home)),
+                onHeaderTap: () => navigate(() => context.go(EapRoutes.home)),
+                children: eapChildren,
               ),
             if (mstChildren.isNotEmpty)
               _SidebarExpandableMenuItem(
@@ -796,6 +864,7 @@ class _SidebarExpandableMenuItem extends StatefulWidget {
     required this.title,
     required this.children,
     this.initiallyExpanded = false,
+    this.onHeaderTap,
   });
 
   final IconData icon;
@@ -804,6 +873,10 @@ class _SidebarExpandableMenuItem extends StatefulWidget {
 
   /// 현재 경로가 하위 메뉴에 해당하는 경우 펼친 상태로 시작할 때 사용.
   final bool initiallyExpanded;
+
+  /// 지정하면 상위 항목 클릭 시 접고 펴는 대신(또는 그와 함께) 이 이동을 수행하고
+  /// 목록을 펼친다. 미지정 시 기존처럼 접기/펴기 토글만 한다.
+  final VoidCallback? onHeaderTap;
 
   @override
   State<_SidebarExpandableMenuItem> createState() =>
@@ -823,7 +896,15 @@ class _SidebarExpandableMenuItemState
     }
   }
 
-  void _toggle() => setState(() => _expanded = !_expanded);
+  void _handleHeaderTap() {
+    final onHeaderTap = widget.onHeaderTap;
+    if (onHeaderTap != null) {
+      setState(() => _expanded = true);
+      onHeaderTap();
+      return;
+    }
+    setState(() => _expanded = !_expanded);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -836,7 +917,7 @@ class _SidebarExpandableMenuItemState
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             child: InkWell(
-              onTap: _toggle,
+              onTap: _handleHeaderTap,
               mouseCursor: SystemMouseCursors.click,
               borderRadius: BorderRadius.circular(8),
               child: ListTile(
@@ -934,6 +1015,30 @@ class _SidebarSubMenuItem extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 확장형 메뉴 하위 항목들을 묶는 클릭 불가 소제목(예: 전자결재의 "결재하기").
+class _SidebarGroupLabel extends StatelessWidget {
+  const _SidebarGroupLabel(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(44, 10, 12, 4),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: AppTheme.textMuted,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+          fontFamilyFallback: AppTheme.koreanFontFallback,
         ),
       ),
     );

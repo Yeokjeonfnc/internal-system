@@ -11,6 +11,7 @@ import com.yeokjeon.erp.master.repository.MstUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import com.yeokjeon.erp.auth.password.PasswordHasher;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -24,6 +25,7 @@ public class OwnerUserService {
 
     private final MstUserRepository mstUserRepository;
     private final MstOwnerUserMapper mstOwnerUserMapper;
+    private final PasswordHasher passwordHasher;
 
     public List<OwnerUserMstDto> getAll() {
         return mstOwnerUserMapper.selectOwnerUsers().stream()
@@ -44,7 +46,8 @@ public class OwnerUserService {
         MstUser user = MstUser.builder()
                 .userName(body.userName().trim())
                 .userId(trimToNull(body.userId()))
-                .userPassword(body.userPassword())
+                // 비밀번호는 절대 평문으로 저장하지 않는다.
+                .userPassword(passwordHasher.hash(body.userPassword()))
                 .userPhone(trimToNull(body.userPhone()))
                 .userEmail(trimToNull(body.userEmail()))
                 .ownerYn('Y')
@@ -67,7 +70,7 @@ public class OwnerUserService {
         }
         String pw = body.getUserPassword();
         if (pw != null && !pw.isBlank()) {
-            user.setUserPassword(pw);
+            user.setUserPassword(passwordHasher.hash(pw));
         }
         if (body.isUserPhonePresent()) {
             user.setUserPhone(trimToNull(body.getUserPhone()));

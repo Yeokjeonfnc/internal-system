@@ -6,18 +6,64 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:app_flutter/core/auth/auth_api_service.dart';
 import 'package:app_flutter/core/auth/auth_profile.dart';
+import 'package:app_flutter/core/auth/auth_token_store.dart';
 import 'package:app_flutter/core/menu/menu_permission.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/menu/menu_route_access.dart';
 import 'package:app_flutter/core/router/app_router.dart';
 
 class AuthProvider extends ChangeNotifier {
+  AuthProvider() {
+    AuthTokenStore.sessionExpired.addListener(_onSessionExpired);
+  }
+
   AuthProfile? _profile;
   bool _rememberPassword = false;
   String? _savedUserId;
   String? _savedPassword;
   bool _sessionRestored = false;
   Future<void>? _restoreFuture;
+
+  /// 서버가 401 을 돌려줬다 — 토큰 만료·무효화·서버 재시작 등.
+  ///
+  /// 세션을 끊어 라우터가 로그인 화면으로 보내게 한다. 이 처리가 없으면 화면은
+  /// 로그인 상태로 남고 모든 목록이 빈 채로 그려져 데이터가 사라진 것처럼 보인다.
+  void _onSessionExpired() {
+    if (_profile == null) return;
+    debugPrint('세션 만료(401) — 로그아웃 처리');
+    unawaited(logout());
+  }
+
+  @override
+  void dispose() {
+    AuthTokenStore.sessionExpired.removeListener(_onSessionExpired);
+    super.dispose();
+  }
+
+  /// 프로필 변경 시 API 인증 토큰도 함께 동기화한다.
+  /// (`_profile` 에 직접 대입하지 말고 항상 이 메서드를 쓸 것 — 토큰이 어긋나면
+  ///  모든 API 가 401 로 실패한다.)
+  ///
+  /// **토큰이 없는 프로필이 들어와도 기존 토큰을 지우지 않는다.** 로그인
+  /// 응답만 토큰을 싣고, 프로필 조회·수정 응답(`/auth/profile`)은 토큰 자리가
+  /// 비어 있다. 예전에는 이걸 로그아웃으로 오해해 토큰을 지웠고, 그 결과
+  /// **"내 정보"를 저장하면 곧바로 로그인 화면으로 튕겼다.**
+  /// 세션을 실제로 끊을 때는 [logout] 이 `null` 을 넘긴다 — 그때만 지운다.
+  void _applyProfile(AuthProfile? next) {
+    if (next == null) {
+      _profile = null;
+      AuthTokenStore.clear();
+      return;
+    }
+    // 토큰·메뉴권한이 빠진 응답이면 직전 값을 이어붙인다(저장분에도 남도록
+    // 저장소뿐 아니라 프로필 객체 자체를 보정한다 — 객체만 비어 있으면
+    // 새로고침 때 "토큰 없는 세션"으로 판정돼 폐기된다).
+    final merged = next.carryOverSessionFrom(_profile);
+    _profile = merged;
+    if (merged.accessToken.isNotEmpty) {
+      AuthTokenStore.set(merged.accessToken);
+    }
+  }
 
   AuthProfile? get profile => _profile;
 
@@ -163,10 +209,21 @@ class AuthProvider extends ChangeNotifier {
       if (userJson != null && userJson.isNotEmpty) {
         try {
           final map = json.decode(userJson) as Map<String, dynamic>;
-          _profile = AuthProfile.fromJson(map);
+          final restored = AuthProfile.fromJson(map);
+          if (restored.accessToken.isEmpty) {
+            // 토큰 없는 저장 세션 = 서버 인증 도입 전에 저장된 것.
+            // 그대로 복원하면 "로그인 상태"로 보이지만 모든 조회가 401 이 되어
+            // 화면마다 빈 목록이 뜬다(데이터가 사라진 것처럼 보인다).
+            // 로그인 화면으로 보내는 편이 정확하다.
+            debugPrint('저장된 세션에 토큰이 없어 폐기 — 재로그인 필요');
+            _applyProfile(null);
+            await prefs.remove('user');
+          } else {
+            _applyProfile(restored);
+          }
         } catch (e, st) {
           debugPrint('저장된 로그인 정보 파싱 실패: $e\n$st');
-          _profile = null;
+          _applyProfile(null);
           await prefs.remove('user');
         }
       }
@@ -213,7 +270,7 @@ class AuthProvider extends ChangeNotifier {
         debugPrint('자동 로그인: 서버 인증 실패 ($userId)');
         return;
       }
-      _profile = profile;
+      _applyProfile(profile);
       await prefs.setString('user', json.encode(profile.toJson()));
       if (kDebugMode) {
         debugPrint('자동 로그인 성공: $userId');
@@ -229,11 +286,14 @@ class AuthProvider extends ChangeNotifier {
     required String userId,
     required String password,
   }) async {
-    _profile = profile;
+    _applyProfile(profile);
     _rememberPassword = rememberPassword;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user', json.encode(profile.toJson()));
+    // 인자 profile 이 아니라 _applyProfile 이 보정한 _profile 을 저장한다.
+    // (프로필 수정 응답처럼 토큰이 빠진 객체가 들어오면 여기서 원본을 저장해
+    //  버려 저장분에만 토큰이 없어지고, 새로고침 시 세션이 폐기된다.)
+    await prefs.setString('user', json.encode((_profile ?? profile).toJson()));
     await prefs.setBool('rememberPassword', rememberPassword);
 
     if (rememberPassword) {
@@ -251,8 +311,26 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 비밀번호 변경 완료 — 강제 플래그를 내리고, 재발급 토큰과 저장분에도 반영한다.
+  ///
+  /// 서버가 기존 토큰을 끊고 새 토큰을 돌려주므로, 강제 변경이 아니었더라도
+  /// 토큰 교체는 반드시 해야 한다(안 하면 변경 직후 전부 401).
+  Future<void> markPasswordChanged({String? reissuedToken}) async {
+    final current = _profile;
+    if (current == null) return;
+    _applyProfile(current.afterPasswordChange(reissuedToken: reissuedToken));
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user', json.encode(_profile!.toJson()));
+    // 비밀번호가 바뀌었으므로 저장된 자동로그인 비밀번호는 더 이상 유효하지 않다.
+    await prefs.remove('savedPassword');
+    _savedPassword = null;
+
+    notifyListeners();
+  }
+
   Future<void> logout() async {
-    _profile = null;
+    _applyProfile(null);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user');
@@ -269,7 +347,7 @@ class AuthProvider extends ChangeNotifier {
     if (current == null || !_isSameUser(current, userIdx, userId)) {
       return;
     }
-    _profile = AuthProfile(
+    _applyProfile(AuthProfile(
       userIdx: current.userIdx,
       userId: current.userId,
       userNm: current.userNm,
@@ -286,7 +364,9 @@ class AuthProvider extends ChangeNotifier {
       storeNm: current.storeNm,
       joinDtRaw: current.joinDtRaw,
       menuPermissions: List<MenuPermission>.unmodifiable(perms),
-    );
+      // 토큰이 빠지면 이후 모든 API 가 401 이 된다 — 반드시 유지.
+      accessToken: current.accessToken,
+    ));
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user', json.encode(_profile!.toJson()));

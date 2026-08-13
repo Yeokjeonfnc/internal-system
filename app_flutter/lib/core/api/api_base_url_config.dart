@@ -8,12 +8,15 @@
 // - [kDevLanHost] + [kDevApiPort] (기본 3001)
 //
 // 빌드 시 `--dart-define-from-file=dart_defines.local.json` 또는
-// `--dart-define=API_BASE_URL=https://test.yeokjeon.com/api`
+// `--dart-define=API_BASE_URL=https://on.yeokjeon.com/api`
+//
+// 도메인: 운영 `on.yeokjeon.com` / 테스트 `on-test.yeokjeon.com`.
+// (구 `test.yeokjeon.com` 은 폐기)
 
-/// 회사 테스트 서버 (웹 배포와 동일, HTTPS)
+/// 회사 운영 서버 (웹 배포와 동일, HTTPS)
 const String kCompanyApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'https://test.yeokjeon.com/api',
+  defaultValue: 'https://on.yeokjeon.com/api',
 );
 
 /// 회사 서버 사내망 IP — 3001 은 서버 내부 전용, 폰은 8080 게이트웨이 사용
@@ -37,14 +40,16 @@ String buildDevApiBaseUrl(String host) =>
 
 /// Kakao Maps WebView 페이지 origin (카카오 Developers → JavaScript SDK 도메인).
 /// API 주소([kCompanyApiBaseUrl])와 분리 — LAN API 를 써도 지도 origin 은 등록된 HTTPS 도메인.
+/// 도메인을 바꾸면 **카카오 Developers 에 새 도메인을 등록해야 한다.**
+/// 등록하지 않으면 다른 기능은 멀쩡한데 지도만 조용히 안 뜬다.
 const String kKakaoMapRegisteredWebOrigin = String.fromEnvironment(
   'KAKAO_MAP_WEBVIEW_BASE_URL',
-  defaultValue: 'https://test.yeokjeon.com/',
+  defaultValue: 'https://on.yeokjeon.com/',
 );
 
 String resolveKakaoMapWebViewBaseUrl() {
   final base = kKakaoMapRegisteredWebOrigin.trim();
-  if (base.isEmpty) return 'https://test.yeokjeon.com/';
+  if (base.isEmpty) return 'https://on.yeokjeon.com/';
   return base.endsWith('/') ? base : '$base/';
 }
 
