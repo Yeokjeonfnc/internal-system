@@ -1,62 +1,79 @@
-// 새 결재 기안 — 다우오피스 연동 준비 UI.
+// 새 결재 기안 — 양식 선택 후 [작성].
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_basic_draft_view.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_provider.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_transfer_draft_view.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_transfer_form_data.dart';
 
-Future<void> showEapNewDraftSheet(BuildContext context) {
-  return showModalBottomSheet<void>(
+Future<void> showEapNewDraftSheet(BuildContext context) async {
+  final formCode = await showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (ctx) => const _EapNewDraftSheet(),
   );
+  if (!context.mounted || formCode == null || formCode.isEmpty) return;
+
+  // 바텀시트 dispose 직후 플랫폼 뷰/iframe 부착 시 Web EngineFlutterView race 방지
+  await Future<void>.delayed(const Duration(milliseconds: 320));
+  if (!context.mounted) return;
+
+  // 업무기안(yeokjeon_eap01)
+  if (formCode == kEapBasicFormCode ||
+      formCode.toLowerCase().contains('eap01')) {
+    await openEapBasicDraft(context, formCode: formCode);
+    return;
+  }
+
+  // 양수도·명의변경(yeokjeon_eap02) — ERP 전용 작성 화면
+  if (formCode == kEapTransferFormCode ||
+      formCode.toLowerCase().contains('eap02')) {
+    await openEapTransferDraft(context, formCode: formCode);
+    return;
+  }
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        '선택한 양식($formCode)용 작성 화면은 아직 없습니다.\n'
+        '업무기안($kEapBasicFormCode) 또는 '
+        '양수도 / 명의변경 품의서($kEapTransferFormCode)를 선택해 주세요.',
+      ),
+      duration: const Duration(seconds: 5),
+    ),
+  );
 }
 
-class _EapNewDraftSheet extends StatefulWidget {
+class _EapNewDraftSheet extends ConsumerStatefulWidget {
   const _EapNewDraftSheet();
 
   @override
-  State<_EapNewDraftSheet> createState() => _EapNewDraftSheetState();
+  ConsumerState<_EapNewDraftSheet> createState() => _EapNewDraftSheetState();
 }
 
-class _EapNewDraftSheetState extends State<_EapNewDraftSheet> {
-  String _formCode = 'yeokjeon_eap01';
-  final _titleCtrl = TextEditingController();
-  bool _submitting = false;
+class _EapNewDraftSheetState extends ConsumerState<_EapNewDraftSheet> {
+  String? _formCode;
 
-  @override
-  void dispose() {
-    _titleCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (_titleCtrl.text.trim().isEmpty) {
+  void _onWrite() {
+    final code = _formCode;
+    if (code == null || code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('결재 제목을 입력해 주세요.')),
+        const SnackBar(content: Text('결재 양식을 선택해 주세요.')),
       );
       return;
     }
-    setState(() => _submitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-    setState(() => _submitting = false);
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          '다우오피스 기안 API 연결 후 결재 화면으로 이동합니다.\n'
-          '(백엔드 /api/eap/draft 구현 필요)',
-        ),
-        duration: Duration(seconds: 4),
-      ),
-    );
+    Navigator.of(context).pop(code);
   }
 
   @override
   Widget build(BuildContext context) {
+    final formsAsync = ref.watch(eapEnabledFormsProvider);
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
+
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Align(
@@ -90,67 +107,72 @@ class _EapNewDraftSheetState extends State<_EapNewDraftSheet> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    value: _formCode,
-                    decoration: _fieldDeco('결재 양식'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'yeokjeon_eap01',
-                        child: Text('품의 기본 (연동)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'yeokjeon_eap02',
-                        child: Text('지출결의서 (연동)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'yeokjeon_eap03',
-                        child: Text('휴가신청서 (연동)'),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) setState(() => _formCode = v);
+                  formsAsync.when(
+                    loading: () => const LinearProgressIndicator(minHeight: 2),
+                    error: (_, _) => const Text(
+                      '양식 목록을 불러오지 못했습니다.',
+                      style: TextStyle(color: AppTheme.accentRed, fontSize: 13),
+                    ),
+                    data: (forms) {
+                      final items = forms
+                          .map(
+                            (f) => DropdownMenuItem(
+                              value: f.formCode,
+                              child: Text('${f.formName} (${f.formCode})'),
+                            ),
+                          )
+                          .toList();
+                      // 양수도 양식을 기본 선택
+                      String? preferred;
+                      for (final f in forms) {
+                        if (f.formCode == kEapTransferFormCode) {
+                          preferred = f.formCode;
+                          break;
+                        }
+                      }
+                      final selected = _formCode ??
+                          preferred ??
+                          (forms.isNotEmpty ? forms.first.formCode : null);
+                      if (_formCode == null && selected != null) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) setState(() => _formCode = selected);
+                        });
+                      }
+                      return DropdownButtonFormField<String>(
+                        initialValue: selected,
+                        decoration: const InputDecoration(
+                          labelText: '결재 양식',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: items,
+                        onChanged: (v) {
+                          if (v != null) setState(() => _formCode = v);
+                        },
+                      );
                     },
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _titleCtrl,
-                    decoration: _fieldDeco('결재 제목'),
-                  ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   FilledButton(
-                    onPressed: _submitting ? null : _submit,
+                    onPressed: _onWrite,
                     style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.accentRed,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    child: _submitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text('다우오피스에서 기안'),
+                    child: const Text(
+                      '작성',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        fontFamilyFallback: AppTheme.koreanFontFallback,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  InputDecoration _fieldDeco(String label) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(fontSize: 13),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: AppTheme.inputBorder),
       ),
     );
   }

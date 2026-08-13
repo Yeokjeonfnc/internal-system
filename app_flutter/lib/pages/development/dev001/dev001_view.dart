@@ -286,7 +286,8 @@ class _PartnerTable extends ConsumerWidget {
         0: const FixedColumnWidth(50),
         1: const FixedColumnWidth(100),
         2: const FlexColumnWidth(0.9),
-        3: const FixedColumnWidth(100),
+        // '가맹점사업자' StatusBadge 가 100px 에서 overflow 됨
+        3: const FixedColumnWidth(130),
         4: const FixedColumnWidth(150),
         5: const FlexColumnWidth(1.2),
         6: const FixedColumnWidth(80),
@@ -326,11 +327,14 @@ class _PartnerTable extends ConsumerWidget {
             tap(ErpTableBodyCell(partner.partnerNm, center: true)),
             tap(
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                 child: Center(
-                  child: StatusBadge(
-                    statusLabelKo(partner.partnerStatus),
-                    color: _partnerStatusColor(partner.partnerStatus),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: StatusBadge(
+                      statusLabelKo(partner.partnerStatus),
+                      color: _partnerStatusColor(partner.partnerStatus),
+                    ),
                   ),
                 ),
               ),

@@ -1,0 +1,119 @@
+<!--
+  yeokjeon_eap02 연동용 양식 (본문 = OpenAPI content 슬롯)
+
+  ★ 절대 하면 안 되는 것
+  - Ver.7 전체(표·{{text}}·{{cSel}} 수십 개)를 이 HTML 탭에 통째 넣지 말 것
+    → OpenAPI content 는 data-id="appContent" 에만 붙음. 필드마다 {{text}} 쓰면
+      ERP가 보낸 표가 안 보이거나, 디자인 저장 시 attributes 가 깨짐.
+  - data-id 값이 아래처럼 깨지면 content 가 안 들어감:
+      data-id="appContent&gt;&lt;br&gt;&lt;/div&gt;..."  ← 잘못됨
+      data-id="appContent"                            ← 올바름
+
+  사용법:
+  1) 다우 Site Admin → 결재 양식 → yeokjeon_eap02 → HTML 탭
+  2) 기존 내용 전부 삭제 → 이 파일 전체 붙여넣기 → 저장
+  3) 디자인 탭 갔다가 HTML로 돌아와 data-id="appContent" 가 표 본문 칸에
+     「한 번만」 그대로인지 확인 (깨졌으면 다시 2번)
+
+  ERP 쪽: eap_transfer_form.html 에서 작성 → Ver.7 표 HTML 이 content 로
+  이 appContent 슬롯(표 안쪽 위)에 삽입됨.
+-->
+<span>
+<div style="font-family:돋움;font-size:9pt;line-height:150%;margin-top:0;margin-bottom:0;">
+
+<table style="border:0;width:800px;font-family:malgun gothic,dotum,arial,tahoma;margin-top:1px;border-collapse:collapse;">
+  <colgroup>
+    <col width="310">
+    <col width="490">
+  </colgroup>
+  <tbody>
+    <tr>
+      <td style="background:white;border:0;height:70px;text-align:center;color:black;font-size:28px;font-weight:bold;vertical-align:middle;" colspan="2">
+        ★양수도 / 명의변경 품의서★
+      </td>
+    </tr>
+    <tr>
+      <td style="background:white;border:0;text-align:left;vertical-align:top;padding:0;">
+        <table style="border:1px solid #000;font-family:malgun gothic,dotum,arial,tahoma;border-collapse:collapse;">
+          <colgroup>
+            <col width="90">
+            <col width="200">
+          </colgroup>
+          <tbody>
+            <tr>
+              <td style="background:#ddd;padding:5px;border:1px solid #000;text-align:center;font-weight:bold;">기안자</td>
+              <td style="background:#fff;padding:5px;border:1px solid #000;">
+                <span unselectable="on" contenteditable="false" class="comp_wrap" data-cid="1" data-dsl="{{label:draftUser}}" data-wrapper="" data-value="" data-autotype=""><span class="comp_item">기안자</span></span>
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#ddd;padding:5px;border:1px solid #000;text-align:center;font-weight:bold;">소속</td>
+              <td style="background:#fff;padding:5px;border:1px solid #000;">
+                <span unselectable="on" contenteditable="false" class="comp_wrap" data-cid="2" data-dsl="{{label:draftDept}}" data-wrapper="" data-value="" data-autotype=""><span class="comp_item">기안부서</span></span>
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#ddd;padding:5px;border:1px solid #000;text-align:center;font-weight:bold;">기안일</td>
+              <td style="background:#fff;padding:5px;border:1px solid #000;">
+                <span unselectable="on" contenteditable="false" class="comp_wrap" data-cid="3" data-dsl="{{label:draftDate}}" data-wrapper="" data-value="" data-autotype=""><span class="comp_item">기안일</span></span>
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#ddd;padding:5px;border:1px solid #000;text-align:center;font-weight:bold;">문서번호</td>
+              <td style="background:#fff;padding:5px;border:1px solid #000;">
+                <span unselectable="on" contenteditable="false" class="comp_wrap" data-cid="4" data-dsl="{{label:docNo}}" data-wrapper="" data-value="" data-autotype=""><span class="comp_item">문서번호</span></span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </td>
+      <td style="background:white;border:0;text-align:right;vertical-align:top;padding:0;">
+        <span unselectable="on" contenteditable="false" class="comp_wrap" data-wrapper="">
+          <span class="sign_type1_inline" data-group-seq="0" data-group-name="신청" data-group-max-count="1" data-group-type="type1" data-is-reception="">
+            <span class="sign_tit_wrap"><span class="sign_tit"><strong>신청</strong></span></span>
+            <span class="sign_member_wrap"><span class="sign_member"><span class="sign_rank_wrap"><span class="sign_rank">&nbsp;</span></span><span class="sign_wrap">&nbsp;</span><span class="sign_date_wrap"><span class="sign_date">&nbsp;</span></span></span></span>
+          </span>
+        </span>
+        <span unselectable="on" contenteditable="false" class="comp_wrap" data-wrapper="">
+          <span class="sign_type1_inline" data-group-seq="1" data-group-name="승인" data-group-max-count="7" data-group-type="type1" data-is-reception="">
+            <span class="sign_tit_wrap"><span class="sign_tit"><strong>승인</strong></span></span>
+            <span class="sign_member_wrap"><span class="sign_member"><span class="sign_rank_wrap"><span class="sign_rank">&nbsp;</span></span><span class="sign_wrap">&nbsp;</span><span class="sign_date_wrap"><span class="sign_date">&nbsp;</span></span></span></span>
+            <span class="sign_member_wrap"><span class="sign_member"><span class="sign_rank_wrap"><span class="sign_rank">&nbsp;</span></span><span class="sign_wrap">&nbsp;</span><span class="sign_date_wrap"><span class="sign_date">&nbsp;</span></span></span></span>
+            <span class="sign_member_wrap"><span class="sign_member"><span class="sign_rank_wrap"><span class="sign_rank">&nbsp;</span></span><span class="sign_wrap">&nbsp;</span><span class="sign_date_wrap"><span class="sign_date">&nbsp;</span></span></span></span>
+            <span class="sign_member_wrap"><span class="sign_member"><span class="sign_rank_wrap"><span class="sign_rank">&nbsp;</span></span><span class="sign_wrap">&nbsp;</span><span class="sign_date_wrap"><span class="sign_date">&nbsp;</span></span></span></span>
+            <span class="sign_member_wrap"><span class="sign_member"><span class="sign_rank_wrap"><span class="sign_rank">&nbsp;</span></span><span class="sign_wrap">&nbsp;</span><span class="sign_date_wrap"><span class="sign_date">&nbsp;</span></span></span></span>
+            <span class="sign_member_wrap"><span class="sign_member"><span class="sign_rank_wrap"><span class="sign_rank">&nbsp;</span></span><span class="sign_wrap">&nbsp;</span><span class="sign_date_wrap"><span class="sign_date">&nbsp;</span></span></span></span>
+            <span class="sign_member_wrap"><span class="sign_member"><span class="sign_rank_wrap"><span class="sign_rank">&nbsp;</span></span><span class="sign_wrap">&nbsp;</span><span class="sign_date_wrap"><span class="sign_date">&nbsp;</span></span></span></span>
+          </span>
+        </span>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table style="border:0;width:800px;font-family:malgun gothic,dotum,arial,tahoma;margin-top:10px;border-collapse:collapse;">
+  <colgroup>
+    <col width="120">
+    <col width="680">
+  </colgroup>
+  <tbody>
+    <tr>
+      <td style="background:#ddd;padding:5px;border:1px solid #000;height:25px;text-align:center;font-weight:bold;">제목</td>
+      <td style="background:#fff;padding:5px;border:1px solid #000;">
+        <span unselectable="on" contenteditable="false" class="comp_wrap" data-cid="10" data-dsl="{{text:subject}}" data-wrapper="" style="width:100%;" data-value="" data-autotype="">
+          <input class="ipt_editor" type="text">
+        </span>
+        <div data-id="appTitle"></div>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:#fff;border:1px solid #000;padding:5px;height:350px;vertical-align:top;" colspan="2">
+        <!-- OpenAPI content 가 붙는 유일한 슬롯 — 속성값에 HTML을 절대 붙이지 말 것 -->
+        <div data-id="appContent" style="width:100%;min-height:300px;"></div>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+</div>
+</span>

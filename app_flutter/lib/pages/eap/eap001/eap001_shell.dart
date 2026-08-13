@@ -2,11 +2,10 @@
 
 import 'package:flutter/material.dart';
 
-import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_home_view.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_list_view.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_detail_view.dart';
-import 'package:app_flutter/pages/eap/eap001/eap001_widgets.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_settings_view.dart';
 import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 
 class EapShell extends StatelessWidget {
@@ -26,22 +25,7 @@ class EapShell extends StatelessWidget {
       return const Eap001HomeView();
     }
     if (normalized == EapRoutes.settings) {
-      return ColoredBox(
-        color: AppTheme.appSurface,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              EapPageHeader(
-                title: EapRoutes.titleFor(normalized),
-                showSearch: false,
-              ),
-              const EapSettingsPanel(),
-              const SizedBox(height: 24),
-            ],
-          ),
-        ),
-      );
+      return const Eap001SettingsView();
     }
     return Eap001ListView(path: normalized);
   }

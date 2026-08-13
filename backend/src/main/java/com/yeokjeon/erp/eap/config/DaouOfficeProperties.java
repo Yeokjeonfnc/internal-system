@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 public class DaouOfficeProperties {
 
     private String apiBaseUrl = "https://api.daouoffice.com";
+    /** 그룹웨어 웹 호스트 (모바일 기안 data.url 이 상대경로일 때 사용) */
+    private String gatewayBaseUrl = "https://gw.yeokjeonfnc.com";
     private String clientId = "";
     private String clientSecret = "";
     private String formCode = "";

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../router/app_router.dart';
 import '../router/route_meta.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_transfer_html_form.dart';
 
 /// 상단 탭 한 칸.
 @immutable
@@ -84,6 +85,8 @@ class TabManagerNotifier extends Notifier<List<ManagedTab>> {
 
   /// 현재 라우트에 맞춰 탭을 추가하거나 제목만 갱신한다.
   void syncWithRoute(String location) {
+    // EAP HTML iframe 은 body 에 붙이므로 탭 전환 시 DOM 잔존을 막는다.
+    removeEapTransferHtmlOverlays();
     _recordHistory(location);
     var list = canonicalOrder(state);
     final label = _labelFor(location);

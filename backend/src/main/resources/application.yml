@@ -27,6 +27,8 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
+      # TIMESTAMPTZ / CURRENT_TIMESTAMP 를 서울(+09)로 적재·조회
+      connection-init-sql: SET TIME ZONE 'Asia/Seoul'
   
   jpa:
     hibernate:
@@ -89,10 +91,13 @@ external:
 daou:
   office:
     api-base-url: https://api.daouoffice.com
-    client-id: ${DAOU_CLIENT_ID:}
-    client-secret: ${DAOU_CLIENT_SECRET:}
+    gateway-base-url: ${DAOU_GATEWAY_BASE_URL:https://gw.yeokjeonfnc.com}
+    client-id: ${DAOU_CLIENT_ID:dfacf1bcd6cedad3}
+    client-secret: ${DAOU_CLIENT_SECRET:badec6a7f7a5dfe2c4edc7eeb1eaefce}
+    # 다우 관리자에서 '시스템 연동 v4'로 발급한 양식 코드와 동일해야 함
     form-code: ${DAOU_FORM_CODE:yeokjeon_eap01}
-    callback-url: ${DAOU_CALLBACK_URL:http://localhost:3001/api/eap/status}
+    # 다우는 localhost 콜백을 거부하는 경우가 많음 — 공인 HTTPS 사용
+    callback-url: ${DAOU_CALLBACK_URL:https://test.yeokjeon.com/api/eap/status}
 
 yon:
   file:

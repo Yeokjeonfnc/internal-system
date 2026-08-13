@@ -1,34 +1,17 @@
-// 전자결재 문서함 목록 — 폴더별 문서 테이블.
+// 전자결재 문서함 목록 — API 연동.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:app_flutter/core/data/mock/mock_eap_documents.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
-import 'package:app_flutter/pages/eap/eap001/eap001_model.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_provider.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_widgets.dart';
 import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 
-class Eap001ListView extends StatelessWidget {
+class Eap001ListView extends ConsumerWidget {
   const Eap001ListView({super.key, required this.path});
 
   final String path;
-
-  List<EapDocument> _documents() {
-    return switch (path) {
-      EapRoutes.pending => MockEapDocuments.pendingForMe(),
-      EapRoutes.received => MockEapDocuments.inProgress(),
-      EapRoutes.ccPending => MockEapDocuments.inProgress(),
-      EapRoutes.scheduled => [],
-      EapRoutes.drafted => MockEapDocuments.drafted(),
-      EapRoutes.tempSaved => MockEapDocuments.tempSaved(),
-      EapRoutes.approved => MockEapDocuments.completed(),
-      EapRoutes.ccRead => MockEapDocuments.completed(),
-      EapRoutes.inbox => [],
-      EapRoutes.sent => MockEapDocuments.drafted(),
-      EapRoutes.official => [],
-      _ => [],
-    };
-  }
 
   bool get _showDocNum =>
       path == EapRoutes.approved ||
@@ -36,27 +19,62 @@ class Eap001ListView extends StatelessWidget {
       path == EapRoutes.sent;
 
   @override
-  Widget build(BuildContext context) {
-    final docs = _documents();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final docsAsync = ref.watch(eapDocumentsProvider(path));
     final title = EapRoutes.titleFor(path);
-    void openDoc(EapDocument doc) => EapRoutes.openDocument(context, doc);
+
+    Future<void> refresh() async {
+      ref.invalidate(eapDocumentsProvider(path));
+      ref.invalidate(eapHomeSummaryProvider);
+      await ref.read(eapDocumentsProvider(path).future);
+    }
 
     return ColoredBox(
       color: AppTheme.appSurface,
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            EapPageHeader(title: title),
-            if (docs.isEmpty)
-              EapEmptyBanner(message: '$title에 표시할 문서가 없습니다'),
-            EapDocumentTable(
-              documents: docs,
-              showDocNum: _showDocNum,
-              onRowTap: openDoc,
-            ),
-            const SizedBox(height: 24),
-          ],
+      child: RefreshIndicator(
+        onRefresh: refresh,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              EapPageHeader(
+                title: title,
+                trailing: IconButton(
+                  tooltip: '새로고침',
+                  onPressed: () => refresh(),
+                  icon: const Icon(Icons.refresh_rounded, size: 22),
+                ),
+              ),
+              docsAsync.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+                error: (_, _) => EapEmptyBanner(
+                  message: '$title 조회에 실패했습니다',
+                ),
+                data: (docs) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (docs.isEmpty)
+                        EapEmptyBanner(message: '$title에 표시할 문서가 없습니다'),
+                      EapDocumentTable(
+                        documents: docs,
+                        showDocNum: _showDocNum,
+                        onRowTap: (doc) =>
+                            EapRoutes.openDocument(context, doc),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
