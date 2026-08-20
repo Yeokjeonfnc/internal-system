@@ -11,12 +11,15 @@ import java.util.List;
 @Mapper
 public interface BbsFolderMapper {
 
-    List<BbsFolderJdbcRow> selectFoldersForViewer(@Param("viewerIsOwner") boolean viewerIsOwner);
+    List<BbsFolderJdbcRow> selectFoldersForViewer(
+            @Param("viewerIsOwner") boolean viewerIsOwner,
+            @Param("viewerManagesFolders") boolean viewerManagesFolders);
 
     long countPostsByFolderForViewer(
             @Param("folderIdx") int folderIdx,
             @Param("viewerUserId") String viewerUserId,
-            @Param("viewerIsOwner") boolean viewerIsOwner);
+            @Param("viewerIsOwner") boolean viewerIsOwner,
+            @Param("viewerManagesFolders") boolean viewerManagesFolders);
 
     BbsFolderJdbcRow selectFolderById(@Param("folderIdx") int folderIdx);
 

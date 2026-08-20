@@ -337,6 +337,9 @@ class _UserInfoPanelState extends ConsumerState<_UserInfoPanel> {
           ref.read(codeOptionsProvider(_kUserPositionGrpCd)).value ??
           const <CodeOption>[];
       final deptIdx = int.tryParse(_effectiveDeptId ?? '');
+      // 직급 코드 목록을 못 받아온 상태에서는 빈 값이 나오는데, 그대로 보내면
+      // 서버가 "직급을 지워라"로 받아들인다. 그럴 땐 아예 안 보내 기존 값을 지킨다.
+      final positionCd = _effectivePositionCd(positionOpts);
       final body = User.buildUpdateUserRequest(
         name: _nameCtrl.text,
         userPassword: pw,
@@ -345,7 +348,7 @@ class _UserInfoPanelState extends ConsumerState<_UserInfoPanel> {
         mobilePhone: formatKoreanPhoneDisplay(_phoneCtrl.text),
         email: _emailCtrl.text,
         joinDt: _joinDtYmdForApi(),
-        positionCd: _effectivePositionCd(positionOpts),
+        positionCd: positionCd.isEmpty ? null : positionCd,
         svYn: _svYn == SvYn.yes,
         ownerYn: _ownerYn == OwnerYn.yes,
       );

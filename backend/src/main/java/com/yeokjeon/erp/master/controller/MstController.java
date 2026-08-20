@@ -1,5 +1,6 @@
 package com.yeokjeon.erp.master.controller;
 
+import com.yeokjeon.erp.auth.access.AccessDeniedException;
 import com.yeokjeon.erp.auth.access.MenuAccessGuard;
 import com.yeokjeon.erp.auth.access.MenuCodes;
 import com.yeokjeon.erp.auth.service.AuthService;
@@ -15,6 +16,7 @@ import com.yeokjeon.erp.master.dto.UserMstCreateRequestDto;
 import com.yeokjeon.erp.master.dto.UserMstDto;
 import com.yeokjeon.erp.master.dto.UserMstUpdateRequestDto;
 import com.yeokjeon.erp.master.mapper.EmpNoMapper;
+import com.yeokjeon.erp.master.service.MenuPermissionService;
 import com.yeokjeon.erp.master.service.MstService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ public class MstController {
 
     private final MstService mstService;
     private final MenuAccessGuard menuAccessGuard;
+    private final MenuPermissionService menuPermissionService;
     private final TokenInvalidationRegistry tokenInvalidationRegistry;
     private final AuthService authService;
     private final EmpNoMapper empNoMapper;
@@ -41,6 +44,60 @@ public class MstController {
     private static String callerId(HttpServletRequest request) {
         Object v = request.getAttribute(AuthTokenFilter.ATTR_CURRENT_USER_ID);
         return v == null ? null : v.toString();
+    }
+
+    /**
+     * 호출자가 사원관리(mst001) 조회 권한을 가졌는지 — 없다고 예외를 던지지는 않는다.
+     *
+     * <p>{@code GET /users} 는 사원관리 화면 전용이 아니다. 결재선 지정(act002)·부서관리
+     * (mst002)·메뉴권한(mst003)이 모두 이 API 를 "사원 디렉터리"로 쓰기 때문에 여기서
+     * 권한을 요구하면 일반 직원이 결재를 올리지 못한다. 그래서 접근 자체는 막지 않고
+     * 연락처 같은 개인정보만 가린다 — 그 판정에 쓰는 검사다.
+     */
+    private boolean canReadUserContactInfo(HttpServletRequest request) {
+        try {
+            menuAccessGuard.ensure(
+                    callerId(request), MenuCodes.MST001, MenuAccessGuard.Action.VIEW);
+            return true;
+        } catch (AccessDeniedException denied) {
+            return false;
+        }
+    }
+
+    /**
+     * 가맹점주 계정은 사원 명부 자체를 못 보게 한다.
+     *
+     * <p>메뉴 권한 검사만으로는 걸러지지 않는다 — 기준선 스크립트가 사이드바를 그대로
+     * 유지하려고 전 계정·전 메뉴에 {@code can_view='Y'} 를 넣어 뒀기 때문이다. 가맹점주
+     * 에게 열려 있는 화면은 게시판뿐이고 사원 목록을 쓰는 화면은 하나도 없으므로,
+     * 여기서만 신분으로 끊는다.
+     */
+    private void ensureNotFranchiseOwner(String caller) {
+        if (mstService.isFranchiseOwner(caller)) {
+            throw new AccessDeniedException("사원 정보를 조회할 권한이 없습니다.");
+        }
+    }
+
+    /**
+     * 슈퍼관리자 계정은 슈퍼관리자만 건드릴 수 있게 한다.
+     *
+     * <p>초기 비밀번호는 설정 하나로 고정된 공개값이라, 사원관리 수정 권한만 받은
+     * 직원이 admin 계정을 초기화한 뒤 그 값으로 로그인하면 전권을 가져갈 수 있었다.
+     * 비밀번호를 직접 실어 보내는 {@code PUT /users/{userIdx}} 도 같은 경로라
+     * 대상·신규 로그인ID 양쪽에 이 검사를 건다(로그인ID 를 슈퍼관리자 ID 로 바꿔
+     * 올라서는 우회도 함께 막는다).
+     */
+    private void ensureNotSuperAdminTarget(String caller, String targetUserId) {
+        if (targetUserId == null || targetUserId.isBlank()) {
+            return;
+        }
+        if (!menuPermissionService.isSuperAdmin(targetUserId)) {
+            return;
+        }
+        if (menuPermissionService.isSuperAdmin(caller)) {
+            return;
+        }
+        throw new AccessDeniedException("관리자 계정은 관리자만 변경할 수 있습니다.");
     }
 
     /**
@@ -59,15 +116,41 @@ public class MstController {
         return ResponseEntity.ok(ApiResponse.success(new UserIdAvailabilityDto(available)));
     }
 
+    /**
+     * 사원 목록.
+     *
+     * <p>사원관리(mst001) 조회 권한이 없는 호출자에게는 휴대전화·이메일·입사일을 지운
+     * 사본을 내려보낸다. 쓰기만 잠그고 읽기를 열어 뒀던 탓에, 사원관리 메뉴가 보이지도
+     * 않는 일반 직원·가맹점주가 API 를 직접 불러 전 직원 연락처를 통째로 긁어갈 수
+     * 있었다. 결재선 지정 등 다른 화면이 이름·부서·직급만으로 동작하므로 그 값만 남긴다.
+     * 본인 행은 자기 정보이므로 가리지 않는다.
+     */
     @GetMapping("/users")
     public ResponseEntity<ApiResponse<List<UserMstDto>>> userList(
-            @RequestParam(required = false) Integer deptIdx) {
+            @RequestParam(required = false) Integer deptIdx, HttpServletRequest request) {
+        String caller = callerId(request);
+        ensureNotFranchiseOwner(caller);
         List<UserMstDto> users = mstService.getAll(deptIdx);
+        if (!canReadUserContactInfo(request)) {
+            users = MstService.hideContactInfoExceptSelf(users, caller);
+        }
         return ResponseEntity.ok(ApiResponse.success(users));
     }
 
+    /**
+     * 사원 한 명 상세 — 사원관리 화면 전용이라 목록과 달리 아예 막는다.
+     * 본인 조회는 허용한다(내 정보 확인은 권한과 무관하다).
+     */
     @GetMapping("/users/{userIdx}")
-    public ResponseEntity<ApiResponse<UserMstDto>> userOne(@PathVariable Integer userIdx) {
+    public ResponseEntity<ApiResponse<UserMstDto>> userOne(
+            @PathVariable Integer userIdx, HttpServletRequest request) {
+        String caller = callerId(request);
+        try {
+            menuAccessGuard.ensureSelfUserIdx(caller, userIdx);
+        } catch (AccessDeniedException notSelf) {
+            ensureNotFranchiseOwner(caller);
+            menuAccessGuard.ensure(caller, MenuCodes.MST001, MenuAccessGuard.Action.VIEW);
+        }
         UserMstDto user = mstService.get(userIdx);
         return ResponseEntity.ok(ApiResponse.success(user));
     }
@@ -81,7 +164,10 @@ public class MstController {
     @PostMapping("/users")
     public ResponseEntity<ApiResponse<UserMstDto>> userCreate(
             @Valid @RequestBody UserMstCreateRequestDto body, HttpServletRequest request) {
-        menuAccessGuard.ensure(callerId(request), MenuCodes.MST001, MenuAccessGuard.Action.CREATE);
+        String caller = callerId(request);
+        menuAccessGuard.ensure(caller, MenuCodes.MST001, MenuAccessGuard.Action.CREATE);
+        // 설정에만 있고 계정은 아직 없는 슈퍼관리자 ID 로 새 계정을 만들어 올라서는 것도 막는다.
+        ensureNotSuperAdminTarget(caller, body.userId());
         UserMstDto created = mstService.save(body);
 
         // 계정 생성 트랜잭션이 커밋된 **뒤에** 강제변경 플래그를 세운다.
@@ -102,7 +188,12 @@ public class MstController {
             @PathVariable Integer userIdx,
             @RequestBody UserMstUpdateRequestDto body,
             HttpServletRequest request) {
-        menuAccessGuard.ensure(callerId(request), MenuCodes.MST001, MenuAccessGuard.Action.UPDATE);
+        String caller = callerId(request);
+        menuAccessGuard.ensure(caller, MenuCodes.MST001, MenuAccessGuard.Action.UPDATE);
+        ensureNotSuperAdminTarget(caller, mstService.get(userIdx).userId());
+        if (body.isUserIdPresent()) {
+            ensureNotSuperAdminTarget(caller, body.getUserId());
+        }
         UserMstDto updated = mstService.save(userIdx, body);
         // 관리자가 비밀번호를 재설정했다면 그 계정으로 이미 발급된 토큰도 끊는다.
         // (끊지 않으면 잠긴 계정을 쓰던 쪽이 만료까지 그대로 접속 가능하다.)
@@ -117,9 +208,11 @@ public class MstController {
     @DeleteMapping("/users/{userIdx}")
     public ResponseEntity<ApiResponse<Void>> userDelete(
             @PathVariable Integer userIdx, HttpServletRequest request) {
-        menuAccessGuard.ensure(callerId(request), MenuCodes.MST001, MenuAccessGuard.Action.DELETE);
+        String caller = callerId(request);
+        menuAccessGuard.ensure(caller, MenuCodes.MST001, MenuAccessGuard.Action.DELETE);
         // 삭제 전에 로그인 ID 를 확보해 둔다 — 지운 뒤에는 조회할 수 없다.
         UserMstDto target = mstService.get(userIdx);
+        ensureNotSuperAdminTarget(caller, target.userId());
         mstService.remove(userIdx);
         if (target != null) {
             tokenInvalidationRegistry.invalidateAll(target.userId());
@@ -135,8 +228,10 @@ public class MstController {
     @PostMapping("/users/{userIdx}/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @PathVariable Integer userIdx, HttpServletRequest request) {
-        menuAccessGuard.ensure(callerId(request), MenuCodes.MST001, MenuAccessGuard.Action.UPDATE);
+        String caller = callerId(request);
+        menuAccessGuard.ensure(caller, MenuCodes.MST001, MenuAccessGuard.Action.UPDATE);
         UserMstDto target = mstService.get(userIdx);
+        ensureNotSuperAdminTarget(caller, target.userId());
         String userId = target.userId();
         if (userId == null || userId.isBlank()) {
             return ResponseEntity.badRequest()

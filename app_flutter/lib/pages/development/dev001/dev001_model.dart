@@ -55,13 +55,16 @@ class Partner {
   @JsonKey(name: PartnerMstApiJsonKeys.createDt, fromJson: erpFormatYmdFromJson)
   final String createDt;
 
-  @JsonKey(name: PartnerMstApiJsonKeys.partnerNm)
+  // 아래 셋만 `as String` non-null 캐스트로 남아 있었다. partner_email 은 nullable 이라
+  // NULL 인 행이 하나만 있어도 TypeError 가 나고, 그걸 fetchList() 의 catch 가 삼켜
+  // **목록 전체가 '데이터 없음'** 이 된다. 다른 nullable 필드처럼 _stringAny 로 받는다.
+  @JsonKey(name: PartnerMstApiJsonKeys.partnerNm, fromJson: _stringAny)
   final String partnerNm;
 
-  @JsonKey(name: PartnerMstApiJsonKeys.partnerTel)
+  @JsonKey(name: PartnerMstApiJsonKeys.partnerTel, fromJson: _stringAny)
   final String partnerTel;
 
-  @JsonKey(name: PartnerMstApiJsonKeys.partnerEmail)
+  @JsonKey(name: PartnerMstApiJsonKeys.partnerEmail, fromJson: _stringAny)
   final String partnerEmail;
 
   @JsonKey(name: PartnerMstApiJsonKeys.gender, fromJson: _genderFromJson)

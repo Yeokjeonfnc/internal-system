@@ -27,6 +27,29 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
   static const _outline = Color(0xFFE5E7EB);
   static const _tabInactiveBg = Color(0xFFF3F4F6);
 
+  /// 본문을 행마다 [Table] 로 쪼개 그리므로(가상 스크롤) 헤더·행이 위·아래 선을 둘 다
+  /// 그리면 경계선이 2겹이 된다. 헤더만 네 변을 그리고 행은 위를 뺀 세 변만 그린다.
+  static const BorderSide _gridSide = BorderSide(color: _outline, width: 1);
+  static const TableBorder _headerGridBorder = TableBorder(
+    top: _gridSide,
+    bottom: _gridSide,
+    left: _gridSide,
+    right: _gridSide,
+    verticalInside: _gridSide,
+  );
+  static const TableBorder _rowGridBorder = TableBorder(
+    bottom: _gridSide,
+    left: _gridSide,
+    right: _gridSide,
+    verticalInside: _gridSide,
+  );
+
+  /// 열 고정 폭 — 가상 스크롤이라 본문 폭을 미리 합산해야 한다.
+  static const double _nameColWidth = 220;
+  static const double _totalColWidth = 132;
+  static const double _timelineColWidthDay = 50;
+  static const double _timelineColWidthMonth = 58;
+
   late TabController _tabController;
   final ScrollController _tableHScroll = ScrollController();
   final ScrollController _tableVScroll = ScrollController();
@@ -65,7 +88,15 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
   }
 
   Future<void> _loadBrands() async {
-    final brands = await CommonCodeApiService().getCodes(40);
+    // 공통코드 조회는 StateError 를 던진다. 잡지 않으면 아무도 받지 못한 비동기 오류로
+    // 남아 브랜드 필터가 왜 비었는지 알 수 없으므로 여기서 로그만 남기고 넘어간다.
+    final List<CodeOption> brands;
+    try {
+      brands = await CommonCodeApiService().getCodes(40);
+    } catch (e) {
+      debugPrint('Error fetching brand codes: $e');
+      return;
+    }
     if (!mounted) return;
     setState(() => _brandOptions = brands);
   }
@@ -112,10 +143,15 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
         '${value.day.toString().padLeft(2, '0')}';
   }
 
+  /// 보이는 탭만 다시 조회한다. 탭을 바꾸면 [_onTabChanged] 가 그쪽을 다시 조회하므로
+  /// 둘 다 부르면 요청이 두 배가 되고, 화면에 붙지 않은 Future 의 실패는 아무도 받지 못한다.
   void _reloadRows() {
     setState(() {
-      _assigneeRowsFuture = _pullRows('by-assignee');
-      _storeRowsFuture = _pullRows('by-store');
+      if (_tabController.index == 0) {
+        _assigneeRowsFuture = _pullRows('by-assignee');
+      } else {
+        _storeRowsFuture = _pullRows('by-store');
+      }
     });
   }
 
@@ -561,56 +597,80 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
     final nameCol = hasLeading ? 1 : 0;
     final totalCol = hasLeading ? 2 : 1;
     final timelineStart = hasLeading ? 3 : 2;
+    final timelineColWidth = _f.periodKind == '월'
+        ? _timelineColWidthDay
+        : _timelineColWidthMonth;
+    final columnWidths = <int, TableColumnWidth>{
+      if (hasLeading) 0: const FixedColumnWidth(_nameColWidth),
+      nameCol: const FixedColumnWidth(_nameColWidth),
+      totalCol: const FixedColumnWidth(_totalColWidth),
+      for (int i = 0; i < n; i++)
+        timelineStart + i: FixedColumnWidth(timelineColWidth),
+    };
+    // 가로 스크롤 안에서는 폭 제약이 무한이라 열 폭을 직접 합산해 SizedBox 로 고정한다.
+    final tableWidth =
+        (hasLeading ? _nameColWidth : 0.0) +
+        _nameColWidth +
+        _totalColWidth +
+        n * timelineColWidth;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: Scrollbar(
-            controller: _tableHScroll,
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              controller: _tableHScroll,
-              primary: false,
-              scrollDirection: Axis.horizontal,
-              child: Scrollbar(
-                controller: _tableVScroll,
-                thumbVisibility: true,
-                child: SingleChildScrollView(
-                  controller: _tableVScroll,
-                  primary: false,
-                  child: Table(
-                    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                    border: TableBorder.all(color: _outline, width: 1),
-                    columnWidths: {
-                      if (hasLeading) 0: const FixedColumnWidth(220),
-                      nameCol: const FixedColumnWidth(220),
-                      totalCol: const FixedColumnWidth(132),
-                      for (int i = 0; i < n; i++)
-                        timelineStart + i: FixedColumnWidth(
-                          _f.periodKind == '월' ? 50 : 58,
-                        ),
-                    },
+    return Scrollbar(
+      controller: _tableHScroll,
+      thumbVisibility: true,
+      notificationPredicate: (notification) =>
+          notification.metrics.axis == Axis.horizontal,
+      child: SingleChildScrollView(
+        controller: _tableHScroll,
+        primary: false,
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: tableWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Table(
+                defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                border: _headerGridBorder,
+                columnWidths: columnWidths,
+                children: [
+                  TableRow(
+                    decoration: const BoxDecoration(
+                      color: AppTheme.tableRowEven,
+                    ),
                     children: [
-                      TableRow(
-                        decoration: const BoxDecoration(
-                          color: AppTheme.tableRowEven,
+                      if (hasLeading) _cell(theme, leadingHeader, header: true),
+                      _cell(theme, nameHeader, header: true),
+                      _cell(theme, totalHeader, header: true, center: true),
+                      for (int i = 0; i < n; i++)
+                        _cell(
+                          theme,
+                          _timelineHeaderLabel(i),
+                          header: true,
+                          center: true,
                         ),
-                        children: [
-                          if (hasLeading)
-                            _cell(theme, leadingHeader, header: true),
-                          _cell(theme, nameHeader, header: true),
-                          _cell(theme, totalHeader, header: true, center: true),
-                          for (int i = 0; i < n; i++)
-                            _cell(
-                              theme,
-                              _timelineHeaderLabel(i),
-                              header: true,
-                              center: true,
-                            ),
-                        ],
-                      ),
-                      for (int i = 0; i < rows.length; i++)
+                    ],
+                  ),
+                ],
+              ),
+              // 가맹점 탭은 활동이 0건인 가맹점까지 내려와 행이 1,000개를 넘고, '월' 구간이면
+              // 열이 33개다. 한 [Table] 로 그리면 3만 셀이 한 프레임에 build 되어 화면이 멈추므로
+              // dev003 목록([ErpVirtualDataTable])과 같이 행마다 Table 을 만들어 지연 생성한다.
+              Expanded(
+                child: Scrollbar(
+                  controller: _tableVScroll,
+                  thumbVisibility: true,
+                  notificationPredicate: (notification) =>
+                      notification.metrics.axis == Axis.vertical,
+                  child: ListView.builder(
+                    controller: _tableVScroll,
+                    primary: false,
+                    itemCount: rows.length,
+                    itemBuilder: (context, i) => Table(
+                      defaultVerticalAlignment:
+                          TableCellVerticalAlignment.middle,
+                      border: _rowGridBorder,
+                      columnWidths: columnWidths,
+                      children: [
                         TableRow(
                           decoration: BoxDecoration(
                             color: i.isEven
@@ -633,14 +693,15 @@ class _ActivityStatusDetailViewState extends State<ActivityStatusDetailView>
                               _dayCell(theme, _timelineCellValue(rows[i], c)),
                           ],
                         ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 

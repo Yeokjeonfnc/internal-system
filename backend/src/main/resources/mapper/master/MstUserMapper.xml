@@ -58,4 +58,22 @@
         <include refid="userEnrichedSelect"/>
         WHERE u.user_idx = #{userIdx}
     </select>
+
+    <!--
+      사원 삭제 전 참조 정리. user_menu_auth·user_page_filter 는 ON DELETE CASCADE 라
+      건드릴 필요가 없고, 나중에 추가된 아래 세 테이블만 CASCADE 가 없어 남겨 두면
+      23503 으로 삭제가 통째로 실패한다. 호출부(MstService.deleteUserReferences)가
+      테이블 존재를 먼저 확인하고 부른다.
+    -->
+    <delete id="deleteActivityPlanStoreByUserIdx">
+        DELETE FROM activity_plan_store WHERE assignee_user_idx = #{userIdx}
+    </delete>
+
+    <delete id="deleteActivityPlanByUserIdx">
+        DELETE FROM activity_plan WHERE assignee_user_idx = #{userIdx}
+    </delete>
+
+    <delete id="deleteTeamViewPermissionByUserIdx">
+        DELETE FROM team_view_permission WHERE viewer_user_idx = #{userIdx}
+    </delete>
 </mapper>

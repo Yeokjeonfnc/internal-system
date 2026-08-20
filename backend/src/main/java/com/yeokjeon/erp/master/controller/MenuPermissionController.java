@@ -29,16 +29,39 @@ public class MenuPermissionController {
     private final MenuPermissionService menuPermissionService;
     private final MenuAccessGuard menuAccessGuard;
 
+    /*
+     * 아래 2개는 "누가 무엇을 할 수 있는가" 지도다. 쓰기(PUT)만 잠그고 읽기를 열어 두면
+     * 공격자가 mst001·mst003 권한을 가진 계정을 정확히 골라낼 수 있어(권한 상승 표적 정찰)
+     * 쓰기에 건 기준과 어긋난다. 읽기에도 같은 mst003 권한을 요구한다.
+     */
+
     @GetMapping("/menus")
-    public ResponseEntity<ApiResponse<List<MenuMstDto>>> menus() {
+    public ResponseEntity<ApiResponse<List<MenuMstDto>>> menus(HttpServletRequest request) {
+        menuAccessGuard.ensure(
+                MenuAccessGuard.callerId(request), MenuCodes.MST003, MenuAccessGuard.Action.VIEW);
         return ResponseEntity.ok(ApiResponse.success(menuPermissionService.listMenus()));
     }
 
     @GetMapping("/users/{userIdx}/menu-permissions")
     public ResponseEntity<ApiResponse<List<MenuPermissionDto>>> userMenuPermissions(
-            @PathVariable int userIdx) {
+            @PathVariable int userIdx, HttpServletRequest request) {
+        ensureCanReadPermissions(userIdx, request);
         log.info("사용자 메뉴 권한 조회: userIdx={}", userIdx);
         return ResponseEntity.ok(ApiResponse.success(menuPermissionService.getUserPermissions(userIdx)));
+    }
+
+    /**
+     * 본인 권한만은 예외로 연다 — 화면이 로그인 직후 자기 권한을 다시 읽어
+     * 버튼 노출을 맞추는 경로(mst004 등)가 있어, 막으면 그 화면이 조용히 깨진다.
+     * 남의 것은 메뉴권한 관리(mst003) 조회 권한이 있어야 한다.
+     */
+    private void ensureCanReadPermissions(int userIdx, HttpServletRequest request) {
+        String caller = MenuAccessGuard.callerId(request);
+        Integer self = menuPermissionService.findUserIdx(caller);
+        if (self != null && self.intValue() == userIdx) {
+            return;
+        }
+        menuAccessGuard.ensure(caller, MenuCodes.MST003, MenuAccessGuard.Action.VIEW);
     }
 
     /**

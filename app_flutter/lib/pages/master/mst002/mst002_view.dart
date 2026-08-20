@@ -118,8 +118,14 @@ class _DepartmentViewState extends State<DepartmentView> {
     if (newIndex < 0 || newIndex >= visibleRows.length) return;
 
     final moved = visibleRows[oldIndex].department;
-    final target = visibleRows[newIndex].department;
-    if (moved.parentId != target.parentId) {
+    // 놓인 행을 그대로 target 으로 쓰면, 상위 부서를 펼쳐 둔 상태에서는 형제 사이에
+    // 끼어 있는 '자식 행' 이 잡혀 부모가 다르다고 반려된다(같은 레벨끼리 끌었는데도
+    // 경고만 뜨는 원인). 자식 행이면 같은 형제 그룹에 속한 조상으로 바꿔 잡는다.
+    final target = _siblingLevelNodeOf(
+      visibleRows[newIndex].department,
+      moved.parentId,
+    );
+    if (target == null) {
       _showSnackBar('같은 상위 부서 안에서만 순서를 변경할 수 있습니다.');
       return;
     }
@@ -161,6 +167,23 @@ class _DepartmentViewState extends State<DepartmentView> {
       _showSnackBar('순서 저장에 실패했습니다. 다시 조회합니다.');
       await _loadDepartments();
     }
+  }
+
+  /// [node] 자신 또는 그 조상 중 [siblingParentId] 를 상위로 갖는 노드.
+  /// 다른 가지로 끌어다 놓은 경우엔 null 을 돌려 기존 반려 문구를 유지한다.
+  Department? _siblingLevelNodeOf(Department node, String? siblingParentId) {
+    var current = node;
+    // 상위 부서에 순환이 들어가 있어도 여기서 무한 루프가 되면 안 된다(부서 수만큼만 순회).
+    final maxDepth = _getTotalCount();
+    for (var guard = 0; guard <= maxDepth; guard++) {
+      if (current.parentId == siblingParentId) return current;
+      final upperId = current.parentId;
+      if (upperId == null) return null;
+      final upper = _findDepartmentById(upperId, _departments);
+      if (upper == null) return null;
+      current = upper;
+    }
+    return null;
   }
 
   List<Department> _childrenForParent(String? parentId) {
@@ -644,27 +667,32 @@ class _DepartmentTreeRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 1.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppTheme.accentRed.withValues(alpha: 0.08)
-                        : AppTheme.chipNeutralBackground,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '${dept.userCount}',
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
+                // 이 숫자는 하위 부서까지 합산한 인원이다 — 상세의 '소속 사원'(직속만)과
+                // 다를 수밖에 없으므로 무엇을 세는 값인지 알려 준다.
+                Tooltip(
+                  message: '하위 부서 포함 인원',
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 1.5,
+                    ),
+                    decoration: BoxDecoration(
                       color: isSelected
-                          ? AppTheme.accentRed
-                          : AppTheme.textMuted,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                      fontFamilyFallback: AppTheme.koreanFontFallback,
+                          ? AppTheme.accentRed.withValues(alpha: 0.08)
+                          : AppTheme.chipNeutralBackground,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${dept.userCount}',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected
+                            ? AppTheme.accentRed
+                            : AppTheme.textMuted,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        fontFamilyFallback: AppTheme.koreanFontFallback,
+                      ),
                     ),
                   ),
                 ),
@@ -778,7 +806,13 @@ class _DepartmentDetailPanel extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _DeptStatCard(label: '소속 인원', value: '${dept.userCount}명'),
+              // 서버가 재귀 CTE 로 하위 부서까지 합산한 값이다(DeptMstMapper.selectDeptUserCounts).
+              // 아래 '소속 사원' 목록은 직속 사원만이라 라벨을 구분하지 않으면
+              // "21명이라면서 목록은 비어 있다"로 읽혀 데이터가 깨진 줄 안다.
+              child: _DeptStatCard(
+                label: '소속 인원(하위 포함)',
+                value: '${dept.userCount}명',
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -796,6 +830,16 @@ class _DepartmentDetailPanel extends StatelessWidget {
             fontSize: 13.5,
             fontWeight: FontWeight.w700,
             color: AppTheme.textPrimary,
+            fontFamilyFallback: AppTheme.koreanFontFallback,
+          ),
+        ),
+        const SizedBox(height: 3),
+        const Text(
+          '이 부서에 직접 배정된 사원만 표시됩니다. 하위 부서 인원은 해당 부서를 선택해 확인하세요.',
+          style: TextStyle(
+            fontSize: 11,
+            height: 1.35,
+            color: AppTheme.textMuted,
             fontFamilyFallback: AppTheme.koreanFontFallback,
           ),
         ),
@@ -818,15 +862,23 @@ class _DepartmentDetailPanel extends StatelessWidget {
             final users = snap.data ?? const <User>[];
             if (users.isEmpty) {
               return Container(
-                padding: const EdgeInsets.symmetric(vertical: 22),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 22,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: AppTheme.hairline),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Center(
+                child: Center(
                   child: Text(
-                    '소속 사원이 없습니다.',
-                    style: TextStyle(
+                    // 하위 부서가 있으면 위 '소속 인원(하위 포함)' 과 어긋나 보이는 게
+                    // 정상이라는 것까지 알려 줘야 "데이터가 깨졌다"로 읽히지 않는다.
+                    dept.hasChildren
+                        ? '이 부서에 직접 배정된 사원이 없습니다.\n하위 부서 인원은 하위 부서를 선택해 확인하세요.'
+                        : '소속 사원이 없습니다.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
                       fontSize: 12.5,
                       color: AppTheme.textMuted,
                       fontFamilyFallback: AppTheme.koreanFontFallback,

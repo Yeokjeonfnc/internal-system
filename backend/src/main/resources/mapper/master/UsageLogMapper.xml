@@ -119,6 +119,11 @@
             </if>
         </where>
         ORDER BY l.used_at DESC, l.log_idx DESC
+        <!--
+            응답에 '더 있음' 표시를 실을 자리가 없어(List 반환) 화면이 "받은 건수 == 상한"
+            으로 잘림을 판정한다. 이 숫자를 바꾸면 mst005_view.dart 의 _kServerRowLimit 도
+            같이 바꿔야 한다. 아니면 잘린 조회가 다시 '총 N건'으로 보인다.
+        -->
         LIMIT 2000
     </select>
 

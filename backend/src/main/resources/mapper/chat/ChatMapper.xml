@@ -3,6 +3,19 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.yeokjeon.erp.chat.mapper.ChatMapper">
 
+    <!--
+      hidden_at(대화방 소프트 삭제) 마이그레이션이 아직 안 붙은 DB 에서도 메신저가 통째로
+      죽지 않도록, 컬럼이 실제로 있는지 먼저 확인하고 SQL 을 갈라 쓴다.
+      (같은 방식: mapper/master/DeptMstMapper.xml 의 countInformationSchemaColumns)
+    -->
+    <select id="countInformationSchemaColumns" resultType="int">
+        SELECT CAST(COUNT(*) AS INTEGER)
+        FROM information_schema.columns
+        WHERE LOWER(table_schema) = 'public'
+          AND table_name = #{tableName}
+          AND column_name = #{columnName}
+    </select>
+
     <resultMap id="chatRoomRow" type="com.yeokjeon.erp.chat.dto.ChatRoomRow">
         <constructor>
             <arg column="room_idx" javaType="java.lang.Integer"/>
@@ -89,6 +102,12 @@
               AND m2.deleted_at IS NULL
               AND m2.created_at > COALESCE(cm.last_read_at, TIMESTAMPTZ '1970-01-01')
             ) uc ON true
+        <if test="hiddenSupported">
+            <!-- 숨긴 방은 목록에서 빼되, 숨긴 뒤 새 메시지가 오면 다시 보여준다
+                 (안내문 "새 메시지가 오면 다시 나타납니다" 와 동일한 규칙). -->
+            WHERE cm.hidden_at IS NULL
+               OR (lm.created_at IS NOT NULL AND lm.created_at &gt; cm.hidden_at)
+        </if>
         ORDER BY COALESCE(lm.created_at, r.created_at) DESC
     </select>
 
@@ -209,12 +228,39 @@
           AND user_id = #{userId}
     </update>
 
-    <!-- 채팅방 나가기: 본인 멤버십을 제거해 목록에서 영구히 제외(새 메시지가 와도 다시 보이지 않음). -->
-    <delete id="hideRoom">
-        DELETE FROM chat_room_member
+    <!--
+      대화방 삭제 = 본인 목록에서만 숨김(소프트).
+
+      멤버십 행을 지우면 이후 sendMessage 의 참여자 목록에서 빠져 새 메시지 푸시를 못 받고,
+      selectRoomsForUser 가 INNER JOIN 이라 방이 영영 돌아오지 않는다. 1:1 방은 참여자가
+      2명 미만이 되어 findDirectRoom 도 못 찾으므로 같은 상대와 방이 하나 더 생긴다.
+      hidden_at 은 바로 이 용도로 만들어 둔 컬럼이다.
+      컬럼이 없는 DB 에서만 예전 동작(DELETE)으로 물러선다.
+    -->
+    <update id="hideRoom">
+        <choose>
+            <when test="hiddenSupported">
+                UPDATE chat_room_member
+                SET hidden_at = now()
+                WHERE room_idx = #{roomIdx}
+                  AND user_id = #{userId}
+            </when>
+            <otherwise>
+                DELETE FROM chat_room_member
+                WHERE room_idx = #{roomIdx}
+                  AND user_id = #{userId}
+            </otherwise>
+        </choose>
+    </update>
+
+    <!-- 숨긴 1:1 방에 다시 대화를 걸면 새 메시지를 기다리지 않고 즉시 목록으로 되돌린다. -->
+    <update id="unhideRoom">
+        UPDATE chat_room_member
+        SET hidden_at = NULL
         WHERE room_idx = #{roomIdx}
           AND user_id = #{userId}
-    </delete>
+          AND hidden_at IS NOT NULL
+    </update>
 
     <!-- 본인이 보낸 메시지만 소프트 삭제. -->
     <update id="deleteMessage">

@@ -32,7 +32,7 @@ C:\y-on\yon-field-server
 
 PostgreSQL은 16 설치를 권장합니다. 서버에 `postgresql-9.4`가 이미 있더라도 이 프로젝트용 DB로 쓰지 않는 것이 안전합니다.
 
-중요: `admin / admin123`은 프로그램 로그인 계정입니다. PostgreSQL DB 비밀번호가 아닙니다.
+중요: 프로그램 로그인 계정(`admin`)의 비밀번호와 PostgreSQL DB 비밀번호는 서로 다른 값입니다. 혼동하지 마세요.
 
 Java 17도 필요합니다. 서버에서 `java.exe not found`가 나오면 아래 명령으로 설치하세요.
 
@@ -175,7 +175,8 @@ powershell -ExecutionPolicy Bypass -File C:\y-on\yon-field-server\scripts\db-mai
 **로그(감사) 위치**
 
 ```text
-logs\backend\backend.out.log(.타임스탬프)   백엔드 콘솔 — 재기동 시 자동 로테이션(최근 10개)
+logs\backend\backend.log(.날짜.N.gz)        백엔드 전체 로그 — 20MB/30일/합계 1GB 상한으로 자동 롤링
+logs\backend\backend.out.log(.타임스탬프)   백엔드 콘솔(WARN 이상만) — 재기동 시 로테이션(최근 10개)
 logs\caddy\access.log                        웹/API 접근 감사 로그(JSON, 자동 롤링) — Caddy 재시작 후 활성
 logs\deploy-history.log                      배포 이력(누가·언제·어떤 JAR)
 logs\backup.log                              DB 백업 이력
@@ -197,20 +198,25 @@ https://on.yeokjeon.com/#/login
 
 ## Login account
 
-```text
-ID: admin
-PW: admin123
-```
+관리자 계정 ID는 `admin` 입니다.
+
+이 문서에는 비밀번호를 적지 않습니다. 이 README 는 현장 서버 PC에 그대로 복사되므로, 서버에 접근할 수 있는 사람이면 누구나 파일 하나로 관리자 로그인 정보를 알게 됩니다. 예전에 적혀 있던 `admin123` 은 이미 유효하지 않은 값이기도 했습니다 — 그 값을 믿고 반복 입력하면 로그인 연속 실패 10회에서 계정이 10분간 잠겨(`LoginAttemptGuard`) 현장 대응 중에 관리자 로그인 자체가 막힙니다.
+
+초기 비밀번호(신규 계정 생성 시, 그리고 관리자가 "비밀번호 초기화"를 눌렀을 때 설정되는 값)는 `config\backend.env` 의 `DEFAULT_USER_PASSWORD` 로 정합니다. 미설정 시에는 `backend\src\main\resources\application.yml` 의 `auth.default-password` 기본값이 쓰이므로, 현장 서버에서는 반드시 `backend.env` 에 값을 지정해 기본값을 덮어쓰세요.
 
 ## External routing
 
 Cloudflare:
 
 ```text
-DNS A record: test -> 203.234.249.145, Proxied
+DNS A record: on -> 203.234.249.145, Proxied
 Origin Rule: Hostname equals on.yeokjeon.com, Destination Port = 8080
 SSL/TLS mode: Flexible
 ```
+
+주의(미해결): `Flexible` 은 브라우저→Cloudflare 구간만 HTTPS 이고 Cloudflare→오리진 구간은 공인 인터넷을 평문 HTTP 로 지나갑니다. 로그인 비밀번호와 Authorization 토큰(12시간 유효), 가맹점·점주 개인정보가 그 구간에서 그대로 읽힙니다. 오리진에 TLS(Cloudflare Origin CA 인증서 등)를 붙이고 SSL/TLS 모드를 `Full (strict)` 로 올려야 하며, 이는 인증서 발급·FortiGate VIP 포트 변경이 따르는 별도 작업입니다.
+
+Cloudflare 를 건너뛴 공인 IP 직접 접속(`http://203.234.249.145:8080`)은 `caddy\Caddyfile.http` 의 호스트명 허용목록에서 `421` 로 거절합니다. 도메인이 추가되면 그 목록도 같이 고쳐야 합니다.
 
 The frontend calls `/api` on the same host. This means both local and external URLs use the same web gateway:
 

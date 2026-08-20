@@ -296,14 +296,6 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     return s == 'PENDING' || s == 'APPROVED';
   }
 
-  /// 임시보관·자동 임시저장 건을 상신(PENDING)할 때 — 활동일자를 오늘로 맞춘다.
-  bool get _isSubmittingFromDraft {
-    if (_loadedApprStatus?.trim().toUpperCase() == 'DRAFT') return true;
-    if (_draftActIdx != null) return true;
-    // 임시보관 상세 진입 직후(로드 전) 포함
-    return widget.actIdx != null && !_isApprovalWorkflowView;
-  }
-
   /// 결재하기 버튼은 결재대기에서만 표시 (완료 후 재클릭 방지).
   /// 기안자(0번 슬롯)는 결재자가 아니므로 버튼을 숨긴다.
   bool get _canSubmitApproval {
@@ -652,13 +644,13 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
     // 체크리스트 결과 수집
     final checklistResults = _chkSavePayload();
     final approvers = _peerApproverIds();
-    // 임시저장(DRAFT)은 저장 시점의 작성일(오늘)로 act_dt 반영.
-    final actDate = apprStatus == 'DRAFT' ? _today : _activityDate;
 
     return ActivityWriteRequest(
       storeIdx: store.storeIdx,
       actType: _activityKind,
-      actDt: _formatYmd(actDate),
+      // act_dt 는 '언제 방문했는가' 이므로 저장 시점(오늘)이 아니라 사용자가 고른 날짜를 쓴다.
+      // 임시저장/자동저장 때 오늘로 덮어쓰면 며칠 전 방문 건을 등록할 방법이 없어진다.
+      actDt: _formatYmd(_activityDate),
       memoTxt: _specialNotesController.text.trim(),
       actNotes: _activityNotesController.text.trim(),
       svId: userId.isEmpty ? null : userId,
@@ -805,11 +797,6 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
       return;
     }
 
-    // 임시저장 건 상신 시 활동일자는 상신일(오늘)로 반영
-    if (apprStatus == 'PENDING' && _isSubmittingFromDraft) {
-      setState(() => _activityDate = _today);
-    }
-
     // 상신 시 결재자(본인 제외) 및 체크리스트 검증
     if (apprStatus == 'PENDING') {
       final approvers = _peerApproverIds();
@@ -875,9 +862,6 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
   }
 
   Future<ActivitySaveResult?> _pushAct(String apprStatus) async {
-    if (apprStatus == 'DRAFT' && mounted) {
-      setState(() => _activityDate = _today);
-    }
     final payload = _payload(apprStatus);
     if (payload == null) return null;
     final api = Act002Api();
@@ -954,11 +938,6 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
       _electronicSignaturePng = bytes;
       _saving = true;
     });
-
-    // 임시저장 건 상신 시 활동일자는 상신일(오늘)로 반영
-    if (_isSubmittingFromDraft) {
-      setState(() => _activityDate = _today);
-    }
 
     // 1) 태그이력 선택 — 취소하면 상신·서명 업로드 모두 하지 않는다.
     if (!await _pickTagHistoryIfPending('PENDING')) {
@@ -1454,9 +1433,10 @@ class _ActivityRegisterViewState extends State<ActivityRegisterView> {
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                !_isApprovalWorkflowView
-                                    ? _formatYmd(_today)
-                                    : _formatYmd(_activityDate),
+                                // 결재대기·결재완료 문서에서 활동일자(_activityDate)를 보여주면
+                                // 6/10 방문분을 6/18 작성한 문서의 작성 시점을 결재자가 오해한다.
+                                // 실제 create_dt(_loadedCreateDtLabel, 신규는 오늘)를 쓴다.
+                                _docWrittenAtDisplay,
                                 style: kActivityFormValueStyle,
                               ),
                             ),

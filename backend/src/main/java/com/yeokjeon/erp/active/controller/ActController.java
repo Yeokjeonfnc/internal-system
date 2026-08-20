@@ -84,7 +84,8 @@ public class ActController {
 
     @GetMapping("/activities/list/by-appr-note")
     public ResponseEntity<ApiResponse<List<ActiveMstResponseDto>>> listByApprNote(
-            @RequestParam String svId) {
+            @RequestParam String svId, HttpServletRequest request) {
+        ensureSelfOrApprovalViewer(request, svId);
         log.info("활동관리 목록 조회: 지시사항(메모·비결재대기) svId={}", svId);
         return ResponseEntity.ok(ApiResponse.success(actService.listBySvAppr(svId)));
     }
@@ -113,10 +114,32 @@ public class ActController {
     public ResponseEntity<ApiResponse<List<ActiveMstResponseDto>>> listByStatusOnly(
             @RequestParam String apprStatus,
             @RequestParam(required = false) String svId,
-            @RequestParam(required = false) String relUserId) {
+            @RequestParam(required = false) String relUserId,
+            HttpServletRequest request) {
+        ensureSelfOrApprovalViewer(request, svId, relUserId);
         log.info("활동관리 목록 조회: apprStatus={}, svId={}, relUserId={}", apprStatus, svId, relUserId);
         return ResponseEntity.ok(ApiResponse.success(
                 actService.listByStatus(apprStatus, svId, relUserId)));
+    }
+
+    /*
+     * AuthTokenFilter 는 `userId` 라는 이름의 파라미터 하나만 토큰 주인과 대조한다.
+     * 위 두 목록은 신분을 svId·relUserId 라는 다른 이름으로 받으므로 그 검사를 통째로
+     * 비켜간다 — 남의 로그인ID(= 이메일, GET /users 로 열람 가능)만 알면 그 사람의
+     * 미제출 DRAFT 보고서와 지시사항 메모를 그대로 읽을 수 있었다.
+     *
+     * 본인 조회는 그대로 두고, 남을 지정한 조회에만 활동관리결재(act003) 조회 권한을
+     * 요구한다(결재자는 업무상 남의 문서를 봐야 하므로 차단 대상이 아니다).
+     */
+    private void ensureSelfOrApprovalViewer(HttpServletRequest request, String... claimedUserIds) {
+        String caller = MenuAccessGuard.callerId(request);
+        for (String claimed : claimedUserIds) {
+            if (claimed == null || claimed.isBlank() || claimed.equals(caller)) {
+                continue;
+            }
+            menuAccessGuard.ensure(caller, MenuCodes.ACT003, MenuAccessGuard.Action.VIEW);
+            return;
+        }
     }
 
     @GetMapping("/activities/{actIdx}")

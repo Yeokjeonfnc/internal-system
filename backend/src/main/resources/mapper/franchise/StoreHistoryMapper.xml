@@ -35,12 +35,27 @@
                 #{chgDt})
     </insert>
 
+    <!-- chg_user_id 를 'system' 으로 박아 두면 계약금·수퍼바이저 같은 민감 항목을
+         누가 고쳤는지 감사할 수 없다. 호출자(토큰 주인) ID 를 그대로 남긴다. -->
     <insert id="insertHistoryUpdateJson">
         INSERT INTO store_history (store_idx, chg_type, chg_user_id, store_nm, chg_content)
-        VALUES (#{storeIdx}, 'UPDATE', 'system', #{storeNm}, CAST(#{jsonBody} AS JSONB))
+        VALUES (#{storeIdx}, 'UPDATE', #{chgUserId}, #{storeNm}, CAST(#{jsonBody} AS JSONB))
     </insert>
 
-    <update id="dropStoreHistoryFkIfExists">
-        ALTER TABLE store_history DROP CONSTRAINT IF EXISTS fk_his_store_idx
-    </update>
+    <!-- 가맹점 행을 지워도 이력은 감사 기록으로 남겨야 해서 store_history 의
+         store_mst FK 는 있으면 안 된다. 예전에는 삭제할 때마다 애플리케이션이
+         ALTER TABLE 로 떼어냈지만(운영 스키마를 사용자 조작으로 바꾸는 셈이고
+         테이블 소유자가 아니면 삭제 자체가 실패했다), 지금은
+         deploy/db/migrations/20260821_store_history_drop_store_fk.sql 로 한 번만
+         정리한다. 이 조회는 그 마이그레이션이 적용됐는지 확인용이다. -->
+    <select id="existsStoreHistoryFk" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1
+            FROM pg_constraint c
+                     JOIN pg_class t ON t.oid = c.conrelid
+            WHERE c.contype = 'f'
+              AND t.relname = 'store_history'
+              AND c.conname = 'fk_his_store_idx'
+        )
+    </select>
 </mapper>

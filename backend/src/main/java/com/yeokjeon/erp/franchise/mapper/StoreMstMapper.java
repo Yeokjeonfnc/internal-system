@@ -1,5 +1,6 @@
 package com.yeokjeon.erp.franchise.mapper;
 
+import com.yeokjeon.erp.franchise.dto.StoreDeleteBlockerRow;
 import com.yeokjeon.erp.franchise.dto.StoreMstDto;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -24,4 +25,7 @@ public interface StoreMstMapper {
             @Param("addr") String addr,
             @Param("zip") String zip,
             @Param("excludeIdx") int excludeStoreIdx);
+
+    /** 삭제를 막는 참조 건수(점주 계정·NFC 태그·게시글·활동계획). */
+    StoreDeleteBlockerRow countDeleteBlockers(@Param("storeIdx") Integer storeIdx);
 }

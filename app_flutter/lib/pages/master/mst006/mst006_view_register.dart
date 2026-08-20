@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:app_flutter/core/api/base_repository.dart'
+    show formatApiUserMessage;
 import 'package:app_flutter/core/format/korean_phone_display.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
@@ -205,7 +207,12 @@ class _OwnerUserRegisterViewState extends ConsumerState<OwnerUserRegisterView> {
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
-      await showAlertDialog(context, '등록에 실패했습니다.\n$e');
+      // 중복확인을 통과한 뒤에도 저장 사이에 같은 ID 가 먼저 등록될 수 있다.
+      // 서버가 내려준 사유를 그대로 보여 줘야 무엇을 고쳐야 하는지 알 수 있다.
+      await showAlertDialog(
+        context,
+        formatApiUserMessage(e, fallback: '등록에 실패했습니다.'),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }

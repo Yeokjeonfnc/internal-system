@@ -29,8 +29,10 @@ public interface StoreHistoryMapper {
 
     int insertHistoryUpdateJson(
             @Param("storeIdx") Integer storeIdx,
+            @Param("chgUserId") String chgUserId,
             @Param("storeNm") String storeNm,
             @Param("jsonBody") String jsonBody);
 
-    void dropStoreHistoryFkIfExists();
+    /** `fk_his_store_idx` 가 아직 남아 있는지 — 남아 있으면 가맹점 삭제가 FK 위반으로 막힌다. */
+    boolean existsStoreHistoryFk();
 }

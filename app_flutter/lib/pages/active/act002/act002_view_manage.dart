@@ -343,6 +343,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView>
                   ActivityChecklistTable(
                     key: ValueKey<int>(_readTabReloadEpoch[3]),
                     rowKeywordFilter: _keywordCtrl.text.trim(),
+                    brandLabel: _brand,
                     rangeStart: _activityRangeStart,
                     rangeEnd: _activityRangeEnd,
                     onFilteredRowCount: (c) => _onListRowCount(3, c),
@@ -362,6 +363,8 @@ class ActivityChecklistTable extends StatefulWidget {
   const ActivityChecklistTable({
     super.key,
     this.rowKeywordFilter = '',
+    this.brandLabel = '',
+    this.brandCdFilter,
     this.rangeStart,
     this.rangeEnd,
     this.onFilteredRowCount,
@@ -369,6 +372,12 @@ class ActivityChecklistTable extends StatefulWidget {
 
   /// 가맹점명·코드·수퍼바이저·상담내용 등 통합 키워드 (부모에서 전달).
   final String rowKeywordFilter;
+
+  /// 상단 브랜드 필터(표시명). [brandCdFilter] 가 없을 때 행 이름·코드와 비교한다.
+  final String brandLabel;
+
+  /// 공통코드 codeCd. 있으면 [ActivityRow.brandCd] 와만 비교한다.
+  final String? brandCdFilter;
   final DateTime? rangeStart;
   final DateTime? rangeEnd;
 
@@ -403,6 +412,20 @@ class ActivityChecklistTableState extends State<ActivityChecklistTable> {
     if (str.length >= 10) return str.substring(0, 10);
     if (str.contains('T')) return str.split('T').first;
     return str;
+  }
+
+  /// 다른 탭([ActivityDraftsTable])과 같은 판정 — 상단 브랜드 칩은 탭과 무관하게 항상
+  /// '브랜드: X' 를 붙이는데 이 탭만 거르지 않아 사용자가 필터가 걸린 결과로 오인했다.
+  bool _rowMatchesBrand(ActivityRow row) {
+    final cdFilter = widget.brandCdFilter?.trim() ?? '';
+    if (cdFilter.isNotEmpty) {
+      return row.brandCd.trim() == cdFilter;
+    }
+    final label = widget.brandLabel.trim();
+    if (label.isEmpty || label == '전체') return true;
+    final nm = row.brandNm.trim();
+    final cd = row.brandCd.trim();
+    return nm == label || cd == label;
   }
 
   List<Widget> _rowCells(BuildContext context, ActivityRow row) {
@@ -454,10 +477,11 @@ class ActivityChecklistTableState extends State<ActivityChecklistTable> {
                   .where((e) => erpActivityRowInDateRange(e, start, end))
                   .toList()
             : raw;
+        final byBrand = byDate.where(_rowMatchesBrand).toList();
         final kw = widget.rowKeywordFilter.trim();
         final rows = kw.isEmpty
-            ? byDate
-            : byDate.where((e) => erpActivityRowMatchesKeyword(e, kw)).toList();
+            ? byBrand
+            : byBrand.where((e) => erpActivityRowMatchesKeyword(e, kw)).toList();
 
         erpNotifyFilteredRowCount(widget.onFilteredRowCount, rows.length);
         if (rows.isEmpty) {

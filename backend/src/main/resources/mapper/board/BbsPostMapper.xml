@@ -62,9 +62,21 @@
 
     <sql id="folderVisibility">
         (
-            <!-- 사원/관리자: 모든 폴더의 글 조회. 가맹점주: owner_view_yn = 'Y' 폴더만. -->
-            #{viewerIsOwner} = false
-            OR COALESCE(CAST(f.owner_view_yn AS VARCHAR), 'Y') = 'Y'
+            <!--
+              폴더의 '조회 권한' 설정을 글 목록에도 그대로 적용한다.
+              가맹점주: owner_view_yn='Y', 사원: staff_view_yn='Y' 폴더의 글만.
+              (예전에는 사원 조건이 없어 '가맹점주 전용' 폴더의 글이 전 사원에게 보였다.)
+              폴더 관리 권한자만 예외 — 감춘 폴더도 봐야 설정을 되돌릴 수 있다.
+            -->
+            #{viewerManagesFolders} = true
+            OR (
+                #{viewerIsOwner} = true
+                AND COALESCE(CAST(f.owner_view_yn AS VARCHAR), 'Y') = 'Y'
+            )
+            OR (
+                #{viewerIsOwner} = false
+                AND COALESCE(CAST(f.staff_view_yn AS VARCHAR), 'Y') = 'Y'
+            )
         )
     </sql>
 
@@ -119,7 +131,18 @@
         <if test="keyword != null and keyword != ''">
             AND (
                 p.title ILIKE CONCAT('%', #{keyword}, '%')
-                OR COALESCE(p.body_txt, '') ILIKE CONCAT('%', #{keyword}, '%')
+                <!--
+                  본문 이미지는 별도 첨부가 아니라 base64 data URI 로 body_txt(Quill Delta) 안에
+                  인라인된다. body_txt 를 그대로 훑으면 'pos'·'2026' 같은 영숫자 키워드가 수십만 자의
+                  base64 문자열에 거의 반드시 우연 일치해 무관한 글이 전부 걸린다.
+                  data URI 만 걷어낸 뒤 비교한다.
+                -->
+                OR regexp_replace(
+                       COALESCE(p.body_txt, ''),
+                       'data:[^;,"]*;base64,[A-Za-z0-9+/=]+',
+                       '',
+                       'g'
+                   ) ILIKE CONCAT('%', #{keyword}, '%')
                 OR COALESCE(um.user_name, '') ILIKE CONCAT('%', #{keyword}, '%')
             )
         </if>

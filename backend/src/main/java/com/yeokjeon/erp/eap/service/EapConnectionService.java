@@ -7,15 +7,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -58,22 +53,16 @@ public class EapConnectionService {
                 .build();
     }
 
+    /**
+     * 다우오피스에 "닿는가"만 확인한다 — 조회(HEAD)만 하고 아무것도 만들지 않는다.
+     *
+     * <p>예전 구현은 기안 등록 엔드포인트({@code POST /public/v4/approval/document})를 실제로
+     * 호출하고 302 가 오면 인증 성공으로 판정했다. 즉 성공 경로가 곧 결재문서 생성이라,
+     * 환경설정 화면을 열 때마다(=이 메서드가 불릴 때마다) 다우오피스 결재함에 'ERP 연결 테스트'
+     * 문서가 한 건씩 기안되고 결재자에게 알림이 갔다. 연결 확인이 운영 데이터를 만들어서는
+     * 안 되므로, 인증키 유효성 판정을 포기하고 도달 가능 여부만 본다.
+     */
     private DaouProbeResult probeDaouOffice() throws Exception {
-        Map<String, String> form = new LinkedHashMap<>();
-        form.put("clientId", daouOfficeProperties.getClientId());
-        form.put("clientSecret", daouOfficeProperties.getClientSecret());
-        form.put("formCode", blankTo(daouOfficeProperties.getFormCode(), "connection_test"));
-        form.put("title", "ERP 연결 테스트");
-        form.put("content", "<p>연결 테스트용 문서입니다.</p>");
-        // 기본값은 운영 도메인 — 테스트 서버에서는 DAOU_CALLBACK_URL 환경변수로 덮어쓴다.
-        form.put("callbackUrl", blankTo(
-                daouOfficeProperties.getCallbackUrl(),
-                "https://on.yeokjeon.com/api/eap/status"));
-
-        String body = form.entrySet().stream()
-                .map(e -> encode(e.getKey()) + "=" + encode(e.getValue()))
-                .collect(Collectors.joining("&"));
-
         String url = trimSlash(daouOfficeProperties.getApiBaseUrl())
                 + "/public/v4/approval/document";
 
@@ -85,47 +74,29 @@ public class EapConnectionService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(TIMEOUT)
-                .header("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .header("Accept", "*/*")
+                .method("HEAD", HttpRequest.BodyPublishers.noBody())
                 .build();
 
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
         int status = response.statusCode();
-        String responseBody = response.body() == null ? "" : response.body();
 
-        log.info("다우오피스 연결 테스트 응답 status={} bodyLen={}", status, responseBody.length());
+        log.info("다우오피스 연결 확인(HEAD) 응답 status={}", status);
 
-        if (status == 302) {
-            return new DaouProbeResult(
-                    true,
-                    true,
-                    "인증 성공 — 기안 API 응답 302 Redirect (연동 가능)");
-        }
-
-        if (responseBody.contains("901") || responseBody.contains("유효하지 않은 client ID")) {
-            return new DaouProbeResult(true, false, "다우오피스 응답: Client ID 오류(901)");
-        }
-        if (responseBody.contains("902") || responseBody.contains("client Secret")) {
-            return new DaouProbeResult(true, false, "다우오피스 응답: Client Secret 오류(902)");
-        }
-        if (responseBody.contains("955") || responseBody.contains("도메인 코드")) {
-            return new DaouProbeResult(true, false, "다우오피스 응답: formCode/도메인 코드 오류(955)");
-        }
-        if (status >= 200 && status < 500) {
+        if (status >= 500) {
             return new DaouProbeResult(
                     true,
                     false,
-                    "다우오피스 서버 응답 HTTP " + status + " — 설정(formCode·callbackUrl 등)을 확인하세요.");
+                    "다우오피스 서버 오류 HTTP " + status + " — 잠시 후 다시 확인하세요.");
         }
 
+        // 상태코드가 무엇이든 응답이 왔다는 것은 주소·네트워크·TLS 가 살아 있다는 뜻이다.
+        // 인증키가 맞는지는 여기서 알 수 없다 — 확인하려면 실제 기안을 남겨야 하기 때문.
         return new DaouProbeResult(
+                true,
                 false,
-                false,
-                "다우오피스 서버 HTTP " + status);
-    }
-
-    private static String encode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+                "주소 연결 정상(HTTP " + status + ") — 인증키 유효성은 실제 기안 시 확인됩니다."
+                        + " 연결 테스트가 결재문서를 만들지 않도록 조회만 수행합니다.");
     }
 
     private static String trimSlash(String base) {
@@ -133,10 +104,6 @@ public class EapConnectionService {
             return "";
         }
         return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
-    }
-
-    private static String blankTo(String value, String fallback) {
-        return value == null || value.isBlank() ? fallback : value;
     }
 
     private static String nullToDash(String value) {

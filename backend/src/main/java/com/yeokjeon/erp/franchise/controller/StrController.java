@@ -130,10 +130,11 @@ public class StrController {
     @PostMapping
     public ResponseEntity<ApiResponse<StoreMstDto>> createStore(
             @RequestBody StoreMstWriteRequestDto body, HttpServletRequest request) {
-        menuAccessGuard.ensure(
-                MenuAccessGuard.callerId(request), MenuCodes.STR001, MenuAccessGuard.Action.CREATE);
+        // 변경 이력의 '수정자'로 남길 호출자 — 요청 파라미터가 아니라 토큰 주인이라 사칭 불가.
+        String callerId = MenuAccessGuard.callerId(request);
+        menuAccessGuard.ensure(callerId, MenuCodes.STR001, MenuAccessGuard.Action.CREATE);
         log.info("가맹점 생성 요청: {}", body.storeCd());
-        StoreMstDto createdStore = strService.create(body);
+        StoreMstDto createdStore = strService.create(body, callerId);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("가맹점이 생성되었습니다", createdStore));
@@ -144,10 +145,10 @@ public class StrController {
             @PathVariable Integer storeIdx,
             @RequestBody StoreMstWriteRequestDto body,
             HttpServletRequest request) {
-        menuAccessGuard.ensure(
-                MenuAccessGuard.callerId(request), MenuCodes.STR001, MenuAccessGuard.Action.UPDATE);
+        String callerId = MenuAccessGuard.callerId(request);
+        menuAccessGuard.ensure(callerId, MenuCodes.STR001, MenuAccessGuard.Action.UPDATE);
         log.info("가맹점 수정 요청: {}", storeIdx);
-        StoreMstDto updatedStore = strService.update(storeIdx, body);
+        StoreMstDto updatedStore = strService.update(storeIdx, body, callerId);
         return ResponseEntity.ok(
                 ApiResponse.success("가맹점이 수정되었습니다", updatedStore));
     }
@@ -155,10 +156,10 @@ public class StrController {
     @DeleteMapping("/{storeIdx}")
     public ResponseEntity<ApiResponse<Void>> deleteStore(
             @PathVariable Integer storeIdx, HttpServletRequest request) {
-        menuAccessGuard.ensure(
-                MenuAccessGuard.callerId(request), MenuCodes.STR001, MenuAccessGuard.Action.DELETE);
+        String callerId = MenuAccessGuard.callerId(request);
+        menuAccessGuard.ensure(callerId, MenuCodes.STR001, MenuAccessGuard.Action.DELETE);
         log.info("가맹점 삭제 요청: {}", storeIdx);
-        strService.remove(storeIdx);
+        strService.remove(storeIdx, callerId);
         return ResponseEntity.ok(
                 ApiResponse.success("가맹점이 삭제되었습니다", null));
     }

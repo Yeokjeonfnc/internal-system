@@ -43,9 +43,11 @@ public class OwnerUserService {
 
     @Transactional
     public OwnerUserMstDto save(OwnerUserMstCreateRequestDto body) {
+        String userId = trimToNull(body.userId());
+        ensureUserIdAvailable(userId, null);
         MstUser user = MstUser.builder()
                 .userName(body.userName().trim())
-                .userId(trimToNull(body.userId()))
+                .userId(userId)
                 // 비밀번호는 절대 평문으로 저장하지 않는다.
                 .userPassword(passwordHasher.hash(body.userPassword()))
                 .userPhone(trimToNull(body.userPhone()))
@@ -66,7 +68,9 @@ public class OwnerUserService {
             user.setUserName(trimToNull(body.getUserName()));
         }
         if (body.isUserIdPresent()) {
-            user.setUserId(trimToNull(body.getUserId()));
+            String nextUserId = trimToNull(body.getUserId());
+            ensureUserIdAvailable(nextUserId, userIdx);
+            user.setUserId(nextUserId);
         }
         String pw = body.getUserPassword();
         if (pw != null && !pw.isBlank()) {
@@ -92,6 +96,25 @@ public class OwnerUserService {
         MstUser user = findOwnerOrThrow(userIdx);
         mstUserRepository.delete(user);
         log.info("가맹점주 삭제 완료: userIdx={}", userIdx);
+    }
+
+    /**
+     * 로그인ID 중복 확인 — {@code user_mst.user_id} 는 UNIQUE 라 그대로 저장하면
+     * 제약 위반이 GlobalExceptionHandler 에서 "서버 오류가 발생했습니다" 로 가려져
+     * 사용자가 무엇이 잘못됐는지 알 수 없다. 등록 화면에만 있는 중복확인 버튼은
+     * 상세 수정·API 직접 호출을 막지 못하므로 서버에서 한 번 더 거른다.
+     *
+     * @param excludeUserIdx 수정 대상 본인(자기 ID 를 그대로 다시 저장하는 경우) — 등록이면 null
+     */
+    private void ensureUserIdAvailable(String userId, Integer excludeUserIdx) {
+        if (userId == null) {
+            return;
+        }
+        mstUserRepository.findByUserId(userId).ifPresent(existing -> {
+            if (excludeUserIdx == null || !excludeUserIdx.equals(existing.getUserIdx())) {
+                throw new IllegalArgumentException("이미 사용 중인 로그인 ID 입니다: " + userId);
+            }
+        });
     }
 
     private MstUser findOwnerOrThrow(int userIdx) {

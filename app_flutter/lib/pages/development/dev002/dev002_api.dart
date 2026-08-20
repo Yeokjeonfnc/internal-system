@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/api_client.dart';
 import 'package:app_flutter/core/api/base_repository.dart';
+import 'package:app_flutter/core/auth/auth_token_store.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_model.dart';
 import 'package:app_flutter/core/property_mst/property_mst_write_request.dart';
 
@@ -199,12 +200,20 @@ class PropertyApiService extends BaseRepository {
   String propertyDocumentDownloadUrl(int propIdx, int propertyDocIdx) {
     final base = ApiClient.resolveBaseUrl();
     final path = PropertyMstApiPaths.documentDownload(propIdx, propertyDocIdx);
+    final String url;
     if (base.endsWith('/') && path.startsWith('/')) {
-      return '${base.substring(0, base.length - 1)}$path';
+      url = '${base.substring(0, base.length - 1)}$path';
+    } else if (!base.endsWith('/') && !path.startsWith('/')) {
+      url = '$base/$path';
+    } else {
+      url = '$base$path';
     }
-    if (!base.endsWith('/') && !path.startsWith('/')) {
-      return '$base/$path';
-    }
-    return '$base$path';
+    // 이 URL 은 새 탭(launchUrl)으로 직접 열려 Dio 인터셉터를 타지 않는다 —
+    // Authorization 헤더가 실리지 않아 그대로 두면 항상 401 이다.
+    // 서버가 /download 로 끝나는 경로에 한해 쿼리 토큰을 허용하므로 함께 붙인다
+    // (메신저 첨부 attachmentUrl 과 같은 규약).
+    if (!AuthTokenStore.hasToken) return url;
+    final sep = url.contains('?') ? '&' : '?';
+    return '$url${sep}token=${Uri.encodeQueryComponent(AuthTokenStore.token)}';
   }
 }

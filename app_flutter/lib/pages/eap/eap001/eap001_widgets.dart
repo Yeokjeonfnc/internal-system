@@ -437,9 +437,12 @@ class _EapSettingsPanelState extends State<EapSettingsPanel> {
                 r?.daouReachable ?? false,
                 r?.daouApiBaseUrl ?? 'https://api.daouoffice.com',
               ),
+              // 연결 테스트는 조회만 한다 — 예전처럼 기안 API 를 호출하면 확인할 때마다
+              // 다우오피스 결재함에 'ERP 연결 테스트' 문서가 실제로 쌓인다.
+              // 그래서 인증키 유효성(daouAuthOk)은 서버가 판정할 수 없고, 도달 여부만 표시한다.
               _statusRow(
-                '다우 인증/기안',
-                r?.daouAuthOk ?? false,
+                '다우 기안 API',
+                r?.daouReachable ?? false,
                 r?.daouMessage ?? (_error ?? '테스트 대기'),
               ),
               if (r != null) ...[

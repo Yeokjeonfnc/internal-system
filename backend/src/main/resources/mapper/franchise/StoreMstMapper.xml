@@ -117,7 +117,19 @@
                      AND CAST(br.code_cd AS TEXT) = CAST(sm.brand_cd AS VARCHAR)
                  LEFT JOIN user_mst ucs ON ucs.user_id = sm.cont_manager
                  LEFT JOIN user_mst ues ON ues.user_id = sm.edu_manager
-                 LEFT JOIN user_mst usv ON usv.user_id = sm.sv_id
+                 <!-- 담당SV 는 이원 상태다 — 화면에서 저장한 행은 sv_id 에 로그인ID(이메일)가,
+                      과거 이관 데이터는 사람 이름이 들어 있다. user_id 로만 조인하면 1041건 중
+                      1034건이 sv_nm = null 이 되어 SV 이름 검색·필터가 통째로 헛돈다.
+                      이름으로도 찾되, 동명이인으로 행이 불어나면 안 되므로 LATERAL + LIMIT 1 로
+                      한 명만 고른다(로그인ID 일치를 이름 일치보다 우선). -->
+                 LEFT JOIN LATERAL (
+                     SELECT u.user_name
+                     FROM user_mst u
+                     WHERE TRIM(COALESCE(sm.sv_id, '')) &lt;&gt; ''
+                       AND (u.user_id = TRIM(sm.sv_id) OR u.user_name = TRIM(sm.sv_id))
+                     ORDER BY (u.user_id = TRIM(sm.sv_id)) DESC, u.user_idx
+                     LIMIT 1
+                 ) usv ON TRUE
     </sql>
 
     <select id="selectStoreListOrdered" resultMap="storeMstDto">
@@ -163,5 +175,20 @@
         WHERE LOWER(TRIM(COALESCE(sm.address, ''))) = LOWER(TRIM(#{addr}))
           AND COALESCE(TRIM(sm.zip_cd), '') = COALESCE(TRIM(#{zip}), '')
           AND sm.store_idx &lt;&gt; #{excludeIdx}
+    </select>
+
+    <!-- SELECT 열 순서 = StoreDeleteBlockerRow record 컴포넌트 선언 순서.
+         store_mst 를 참조하면서 ON DELETE 절이 없는 FK 들 — 하나라도 걸리면
+         DELETE 가 23503 으로 떨어지므로 무엇이 막는지 미리 세어 알려준다. -->
+    <select id="countDeleteBlockers" resultType="com.yeokjeon.erp.franchise.dto.StoreDeleteBlockerRow">
+        SELECT
+            CAST((SELECT COUNT(*) FROM user_mst u
+                   WHERE u.store_idx = #{storeIdx}) AS INTEGER) AS owner_user_cnt,
+            CAST((SELECT COUNT(*) FROM store_nfc_tag t
+                   WHERE t.store_idx = #{storeIdx}) AS INTEGER) AS nfc_tag_cnt,
+            CAST((SELECT COUNT(*) FROM bbs_post p
+                   WHERE p.store_idx = #{storeIdx}) AS INTEGER) AS bbs_post_cnt,
+            CAST((SELECT COUNT(*) FROM activity_plan_store a
+                   WHERE a.store_idx = #{storeIdx}) AS INTEGER) AS plan_store_cnt
     </select>
 </mapper>

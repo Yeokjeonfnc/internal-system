@@ -7,11 +7,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -127,6 +131,43 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(
                         "연결된 데이터가 있어 처리할 수 없습니다. "
                                 + "하위 항목을 먼저 정리한 뒤 다시 시도해 주세요."));
+    }
+
+    /**
+     * 매핑이 없는 경로(오타·끝 슬래시·삭제된 엔드포인트 호출).
+     *
+     * <p>이 클래스는 {@code ResponseEntityExceptionHandler} 를 상속하지 않기 때문에
+     * Spring 이 던지는 이 예외들이 아래 포괄 핸들러로 흘러 500 이 되고 있었다.
+     * "없는 주소"는 서버 장애가 아니다 — 500 으로 내보내면 진짜 장애와 구분되지 않아
+     * 모니터링이 상시 오탐하고, 스택트레이스가 로그를 채워 진짜 500 을 못 찾는다.
+     */
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<ApiResponse<Void>> handleNotFound(Exception ex) {
+        // 오탈자 요청 한 건마다 스택트레이스를 남기지 않는다 — 한 줄로만 기록.
+        log.warn("No handler for request: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error("요청한 경로를 찾을 수 없습니다."));
+    }
+
+    /** 경로는 있으나 메서드가 다른 경우(예: GET 전용 API 에 POST). */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex) {
+        log.warn("Method not supported: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(ApiResponse.error("지원하지 않는 요청 방식입니다: " + ex.getMethod()));
+    }
+
+    /** Content-Type 불일치(예: JSON 전용 API 에 폼 전송). */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException ex) {
+        log.warn("Media type not supported: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(ApiResponse.error("지원하지 않는 형식의 요청입니다."));
     }
 
     /**

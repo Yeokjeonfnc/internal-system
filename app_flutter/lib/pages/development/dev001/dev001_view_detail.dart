@@ -380,16 +380,6 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
     });
   }
 
-  Future<void> _pickRegistrationDate() async {
-    final picked = await showAccentDatePicker(
-      context: context,
-      initialDate: _registrationDate,
-    );
-    if (picked != null) {
-      setState(() => _registrationDate = picked);
-    }
-  }
-
   Future<void> _pickBirthDate() async {
     final picked = await showAccentDatePicker(
       context: context,
@@ -453,13 +443,13 @@ class _PartnerInfoFormState extends ConsumerState<_PartnerInfoForm> {
                 ),
         ),
         const SizedBox(height: 10),
+        // 등록일자는 partner_mst.create_dt — JPA `@CreatedDate` + `updatable=false`
+        // 감사 컬럼이라 클라이언트가 값을 정할 수 없다. 예전에는 수정 가능한 것처럼
+        // 달력을 열어 줬지만 payload 에 담기지 않아 저장한 뒤 되돌아가 보였다.
+        // 저장되지 않는 값을 편집 가능한 척 보여주지 않도록 읽기 전용으로 고정한다.
         LabeledFormRow(
           label: '등록일자',
-          requiredField: true,
-          child: DateInputWithPicker(
-            value: _registrationDate,
-            onPick: widget.isEditing ? _pickRegistrationDate : () {},
-          ),
+          child: ReadonlyValue(_formatYmd(_registrationDate) ?? '-'),
         ),
         const SizedBox(height: 10),
         LabeledFormRow(
@@ -631,7 +621,9 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
   final _addressController = TextEditingController();
   final _addressDetailController = TextEditingController();
 
-  DateTime? _registrationDate = DateTime.now();
+  /// 등록일자는 서버가 partner_mst.create_dt 로 기록한다(요청 본문에 담기지 않는다).
+  /// 화면에는 "오늘 등록된다"는 사실만 알려주는 용도로 둔다.
+  final DateTime _registrationDate = DateTime.now();
   DateTime? _birthDate;
   Gender? _gender;
   PartnerStatus _partnerStatus = PartnerStatus.prospect;
@@ -647,16 +639,6 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
     _addressController.dispose();
     _addressDetailController.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickRegistrationDate() async {
-    final picked = await showAccentDatePicker(
-      context: context,
-      initialDate: _registrationDate,
-    );
-    if (picked != null) {
-      setState(() => _registrationDate = picked);
-    }
   }
 
   Future<void> _pickBirthDate() async {
@@ -681,7 +663,7 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
   bool _validate() {
     final missing = <String>[];
     if (_nameController.text.trim().isEmpty) missing.add('성명');
-    if (_registrationDate == null) missing.add('등록일자');
+    // 등록일자는 서버가 채우므로 사용자 입력을 요구하지 않는다.
     if (_phoneController.text.trim().isEmpty) missing.add('휴대전화');
     if (_emailController.text.trim().isEmpty) missing.add('이메일주소');
 
@@ -817,13 +799,11 @@ class _PartnerRegisterPanelState extends ConsumerState<_PartnerRegisterPanel> {
           ),
         ),
         const SizedBox(height: 10),
+        // 등록일자(create_dt)는 서버가 기록하는 감사 컬럼이라 요청 본문에 담을 수 없다.
+        // 달력으로 고르게 두면 고른 날짜와 다른 값이 저장돼 혼란만 준다.
         LabeledFormRow(
           label: '등록일자',
-          requiredField: true,
-          child: DateInputWithPicker(
-            value: _registrationDate,
-            onPick: _pickRegistrationDate,
-          ),
+          child: ReadonlyValue(_formatYmd(_registrationDate) ?? '-'),
         ),
         const SizedBox(height: 10),
         LabeledFormRow(

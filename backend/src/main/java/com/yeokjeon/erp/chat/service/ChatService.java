@@ -45,6 +45,9 @@ public class ChatService {
 
     private Path storageRoot;
 
+    /** hidden_at 컬럼 존재 여부 캐시 — null 이면 아직 확인 전. */
+    private volatile Boolean hiddenAtSupported;
+
     @PostConstruct
     void initStorageRoot() throws IOException {
         storageRoot = Path.of(fileStorageProperties.getStorageRoot())
@@ -55,7 +58,7 @@ public class ChatService {
 
     public List<ChatRoomDto> listRooms(String userId) {
         String uid = requireUserId(userId);
-        return chatMapper.selectRoomsForUser(uid).stream()
+        return chatMapper.selectRoomsForUser(uid, supportsHiddenAt()).stream()
                 .map(this::toRoomDto)
                 .collect(Collectors.toList());
     }
@@ -100,6 +103,10 @@ public class ChatService {
                     .orElseThrow();
             Integer existing = chatMapper.findDirectRoom(uid, other);
             if (existing != null) {
+                // 전에 숨겨 둔 방이면 되살린다 — 새 방을 만들면 과거 대화가 끊긴다.
+                if (supportsHiddenAt()) {
+                    chatMapper.unhideRoom(existing, uid);
+                }
                 return requireRoom(uid, existing);
             }
         }
@@ -153,12 +160,15 @@ public class ChatService {
         chatMapper.markRead(roomIdx, uid);
     }
 
-    /** 대화방 나가기 — 본인 멤버십을 제거해 목록에서 영구히 제외(새 메시지가 와도 다시 보이지 않음). */
+    /**
+     * 대화방 삭제 — 본인 목록에서만 숨긴다(소프트). 확인 다이얼로그가 약속한 대로
+     * 새 메시지가 오면 다시 나타나며, 멤버십을 지우지 않으므로 그 사이의 메시지도 놓치지 않는다.
+     */
     @Transactional
     public void hideRoom(String userId, int roomIdx) {
         String uid = requireUserId(userId);
         ensureMember(uid, roomIdx);
-        chatMapper.hideRoom(roomIdx, uid);
+        chatMapper.hideRoom(roomIdx, uid, supportsHiddenAt());
     }
 
     /** 메시지 삭제(소프트 삭제) — 본인이 보낸 메시지만 가능. 멤버 전원에게 실시간 통지. */
@@ -327,6 +337,26 @@ public class ChatService {
                 deleted ? null : row.fileSize(),
                 deleted ? null : row.contentType(),
                 deleted);
+    }
+
+    /**
+     * chat_room_member.hidden_at 컬럼 존재 여부.
+     *
+     * <p>운영 DB 에 마이그레이션이 아직 안 붙었을 수 있는데, 대화목록 조회는 메신저를 열 때마다
+     * 도는 쿼리라 여기서 컬럼을 잘못 참조하면 메신저 전체가 죽는다. 스키마는 실행 중에 바뀌지
+     * 않으므로 한 번만 확인해 캐시한다.
+     */
+    private boolean supportsHiddenAt() {
+        Boolean cached = hiddenAtSupported;
+        if (cached == null) {
+            cached = chatMapper.countInformationSchemaColumns("chat_room_member", "hidden_at") > 0;
+            if (!cached) {
+                log.warn("chat_room_member.hidden_at 컬럼이 없어 대화방 삭제가 예전 방식(멤버십 제거)으로 동작합니다."
+                        + " deploy/db/migrations/20260618_chat_room_member_hidden.sql 적용 필요.");
+            }
+            hiddenAtSupported = cached;
+        }
+        return cached;
     }
 
     private void ensureMember(String userId, int roomIdx) {

@@ -16,7 +16,8 @@ public interface BbsPostMapper {
             @Param("folderIdx") Integer folderIdx,
             @Param("keyword") String keyword,
             @Param("viewerUserId") String viewerUserId,
-            @Param("viewerIsOwner") boolean viewerIsOwner);
+            @Param("viewerIsOwner") boolean viewerIsOwner,
+            @Param("viewerManagesFolders") boolean viewerManagesFolders);
 
     BbsPostDetailJdbcRow selectPostById(@Param("postIdx") int postIdx);
 

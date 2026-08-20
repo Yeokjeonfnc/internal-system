@@ -121,15 +121,30 @@ class User {
     return UserMstWriteRequest.fromMap(body);
   }
 
+  /// 수정 요청 본문.
+  ///
+  /// 서버(`UserMstUpdateRequestDto`)는 **키가 들어온 필드만** 갱신하는 presence
+  /// 방식이라, 빈 값이라고 키를 빼 버리면 "변경 없음"으로 읽혀 기존 값이 되살아난다.
+  /// 예전에는 빈 문자열을 전부 걸러 보내서 퇴사자 이메일 삭제·잘못 적은 휴대전화
+  /// 지우기·입사일 삭제가 하나도 먹지 않았다(저장은 성공했다고 뜨는데 다시 열면
+  /// 그대로였다).
+  ///
+  /// 그래서 인자 의미를 가맹점주(mst006)와 같은 방식으로 맞춘다 —
+  /// **null 이면 "이 항목은 건드리지 않음"(키 자체를 안 보냄), 값이 있으면 빈
+  /// 문자열이라도 그대로 보내 지운다.** 항목을 다루지 않는 호출자(CSV 업로드의
+  /// 입사일 등)가 실수로 값을 날리지 않게 하려면 그냥 인자를 넘기지 않으면 된다.
+  ///
+  /// `userPassword` 만 예외다 — 빈 값이 곧 "이번엔 비밀번호를 안 바꾼다"는 뜻이라
+  /// 지우는 개념이 없다.
   static UserMstWriteRequest buildUpdateUserRequest({
     required String name,
     String userPassword = '',
-    String userId = '',
+    String? userId,
     int? deptIdx,
-    String mobilePhone = '',
-    String email = '',
-    String joinDt = '',
-    String positionCd = '',
+    String? mobilePhone,
+    String? email,
+    String? joinDt,
+    String? positionCd,
     bool svYn = false,
     bool ownerYn = false,
   }) {
@@ -140,17 +155,25 @@ class User {
     };
     final pw = userPassword.trim();
     if (pw.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserPassword] = pw;
-    final uid = userId.trim();
-    if (uid.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserId] = uid;
+    if (userId != null) {
+      body[UserMstWriteRequest.jsonKeyUserId] = userId.trim();
+    }
     if (deptIdx != null) body[UserMstWriteRequest.jsonKeyDeptIdx] = deptIdx;
-    final phone = mobilePhone.trim();
-    if (phone.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserPhone] = phone;
-    final em = email.trim();
-    if (em.isNotEmpty) body[UserMstWriteRequest.jsonKeyUserEmail] = em;
-    final pos = positionCd.trim();
-    if (pos.isNotEmpty) body[UserMstWriteRequest.jsonKeyPositionCd] = pos;
-    final jd = joinDt.trim();
-    if (jd.isNotEmpty) body[UserMstWriteRequest.jsonKeyJoinDt] = jd;
+    if (mobilePhone != null) {
+      body[UserMstWriteRequest.jsonKeyUserPhone] = mobilePhone.trim();
+    }
+    if (email != null) {
+      body[UserMstWriteRequest.jsonKeyUserEmail] = email.trim();
+    }
+    if (positionCd != null) {
+      body[UserMstWriteRequest.jsonKeyPositionCd] = positionCd.trim();
+    }
+    if (joinDt != null) {
+      // 입사일만 서버가 LocalDate 로 받는다 — 빈 문자열의 해석을 Jackson 설정에
+      // 맡기지 않도록 "지움"은 명시적인 null 로 보낸다.
+      final jd = joinDt.trim();
+      body[UserMstWriteRequest.jsonKeyJoinDt] = jd.isEmpty ? null : jd;
+    }
     return UserMstWriteRequest.fromMap(body);
   }
 }

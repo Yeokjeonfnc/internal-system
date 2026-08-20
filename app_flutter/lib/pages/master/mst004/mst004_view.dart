@@ -346,7 +346,14 @@ class _ChecklistTable extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('체크리스트 삭제'),
-        content: Text('${item.chkContent} 항목을 삭제하시겠습니까?'),
+        // 서버(ActService.deleteChecklist)는 chk_mst 를 지우기 전에 이 항목의
+        // chk_result_dtl — 활동별 응답·배점 실적 — 까지 함께 지운다. 확인창이
+        // 그 사실을 감추면 "문구만 정리했는데 지난 점수가 바뀌는" 사고가 난다.
+        content: Text(
+          '${item.chkContent} 항목을 삭제하시겠습니까?\n\n'
+          '이 항목에 대한 과거 활동의 응답과 점수도 함께 삭제되어 지난 활동의 '
+          '총점·리포트가 소급해 바뀝니다. 되돌릴 수 없습니다.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),

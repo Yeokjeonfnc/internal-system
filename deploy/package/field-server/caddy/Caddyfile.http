@@ -11,6 +11,21 @@
 		format json
 	}
 
+	# Cloudflare 를 건너뛴 접속 차단.
+	# FortiGate VIP 가 공인 203.234.249.145:8080 을 이 서버로 그대로 넘기기 때문에,
+	# 호스트명 제한이 없으면 공인 IP 로 직접 때려 Cloudflare 의 WAF·레이트리밋·접근기록을
+	# 통째로 우회할 수 있다. Cloudflare 를 거친 요청은 Host 가 서비스 도메인이고,
+	# 공인 IP 직접 접속은 Host 가 IP 라 여기서 갈린다.
+	# 허용 대상: 서비스 도메인 / 서버 자기 자신(health-check.ps1) / 사내망 IP.
+	# respond 는 directive 순서상 handle 보다 뒤라 단독으로 쓰면 아래 catch-all handle 에
+	# 먼저 잡혀 동작하지 않는다. 그래서 handle 그룹의 맨 앞에 둔다(handle 은 파일 순서대로 평가).
+	@untrusted_host not host on.yeokjeon.com on-test.yeokjeon.com yeokjeon.com localhost 127.0.0.1 192.168.30.30
+	handle @untrusted_host {
+		respond "Misdirected request" 421 {
+			close
+		}
+	}
+
 	# 공통 보안 헤더 — 클릭재킹·MIME 스니핑·리퍼러 유출 차단.
 	header {
 		X-Content-Type-Options "nosniff"
@@ -20,8 +35,11 @@
 		-Server
 	}
 
+	# flutter_service_worker.js 는 목록에 없어서 4시간(max-age=14400) 캐시되고 있었다.
+	# 서비스워커가 캐시되면 서버 파일은 새것인데 브라우저만 옛 앱 셸을 계속 실행해,
+	# 응답코드·Last-Modified 로는 배포 성공으로 보이는 가장 찾기 어려운 배포 실패가 된다.
 	@app_shell {
-		path / /landing.html /index.html /main.dart.js /flutter.js /flutter_bootstrap.js /version.json /manifest.json
+		path / /landing.html /index.html /main.dart.js /flutter.js /flutter_bootstrap.js /flutter_service_worker.js /version.json /manifest.json
 	}
 	header @app_shell Cache-Control "no-store, no-cache, must-revalidate"
 

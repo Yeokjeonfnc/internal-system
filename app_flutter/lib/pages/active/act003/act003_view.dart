@@ -428,6 +428,8 @@ class _Act003ViewState extends State<Act003View>
                   customTable: ActivityChecklistTable(
                     key: ValueKey<int>(_tabEpoch[5]),
                     rowKeywordFilter: _keywordCtrl.text.trim(),
+                    brandLabel: _brandNm,
+                    brandCdFilter: _brandFilterCd(),
                     rangeStart: _rangeStart,
                     rangeEnd: _rangeEnd,
                     onFilteredRowCount: (c) => _onListRowCount(5, c),

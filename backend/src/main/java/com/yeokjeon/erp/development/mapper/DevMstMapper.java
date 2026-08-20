@@ -74,6 +74,21 @@ public interface DevMstMapper {
     int clearPropertyZoneFromOtherProperties(
             @Param("zoneIdx") Integer zoneIdx, @Param("propIdx") Integer propIdx);
 
+    /*
+     * 주차가능대수(property_mst.parking_count) — 선택 컬럼.
+     *
+     * JPA 엔티티(Property)·목록 조회(selectPropertiesOrdered)에는 넣지 않는다.
+     * 넣으면 컬럼이 아직 없는 DB 에서 물건 조회·저장이 통째로 500 이 되기 때문이다.
+     * 대신 아래 3개로만 다루고, 호출 전에 countPropertyParkingCountColumn 으로 존재를
+     * 먼저 확인한다(실패 쿼리를 날리면 같은 트랜잭션의 저장까지 롤백된다).
+     */
+    int countPropertyParkingCountColumn();
+
+    Integer selectPropertyParkingCount(@Param("propIdx") Integer propIdx);
+
+    int updatePropertyParkingCount(
+            @Param("propIdx") Integer propIdx, @Param("parkingCount") Integer parkingCount);
+
     int checkSurveyor(String surveyor);
 
     int checkDuplicateProperty(String propNm, String address);

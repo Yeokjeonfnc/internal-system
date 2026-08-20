@@ -23,7 +23,8 @@ class ApiStoreRepository implements StoreRepository {
 
   @override
   Future<List<Store>> all() async {
-    return await _apiService.getAllStores();
+    // 목록 화면은 실패를 '0건'으로 보여주면 안 된다 — 던져서 에러 화면(다시 시도)까지 가게 한다.
+    return await _apiService.getAllStoresOrThrow();
   }
 
   @override

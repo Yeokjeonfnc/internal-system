@@ -356,7 +356,50 @@ public class DevService {
     public PropertyMstDto oneProperty(Integer propIdx) {
         Property property = propertyRepository.findById(propIdx)
                 .orElseThrow(() -> new ResourceNotFoundException("물건", "propIdx", propIdx));
-        return PropertyMstDto.fromEntity(property);
+        return PropertyMstDto.fromEntity(property).withParkingCount(readParkingCount(propIdx));
+    }
+
+    /*
+     * 주차가능대수(property_mst.parking_count)
+     *
+     * 화면(상세조건 탭)은 예전부터 parkingCount 를 보내고 있었지만 받는 곳이 없어 조용히
+     * 버려졌다. 그렇다고 JPA 엔티티·목록 SELECT 에 컬럼을 넣으면 마이그레이션
+     * (deploy/db/migrations/20260821_property_mst_parking_count.sql) 이 아직 안 돌아간 DB 에서
+     * 물건관리 전체가 500 이 된다. 그래서 이 값만 따로 떼어 다루고, 컬럼이 없으면
+     * "저장·조회를 건너뛴다"로 끝낸다(다른 항목 저장은 그대로 성공).
+     *
+     * 존재 확인을 먼저 하는 이유: PostgreSQL 은 실패한 문장 하나로 트랜잭션 전체가
+     * abort 되므로, try/catch 로 감싸도 같은 트랜잭션의 물건 저장까지 함께 롤백된다.
+     */
+    private boolean hasParkingCountColumn() {
+        try {
+            return devMstMapper.countPropertyParkingCountColumn() > 0;
+        } catch (Exception e) {
+            log.warn("parking_count 컬럼 확인 실패 — 주차가능대수는 생략한다: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private Integer readParkingCount(Integer propIdx) {
+        if (propIdx == null || !hasParkingCountColumn()) {
+            return null;
+        }
+        return devMstMapper.selectPropertyParkingCount(propIdx);
+    }
+
+    /** 요청 본문에 parkingCount 가 실려 있을 때만, 컬럼이 있을 때만 반영한다. */
+    private Integer saveParkingCount(Integer propIdx, PropertyMstWriteRequestDto body) {
+        if (!body.isParkingCountPresent()) {
+            return readParkingCount(propIdx);
+        }
+        if (propIdx == null || !hasParkingCountColumn()) {
+            if (body.getParkingCount() != null) {
+                log.warn("주차가능대수 저장 생략(parking_count 컬럼 미적용): propIdx={}", propIdx);
+            }
+            return null;
+        }
+        devMstMapper.updatePropertyParkingCount(propIdx, body.getParkingCount());
+        return body.getParkingCount();
     }
 
     @Transactional
@@ -396,8 +439,9 @@ public class DevService {
         applyCoordinates(property, body, true);
         Property saved = propertyRepository.save(property);
         syncLinkedStoreCoordinates(saved);
+        Integer parkingCount = saveParkingCount(saved.getPropIdx(), body);
         log.info("물건 생성 완료: {}", saved.getPropIdx());
-        return PropertyMstDto.fromEntity(saved);
+        return PropertyMstDto.fromEntity(saved).withParkingCount(parkingCount);
     }
 
     @Transactional
@@ -470,8 +514,9 @@ public class DevService {
 
         Property saved = propertyRepository.save(property);
         syncLinkedStoreCoordinates(saved);
+        Integer parkingCount = saveParkingCount(saved.getPropIdx(), body);
         log.info("물건 수정 완료: {}", saved.getPropIdx());
-        return PropertyMstDto.fromEntity(saved);
+        return PropertyMstDto.fromEntity(saved).withParkingCount(parkingCount);
     }
 
     @Transactional

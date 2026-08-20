@@ -51,12 +51,66 @@ public class MstService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 목록에서 휴대전화·이메일·입사일을 지운 사본을 만든다(본인 행은 그대로 둔다).
+     *
+     * <p>{@code GET /users} 는 결재선 지정·부서관리·메뉴권한 화면이 공용 사원
+     * 디렉터리로 쓰기 때문에 로그인한 사람이면 누구나 호출할 수 있어야 한다. 그렇다고
+     * 전 직원의 연락처까지 열어 둘 이유는 없다 — 그 화면들은 이름·부서·직급·로그인ID
+     * 만으로 동작하므로 나머지는 지운다. 지우는 위치가 응답 직전이어야 조회 SQL 을
+     * 화면별로 갈라 놓지 않고도 같은 결과를 얻는다.
+     */
+    public static List<UserMstDto> hideContactInfoExceptSelf(
+            List<UserMstDto> users, String callerUserId) {
+        String caller = callerUserId == null ? null : callerUserId.trim();
+        return users.stream()
+                .map(u -> {
+                    if (caller != null && !caller.isEmpty() && caller.equalsIgnoreCase(u.userId())) {
+                        return u;
+                    }
+                    return new UserMstDto(
+                            u.userIdx(),
+                            u.userName(),
+                            u.userId(),
+                            u.deptIdx(),
+                            u.deptNm(),
+                            null,
+                            null,
+                            u.svYn(),
+                            u.positionCd(),
+                            u.positionNm(),
+                            u.ownerYn(),
+                            null,
+                            u.createdAt(),
+                            u.updatedAt());
+                })
+                .collect(Collectors.toList());
+    }
+
     public UserMstDto get(int userIdx) {
         MstUserListJdbcRow row = mstUserMapper.selectUserEnrichedById(userIdx);
         if (row == null) {
             throw new ResourceNotFoundException("사용자", "userIdx", userIdx);
         }
         return UserMstDto.fromJdbcRow(row);
+    }
+
+    /**
+     * 가맹점주 계정인지 — 사원 명부를 내려보낼지 판단할 때 쓴다.
+     *
+     * <p>프론트는 가맹점주에게 게시판만 열어 주지만 그건 화면 제한일 뿐이라, API 를
+     * 직접 부르면 전 직원 명부가 그대로 나갔다. 메뉴 권한 표로는 걸러지지 않는다 —
+     * 기준선 스크립트(20260812_user_menu_auth_baseline_grant.sql)가 사이드바 유지를
+     * 위해 전 계정·전 메뉴에 {@code can_view='Y'} 를 넣어 뒀기 때문이다.
+     */
+    public boolean isFranchiseOwner(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+        return mstUserRepository.findByUserId(userId.trim())
+                .map(u -> u.getOwnerYn() != null
+                        && Character.toUpperCase(u.getOwnerYn()) == 'Y')
+                .orElse(false);
     }
 
     public boolean isUserIdAvailable(String userId) {
@@ -160,8 +214,33 @@ public class MstService {
     public void remove(int userIdx) {
         MstUser user = mstUserRepository.findById(userIdx)
                 .orElseThrow(() -> new ResourceNotFoundException("사용자", "userIdx", userIdx));
+        deleteUserReferences(userIdx);
         mstUserRepository.delete(user);
         log.info("사용자 삭제 완료: {}", userIdx);
+    }
+
+    /**
+     * user_mst 를 참조하면서 {@code ON DELETE CASCADE} 가 없는 테이블의 행을 먼저 지운다.
+     *
+     * <p>{@code user_menu_auth}·{@code user_page_filter} 는 CASCADE 라 알아서 지워지지만,
+     * 나중에 추가된 활동계획·팀 캘린더 열람권한 쪽은 그렇지 않다. 남겨 두면 23503
+     * foreign_key_violation 이 나고 화면에는 원인이 가려진 "서버 오류"만 떠서 활동계획을
+     * 한 번이라도 세운 SV·팀장 계정을 영영 못 지운다.
+     *
+     * <p>테이블이 아직 없는 서버가 있을 수 있어 information_schema 로 존재를 먼저 확인한다
+     * — 없는 테이블에 DELETE 를 날리면 PostgreSQL 이 트랜잭션 전체를 abort 시켜, 예외를
+     * 잡아 봐야 이어지는 삭제까지 통째로 실패한다(예전 pwd_reset_yn 사고와 같은 구조).
+     */
+    private void deleteUserReferences(int userIdx) {
+        if (hasColumn("activity_plan_store", "assignee_user_idx")) {
+            mstUserMapper.deleteActivityPlanStoreByUserIdx(userIdx);
+        }
+        if (hasColumn("activity_plan", "assignee_user_idx")) {
+            mstUserMapper.deleteActivityPlanByUserIdx(userIdx);
+        }
+        if (hasColumn("team_view_permission", "viewer_user_idx")) {
+            mstUserMapper.deleteTeamViewPermissionByUserIdx(userIdx);
+        }
     }
 
     private static String trimToNull(String s) {

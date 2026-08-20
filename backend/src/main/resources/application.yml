@@ -103,6 +103,24 @@ logging:
   # 콘솔: Windows 기본 MS949(YeokjeonErpApplication). UTF-8 터미널은 LOGGING_CHARSET_CONSOLE=UTF-8
   charset:
     file: UTF-8
+  file:
+    # 기본은 빈 값 = 파일 로그 끔(로컬 개발은 콘솔이면 충분).
+    # 현장 서버는 start-backend.ps1 이 YON_LOG_FILE 을 넘겨 켠다.
+    name: ${YON_LOG_FILE:}
+  logback:
+    rollingpolicy:
+      # 롤링 정책이 없으면 로그 파일이 무한히 커져 C: 드라이브를 잠식하고,
+      # 디스크가 차는 순간 PostgreSQL 과 파일 업로드가 같이 죽는다.
+      # 현장 서버는 수 주간 무중단으로 도니 상한을 반드시 걸어 둔다.
+      max-file-size: 20MB
+      max-history: 30
+      total-size-cap: 1GB
+      clean-history-on-start: true
+  threshold:
+    # 콘솔(=현장에서는 backend.out.log 로 리다이렉트되는 스트림)의 최소 레벨.
+    # 이 파일은 프로세스가 살아 있는 동안 회전되지 않으므로, 현장에서는 WARN 이상만
+    # 받게 낮춰 두고 전체 로그는 위 롤링 파일에서 본다. 기본값은 Boot 기본과 동일.
+    console: ${LOG_CONSOLE_THRESHOLD:TRACE}
   level:
     # 주의: mapper DEBUG + BasicBinder TRACE 를 켜면 SQL 바인딩 값이 그대로 로그에 남는다.
     # (로그인 쿼리의 비밀번호·개인정보 포함) 로컬 디버깅이 필요할 때만 임시로 올릴 것.
@@ -121,7 +139,10 @@ spring:
   
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      # 예전에는 create-drop 이었다. 현장 backend.env 에 SPRING_PROFILES_ACTIVE=dev 한 줄만
+      # 잘못 들어가도 다음 기동에서 가맹점·물건·사원 테이블이 통째로 drop-create 되는
+      # 지뢰라 제거했다. 스키마 변경은 deploy/db/migrations/ 의 SQL 로만 한다.
+      ddl-auto: none
     show-sql: false
 
 server:

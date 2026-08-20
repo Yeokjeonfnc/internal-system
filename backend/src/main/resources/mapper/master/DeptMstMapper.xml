@@ -64,16 +64,27 @@
         GROUP BY dept_idx
     </select>
 
+    <!--
+        upper_dept_idx 에 자기 자신이 들어가면 노드가 자기 자식이 되어
+        selectDeptFlat 로 트리를 조립하는 쪽(MstService.getDeptTree)과 응답 직렬화가
+        무한 재귀에 빠진다 — GET /dept/list 가 통째로 죽어 부서관리는 물론 사원 등록·
+        상세의 부서 드롭다운까지 못 쓰게 되고, 복구는 DB 직접 수정뿐이다.
+        요청 본문의 upperDeptIdx 는 검증 없이 그대로 들어오므로 여기서 마지막으로 막는다.
+        (COALESCE 로 감싸는 것은 파라미터가 NULL 일 때 PostgreSQL 이 타입을 정하지
+         못해 실패하는 것을 피하기 위함이다 — 최상위로 올리는 정상 요청이다.)
+    -->
     <update id="updateDeptSortAndUpper">
         UPDATE dept_mst
         SET upper_dept_idx = #{upperDeptIdx},
             sort_order     = #{sortOrder}
         WHERE dept_idx = #{deptIdx}
+          AND dept_idx &lt;&gt; COALESCE(#{upperDeptIdx,jdbcType=INTEGER}, -1)
     </update>
 
     <update id="updateDeptUpperOnly">
         UPDATE dept_mst
         SET upper_dept_idx = #{upperDeptIdx}
         WHERE dept_idx = #{deptIdx}
+          AND dept_idx &lt;&gt; COALESCE(#{upperDeptIdx,jdbcType=INTEGER}, -1)
     </update>
 </mapper>

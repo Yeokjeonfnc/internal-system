@@ -328,7 +328,11 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
             ),
             const SizedBox(height: 8),
             Text(
-              '$error',
+              // DioException 원문을 그대로 뿌리면 사용자가 읽을 수 없다.
+              formatApiUserMessage(
+                error,
+                fallback: '가맹점 목록을 불러오지 못했습니다.',
+              ),
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 16),
@@ -852,16 +856,21 @@ class _StoreTable extends ConsumerWidget {
     );
     if (confirmed != true || !context.mounted) return;
 
+    // 실패 사유(연결된 점주 계정·NFC 태그 등)는 서버가 message 로 내려준다.
+    String? serverMessage;
     final deleted = await ref
         .read(storeApiServiceProvider)
-        .deleteStore(store.storeIdx);
+        .deleteStore(
+          store.storeIdx,
+          onServerMessage: (m) => serverMessage = m,
+        );
     if (!context.mounted) return;
 
     if (deleted) {
       ref.invalidate(storeDataProvider);
       await showAlertDialog(context, '삭제되었습니다.');
     } else {
-      await showAlertDialog(context, '삭제에 실패했습니다.');
+      await showAlertDialog(context, serverMessage ?? '삭제에 실패했습니다.');
     }
   }
 
@@ -870,7 +879,7 @@ class _StoreTable extends ConsumerWidget {
     final showDelete = context.menuCanDelete(kMenuStr001);
     final compact = useCompactErpLayout(context);
 
-    // 앱(컴팩트): 영업지역 목록과 동일 8열·좁은 Fixed 폭 — 가맹점명이 잘리지 않게.
+    // 앱(컴팩트): 계약 만료일자·삭제만 빼고 9열·좁은 Fixed 폭 — 가맹점명이 잘리지 않게.
     final columnWidths = compact
         ? <int, TableColumnWidth>{
             0: const FixedColumnWidth(40),
@@ -965,6 +974,9 @@ class _StoreTable extends ConsumerWidget {
               tap(ErpTableBodyCell(row.storeNm, center: true)),
               tap(ErpTableBodyCell(row.storeCd, center: true)),
               statusCell,
+              // 헤더와 셀 개수가 어긋나면 ErpVirtualDataTable 은 헤더·본문을 별개
+              // Table 로 그려 예외 없이 조용히 한 칸씩 밀린다. 소유자 칸 필수.
+              tap(ErpTableBodyCell(row.ownerNm, center: true)),
               tap(ErpTableBodyCell(row.storeTel, center: true)),
               tap(ErpTableBodyCell(row.address)),
               tap(ErpTableBodyCell(row.contStartDt, center: true)),

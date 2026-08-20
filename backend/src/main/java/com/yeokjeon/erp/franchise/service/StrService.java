@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yeokjeon.erp.exception.ResourceNotFoundException;
 import com.yeokjeon.erp.development.dto.PartnerMstWriteRequestDto;
 import com.yeokjeon.erp.development.service.DevService;
+import com.yeokjeon.erp.franchise.dto.StoreDeleteBlockerRow;
 import com.yeokjeon.erp.franchise.dto.StoreHistoryRowDto;
 import com.yeokjeon.erp.franchise.dto.StoreMstDto;
 import com.yeokjeon.erp.franchise.dto.StoreMstWriteRequestDto;
@@ -140,7 +141,7 @@ public class StrService {
     }
 
     @Transactional
-    public StoreMstDto create(StoreMstWriteRequestDto body) {
+    public StoreMstDto create(StoreMstWriteRequestDto body, String callerId) {
 
         Integer reqStoreIdx = body.storeIdx();
         if (reqStoreIdx != null && storeRepository.findByStoreIdx(reqStoreIdx).isPresent()) {
@@ -216,7 +217,7 @@ public class StrService {
                 
         Store savedStore = storeRepository.saveAndFlush(store);
         entityManager.refresh(savedStore);
-        saveHistory(savedStore.getStoreIdx(), "INSERT", savedStore.getStoreNm(),
+        saveHistory(savedStore.getStoreIdx(), "INSERT", callerId, savedStore.getStoreNm(),
                 String.format("가맹점 신규 생성: %s", savedStore.getStoreNm()));
 
         Integer partnerIdx = body.partnerIdx();
@@ -233,7 +234,7 @@ public class StrService {
     }
 
     @Transactional
-    public StoreMstDto update(Integer storeIdx, StoreMstWriteRequestDto body) {
+    public StoreMstDto update(Integer storeIdx, StoreMstWriteRequestDto body, String callerId) {
         Store store = storeRepository.findByStoreIdx(storeIdx)
                 .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeIdx", storeIdx));
 
@@ -514,7 +515,8 @@ public class StrService {
         
         // 변경 사항이 있을 때만 히스토리 저장
         if (!changes.isEmpty()) {
-            saveHistoryWithChanges(updatedStore.getStoreIdx(), updatedStore.getStoreNm(), changes);
+            saveHistoryWithChanges(
+                    updatedStore.getStoreIdx(), updatedStore.getStoreNm(), changes, callerId);
         }
         
         log.info("가맹점 수정 완료: {}", updatedStore.getStoreCd());
@@ -522,22 +524,74 @@ public class StrService {
     }
 
     @Transactional
-    public void remove(Integer storeIdx) {
+    public void remove(Integer storeIdx, String callerId) {
         Store store = storeRepository.findByStoreIdx(storeIdx)
                 .orElseThrow(() -> new ResourceNotFoundException("가맹점", "storeIdx", storeIdx));
 
-        dropStoreHistoryForeignKeyIfExists();
-        saveHistory(store.getStoreIdx(), "DELETE", store.getStoreNm(),
+        /*
+         * store_mst 를 참조하는 FK 중 ON DELETE 절이 없는 것이 넷이라, 그냥 지우면
+         * 23503 이 나고 화면에는 사유가 가려진 오류만 뜬다. 무엇이 막고 있는지
+         * 미리 세어 사용자가 스스로 정리할 수 있게 알려준다.
+         */
+        String blocked = describeDeleteBlockers(storeIdx);
+        if (blocked != null) {
+            throw new IllegalStateException(blocked);
+        }
+        /*
+         * store_history 는 가맹점이 사라져도 남아야 하는 감사 기록이라 FK 가 있으면
+         * 안 된다. 예전에는 삭제할 때마다 ALTER TABLE 로 떼어냈지만 그건 사용자 조작이
+         * 운영 스키마를 바꾸는 것이고, 앱 DB 계정이 테이블 소유자가 아니면 삭제 자체가
+         * 실패했다. 이제는 마이그레이션으로 한 번만 정리하고, 여기서는 적용 여부만 본다.
+         */
+        if (storeHistoryFkStillPresent()) {
+            throw new IllegalStateException(
+                    "가맹점 삭제 준비가 되지 않았습니다. "
+                            + "변경 이력 제약(store_history.fk_his_store_idx)이 남아 있어 "
+                            + "삭제하면 이력까지 함께 막힙니다. 관리자에게 문의해 주세요.");
+        }
+
+        saveHistory(store.getStoreIdx(), "DELETE", callerId, store.getStoreNm(),
                 String.format("가맹점 삭제: %s", store.getStoreNm()));
         storeRepository.delete(store);
-        log.info("가맹점 삭제 완료: {}", storeIdx);
+        log.info("가맹점 삭제 완료: {} (요청자 {})", storeIdx, callerId);
     }
 
-    private void dropStoreHistoryForeignKeyIfExists() {
-        storeHistoryMapper.dropStoreHistoryFkIfExists();
+    /** 삭제를 막는 참조가 있으면 사용자에게 보여줄 사유, 없으면 null. */
+    private String describeDeleteBlockers(Integer storeIdx) {
+        StoreDeleteBlockerRow blockers = storeMstMapper.countDeleteBlockers(storeIdx);
+        if (blockers == null) {
+            return null;
+        }
+        List<String> reasons = new ArrayList<>();
+        appendBlocker(reasons, "가맹점주 계정", blockers.ownerUserCnt());
+        appendBlocker(reasons, "NFC 태그", blockers.nfcTagCnt());
+        appendBlocker(reasons, "게시글", blockers.bbsPostCnt());
+        appendBlocker(reasons, "활동계획", blockers.planStoreCnt());
+        if (reasons.isEmpty()) {
+            return null;
+        }
+        return "연결된 " + String.join(", ", reasons) + "이(가) 있어 삭제할 수 없습니다. "
+                + "해당 항목을 먼저 정리한 뒤 다시 시도해 주세요.";
     }
 
-    private void saveHistoryWithChanges(Integer storeIdx, String storeNm, List<FieldChange> changes) {
+    private static void appendBlocker(List<String> reasons, String label, Integer count) {
+        if (count != null && count > 0) {
+            reasons.add(label + " " + count + "건");
+        }
+    }
+
+    /** 마이그레이션 미적용 DB 방어 — 메타데이터 조회가 막혀도 삭제를 멈추진 않는다. */
+    private boolean storeHistoryFkStillPresent() {
+        try {
+            return storeHistoryMapper.existsStoreHistoryFk();
+        } catch (RuntimeException e) {
+            log.warn("store_history FK 확인 실패 — 삭제는 그대로 진행한다", e);
+            return false;
+        }
+    }
+
+    private void saveHistoryWithChanges(
+            Integer storeIdx, String storeNm, List<FieldChange> changes, String callerId) {
         if (storeIdx == null || changes.isEmpty()) {
             return;
         }
@@ -557,7 +611,8 @@ public class StrService {
         }
         jsonBuilder.append("]");
 
-        storeHistoryMapper.insertHistoryUpdateJson(storeIdx, storeNm, jsonBuilder.toString());
+        storeHistoryMapper.insertHistoryUpdateJson(
+                storeIdx, historyUserId(callerId), storeNm, jsonBuilder.toString());
     }
 
     private String escapeJson(String value) {
@@ -607,12 +662,22 @@ public class StrService {
         }
     }
 
-    private void saveHistory(Integer storeIdx, String chgType, String storeNm, String content) {
+    private void saveHistory(
+            Integer storeIdx, String chgType, String callerId, String storeNm, String content) {
         if (storeIdx == null) {
             log.warn("가맹점 히스토리 저장 건너뜀: storeIdx 없음, chgType={}, content={}", chgType, content);
             return;
         }
-        storeHistoryMapper.insertHistorySimple(storeIdx, chgType, "system", storeNm, content);
+        storeHistoryMapper.insertHistorySimple(
+                storeIdx, chgType, historyUserId(callerId), storeNm, content);
+    }
+
+    /**
+     * 이력의 '수정자'. 호출자를 알 수 없을 때만 기존과 같이 'system' 으로 남긴다 —
+     * 값이 비면 누가 고쳤는지 화면에 아예 안 나오고 감사 자료로 못 쓴다.
+     */
+    private static String historyUserId(String callerId) {
+        return callerId == null || callerId.isBlank() ? "system" : callerId;
     }
 
     public List<StoreMstDto> listByStoreName(String storeNm) {

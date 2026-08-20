@@ -733,7 +733,9 @@ class _RouteDataRefreshBoundaryState
 
   void _onRouteEntered() {
     if (!mounted) return;
-    refreshAllScreenData(ref);
+    // 전체 무효화는 쓰기 작업의 몫이다 — 이동마다 부르면 세션 캐시가 매번 비워져
+    // 재진입 화면이 항상 스피너부터 뜨고 무관한 목록까지 다시 내려받는다.
+    refreshRouteScreenData(ref, Uri.parse(widget.routeKey).path);
     _recordMenuUsage();
   }
 

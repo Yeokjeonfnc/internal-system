@@ -9,6 +9,13 @@ function Import-EnvFile {
         if ($idx -lt 1) { return }
         $name = $line.Substring(0, $idx).Trim()
         $value = $line.Substring($idx + 1).Trim()
+        # backend.env 는 DB 접속·키 값만 담는 파일이다. SPRING_* 은 Spring 설정을 통째로
+        # 갈아엎을 수 있어(대표적으로 SPRING_PROFILES_ACTIVE=dev 한 줄이면 JPA 가 운영
+        # 테이블을 drop-create 한다) 이 파일에서 들어온 것은 무시한다.
+        if ($name -like 'SPRING_*') {
+            Write-Warning "[SKIP] Ignoring $name from backend.env. Spring settings are fixed by this script."
+            return
+        }
         Set-Item -Path "Env:$name" -Value $value
     }
 }
@@ -95,12 +102,35 @@ function Rotate-Log {
 Rotate-Log -Path $out
 Rotate-Log -Path $err
 
+# 명령행 인자를 없앤 뒤로는 값이 비면 application.yml 의 기본값(localhost/빈 비밀번호)으로
+# 조용히 붙어 버리므로, 여기서 먼저 끊어 원인이 드러나게 한다.
+foreach ($required in @('DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD')) {
+    if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($required))) {
+        throw "Missing $required in $envFile."
+    }
+}
+
+# DB 접속 정보는 환경변수로만 넘긴다. --spring.datasource.password 로 넘기면 같은 PC 의
+# 다른 계정도 프로세스 명령행(Get-CimInstance Win32_Process)에서 운영 DB 비밀번호를
+# 그대로 읽을 수 있다. application.yml 이 DB_URL/DB_USER/DB_PASSWORD 를 읽도록 되어 있다.
+$env:DB_URL = "jdbc:postgresql://$env:DB_HOST`:$env:DB_PORT/$env:DB_NAME"
+
+# 백엔드 로그는 롤링되는 파일(backend.log)에 남기고, 아래 backend.out.log 로 가는
+# 콘솔 스트림은 WARN 이상만 받는다. backend.out.log 는 프로세스가 살아 있는 동안
+# 회전되지 않아(아래 Rotate-Log 는 기동 시 1회) 무중단 운영에서 계속 커지기 때문이다.
+$env:YON_LOG_FILE = Join-Path $logDir 'backend.log'
+if (-not $env:LOG_CONSOLE_THRESHOLD) { $env:LOG_CONSOLE_THRESHOLD = 'WARN' }
+
+# 현장 서버는 프로파일 없이(=application.yml 기본 섹션) 돈다. 상위 셸에 남아 있을 수 있는
+# 값까지 확실히 끊는다.
+if (Test-Path Env:SPRING_PROFILES_ACTIVE) { Remove-Item Env:SPRING_PROFILES_ACTIVE }
+
 $args = @(
     '-jar', $jarPath,
     "--server.port=$port",
-    "--spring.datasource.url=jdbc:postgresql://$env:DB_HOST`:$env:DB_PORT/$env:DB_NAME",
-    "--spring.datasource.username=$env:DB_USER",
-    "--spring.datasource.password=$env:DB_PASSWORD"
+    # 명령행 인자는 Spring 설정 중 최우선순위다. 어떤 경로로든 dev 프로파일이 끼어들어도
+    # 운영 테이블이 drop-create 되지 않도록 여기서 못을 박는다.
+    '--spring.jpa.hibernate.ddl-auto=none'
 )
 
 $process = Start-Process -FilePath $java `

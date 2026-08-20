@@ -68,6 +68,14 @@ public class PropertyMstWriteRequestDto {
     private String surveyor;
     private boolean surveyorPresent;
 
+    /*
+     * 주차가능대수 — 화면(상세조건 탭)이 예전부터 보내 왔지만 받는 곳이 없어 조용히
+     * 버려지고 있었다. property_mst.parking_count 는 선택 컬럼이라 JPA 엔티티에 넣지 않고
+     * 서비스에서 별도 UPDATE 로 처리한다(컬럼 미적용 DB 에서도 나머지 저장은 되게).
+     */
+    private Integer parkingCount;
+    private boolean parkingCountPresent;
+
     public void setPropNm(String propNm) {
         this.propNm = propNm;
         this.propNmPresent = true;
@@ -313,5 +321,18 @@ public class PropertyMstWriteRequestDto {
 
     public String getSurveyor() {
         return surveyor;
+    }
+
+    public void setParkingCount(Integer parkingCount) {
+        this.parkingCount = parkingCount;
+        this.parkingCountPresent = true;
+    }
+
+    public boolean isParkingCountPresent() {
+        return parkingCountPresent;
+    }
+
+    public Integer getParkingCount() {
+        return parkingCount;
     }
 }

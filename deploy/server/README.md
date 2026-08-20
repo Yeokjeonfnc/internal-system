@@ -30,12 +30,9 @@ Do not expose PostgreSQL `5432` to the public internet.
 
 ## Field test account
 
-Use this account for field testing:
+현장 테스트 계정 ID는 `admin` 입니다. 비밀번호는 이 문서에 적지 않습니다 — 이 저장소와 배포 패키지는 서버 PC 에 그대로 놓이므로, 문서에 적힌 순간 서버에 접근 가능한 모두가 관리자 계정을 알게 됩니다.
 
-```text
-ID: admin
-PW: admin123
-```
+초기 비밀번호는 `backend.env` 의 `DEFAULT_USER_PASSWORD`(미설정 시 `application.yml` 의 `auth.default-password` 기본값)로 정합니다. 값을 모르면 관리자에게 확인하세요. 틀린 값을 반복 입력하면 연속 실패 10회에서 계정이 10분간 잠깁니다(`LoginAttemptGuard`).
 
 The test seed file `deploy\db\002_seed_test.sql` creates this account. The application treats `admin` as a super admin through `backend\src\main\resources\application.yml`.
 
@@ -56,7 +53,7 @@ https://yeokjeon.com
 
 ```text
 Type: A
-Name: test
+Name: on
 IPv4 address: 203.234.249.145
 Proxy status: Proxied
 TTL: Auto
@@ -72,6 +69,8 @@ Destination Port: Rewrite to 8080
 ```
 
 5. In Cloudflare SSL/TLS, set encryption mode to `Flexible` for this field test setup, because the origin server listens with HTTP on port `8080`.
+
+   주의(미해결): `Flexible` 은 Cloudflare→오리진 구간이 공인 인터넷을 평문 HTTP 로 지나갑니다. 로그인 비밀번호, Authorization 토큰(12시간 유효), 가맹점·점주 개인정보가 그 구간에서 읽힙니다. 현장 테스트 단계라 잠정 유지 중이며, 운영 전환 전에 오리진에 Cloudflare Origin CA 인증서를 붙이고 `Full (strict)` 로 올려야 합니다. 그때 `deploy\package\field-server\caddy\Caddyfile.http` 도 TLS 수신으로 함께 바꿔야 합니다.
 6. On FortiGate, create only this VIP and policy:
 
 ```text
@@ -93,8 +92,10 @@ mvn -DskipTests package
 
 ```powershell
 cd C:\y-on\internal-system\app_flutter
-flutter build web --no-pub --dart-define=API_BASE_URL=https://on.yeokjeon.com/api --dart-define=KAKAO_MAP_JAVASCRIPT_KEY=3649c96a39bc8cff269119d8cffbe4e0
+flutter build web --no-pub --no-tree-shake-icons --pwa-strategy=none --dart-define=API_BASE_URL=https://on.yeokjeon.com/api --dart-define=KAKAO_MAP_JAVASCRIPT_KEY=3649c96a39bc8cff269119d8cffbe4e0
 ```
+
+`--pwa-strategy=none` 과 `--no-tree-shake-icons` 는 빼면 안 됩니다. 이 절차가 `deploy\package\create-field-package.ps1` 과 갈라져 있어서, 예전에는 문서대로 빌드하면 서비스워커가 켜진 번들이 나갔습니다. 서비스워커가 한 번 잡히면 서버 파일은 새것인데 브라우저만 옛 앱 셸을 계속 실행해, 응답코드·Last-Modified 로는 배포 성공으로 보이는 형태로 배포가 실패합니다. 아이콘 쪽도 같은 이유입니다(트리셰이킹된 옛 부분폰트가 캐시되면 새 아이콘이 안 보임).
 
 10. Create field backend env:
 

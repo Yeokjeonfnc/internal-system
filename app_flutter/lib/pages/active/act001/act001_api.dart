@@ -25,14 +25,21 @@ class Act001Api extends BaseRepository {
       if (userId != null && userId.isNotEmpty) {
         queryParameters[ActiveMstApiJsonKeys.userId] = userId;
       }
-      final maps = await getDataListMap(
-        '${ActiveMstApiPaths.root}/status/$type',
-        queryParameters: queryParameters,
-      );
-      return maps.map(ActivityStatusPivotRow.fromJson).toList();
+      // 실패를 빈 목록으로 삼키면 화면에 '조회된 활동현황이 없습니다.' 가 떠서
+      // 서버 오류·토큰 만료를 '데이터 없음' 으로 오인하게 된다. 예외를 그대로 올려
+      // 호출부 FutureBuilder 의 오류 분기가 살아나도록 한다.
+      // (getDataListMap 은 모든 예외를 삼키므로 여기서는 client 를 직접 쓴다.)
+      final path = '${ActiveMstApiPaths.root}/status/$type';
+      final r = await client.get(path, queryParameters: queryParameters);
+      if (r.statusCode != 200 || r.data == null) {
+        throw StateError('GET $path failed: status=${r.statusCode}');
+      }
+      return parseDataListMap(
+        r.data,
+      ).map(ActivityStatusPivotRow.fromJson).toList();
     } catch (e) {
       debugPrint('Error fetching activity status rows: $e');
+      rethrow;
     }
-    return const [];
   }
 }

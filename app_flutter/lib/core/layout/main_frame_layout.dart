@@ -487,7 +487,9 @@ class _SidebarNavigation extends StatelessWidget {
               currentPath.startsWith('$kActivitiesRoot/status/'),
           onTap: () => navigate(() => context.go(ActivityRoutes.groupStatus)),
         ),
-      if (can(kMenuAct004) || can(kMenuAct002))
+      // act002 까지 열어 두면 라우터 가드(/activities/calendar = act004)에 막혀
+      // 눌러도 다른 화면으로 튕긴다 — 가드와 같은 조건으로 맞춘다.
+      if (can(kMenuAct004))
         _SidebarSubMenuItem(
           title: '활동 계획',
           selected:

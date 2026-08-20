@@ -696,6 +696,32 @@
         ORDER BY prop_idx DESC
     </select>
 
+    <!--
+        주차가능대수(parking_count)는 선택 컬럼이다. 위 selectPropertiesOrdered 와
+        JPA 엔티티에는 일부러 넣지 않았다 — 컬럼이 아직 없는 DB 에서 물건 조회가
+        통째로 죽기 때문이다. 아래 두 문장은 존재 확인(countPropertyParkingCountColumn)
+        을 통과했을 때만 실행한다.
+    -->
+    <select id="countPropertyParkingCountColumn" resultType="int">
+        SELECT CAST(COUNT(*) AS INTEGER)
+        FROM information_schema.columns
+        WHERE LOWER(table_schema) = 'public'
+          AND table_name = 'property_mst'
+          AND column_name = 'parking_count'
+    </select>
+
+    <select id="selectPropertyParkingCount" resultType="java.lang.Integer">
+        SELECT parking_count
+        FROM property_mst
+        WHERE prop_idx = #{propIdx}
+    </select>
+
+    <update id="updatePropertyParkingCount">
+        UPDATE property_mst
+        SET parking_count = #{parkingCount}
+        WHERE prop_idx = #{propIdx}
+    </update>
+
     <select id="checkSurveyor" resultType="int">
         SELECT COUNT(*)
         FROM user_mst

@@ -7,12 +7,16 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import 'package:app_flutter/core/api/common_code_api_service.dart';
+import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/format/korean_phone_display.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
+import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
@@ -23,7 +27,19 @@ import 'package:app_flutter/pages/master/mst001/mst001_controller.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_csv.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_filter.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
+import 'package:app_flutter/pages/master/mst002/mst002_model.dart';
+import 'package:app_flutter/pages/master/mst002/mst002_repo.dart';
 import 'package:app_flutter/core/router/app_router.dart';
+
+/// 직급 코드 그룹 (`grp_cd = 60`) — 사원 상세 화면과 같은 값.
+const int _kUserPositionGrpCd = 60;
+
+void _flattenDepartmentTree(List<Department> roots, List<Department> out) {
+  for (final d in roots) {
+    out.add(d);
+    _flattenDepartmentTree(d.children, out);
+  }
+}
 
 /// 사원관리 목록.
 class UserListView extends ConsumerStatefulWidget {
@@ -237,46 +253,75 @@ class _UserListViewState extends ConsumerState<UserListView> {
   /// (체크박스 다중선택 UI가 아직 없어, 기존 검색/필터를 "선택" 수단으로
   /// 쓴다 — 특정 한 명만 바꾸려면 검색으로 그 사람만 남긴 뒤 누르면 된다).
   Future<void> _resetPasswords(List<User> rows) async {
-    final eligible = rows.where((u) => u.userId.trim().isNotEmpty).toList();
+    // 본인은 대상에서 뺀다. 서버는 초기화한 계정의 토큰을 전부 끊기 때문에,
+    // 목록에 내가 섞여 있으면 내 차례가 오는 순간 내 토큰이 죽어 그 뒤 사원들이
+    // 전부 401 로 실패하고 화면은 로그인으로 튕긴다 — 어디까지 초기화됐는지조차
+    // 알 수 없게 된다. 내 비밀번호는 '내 정보'에서 직접 바꾸면 된다.
+    final myUserId = context.read<AuthProvider>().userId.trim().toLowerCase();
+    final withLoginId = rows.where((u) => u.userId.trim().isNotEmpty).toList();
+    final eligible = myUserId.isEmpty
+        ? withLoginId
+        : withLoginId
+              .where((u) => u.userId.trim().toLowerCase() != myUserId)
+              .toList();
+    final selfExcluded = withLoginId.length - eligible.length;
+
     if (eligible.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인ID가 있는 사원이 없습니다.')),
+        SnackBar(
+          content: Text(
+            selfExcluded > 0
+                ? '본인 계정만 조회되어 초기화할 대상이 없습니다.'
+                : '로그인ID가 있는 사원이 없습니다.',
+          ),
+        ),
       );
       return;
     }
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => _ResetPasswordConfirmDialog(users: eligible),
+      builder: (dialogContext) => _ResetPasswordConfirmDialog(
+        users: eligible,
+        selfExcluded: selfExcluded,
+      ),
     );
     if (confirmed != true) return;
 
     final api = ref.read(mst001ApiServiceProvider);
-    var succeeded = 0;
+    final succeeded = <String>[];
     final failures = <String>[];
     for (final u in eligible) {
       final result = await api.resetPassword(u.userIdx);
       if (result.ok) {
-        succeeded++;
+        succeeded.add('${u.name}(${u.userId})');
       } else {
         failures.add('${u.name}(${u.userId}): ${result.failure}');
       }
     }
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '비밀번호 초기화 완료 — 성공 $succeeded건'
-          '${failures.isNotEmpty ? ', 실패 ${failures.length}건' : ''}',
-        ),
-        duration: const Duration(seconds: 4),
-      ),
-    );
-    if (failures.isNotEmpty) {
-      debugPrint('비밀번호 초기화 실패 목록:\n${failures.join('\n')}');
+    // 실패 목록을 debugPrint 로만 남기면 "누구까지 초기화됐는지" 알 방법이 없어
+    // 복구 판단을 못 한다. 결과를 화면에 남긴다.
+    if (failures.isEmpty) {
+      await showAlertDialog(
+        context,
+        '${succeeded.length}명의 비밀번호를 초기 비밀번호로 되돌렸습니다.',
+        title: '비밀번호 초기화 완료',
+      );
+      return;
     }
+    // 공통 알림은 스크롤이 없어 줄이 많으면 넘친다 — 앞부분만 보여주고 나머지는 건수로.
+    const maxLines = 15;
+    final shown = failures.take(maxLines).join('\n');
+    final rest = failures.length - maxLines;
+    await showAlertDialog(
+      context,
+      '성공 ${succeeded.length}건 · 실패 ${failures.length}건\n\n'
+      '[실패]\n$shown${rest > 0 ? '\n… 외 $rest건' : ''}',
+      title: '비밀번호 초기화 결과',
+    );
   }
 
   Future<void> _downloadCsv(List<User> rows) async {
@@ -329,16 +374,8 @@ class _UserListViewState extends ConsumerState<UserListView> {
       for (final u in allUsers)
         if (u.userId.trim().isNotEmpty) u.userId.trim(): u,
     };
-    final deptIdxByName = {
-      for (final u in allUsers)
-        if (u.department.trim().isNotEmpty && u.deptIdx != null)
-          u.department.trim(): u.deptIdx!,
-    };
-    final positionCdByName = {
-      for (final u in allUsers)
-        if (u.positionNm.trim().isNotEmpty && (u.positionCd ?? '').isNotEmpty)
-          u.positionNm.trim(): u.positionCd!,
-    };
+    final deptIdxByName = await _deptIdxByName(allUsers);
+    final positionCdByName = await _positionCdByName(allUsers);
 
     User? findExisting(ParsedUserCsvRow row) {
       if (row.userIdx != null) {
@@ -350,22 +387,27 @@ class _UserListViewState extends ConsumerState<UserListView> {
 
     // CSV에 적힌 값을 그대로 "이렇게 저장됩니다" 미리보기로 보여준다.
     // 기존 값과 비교하지 않는다 — 파일 내용 전체가 통째로 달라져도 그대로 반영.
-    final plans = parsedRows
-        .map(
-          (row) => _PlannedUserUpdate(
-            userId: row.userId,
-            existing: findExisting(row),
-            name: row.name,
-            department: row.department,
-            deptIdx: deptIdxByName[row.department],
-            positionNm: row.positionNm,
-            positionCd: positionCdByName[row.positionNm] ?? '',
-            mobilePhone: row.mobilePhone,
-            email: row.email,
-            svYn: row.svYn,
-          ),
-        )
-        .toList();
+    final plans = parsedRows.map((row) {
+      final deptNm = row.department.trim();
+      final positionNm = row.positionNm.trim();
+      return _PlannedUserUpdate(
+        userId: row.userId,
+        existing: findExisting(row),
+        name: row.name,
+        department: row.department,
+        deptIdx: deptIdxByName[deptNm],
+        // 이름을 코드로 바꾸지 못하면 저장 때 기존 값이 유지된다. 그 사실을
+        // 미리보기에서 알려야 하므로 "비어 있음"과 "못 찾음"을 구분해 둔다.
+        deptResolved: deptNm.isEmpty || deptIdxByName.containsKey(deptNm),
+        positionNm: row.positionNm,
+        positionCd: positionCdByName[positionNm] ?? '',
+        positionResolved:
+            positionNm.isEmpty || positionCdByName.containsKey(positionNm),
+        mobilePhone: row.mobilePhone,
+        email: row.email,
+        svYn: row.svYn,
+      );
+    }).toList();
 
     if (plans.isEmpty) {
       if (!mounted) return;
@@ -387,12 +429,14 @@ class _UserListViewState extends ConsumerState<UserListView> {
     var updated = 0;
     var notFound = 0;
     var failed = 0;
+    var unmapped = 0;
     for (final plan in plans) {
       final existing = plan.existing;
       if (existing == null) {
         notFound++;
         continue;
       }
+      if (plan.deptUnresolved || plan.positionUnresolved) unmapped++;
       try {
         final body = User.buildUpdateUserRequest(
           name: plan.name.isEmpty ? existing.name : plan.name,
@@ -400,9 +444,13 @@ class _UserListViewState extends ConsumerState<UserListView> {
           deptIdx: plan.deptIdx ?? existing.deptIdx,
           mobilePhone: plan.mobilePhone,
           email: plan.email,
+          // 직급 이름을 코드로 못 바꿨으면 기존 값을 그대로 둔다. 여기서 빈
+          // 문자열을 보내면 서버가 "직급을 지워라"로 받아들인다(기존 값이 없으면
+          // null 이 되어 키 자체가 빠진다 = 손대지 않음).
           positionCd: plan.positionCd.isEmpty
-              ? (existing.positionCd ?? '')
+              ? existing.positionCd
               : plan.positionCd,
+          // 입사일은 CSV가 다루지 않는 항목이라 넘기지 않는다 — 넘기면 지워진다.
           svYn: plan.svYn,
           ownerYn: existing.ownerYn == OwnerYn.yes,
         );
@@ -419,15 +467,62 @@ class _UserListViewState extends ConsumerState<UserListView> {
 
     ref.read(userProvider.notifier).refresh();
     if (!mounted) return;
+    // 이름을 코드로 못 바꾼 건은 저장은 됐지만 부서·직급만 예전 값 그대로다.
+    // 예전에는 그걸 그냥 '수정 n건' 에 섞어 세어, 반영된 줄 알고 넘어가게 했다.
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           '일괄 업로드 완료 — 수정 $updated건'
-          '${notFound > 0 ? ', 로그인ID 못 찾음 $notFound건' : ''}'
+          '${notFound > 0 ? ', 토큰번호·로그인ID 못 찾음 $notFound건' : ''}'
+          '${unmapped > 0 ? ', 부서·직급 이름 못 찾아 기존값 유지 $unmapped건' : ''}'
           '${failed > 0 ? ', 실패 $failed건' : ''}',
         ),
+        duration: const Duration(seconds: 5),
       ),
     );
+  }
+
+  /// 부서명 → deptIdx.
+  ///
+  /// 부서 마스터(GET /dept/list)를 기준으로 만든다. 예전에는 "현재 사원 목록에
+  /// 이미 등장하는 부서명"으로만 표를 만들어서, 소속 인원이 0명인 신설 부서로
+  /// 옮기는 조직개편 CSV — 즉 이 기능의 가장 흔한 사용 시나리오 — 가 통째로
+  /// 무시됐다(미리보기는 바뀐다고 파랗게 표시하는데 저장은 기존 값 그대로).
+  /// 부서 목록 조회가 실패하면 예전 방식으로라도 매핑한다.
+  Future<Map<String, int>> _deptIdxByName(List<User> allUsers) async {
+    final byName = <String, int>{
+      for (final u in allUsers)
+        if (u.department.trim().isNotEmpty && u.deptIdx != null)
+          u.department.trim(): u.deptIdx!,
+    };
+    final flat = <Department>[];
+    _flattenDepartmentTree(await DepartmentRepository().all(), flat);
+    for (final d in flat) {
+      final name = d.name.trim();
+      final idx = int.tryParse(d.id);
+      if (name.isNotEmpty && idx != null) byName[name] = idx;
+    }
+    return byName;
+  }
+
+  /// 직급명 → positionCd. 근거는 공통코드(grp_cd=60)이며, 조회 실패 시에만
+  /// 사원 목록에 등장한 직급으로 대체한다([_deptIdxByName]과 같은 이유).
+  Future<Map<String, String>> _positionCdByName(List<User> allUsers) async {
+    final byName = <String, String>{
+      for (final u in allUsers)
+        if (u.positionNm.trim().isNotEmpty && (u.positionCd ?? '').isNotEmpty)
+          u.positionNm.trim(): u.positionCd!,
+    };
+    try {
+      final codes = await CommonCodeApiService().getCodes(_kUserPositionGrpCd);
+      for (final c in codes) {
+        final name = c.codeNm.trim();
+        if (name.isNotEmpty && c.codeCd.isNotEmpty) byName[name] = c.codeCd;
+      }
+    } catch (e) {
+      debugPrint('직급 코드 조회 실패 — 사원 목록에 등장한 직급으로만 매핑: $e');
+    }
+    return byName;
   }
 
   List<ActiveFilterChip> _chips(UserFilter f, UserNotifier n) {
@@ -561,9 +656,15 @@ class _YnFieldChip extends StatelessWidget {
 
 /// "비밀번호 초기화" 실행 전 확인 — 대상자 명단과 결과를 미리 보여준다.
 class _ResetPasswordConfirmDialog extends StatelessWidget {
-  const _ResetPasswordConfirmDialog({required this.users});
+  const _ResetPasswordConfirmDialog({
+    required this.users,
+    this.selfExcluded = 0,
+  });
 
   final List<User> users;
+
+  /// 대상에서 제외된 본인 계정 수(0 또는 1). 왜 명단에 내가 없는지 알려 준다.
+  final int selfExcluded;
 
   @override
   Widget build(BuildContext context) {
@@ -585,6 +686,19 @@ class _ResetPasswordConfirmDialog extends StatelessWidget {
                 fontFamilyFallback: AppTheme.koreanFontFallback,
               ),
             ),
+            if (selfExcluded > 0) ...[
+              const SizedBox(height: 4),
+              const Text(
+                '※ 본인 계정은 제외했습니다 — 초기화하는 순간 내 세션이 끊겨 '
+                '나머지 사원이 전부 실패합니다. 내 비밀번호는 [내 정보]에서 바꾸세요.',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.statusPending,
+                  fontFamilyFallback: AppTheme.koreanFontFallback,
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Flexible(
               child: ConstrainedBox(
@@ -629,8 +743,10 @@ class _PlannedUserUpdate {
     required this.name,
     required this.department,
     required this.deptIdx,
+    required this.deptResolved,
     required this.positionNm,
     required this.positionCd,
+    required this.positionResolved,
     required this.mobilePhone,
     required this.email,
     required this.svYn,
@@ -643,13 +759,25 @@ class _PlannedUserUpdate {
   final String name;
   final String department;
   final int? deptIdx;
+
+  /// CSV의 부서명을 실제 deptIdx로 바꿀 수 있었는지. 못 바꾸면 저장 시 기존
+  /// 부서가 유지되므로 "바뀜"으로 표시하면 안 된다(가장 흔한 오해의 원인).
+  final bool deptResolved;
   final String positionNm;
   final String positionCd;
+
+  /// 직급명 → positionCd 변환 성공 여부. [deptResolved]와 같은 이유.
+  final bool positionResolved;
   final String mobilePhone;
   final String email;
   final bool svYn;
 
   bool get matched => existing != null;
+
+  /// 매칭은 됐는데 이름을 코드로 못 바꾼 상태 — 저장해도 그 칸만 안 바뀐다.
+  bool get deptUnresolved => matched && !deptResolved;
+
+  bool get positionUnresolved => matched && !positionResolved;
 
   /// 기존 값과 실제로 달라지는 필드 — 판정 로직은 [diffUserCsvRow](단위테스트 있음)와 공유한다.
   UserCsvRowDiff? get _diff => existing == null
@@ -669,12 +797,25 @@ class _PlannedUserUpdate {
 
   bool get userIdChanged => _diff?.userIdChanged ?? false;
   bool get nameChanged => _diff?.nameChanged ?? false;
-  bool get departmentChanged => _diff?.departmentChanged ?? false;
-  bool get positionChanged => _diff?.positionChanged ?? false;
+
+  /// 부서·직급은 이름을 코드로 바꿔야 저장된다 — 못 바꾼 행은 실제로 아무것도
+  /// 안 바뀌므로 "바뀜"에서 뺀다(빼지 않으면 미리보기가 거짓말을 한다).
+  bool get departmentChanged =>
+      deptResolved && (_diff?.departmentChanged ?? false);
+  bool get positionChanged =>
+      positionResolved && (_diff?.positionChanged ?? false);
   bool get phoneChanged => _diff?.phoneChanged ?? false;
   bool get emailChanged => _diff?.emailChanged ?? false;
   bool get svYnChanged => _diff?.svYnChanged ?? false;
-  bool get hasAnyChange => _diff?.hasAnyChange ?? false;
+
+  bool get hasAnyChange =>
+      userIdChanged ||
+      nameChanged ||
+      departmentChanged ||
+      positionChanged ||
+      phoneChanged ||
+      emailChanged ||
+      svYnChanged;
 }
 
 /// CSV 업로드 전 — "데이터가 이렇게 저장됩니다"를 그대로 보여주고 승인받는 다이얼로그.
@@ -709,6 +850,9 @@ class _UploadPreviewDialogState extends State<_UploadPreviewDialog> {
     final matchedCount = plans.where((p) => p.matched).length;
     final notFoundCount = plans.length - matchedCount;
     final changedCount = plans.where((p) => p.hasAnyChange).length;
+    final unmappedCount = plans
+        .where((p) => p.deptUnresolved || p.positionUnresolved)
+        .length;
     final duplicateIds = findDuplicateTargetUserIds(
       plans.where((p) => p.matched).map((p) => p.userId),
     );
@@ -752,6 +896,22 @@ class _UploadPreviewDialogState extends State<_UploadPreviewDialog> {
                 fontFamilyFallback: AppTheme.koreanFontFallback,
               ),
             ),
+            if (unmappedCount > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                // 부서·직급은 이름이 아니라 코드로 저장된다. 등록되지 않은
+                // 이름이 적혀 있으면 그 칸만 조용히 기존 값으로 남는데, 예전에는
+                // 그걸 파란 글씨로 "바뀜"이라 표시해 반영된 줄 알게 만들었다.
+                '⚠ 등록되지 않은 부서·직급 이름 $unmappedCount건 — 해당 칸은 기존 값이 그대로 유지됩니다. '
+                '부서관리에서 부서를 먼저 만들거나 이름 표기를 맞춰 주세요.',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.statusPending,
+                  fontFamilyFallback: AppTheme.koreanFontFallback,
+                ),
+              ),
+            ],
             if (duplicateIds.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
@@ -816,19 +976,17 @@ class _UploadPreviewDialogState extends State<_UploadPreviewDialog> {
                                     ),
                                   ),
                                   DataCell(
-                                    _diffText(
-                                      p.department.isEmpty
-                                          ? '-'
-                                          : p.department,
-                                      p.departmentChanged,
+                                    _mappedNameCell(
+                                      p.department,
+                                      changed: p.departmentChanged,
+                                      unresolved: p.deptUnresolved,
                                     ),
                                   ),
                                   DataCell(
-                                    _diffText(
-                                      p.positionNm.isEmpty
-                                          ? '-'
-                                          : p.positionNm,
-                                      p.positionChanged,
+                                    _mappedNameCell(
+                                      p.positionNm,
+                                      changed: p.positionChanged,
+                                      unresolved: p.positionUnresolved,
                                     ),
                                   ),
                                   DataCell(
@@ -893,6 +1051,26 @@ class _UploadPreviewDialogState extends State<_UploadPreviewDialog> {
             )
           : null,
     );
+  }
+
+  /// 부서·직급 칸. 이름을 코드로 못 바꾼 행은 파란 글씨(=바뀜) 대신 경고색으로
+  /// 사유를 붙여 보여준다 — 그대로 저장해도 그 칸만 안 바뀌기 때문이다.
+  Widget _mappedNameCell(
+    String text, {
+    required bool changed,
+    required bool unresolved,
+  }) {
+    final shown = text.trim().isEmpty ? '-' : text.trim();
+    if (unresolved) {
+      return Text(
+        '$shown (등록된 이름 아님 · 기존값 유지)',
+        style: const TextStyle(
+          color: AppTheme.statusPending,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    }
+    return _diffText(shown, changed);
   }
 
   /// 로그인ID가 바뀌는 행은 "기존ID → 새ID" 형태로 보여준다. 토큰번호 매칭

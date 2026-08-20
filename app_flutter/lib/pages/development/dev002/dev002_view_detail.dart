@@ -1101,6 +1101,8 @@ class _DetailConditionsTabState extends State<_DetailConditionsTab> {
   @override
   void dispose() {
     _floorController.dispose();
+    // 다른 컨트롤러와 달리 여기만 빠져 있었다 — 탭을 오갈 때마다 리스너가 남는다.
+    _parkingCountController.dispose();
     _contAreaController.dispose();
     _realAreaController.dispose();
     _rentDepositController.dispose();

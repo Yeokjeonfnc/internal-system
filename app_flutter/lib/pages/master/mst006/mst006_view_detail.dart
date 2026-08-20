@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:app_flutter/core/api/base_repository.dart'
+    show formatApiUserMessage;
 import 'package:app_flutter/core/format/korean_phone_display.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
@@ -229,7 +231,12 @@ class _OwnerUserInfoPanelState extends ConsumerState<_OwnerUserInfoPanel> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      await showAlertDialog(context, '저장에 실패했습니다.\n$e');
+      // DioException 원문을 그대로 붙이면 "원인 불명" 문구가 된다. 서버가 내려준
+      // 사유(예: 이미 사용 중인 로그인 ID)를 꺼내 보여 줘야 사용자가 고칠 수 있다.
+      await showAlertDialog(
+        context,
+        formatApiUserMessage(e, fallback: '저장에 실패했습니다.'),
+      );
     }
   }
 

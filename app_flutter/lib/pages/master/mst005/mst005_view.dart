@@ -24,6 +24,13 @@ const _kUseTypeOptions = ['전체', '메뉴사용', '로그인'];
 const _kUseTypeApiValues = ['', 'MENU', 'LOGIN'];
 const _kDatePresets = ['오늘', '최근1개월', '최근3개월', '직접 설정'];
 
+/// 서버 `UsageLogMapper.selectList` 의 `LIMIT` 과 같은 값.
+///
+/// 사용기록은 감사 자료라 "총 N건"이 실제 총계인지 잘린 값인지 반드시 구분돼야 한다.
+/// 응답에 '더 있음' 표시가 없으므로 받은 건수가 상한과 같으면 잘린 것으로 본다.
+/// (서버 LIMIT 을 바꾸면 이 값도 같이 바꿀 것)
+const int _kServerRowLimit = 2000;
+
 class UsageLogInquiryView extends StatefulWidget {
   const UsageLogInquiryView({super.key});
 
@@ -311,21 +318,77 @@ class _UsageLogInquiryViewState extends State<UsageLogInquiryView>
               final rows = snap.data ?? const <UsageLogRow>[];
               final loading = snap.connectionState == ConnectionState.waiting &&
                   !snap.hasData;
+              final truncated = rows.length >= _kServerRowLimit;
               return ListPageTemplate(
                 activeFilters: _activeChips(),
                 mainSearchFields: _buildSearchFields(),
-                countText: loading ? '조회 중…' : '총 ${rows.length}건',
+                countText: loading
+                    ? '조회 중…'
+                    : truncated
+                        ? '최근 ${rows.length}건 (조회 상한에 걸림 · 전체 건수 아님)'
+                        : '총 ${rows.length}건',
                 onRefresh: _reload,
                 table: loading
                     ? const Center(child: CircularProgressIndicator())
                     : snap.hasError
                         ? Center(child: Text('조회 실패: ${snap.error}'))
-                        : _UsageLogTable(rows: rows),
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (truncated) ...[
+                                const _TruncatedNotice(),
+                                const SizedBox(height: 6),
+                              ],
+                              Expanded(child: _UsageLogTable(rows: rows)),
+                            ],
+                          ),
               );
             },
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 조회가 서버 상한에서 잘렸음을 알린다.
+///
+/// 잘린 사실을 숨기면 "그 이전 기록은 없다"로 오인해 감사 자료로 잘못 쓰게 된다.
+class _TruncatedNotice extends StatelessWidget {
+  const _TruncatedNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            size: 17,
+            color: Color(0xFFB45309),
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '최신 $_kServerRowLimit건만 조회됩니다. 이보다 이전 기록은 표에 나오지 않으니 '
+              '사용기간을 좁혀 다시 조회하세요.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: Color(0xFF92400E),
+                fontFamilyFallback: AppTheme.koreanFontFallback,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

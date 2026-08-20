@@ -76,7 +76,7 @@ class DashboardScreen extends ConsumerWidget {
 
             final statCards = [
               _StatAccentCard(
-                value: '${data.recentNotifs.length}건',
+                value: '${data.pendingNotifCount}건',
                 label: '결재 알림',
                 sublabel: '처리 대기',
                 accent: _DashPalette.coral,
@@ -148,13 +148,18 @@ class DashboardScreen extends ConsumerWidget {
 class _DashboardHomeData {
   const _DashboardHomeData({
     required this.recentNotifs,
+    required this.pendingNotifCount,
     required this.newStoresThisMonth,
     required this.expiringStoresThisMonth,
     required this.totalStores,
     required this.recentActivities,
   });
 
+  /// 카드에 그릴 최근 알림(최대 5건) — 개수 표시용이 아니다.
   final List<NotifRow> recentNotifs;
+
+  /// KPI '처리 대기' 건수 — 자르기 전 전체에서 미읽음·미결재만 센 값.
+  final int pendingNotifCount;
   final int newStoresThisMonth;
   final int expiringStoresThisMonth;
   final int totalStores;
@@ -162,6 +167,9 @@ class _DashboardHomeData {
 }
 
 const String _kNotifTypeActivityApproval = 'ACTIVITY_APPROVAL';
+
+/// Y/N 플래그 판정 — 알림 시트(common_notification_sheet.dart)와 같은 기준.
+bool _isYesFlag(String raw) => raw.trim().toUpperCase() == 'Y';
 
 bool _isSameMonth(String raw, DateTime now) {
   final s = raw.trim();
@@ -188,6 +196,7 @@ Future<_DashboardHomeData> _loadDashboardHomeData(String userId) async {
   if (uid.isEmpty) {
     return const _DashboardHomeData(
       recentNotifs: [],
+      pendingNotifCount: 0,
       newStoresThisMonth: 0,
       expiringStoresThisMonth: 0,
       totalStores: 0,
@@ -205,14 +214,21 @@ Future<_DashboardHomeData> _loadDashboardHomeData(String userId) async {
   final stores = await storesFuture;
   final approvalRows = await approvalsFuture;
 
-  final recentNotifs = notifsAll
+  final approvalNotifs = notifsAll
       .where(
         (n) =>
             n.notifTyp.trim() == _kNotifTypeActivityApproval &&
             n.actIdx != null,
       )
-      .take(5)
       .toList();
+
+  // KPI 는 자르기 전 전체에서 세고(take(5) 하면 항상 '5건'), 이미 읽었거나
+  // 결재까지 끝난 알림은 '처리 대기' 가 아니므로 제외한다.
+  final pendingNotifCount = approvalNotifs
+      .where((n) => !_isYesFlag(n.readYn) && !_isYesFlag(n.apprYn))
+      .length;
+
+  final recentNotifs = approvalNotifs.take(5).toList();
 
   final totalStores = stores.length;
   final newStoresThisMonth = stores
@@ -226,6 +242,7 @@ Future<_DashboardHomeData> _loadDashboardHomeData(String userId) async {
 
   return _DashboardHomeData(
     recentNotifs: recentNotifs,
+    pendingNotifCount: pendingNotifCount,
     newStoresThisMonth: newStoresThisMonth,
     expiringStoresThisMonth: expiringStoresThisMonth,
     totalStores: totalStores,

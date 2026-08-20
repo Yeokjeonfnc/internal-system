@@ -28,12 +28,13 @@ public class BoardService {
         boardAccessService.ensureCanView(userId);
         MstUser user = boardAccessService.requireUser(userId);
         boolean owner = boardAccessService.isFranchiseOwner(user);
+        boolean folderManager = boardAccessService.canManageFolders(userId);
         String uid = userId.trim();
-        return bbsFolderMapper.selectFoldersForViewer(owner).stream()
+        return bbsFolderMapper.selectFoldersForViewer(owner, folderManager).stream()
                 .map(row -> BbsFolderDto.fromRow(
                         row,
                         bbsFolderMapper.countPostsByFolderForViewer(
-                                row.folderIdx(), uid, owner)))
+                                row.folderIdx(), uid, owner, folderManager)))
                 .collect(Collectors.toList());
     }
 
@@ -66,9 +67,11 @@ public class BoardService {
         BbsFolderJdbcRow row = bbsFolderMapper.selectFolderById(folderIdx);
         MstUser user = boardAccessService.requireUser(userId);
         boolean owner = boardAccessService.isFranchiseOwner(user);
+        // 여기까지 왔으면 ensureCanManageFolders 를 통과한 폴더 관리자다 —
+        // 방금 '사원 열람' 을 껐더라도 글 수는 그대로 보여야 한다.
         return BbsFolderDto.fromRow(
                 row,
-                bbsFolderMapper.countPostsByFolderForViewer(folderIdx, userId.trim(), owner));
+                bbsFolderMapper.countPostsByFolderForViewer(folderIdx, userId.trim(), owner, true));
     }
 
     @Transactional
@@ -90,7 +93,8 @@ public class BoardService {
             boardAccessService.ensureCanViewFolder(userId, folderIdx);
         }
         String kw = StringUtils.hasText(keyword) ? keyword.trim() : null;
-        return bbsPostMapper.selectPosts(folderIdx, kw, userId.trim(), owner).stream()
+        boolean folderManager = boardAccessService.canManageFolders(userId);
+        return bbsPostMapper.selectPosts(folderIdx, kw, userId.trim(), owner, folderManager).stream()
                 .map(BbsPostDto::fromRow)
                 .collect(Collectors.toList());
     }

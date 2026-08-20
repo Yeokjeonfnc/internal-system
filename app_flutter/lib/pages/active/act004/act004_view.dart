@@ -44,11 +44,6 @@ class _Act004ViewState extends State<Act004View> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _reload());
   }
 
-  List<int> get _visibleAssigneeIdxs => _members
-      .where((m) => m.visible)
-      .map((m) => m.userIdx)
-      .toList();
-
   bool _memberVisible(int userIdx) {
     for (final m in _members) {
       if (m.userIdx == userIdx) return m.visible;
@@ -95,18 +90,28 @@ class _Act004ViewState extends State<Act004View> {
     });
     try {
       final ctx = await _api.fetchCalendarContext(viewerIdx);
-      final month = await _api.fetchMonthPlans(
-        viewerUserIdx: viewerIdx,
-        year: _focusedMonth.year,
-        month: _focusedMonth.month,
-        assigneeUserIdxs: _visibleAssigneeIdxs.isEmpty ? null : _visibleAssigneeIdxs,
-      );
+      final members = (ctx?.members ?? [])
+          .map((m) => m.copyWith(visible: _memberVisible(m.userIdx)))
+          .toList();
+      final visibleIdxs = members
+          .where((m) => m.visible)
+          .map((m) => m.userIdx)
+          .toList();
+      // 담당자를 전부 해제했는데 필터를 비워 보내면 서버가 '조건 없음'으로 읽어
+      // 열람 가능한 전원 일정을 돌려준다 — 그럴 때는 조회하지 않고 비운다.
+      // (담당자 목록 자체가 없는 경우는 걸 조건이 없으므로 기존대로 전체 조회)
+      final month = members.isNotEmpty && visibleIdxs.isEmpty
+          ? const Act004MonthResponse()
+          : await _api.fetchMonthPlans(
+              viewerUserIdx: viewerIdx,
+              year: _focusedMonth.year,
+              month: _focusedMonth.month,
+              assigneeUserIdxs: visibleIdxs.isEmpty ? null : visibleIdxs,
+            );
       if (!mounted) return;
       setState(() {
         _teams = ctx?.teams ?? [];
-        _members = (ctx?.members ?? [])
-            .map((m) => m.copyWith(visible: _memberVisible(m.userIdx)))
-            .toList();
+        _members = members;
         _monthData = month;
         _loading = false;
       });
@@ -123,13 +128,17 @@ class _Act004ViewState extends State<Act004View> {
     final viewerIdx = _viewerUserIdx;
     if (viewerIdx == null) return;
     setState(() => _selectedDay = date);
-    final visibleMembers = _members.where((m) => m.visible).toList();
+    // 본인을 숨겨 두면 다이얼로그가 본인 섹션을 못 찾아 canEdit=false 가 되고
+    // 자기 계획조차 저장할 수 없다 — 표시 여부와 무관하게 본인은 항상 넘긴다.
+    final dialogMembers = _members
+        .where((m) => m.visible || m.userIdx == viewerIdx)
+        .toList();
     final saved = await showAct004DayDialog(
       context,
       viewerUserIdx: viewerIdx,
       createdBy: _userId,
       planDate: date,
-      members: visibleMembers,
+      members: dialogMembers,
     );
     if (saved == true) await _reload();
   }

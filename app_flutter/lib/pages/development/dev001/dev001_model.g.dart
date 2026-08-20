@@ -9,9 +9,9 @@ part of 'dev001_model.dart';
 Partner _$PartnerFromJson(Map<String, dynamic> json) => Partner(
   partnerIdx: (json['partnerIdx'] as num).toInt(),
   createDt: erpFormatYmdFromJson(json['createDt']),
-  partnerNm: json['partnerNm'] as String,
-  partnerTel: json['partnerTel'] as String,
-  partnerEmail: json['partnerEmail'] as String,
+  partnerNm: _stringAny(json['partnerNm']),
+  partnerTel: _stringAny(json['partnerTel']),
+  partnerEmail: _stringAny(json['partnerEmail']),
   gender: _genderFromJson(json['gender']),
   partnerBirth: erpFormatYmdFromJson(json['partnerBirth']),
   pZipCd: _stringAny(json['pZipCd']),
