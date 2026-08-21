@@ -108,9 +108,9 @@ class Eap001DetailView extends ConsumerWidget {
       await ref.read(eapApiProvider).deleteDocument(doc.docId);
       ref.invalidate(eapDocumentsProvider);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('문서를 삭제했습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('문서를 삭제했습니다.')));
       context.pop();
     } catch (e) {
       if (!context.mounted) return;
@@ -341,10 +341,7 @@ class _EapDetailSplitBodyState extends State<_EapDetailSplitBody> {
           onTap: () => setState(() => _sideOpen = !_sideOpen),
         ),
         if (_sideOpen)
-          SizedBox(
-            width: 340,
-            child: _EapDetailSidePanel(doc: widget.doc),
-          ),
+          SizedBox(width: 340, child: _EapDetailSidePanel(doc: widget.doc)),
       ],
     );
   }
@@ -401,56 +398,56 @@ class _EapDocPreviewPane extends StatelessWidget {
                 width: constraints.maxWidth,
                 height: constraints.maxHeight,
                 child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(4),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x24000000),
-                          blurRadius: 8,
-                          offset: Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 18, 14, 8),
-                          child: _EapDetailApprovalTable(
-                            doc: doc,
-                            embedInDocument: true,
-                          ),
-                        ),
-                        if (raw.isEmpty)
-                          const Expanded(
-                            child: Center(
-                              child: Text(
-                                '저장된 본문이 없습니다.',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: AppTheme.textMuted,
-                                  fontFamilyFallback: AppTheme.koreanFontFallback,
-                                ),
-                              ),
-                            ),
-                          )
-                        else
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: const BorderRadius.vertical(
-                                bottom: Radius.circular(4),
-                              ),
-                              child: eapContentHtmlPreview(
-                                raw,
-                                seamless: true,
-                                readOnly: true,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x24000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
                   ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 18, 14, 8),
+                        child: _EapDetailApprovalTable(
+                          doc: doc,
+                          embedInDocument: true,
+                        ),
+                      ),
+                      if (raw.isEmpty)
+                        const Expanded(
+                          child: Center(
+                            child: Text(
+                              '저장된 본문이 없습니다.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppTheme.textMuted,
+                                fontFamilyFallback: AppTheme.koreanFontFallback,
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              bottom: Radius.circular(4),
+                            ),
+                            child: eapContentHtmlPreview(
+                              raw,
+                              seamless: true,
+                              readOnly: true,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               );
             },
           ),

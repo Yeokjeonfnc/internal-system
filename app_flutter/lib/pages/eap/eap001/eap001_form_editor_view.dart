@@ -93,11 +93,7 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.error_outline,
-                size: 40,
-                color: Colors.grey.shade500,
-              ),
+              Icon(Icons.error_outline, size: 40, color: Colors.grey.shade500),
               const SizedBox(height: 12),
               Text(
                 message,
@@ -121,9 +117,8 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
                 spacing: 8,
                 children: [
                   OutlinedButton(
-                    onPressed: () => ref.invalidate(
-                      eapFormDetailProvider(widget.formCode!),
-                    ),
+                    onPressed: () =>
+                        ref.invalidate(eapFormDetailProvider(widget.formCode!)),
                     child: const Text('다시 시도'),
                   ),
                   FilledButton(
@@ -184,9 +179,17 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
       ).showSnackBar(const SnackBar(content: Text('기본정보에서 서식명을 입력해 주세요.')));
       return;
     }
-    final formData = _hasPreview
-        ? await _builderCtrl.getFormData()
-        : (html: _previewHtml, schemaJson: _fieldSchemaJson);
+    // 저장 값은 **화면 상태**에서 가져온다. 편집기 컨트롤러에 다시 묻지 않는다.
+    //
+    // 예전에는 `_hasPreview` 일 때 `_builderCtrl.getFormData()` 를 호출했는데,
+    // 수정 모드에서는 `_applyForm` 이 `_previewHtml` 을 채우므로 `_hasPreview` 가 항상
+    // true 다. 그런데 「양식 편집기」를 열지 않았거나 열었다 닫았으면 컨트롤러는
+    // 이미 detach 된 상태(`_get == null`)라 **초기값 `'[]'` 를 그대로 돌려준다.**
+    // 그 결과 서식명이나 문서분류만 고쳐 저장해도 **fieldSchema 가 통째로 비워졌다.**
+    //
+    // 두 필드는 이미 정확하다: 로드 시 `_applyForm` 이 저장된 값으로 채우고,
+    // 「확인」으로 편집기를 닫을 때 `_openBuilder` 가 결과로 덮어쓴다.
+    final formData = (html: _previewHtml, schemaJson: _fieldSchemaJson);
     final html = formData.html;
     if (html.trim().isEmpty) {
       ScaffoldMessenger.of(
@@ -243,9 +246,7 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('서식 삭제'),
-        content: Text(
-          '${name.isEmpty ? code : name} 서식을 삭제하시겠습니까?',
-        ),
+        content: Text('${name.isEmpty ? code : name} 서식을 삭제하시겠습니까?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -267,15 +268,15 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
       if (!mounted) return;
       ref.invalidate(eapFormsProvider);
       ref.invalidate(eapEnabledFormsProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('서식을 삭제했습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('서식을 삭제했습니다.')));
       context.go(EapRoutes.forms);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('삭제에 실패했습니다.\n$e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('삭제에 실패했습니다.\n$e')));
     } finally {
       if (mounted) setState(() => _deleting = false);
     }
@@ -326,7 +327,9 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
                 const Spacer(),
                 if (_isEdit && auth.isSuperAdmin) ...[
                   OutlinedButton(
-                    onPressed: (_saving || _deleting) ? null : _confirmAndDelete,
+                    onPressed: (_saving || _deleting)
+                        ? null
+                        : _confirmAndDelete,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppTheme.accentRed,
                       side: const BorderSide(color: AppTheme.accentRed),

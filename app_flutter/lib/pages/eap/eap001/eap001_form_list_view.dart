@@ -86,7 +86,8 @@ class _Eap001FormListViewState extends ConsumerState<Eap001FormListView> {
       onRegister: () => context.go(EapRoutes.formNew),
       onRefresh: () => ref.invalidate(eapFormsProvider),
       table: formsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        loading: () =>
+            const Center(child: CircularProgressIndicator(strokeWidth: 2)),
         error: (e, _) => Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
@@ -108,29 +109,35 @@ class _FormTable extends ConsumerWidget {
 
   final List<EapFormConfig> rows;
 
-  Future<void> _duplicate(BuildContext context, WidgetRef ref, EapFormConfig form) async {
+  Future<void> _duplicate(
+    BuildContext context,
+    WidgetRef ref,
+    EapFormConfig form,
+  ) async {
     final auth = provider.Provider.of<AuthProvider>(context, listen: false);
     try {
-      await ref.read(eapApiProvider).createForm(
-        form.copyWith(
-          formCode: '',
-          formName: '${form.formName} (복사)',
-          createdBy: auth.userId,
-          createdByNm: auth.userName,
-        ),
-      );
+      await ref
+          .read(eapApiProvider)
+          .createForm(
+            form.copyWith(
+              formCode: '',
+              formName: '${form.formName} (복사)',
+              createdBy: auth.userId,
+              createdByNm: auth.userName,
+            ),
+          );
       ref.invalidate(eapFormsProvider);
       ref.invalidate(eapEnabledFormsProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('서식을 복제했습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('서식을 복제했습니다.')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('복제에 실패했습니다.\n$e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('복제에 실패했습니다.\n$e')));
       }
     }
   }
@@ -141,7 +148,9 @@ class _FormTable extends ConsumerWidget {
     EapFormConfig form,
   ) async {
     try {
-      await ref.read(eapApiProvider).updateForm(form.copyWith(enabled: !form.enabled));
+      await ref
+          .read(eapApiProvider)
+          .updateForm(form.copyWith(enabled: !form.enabled));
       ref.invalidate(eapFormsProvider);
       ref.invalidate(eapEnabledFormsProvider);
       if (context.mounted) {
@@ -153,9 +162,9 @@ class _FormTable extends ConsumerWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('변경에 실패했습니다.\n$e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('변경에 실패했습니다.\n$e')));
       }
     }
   }
@@ -190,15 +199,15 @@ class _FormTable extends ConsumerWidget {
       ref.invalidate(eapFormsProvider);
       ref.invalidate(eapEnabledFormsProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('서식을 삭제했습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('서식을 삭제했습니다.')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('삭제에 실패했습니다.\n$e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('삭제에 실패했습니다.\n$e')));
       }
     }
   }
@@ -277,10 +286,7 @@ class _FormTable extends ConsumerWidget {
         ErpTableBodyCell(form.category, center: true),
         ErpTableBodyCell(form.formCode, center: true),
         _NameCell(name: form.formName, onTap: open, dimmed: !form.enabled),
-        ErpTableBodyCell(
-          form.enabled ? '사용' : '숨김',
-          center: true,
-        ),
+        ErpTableBodyCell(form.enabled ? '사용' : '숨김', center: true),
         ErpTableBodyCell(form.createdDateLabel, center: true),
         ErpTableBodyCell(
           form.createdByNm.isEmpty ? form.createdBy : form.createdByNm,

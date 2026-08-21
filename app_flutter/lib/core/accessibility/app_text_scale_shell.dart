@@ -69,7 +69,8 @@ class _FontScaleBadge extends StatelessWidget {
   Widget build(BuildContext context) => Material(
     color: Colors.transparent,
     child: Tooltip(
-      message: 'Ctrl + \uB9C8\uC6B0\uC2A4 \uD720\uB85C \uAE00\uC790 \uD06C\uAE30 \uC870\uC808',
+      message:
+          'Ctrl + \uB9C8\uC6B0\uC2A4 \uD720\uB85C \uAE00\uC790 \uD06C\uAE30 \uC870\uC808',
       child: InkWell(
         onTap: settings.reset,
         borderRadius: BorderRadius.circular(18),

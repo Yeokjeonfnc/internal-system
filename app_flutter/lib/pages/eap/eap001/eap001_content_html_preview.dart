@@ -11,10 +11,9 @@ Widget eapContentHtmlPreview(
   bool seamless = false,
   bool readOnly = false,
   bool formDesignPreview = false,
-}) =>
-    impl.buildEapContentHtmlPreview(
-      htmlBody,
-      seamless: seamless,
-      readOnly: readOnly,
-      formDesignPreview: formDesignPreview,
-    );
+}) => impl.buildEapContentHtmlPreview(
+  htmlBody,
+  seamless: seamless,
+  readOnly: readOnly,
+  formDesignPreview: formDesignPreview,
+);

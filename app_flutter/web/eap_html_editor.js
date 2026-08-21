@@ -981,7 +981,12 @@
     var r2 = selectedRange.r2;
     var c1 = selectedRange.c1;
     var c2 = selectedRange.c2;
-    var seen = {};
+    // DOM 요소는 객체 키로 쓸 수 없다 — 자바스크립트가 모두 같은 문자열
+    // "[object HTMLTableCellElement]" 로 바꿔 버려서 **첫 칸 하나만 기록되고
+    // 나머지는 전부 '이미 처리함' 으로 취급된다.** 그래서 여러 칸을 복사하면
+    // 첫 칸만 담기고, 잘라내기를 하면 나머지 칸의 내용이 그대로 사라졌다.
+    // Set 은 객체를 정체성으로 구분하므로 이 문제가 없다.
+    var seen = new Set();
     var rows = [];
     for (var r = r1; r <= r2; r++) {
       var cols = [];
@@ -996,12 +1001,11 @@
           cols.push('');
           continue;
         }
-        var key = cell;
-        if (seen[key]) {
+        if (seen.has(cell)) {
           cols.push('');
           continue;
         }
-        seen[key] = true;
+        seen.add(cell);
         cols.push(String(cell.innerText || '').replace(/\u00a0/g, ' ').trim());
       }
       rows.push(cols.join('\t'));
@@ -1018,7 +1022,7 @@
     var c1 = selectedRange.c1;
     var c2 = selectedRange.c2;
     var html = '<table><tbody>';
-    var seen = {};
+    var seen = new Set();
     for (var r = r1; r <= r2; r++) {
       html += '<tr>';
       for (var c = c1; c <= c2; c++) {
@@ -1028,11 +1032,11 @@
           continue;
         }
         var o = cellOrigin(table, cell);
-        if (!o || o.r !== r || o.c !== c || seen[cell]) {
+        if (!o || o.r !== r || o.c !== c || seen.has(cell)) {
           html += '<td></td>';
           continue;
         }
-        seen[cell] = true;
+        seen.add(cell);
         html += '<td>' + cell.innerHTML + '</td>';
       }
       html += '</tr>';
@@ -2044,9 +2048,14 @@
   if (inspTable) {
     inspTable.addEventListener('click', handleTableToolbarClick);
     inspTable.addEventListener('mousedown', function (e) {
-      if (e.target.closest('[data-tbl="del-table"], #inspDel')) {
-        e.preventDefault();
-      } else {
+      // 버튼에만 기본 동작을 막는다.
+      //
+      // 버튼은 눌러도 편집 영역의 선택이 풀리면 안 되므로 preventDefault 가 필요하다.
+      // 그런데 예전 코드는 if/else 양쪽이 **똑같이** preventDefault 를 불러서
+      // 사실상 패널 전체에 걸렸다. 그 결과 「표 · 셀 크기」 패널의 숫자 입력칸에
+      // 포커스가 가지 않고, 색상 선택기와 드롭다운도 열리지 않아
+      // **표 크기·테두리를 아예 조절할 수 없었다.**
+      if (e.target.closest('button, [data-tbl], [data-border], #inspDel')) {
         e.preventDefault();
       }
     });
@@ -2181,6 +2190,13 @@
   document.addEventListener('wheel', function (e) {
     var stage = document.getElementById('stage');
     if (!stage || sourceMode) return;
+    // 좌측 「양식 항목」 팔레트와 우측 「항목 속성」 패널은 자체 스크롤 영역이다.
+    // 예전에는 이 핸들러가 **모든** 휠 이벤트를 가로채 문서 캔버스만 굴렸기 때문에,
+    // 두 사이드바는 마우스로 스크롤할 수 없어 아래쪽 항목에 손이 닿지 않았다.
+    if (e.target && e.target.closest &&
+        e.target.closest('#palette, #inspector, #sourceBar, #tblCtxMenu, textarea, select')) {
+      return;
+    }
     var dy = wheelDeltaY(e);
     if (dy === 0) return;
     e.preventDefault();
@@ -2452,13 +2468,13 @@
   }
 
   function applyFontSizeToRange(range, size) {
-    var seen = {};
+    var seen = new Set();
     nodesInRange(range).forEach(function (node) {
       if (node.nodeType === 3) {
         var el = node.parentElement;
         while (el && el !== editor) {
-          if (seen[el]) break;
-          seen[el] = true;
+          if (seen.has(el)) break;
+          seen.add(el);
           paintFontSize(el, size);
           if (/^(P|DIV|TD|TH|LI|H[1-6]|SPAN|FONT|B|I|U|STRONG|EM|A)$/i.test(el.tagName)) break;
           el = el.parentElement;

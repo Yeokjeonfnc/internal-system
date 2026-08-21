@@ -37,10 +37,7 @@ class EapPageHeader extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          if (trailing != null) ...[
-            trailing!,
-            const SizedBox(width: 4),
-          ],
+          if (trailing != null) ...[trailing!, const SizedBox(width: 4)],
           if (showSearch && !compact)
             SizedBox(
               width: 280,
@@ -203,19 +200,19 @@ class EapDocumentTable extends StatelessWidget {
     return TableRow(
       decoration: BoxDecoration(color: bg),
       children: [
-        cell(ErpTableBodyCell(
-          doc.docNum.isEmpty ? '-' : doc.docNum,
-          center: true,
-        )),
+        cell(
+          ErpTableBodyCell(doc.docNum.isEmpty ? '-' : doc.docNum, center: true),
+        ),
         cell(ErpTableBodyCell(doc.formCategory, center: true)),
-        cell(_TitleCell(
-          title: doc.title,
-          onTap: () => onRowDoubleTap?.call(doc),
-        )),
-        cell(ErpTableBodyCell(
-          doc.drafterName.isEmpty ? '-' : doc.drafterName,
-          center: true,
-        )),
+        cell(
+          _TitleCell(title: doc.title, onTap: () => onRowDoubleTap?.call(doc)),
+        ),
+        cell(
+          ErpTableBodyCell(
+            doc.drafterName.isEmpty ? '-' : doc.drafterName,
+            center: true,
+          ),
+        ),
         cell(ErpTableBodyCell(doc.draftDateLabel, center: true)),
         cell(EapStatusBadge(status: doc.status)),
       ],
@@ -264,33 +261,27 @@ class EapStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, fg) = switch (status) {
       EapDocStatus.writing => (
-          const Color(0xFFFFF7E8),
-          const Color(0xFFB45309),
-        ),
+        const Color(0xFFFFF7E8),
+        const Color(0xFFB45309),
+      ),
       EapDocStatus.inProgress => (
-          const Color(0xFFE8F5EC),
-          const Color(0xFF1E8E4E),
-        ),
+        const Color(0xFFE8F5EC),
+        const Color(0xFF1E8E4E),
+      ),
       EapDocStatus.complete => (
-          AppTheme.chipNeutralBackground,
-          AppTheme.textSecondary,
-        ),
-      EapDocStatus.returned => (
-          const Color(0xFFFDEEEE),
-          AppTheme.accentRed,
-        ),
+        AppTheme.chipNeutralBackground,
+        AppTheme.textSecondary,
+      ),
+      EapDocStatus.returned => (const Color(0xFFFDEEEE), AppTheme.accentRed),
       EapDocStatus.cancelled => (
-          const Color(0xFFF3F4F6),
-          const Color(0xFF6B7280),
-        ),
+        const Color(0xFFF3F4F6),
+        const Color(0xFF6B7280),
+      ),
       EapDocStatus.tempSave => (
-          const Color(0xFFEFF6FF),
-          const Color(0xFF2563C7),
-        ),
-      _ => (
-          AppTheme.chipNeutralBackground,
-          AppTheme.textMuted,
-        ),
+        const Color(0xFFEFF6FF),
+        const Color(0xFF2563C7),
+      ),
+      _ => (AppTheme.chipNeutralBackground, AppTheme.textMuted),
     };
 
     return Padding(
@@ -316,4 +307,3 @@ class EapStatusBadge extends StatelessWidget {
     );
   }
 }
-

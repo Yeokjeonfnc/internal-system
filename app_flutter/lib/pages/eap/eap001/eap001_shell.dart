@@ -11,11 +11,7 @@ import 'package:app_flutter/pages/eap/eap001/eap001_form_list_view.dart';
 import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 
 class EapShell extends StatelessWidget {
-  const EapShell({
-    super.key,
-    required this.path,
-    this.query = const {},
-  });
+  const EapShell({super.key, required this.path, this.query = const {}});
 
   final String path;
   final Map<String, String> query;

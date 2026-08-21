@@ -19,9 +19,7 @@ class EapFormBuilderHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text('양식 빌더는 웹 브라우저에서만 사용할 수 있습니다.'),
-    );
+    return const Center(child: Text('양식 빌더는 웹 브라우저에서만 사용할 수 있습니다.'));
   }
 }
 
@@ -59,9 +57,7 @@ class EapFormFillHost extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: height ?? 400,
-      child: const Center(
-        child: Text('양식 입력은 웹 브라우저에서만 사용할 수 있습니다.'),
-      ),
+      child: const Center(child: Text('양식 입력은 웹 브라우저에서만 사용할 수 있습니다.')),
     );
   }
 }

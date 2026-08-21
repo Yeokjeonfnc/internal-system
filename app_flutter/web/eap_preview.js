@@ -29,7 +29,17 @@
       var a = hs[i];
       var b = hs[i + 1];
       if (a.nextElementSibling !== b) continue;
-      if (a.querySelector('.eap-title') && !a.querySelector('.eap-approval-line') && b.querySelector('.eap-approval-line')) {
+      var aTitle = a.querySelector('.eap-title');
+      var bTitle = b.querySelector('.eap-title');
+      if (aTitle && !a.querySelector('.eap-approval-line') && b.querySelector('.eap-approval-line')) {
+        // a 의 제목이 기본 문구뿐이면 b 의 진짜 제목을 살린다.
+        // 예전에는 b 를 통째로 지워서 사용자가 지정한 문서 제목이 사라지고
+        // '양식 제목' 만 남았다(편집기 쪽 mergeAdjacentHeaders 와 같은 결함).
+        var aTxt = String(aTitle.textContent || '').replace(/ /g, ' ').trim();
+        var bTxt = bTitle ? String(bTitle.textContent || '').replace(/ /g, ' ').trim() : '';
+        if (bTxt && (aTxt === '' || aTxt === '양식 제목')) {
+          aTitle.innerHTML = bTitle.innerHTML;
+        }
         a.appendChild(b.querySelector('.eap-approval-line'));
         b.remove();
         i--;

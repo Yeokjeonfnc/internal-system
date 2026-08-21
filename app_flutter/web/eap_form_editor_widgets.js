@@ -360,25 +360,53 @@
     applyWidgetLayout(el);
   }
 
+  /** 제목이 비었거나 기본 문구('양식 제목') 그대로면 "실제 제목이 없다"고 본다. */
+  function isPlaceholderTitle(titleEl) {
+    if (!titleEl) return true;
+    var t = String(titleEl.textContent || '').replace(/\u00a0/g, ' ').trim();
+    return t === '' || t === '양식 제목';
+  }
+
   function mergeAdjacentHeaders() {
-    var headers = editor.querySelectorAll('.eap-doc-header');
-    for (var i = 0; i < headers.length - 1; i++) {
-      var a = headers[i];
-      var b = headers[i + 1];
-      if (a.nextElementSibling !== b) continue;
-      var aTitle = a.querySelector('.eap-title');
-      var aAppr = a.querySelector('.eap-approval-line');
-      var bTitle = b.querySelector('.eap-title');
-      var bAppr = b.querySelector('.eap-approval-line');
-      if (aTitle && !aAppr && bAppr) {
-        a.appendChild(bAppr);
-        b.remove();
-        i--;
-      } else if (!aTitle && aAppr && bTitle) {
-        a.insertBefore(bTitle, a.firstChild);
-        b.remove();
-        i--;
+    // 붙어 있는 머리글 블록을 하나로 합친다.
+    //
+    // 예전 코드에는 두 가지 결함이 있었다.
+    //  (1) 첫 분기에서 b 의 **제목을 옮기지 않고** b 를 통째로 지웠다. 그래서
+    //      '양식 제목'(빈 껍데기) + '거 래 명 세 서'(진짜 제목+결재선) 순서인 문서를
+    //      열면 결재선만 살아남고 **사용자가 지정한 제목이 삭제**됐다.
+    //      (운영 서식 2026-0001 이 정확히 이 상태였다.)
+    //  (2) headers 가 정적 NodeList 인데 b.remove() 후 i-- 를 해서 이미 떨어져 나간
+    //      노드를 다시 검사했다. 머리글이 3개 이상이면 끝까지 합쳐지지 않았다.
+    //      → 매 회차 다시 조회한다.
+    var guard = 0;
+    while (guard++ < 50) {
+      var headers = editor.querySelectorAll('.eap-doc-header');
+      var merged = false;
+      for (var i = 0; i < headers.length - 1; i++) {
+        var a = headers[i];
+        var b = headers[i + 1];
+        if (a.nextElementSibling !== b) continue;
+        var aTitle = a.querySelector('.eap-title');
+        var aAppr = a.querySelector('.eap-approval-line');
+        var bTitle = b.querySelector('.eap-title');
+        var bAppr = b.querySelector('.eap-approval-line');
+        if (aTitle && !aAppr && bAppr) {
+          // a 의 제목이 기본 문구뿐이면 b 의 진짜 제목으로 갈아 끼운다.
+          if (bTitle && isPlaceholderTitle(aTitle) && !isPlaceholderTitle(bTitle)) {
+            aTitle.innerHTML = bTitle.innerHTML;
+          }
+          a.appendChild(bAppr);
+          b.remove();
+          merged = true;
+          break;
+        } else if (!aTitle && aAppr && bTitle) {
+          a.insertBefore(bTitle, a.firstChild);
+          b.remove();
+          merged = true;
+          break;
+        }
       }
+      if (!merged) break;
     }
   }
 
@@ -814,6 +842,11 @@
         selectAfter = header;
       } else if (!header) {
         html = widgetHtml(type);
+      } else {
+        // 이미 제목이 있는 머리글이다. 예전에는 여기서 아무 것도 하지 않아
+        // 버튼이 고장난 것처럼 보였고, 그래서 사용자가 대신 「제목+결재선」을
+        // 눌러 머리글 중복을 만들었다. 기존 제목을 선택해 바로 고칠 수 있게 한다.
+        selectAfter = header;
       }
     } else if (isApprovalType(type)) {
       var tableHtml = approvalLineHtml(type, { cols: 5 });
@@ -825,6 +858,28 @@
         selectAfter = hdr.querySelector('.eap-approval-line');
       } else {
         html = '<div class="eap-doc-header" contenteditable="false">' + tableHtml + '</div>';
+      }
+    } else if (type === 'doc_header') {
+      // 「제목+결재선」은 **기존 머리글을 재사용**한다.
+      //
+      // 예전에는 머리글이 이미 있어도 무조건 새 .eap-doc-header 를 통째로 덧붙였다.
+      // 「제목」을 눌렀다가(제목만 생김) 결재선을 붙이려고 「제목+결재선」을 누르는
+      // 아주 자연스러운 순서만으로 **머리글이 두 개가 되어 그대로 저장**됐고,
+      // 그 서식을 다시 열면 병합 과정에서 진짜 제목이 사라졌다.
+      var docHdr = findDocHeaderNearCursor();
+      if (docHdr) {
+        if (!docHdr.querySelector('.eap-title')) {
+          docHdr.insertAdjacentHTML('afterbegin',
+            '<div class="eap-title-wrap"><button type="button" class="eap-h-del" title="제목 삭제">🗑</button>'
+            + '<div class="eap-title" contenteditable="true">양식 제목</div></div>');
+        }
+        if (!docHdr.querySelector('.eap-approval-line')) {
+          docHdr.insertAdjacentHTML('beforeend', approvalLineHtml('approval_line', { cols: 5 }));
+        }
+        ensureHeaderChrome(docHdr);
+        selectAfter = docHdr;
+      } else {
+        html = widgetHtml(type);
       }
     } else {
       html = widgetHtml(type);

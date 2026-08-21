@@ -57,6 +57,7 @@ class EapHtmlEditorHost extends StatefulWidget {
   final double? height;
   final String placeholder;
   final String editorPage;
+
   /// `compose` | `form` — 표 선택·크기 조절 UI 숨김.
   final String editorMode;
 
@@ -132,7 +133,11 @@ class _EapHtmlEditorHostWebState extends State<EapHtmlEditorHost>
     postEapIframeMessage(_iframe, {'type': 'eapGetHtml', 'id': id});
     return c.future.timeout(
       const Duration(seconds: 2),
-      onTimeout: () => widget.controller._html,
+      // 응답이 없으면 실패로 알린다 — 편집한 본문 대신 원본 템플릿이
+      // 조용히 저장되는 것을 막는다.
+      onTimeout: () => throw StateError(
+        '본문을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      ),
     );
   }
 

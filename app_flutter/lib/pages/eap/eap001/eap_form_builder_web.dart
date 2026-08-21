@@ -77,7 +77,9 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost>
   @override
   void initState() {
     super.initState();
-    final iframe = createEapIframe(eapWebAssetUrl(kEapHtmlEditorPage, mode: 'form'));
+    final iframe = createEapIframe(
+      eapWebAssetUrl(kEapHtmlEditorPage, mode: 'form'),
+    );
     _iframe = iframe;
     _viewType = registerEapIframeView('eap-form-builder', iframe);
     _sub = html.window.onMessage.listen(_onMessage);
@@ -88,7 +90,10 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost>
         _postSetHtml(widget.controller._html);
       }
     });
-    widget.controller.attach(setHtml: _postSetHtml, getFormData: _postGetFormData);
+    widget.controller.attach(
+      setHtml: _postSetHtml,
+      getFormData: _postGetFormData,
+    );
     bindEapIframePointerGate();
   }
 
@@ -119,7 +124,13 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost>
     postEapIframeMessage(_iframe, {'type': 'eapGetHtml', 'id': id});
     return c.future.timeout(
       const Duration(seconds: 3),
-      onTimeout: () => (html: widget.controller._html, schemaJson: '[]'),
+      // 시간 안에 응답이 없으면 **실패로 알린다.**
+      // 예전에는 마지막으로 보냈던 원본 html 과 빈 스키마('[]')를 돌려줬다.
+      // 그러면 사용자가 편집기에서 한 작업이 통째로 사라진 채 「확인」이 성공한 것처럼
+      // 보이고, 저장하면 **필드 정의까지 함께 지워졌다.**
+      onTimeout: () => throw StateError(
+        '양식 편집기가 응답하지 않습니다. 편집기를 닫았다가 다시 열어 주세요.',
+      ),
     );
   }
 
@@ -215,17 +226,40 @@ class EapFormFillController {
     _setContext?.call(_context);
   }
 
+  /// 사용자가 입력한 본문을 iframe 에서 읽어 온다.
+  ///
+  /// 붙어 있지 않으면 **예외를 던진다.** 예전에는 마지막으로 밀어 넣었던 값(=빈 서식
+  /// 템플릿)을 그대로 돌려줬는데, 그러면 사용자가 채운 내용이 사라진 채
+  /// "저장했습니다" 가 뜨고 **빈 문서가 상신된다.** 조용히 잘못 저장되는 것보다
+  /// 실패를 알리는 편이 낫다.
   Future<String> getHtml() async {
-    if (_get != null) _html = await _get!();
+    final get = _get;
+    if (get == null) {
+      throw StateError('본문 편집기가 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.');
+    }
+    _html = await get();
     return _html;
   }
 
+  /// 필수 항목 검증. **붙어 있지 않으면 통과시키지 않는다(fail-closed).**
+  ///
+  /// 예전에는 `_validate == null` 일 때 `ok: true` 를 돌려줬다. 즉 편집기가 아직
+  /// 안 붙었거나 응답이 없으면 **필수 항목을 비워 둔 채로 상신이 통과**됐다.
   Future<({bool ok, List<String> errors})> validate() async {
-    if (_validate != null) return _validate!();
-    return (ok: true, errors: <String>[]);
+    final validate = _validate;
+    if (validate == null) {
+      return (ok: false, errors: <String>['본문 편집기가 준비되지 않았습니다']);
+    }
+    return validate();
   }
 
+  /// 사용자가 고른 값(사원·부서 등)을 해당 필드에 채워 넣는다.
+  ///
+  /// 예전 구현은 두 인자를 모두 버리고 기존 context 를 다시 보내기만 해서
+  /// **고른 값이 절대 반영되지 않았다.**
   void applyPickResult(String fieldId, String value) {
+    if (fieldId.trim().isEmpty) return;
+    _context = {..._context, fieldId: value};
     _setContext?.call(_context);
   }
 }
@@ -323,7 +357,10 @@ class _EapFormFillHostState extends State<EapFormFillHost>
   }
 
   void _postSetContext(Map<String, String> context) {
-    postEapIframeMessage(_iframe, {'type': 'eapSetContext', 'context': context});
+    postEapIframeMessage(_iframe, {
+      'type': 'eapSetContext',
+      'context': context,
+    });
   }
 
   Future<String> _postGetHtml() {
@@ -333,7 +370,10 @@ class _EapFormFillHostState extends State<EapFormFillHost>
     postEapIframeMessage(_iframe, {'type': 'eapGetHtml', 'id': id});
     return c.future.timeout(
       const Duration(seconds: 3),
-      onTimeout: () => widget.controller._html,
+      // 응답이 없으면 실패로 알린다 — 조용히 빈 템플릿을 저장하지 않는다.
+      onTimeout: () => throw StateError(
+        '본문을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      ),
     );
   }
 
@@ -344,7 +384,9 @@ class _EapFormFillHostState extends State<EapFormFillHost>
     postEapIframeMessage(_iframe, {'type': 'eapValidate', 'id': id});
     return c.future.timeout(
       const Duration(seconds: 3),
-      onTimeout: () => (ok: true, errors: <String>[]),
+      // 검증 응답이 없으면 **통과시키지 않는다.**
+      // 예전에는 ok:true 라, 편집기가 느리기만 해도 필수 항목을 비운 채 상신됐다.
+      onTimeout: () => (ok: false, errors: <String>['본문 검증이 응답하지 않습니다']),
     );
   }
 
@@ -380,9 +422,8 @@ class _EapFormFillHostState extends State<EapFormFillHost>
       if (id is num) {
         final c = _pendingVal.remove(id.toInt());
         if (c != null && !c.isCompleted) {
-          final errors = (data['errors'] as List?)
-                  ?.map((e) => e.toString())
-                  .toList() ??
+          final errors =
+              (data['errors'] as List?)?.map((e) => e.toString()).toList() ??
               <String>[];
           c.complete((ok: data['ok'] == true, errors: errors));
         }

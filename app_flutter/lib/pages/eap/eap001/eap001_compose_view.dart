@@ -48,7 +48,9 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncFormFromProvider());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _syncFormFromProvider(),
+    );
   }
 
   @override
@@ -61,7 +63,9 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
         _loadedFormCode = null;
         _bodyHostsReady = false;
       });
-      WidgetsBinding.instance.addPostFrameCallback((_) => _syncFormFromProvider());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _syncFormFromProvider(),
+      );
     }
   }
 
@@ -205,9 +209,13 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
       'drafter': auth.userName.isEmpty ? auth.userId : auth.userName,
       'dept': dept.isEmpty ? '-' : dept,
       'email': p?.email.trim().isNotEmpty == true ? p!.email.trim() : '-',
-      'position': p?.positionNm.trim().isNotEmpty == true ? p!.positionNm.trim() : '-',
+      'position': p?.positionNm.trim().isNotEmpty == true
+          ? p!.positionNm.trim()
+          : '-',
       'empno': auth.userId,
-      'contact': p?.userPhone.trim().isNotEmpty == true ? p!.userPhone.trim() : '-',
+      'contact': p?.userPhone.trim().isNotEmpty == true
+          ? p!.userPhone.trim()
+          : '-',
       'date': dateLabel,
       'completeDate': '',
       'docNo': '(결재 후 채번)',
@@ -234,10 +242,9 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
   );
 
   Future<String> _documentBodyHtml() async {
-    final body = (_useFormFill
-            ? await _fillCtrl.getHtml()
-            : await _htmlCtrl.getHtml())
-        .trim();
+    final body =
+        (_useFormFill ? await _fillCtrl.getHtml() : await _htmlCtrl.getHtml())
+            .trim();
     final remark = _remarkCtrl.text.trim();
     if (remark.isEmpty) return body;
     return '$body<p style="margin-top:16px;"><b>결재 특이사항</b><br/>${_esc(remark)}</p>';
@@ -330,14 +337,13 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
     }
     if (_useFormFill && status != 'TEMPSAVE') {
       final v = await _fillCtrl.validate();
+      // 검증은 iframe 왕복이라 시간이 걸린다. 그 사이 사용자가 화면을 떠났으면
+      // 아래의 context 사용과 setState 가 모두 죽은 위젯을 건드리게 된다.
+      // (예전에는 `!v.ok` 인 경우에만 mounted 를 봐서, 통과했을 때가 무방비였다.)
+      if (!mounted) return;
       if (!v.ok) {
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '필수 항목을 입력해 주세요: ${v.errors.join(', ')}',
-            ),
-          ),
+          SnackBar(content: Text('필수 항목을 입력해 주세요: ${v.errors.join(', ')}')),
         );
         return;
       }
@@ -346,21 +352,27 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
     _lines.purgeDrafter(auth);
     setState(() => _saving = true);
     try {
-      final result = await ref.read(eapApiProvider).draft(
-        EapDraftRequest(
-          formCode: formCode,
-          title: title,
-          draftUserId: auth.userId,
-          contentHtml: await _documentBodyHtml(),
-          status: status,
-          lines: _allLines(),
-        ),
-      );
+      final result = await ref
+          .read(eapApiProvider)
+          .draft(
+            EapDraftRequest(
+              formCode: formCode,
+              title: title,
+              draftUserId: auth.userId,
+              contentHtml: await _documentBodyHtml(),
+              status: status,
+              lines: _allLines(),
+            ),
+          );
       if (!mounted) return;
       ref.invalidate(eapDocumentsProvider);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result?.message ?? '저장했습니다.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.message.trim().isEmpty ? '저장했습니다.' : result.message,
+          ),
+        ),
+      );
       context.go(EapRoutes.sent);
     } catch (e) {
       if (!mounted) return;
@@ -442,10 +454,13 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
                   ),
                 ),
                 const Spacer(),
-                if (provider.Provider.of<AuthProvider>(context)
-                    .canViewMenu(kMenuMst007))
+                if (provider.Provider.of<AuthProvider>(
+                  context,
+                ).canViewMenu(kMenuMst007))
                   TextButton(
-                    onPressed: _saving ? null : () => context.go(EapRoutes.forms),
+                    onPressed: _saving
+                        ? null
+                        : () => context.go(EapRoutes.forms),
                     child: const Text('서식 관리'),
                   ),
                 const SizedBox(width: 8),
@@ -494,17 +509,35 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
                         ],
                       ),
                     ),
-                    EapComposeApprovalPanel(
-                      lines: _lines,
-                      auth: auth,
-                      dateLabel: dateLabel,
-                      expanded: _approvalExpanded,
-                      onToggleExpanded: () =>
-                          setState(() => _approvalExpanded = !_approvalExpanded),
-                      onPickApprovers: () => _pickLine(_lines.approvers),
-                      onPickAgreers: () => _pickLine(_lines.agreers),
-                      onPickCcs: () => _pickLine(_lines.ccs),
-                      onPickViewers: () => _pickLine(_lines.viewers),
+                    // 결재 정보 패널의 높이에 상한을 둔다.
+                    //
+                    // 펼친 결재정보표는 높이가 ~366px 로 고정인데, 본문(Expanded)과
+                    // 같은 Column 의 형제라 그 높이를 **본문에서 그대로 빼앗는다.**
+                    // 그래서 화면이 낮은 노트북에서는 '결재 정보' 를 한 번 누르는
+                    // 것만으로 본문 높이가 0 이 되어 문서가 통째로 사라져 보였다
+                    // (그 자리에 남는 회색 띠가 "본문이 회색이 됐다" 로 보인다).
+                    //
+                    // 패널이 가져갈 수 있는 높이를 창 높이의 38% 로 묶고, 넘치는
+                    // 만큼은 패널 안에서 스크롤한다. 본문은 항상 나머지를 갖는다.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.sizeOf(context).height * 0.38,
+                      ),
+                      child: SingleChildScrollView(
+                        child: EapComposeApprovalPanel(
+                          lines: _lines,
+                          auth: auth,
+                          dateLabel: dateLabel,
+                          expanded: _approvalExpanded,
+                          onToggleExpanded: () => setState(
+                            () => _approvalExpanded = !_approvalExpanded,
+                          ),
+                          onPickApprovers: () => _pickLine(_lines.approvers),
+                          onPickAgreers: () => _pickLine(_lines.agreers),
+                          onPickCcs: () => _pickLine(_lines.ccs),
+                          onPickViewers: () => _pickLine(_lines.viewers),
+                        ),
+                      ),
                     ),
                     Expanded(
                       child: ColoredBox(

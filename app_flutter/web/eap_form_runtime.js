@@ -115,11 +115,32 @@
     return outer;
   }
 
+  /**
+   * 행 추가/삭제 버튼을 찾는 CSS 선택자를 안전하게 만든다.
+   *
+   * 예전에는 표 id 와 버튼 id 를 문자열로 그냥 이어 붙였다. 그런데 이 id 들은
+   * 다우오피스·Word 에서 가져온 문서의 값을 **그대로** 쓰기 때문에 숫자로 시작하거나
+   * 점·공백·콜론이 섞이는 일이 흔하다. 그러면 querySelectorAll 이
+   * `SyntaxError: '...' is not a valid selector` 를 던지고, 그 예외가
+   * eapRunFormRuntime 밖으로 빠져나가 **행 추가/삭제 기능 전체가 죽는다.**
+   * (빈 id 일 때는 선택자가 `..., #` 로 끝나 무조건 예외였다.)
+   */
+  function eapRowToolSelector(kind, tableId, btnId) {
+    var parts = ['.eap-row-' + kind + '[data-eap-table="' + String(tableId || '').replace(/"/g, '\\"') + '"]'];
+    var id = String(btnId || '').trim();
+    if (id) {
+      parts.push('#' + (g.CSS && g.CSS.escape ? g.CSS.escape(id) : id));
+    }
+    return parts.join(', ');
+  }
+
   function ensureMileageRules(cfg, root) {
     cfg = cfg || { version: 1, rules: [] };
     if (!cfg.rules) cfg.rules = [];
     var has = false;
     cfg.rules.forEach(function (r) { if (r.type === 'vehicleMileageCalc') has = true; });
+    // 근거가 확실할 때만 규칙을 붙인다. mileageScope 의 id 기반 후보(#dynamic_table1 등)
+    // 는 다우 양식에서만 나오고, findMileageScope 는 유종·연비 표기를 실제로 확인한다.
     if (!has && (mileageScope(root) || findMileageScope(root))) {
       cfg.rules.push({ type: 'vehicleMileageCalc', tableId: 'dynamic_table1' });
     }
@@ -198,13 +219,13 @@
       if (g.eapFormRuntimeRecalc) g.eapFormRuntimeRecalc(root);
     }
 
-    root.querySelectorAll('.eap-row-plus[data-eap-table="' + cfg.tableId + '"], #' + cfg.plusBtnId).forEach(function (btn) {
+    root.querySelectorAll(eapRowToolSelector('plus', cfg.tableId, cfg.plusBtnId)).forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.preventDefault();
         plus();
       });
     });
-    root.querySelectorAll('.eap-row-minus[data-eap-table="' + cfg.tableId + '"], #' + cfg.minusBtnId).forEach(function (btn) {
+    root.querySelectorAll(eapRowToolSelector('minus', cfg.tableId, cfg.minusBtnId)).forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.preventDefault();
         minus();
@@ -217,10 +238,15 @@
     if (!root || !root.querySelector) return null;
     var tbody = root.querySelector('#dynamic_table1');
     if (tbody) return tbody;
+    // 아래 후보들은 **자가차량운행 표라는 근거가 있을 때만** 쓴다.
+    // 예전에는 마지막 후보가 `root.querySelector('table')`, 즉 **문서의 아무 표나**
+    // 였다. findMileageScope 는 일반 서식에서 항상 null 을 돌려주므로 그 폴백이
+    // 늘 걸렸고, 그 결과 서식을 열기만 해도 마일리지 계산기가 붙어 recalc() 가
+    // 표 셀을 덮어썼다(합계 옆 칸을 "0" 으로, 마지막 행 마지막 칸을 textContent
+    // 대입으로 비워 그 안의 위젯까지 통째로 삭제). 저장하면 그대로 반영됐다.
     return findMileageScope(root)
       || root.querySelector('tbody[id*="dynamic"]')
-      || root.querySelector('table[id*="dynamic"]')
-      || root.querySelector('table');
+      || root.querySelector('table[id*="dynamic"]');
   }
 
   function widgetOptions(el) {

@@ -334,6 +334,13 @@
       if (type.indexOf('auto_') === 0 || type === 'sum_display') return;
       var val = fieldContainer(row);
       if (!val && row.classList.contains('eap-widget')) val = row;
+      // 값 컨테이너(.eap-val)가 없는 항목이 있다 — 다우/Word 에서 가져온 예전 서식이
+      // 대표적이다. 예전에는 그대로 val.querySelector(...) 를 불러 TypeError 가 났고,
+      // 그 예외가 message 핸들러 안에서 터지는 바람에 **검증 결과 자체가 회신되지
+      // 않았다.** Dart 쪽은 3초 뒤 타임아웃으로 "통과"로 처리했으므로,
+      // **필수 항목을 비워 둔 채 상신이 그냥 됐다.**
+      // 입력칸이 없는 항목은 검사 대상이 아니므로 건너뛴다.
+      if (!val) return;
       var text = '';
       if (type === 'sum_display') text = readValue(val.querySelector('.eap-sum-display') || val);
       else if (type === 'period') text = readValue(val.querySelector('.eap-period') || val);
@@ -440,7 +447,15 @@
       parent.postMessage(JSON.stringify({ type: 'eapHtml', id: d.id, html: exportHtml() }), '*');
     }
     if (d.type === 'eapValidate') {
-      var errors = validateRequired();
+      // 검증 도중 무슨 일이 나더라도 **반드시 회신한다.**
+      // 회신이 없으면 Dart 쪽이 타임아웃으로 처리하는데, 검증에서의 무응답을
+      // "통과"로 보면 필수 항목이 빈 문서가 그대로 상신된다. 실패로 회신한다.
+      var errors;
+      try {
+        errors = validateRequired();
+      } catch (err) {
+        errors = ['본문 검증 중 오류가 발생했습니다'];
+      }
       parent.postMessage(JSON.stringify({
         type: 'eapValidateResult',
         id: d.id,

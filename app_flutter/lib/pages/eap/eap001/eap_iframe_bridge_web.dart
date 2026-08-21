@@ -41,7 +41,8 @@ html.IFrameElement createEapIframe(String src) {
 }
 
 String registerEapIframeView(String prefix, html.IFrameElement iframe) {
-  final viewType = '$prefix-${identityHashCode(iframe)}-${DateTime.now().microsecondsSinceEpoch}';
+  final viewType =
+      '$prefix-${identityHashCode(iframe)}-${DateTime.now().microsecondsSinceEpoch}';
   ui_web.platformViewRegistry.registerViewFactory(
     viewType,
     (int viewId) => iframe,
@@ -72,7 +73,10 @@ String registerEapIframeView(String prefix, html.IFrameElement iframe) {
 ///
 /// 여기서 건너뛴 메시지는 유실되지 않는다. 각 호스트가 `iframe.onLoad` 에서
 /// 본문을 다시 보내므로, 로드가 끝난 뒤 정상적으로 전달된다.
-void postEapIframeMessage(html.IFrameElement? iframe, Map<String, dynamic> payload) {
+void postEapIframeMessage(
+  html.IFrameElement? iframe,
+  Map<String, dynamic> payload,
+) {
   if (iframe == null) return;
   // DOM 에 붙기 전에는 보낼 대상 자체가 없다.
   if (iframe.isConnected != true) return;
@@ -84,7 +88,10 @@ void postEapIframeMessage(html.IFrameElement? iframe, Map<String, dynamic> paylo
   }
 }
 
-void syncEapIframePointerEvents(html.IFrameElement? iframe, {required bool alive}) {
+void syncEapIframePointerEvents(
+  html.IFrameElement? iframe, {
+  required bool alive,
+}) {
   if (!alive) return;
   final block = IframePointerGate.blocked.value > 0;
   iframe?.style.pointerEvents = block ? 'none' : 'auto';

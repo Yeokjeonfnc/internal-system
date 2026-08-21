@@ -145,11 +145,20 @@ class _LinePickButton extends StatelessWidget {
         backgroundColor: AppTheme.accentRed,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        minimumSize: Size.zero,
+        // 글자가 아직 안 그려진 순간에도 버튼이 찌그러지지 않게 최소 크기를 준다.
+        minimumSize: const Size(56, 32),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        textStyle: const TextStyle(fontSize: 12),
+        // textStyle 은 주지 않는다.
+        //
+        // FilledButton 은 style.textStyle 을 테마의 labelLarge 와 **합치지 않고
+        // 통째로 교체**한다. 그래서 `TextStyle(fontSize: 12)` 하나만 주면
+        // fontFamily 가 사라지고, 번들 폰트(Pretendard)로 한글을 그릴 수 없게 된다.
+        // CanvasKit 은 시스템 폰트에 접근하지 못하므로 fallback 목록도 소용이 없어,
+        // 결재/합의/참조/열람 칩이 빈 글자로 렌더되면서 폭까지 무너져
+        // **작고 찌그러진 빨간 상자**로 보였다.
+        // 크기는 아래 child 에 주면 되고, 그러면 상속된 글꼴이 그대로 유지된다.
       ),
-      child: Text(label),
+      child: Text(label, style: const TextStyle(fontSize: 12)),
     );
   }
 }
