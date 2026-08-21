@@ -1,0 +1,170 @@
+[
+  {
+    "label": "제목+결재선",
+    "type": "doc_header",
+    "file": "widget-00-doc_header.html",
+    "chars": 715
+  },
+  {
+    "label": "제목",
+    "type": "title_block",
+    "file": "widget-01-title_block.html",
+    "chars": 149
+  },
+  {
+    "label": "본문 내용",
+    "type": "richtext_block",
+    "file": "widget-02-richtext_block.html",
+    "chars": 124
+  },
+  {
+    "label": "결재선",
+    "type": "approval_line",
+    "file": "widget-03-approval_line.html",
+    "chars": 596
+  },
+  {
+    "label": "텍스트",
+    "type": "text",
+    "file": "widget-04-text.html",
+    "chars": 376
+  },
+  {
+    "label": "멀티텍스트",
+    "type": "multiline",
+    "file": "widget-05-multiline.html",
+    "chars": 303
+  },
+  {
+    "label": "숫자",
+    "type": "number",
+    "file": "widget-06-number.html",
+    "chars": 367
+  },
+  {
+    "label": "통화",
+    "type": "amount",
+    "file": "widget-07-amount.html",
+    "chars": 405
+  },
+  {
+    "label": "날짜",
+    "type": "date",
+    "file": "widget-08-date.html",
+    "chars": 449
+  },
+  {
+    "label": "체크박스",
+    "type": "checkbox",
+    "file": "widget-09-checkbox.html",
+    "chars": 567
+  },
+  {
+    "label": "단일선택",
+    "type": "radio",
+    "file": "widget-10-radio.html",
+    "chars": 558
+  },
+  {
+    "label": "드롭다운",
+    "type": "select",
+    "file": "widget-11-select.html",
+    "chars": 475
+  },
+  {
+    "label": "시간",
+    "type": "time",
+    "file": "widget-12-time.html",
+    "chars": 2977
+  },
+  {
+    "label": "기간",
+    "type": "period",
+    "file": "widget-13-period.html",
+    "chars": 5791
+  },
+  {
+    "label": "사용자선택",
+    "type": "user",
+    "file": "widget-14-user.html",
+    "chars": 379
+  },
+  {
+    "label": "부서선택",
+    "type": "dept",
+    "file": "widget-15-dept.html",
+    "chars": 377
+  },
+  {
+    "label": "기안자",
+    "type": "auto_drafter",
+    "file": "widget-16-auto_drafter.html",
+    "chars": 320
+  },
+  {
+    "label": "기안부서",
+    "type": "auto_dept",
+    "file": "widget-17-auto_dept.html",
+    "chars": 319
+  },
+  {
+    "label": "기안자 이메일",
+    "type": "auto_email",
+    "file": "widget-18-auto_email.html",
+    "chars": 322
+  },
+  {
+    "label": "직위",
+    "type": "auto_position",
+    "file": "widget-19-auto_position.html",
+    "chars": 319
+  },
+  {
+    "label": "사번",
+    "type": "auto_empno",
+    "file": "widget-20-auto_empno.html",
+    "chars": 316
+  },
+  {
+    "label": "연락처",
+    "type": "auto_contact",
+    "file": "widget-21-auto_contact.html",
+    "chars": 320
+  },
+  {
+    "label": "기안일",
+    "type": "auto_date",
+    "file": "widget-22-auto_date.html",
+    "chars": 317
+  },
+  {
+    "label": "완료일",
+    "type": "auto_complete_date",
+    "file": "widget-23-auto_complete_date.html",
+    "chars": 326
+  },
+  {
+    "label": "문서번호",
+    "type": "auto_docno",
+    "file": "widget-24-auto_docno.html",
+    "chars": 320
+  },
+  {
+    "label": "합의 결재선",
+    "type": "approval_agree",
+    "file": "widget-25-approval_agree.html",
+    "chars": 597
+  },
+  {
+    "label": "수신 결재선",
+    "type": "approval_receive",
+    "file": "widget-26-approval_receive.html",
+    "chars": 599
+  },
+  {
+    "label": "자동합계",
+    "type": "sum_display",
+    "file": "widget-27-sum_display.html",
+    "chars": 352
+  }
+]

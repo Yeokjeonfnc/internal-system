@@ -1,0 +1,22 @@
+{
+  "name": "yon-eap-editor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "전자결재 양식 편집기 — TipTap(ProseMirror) 기반. 번들 결과물(app_flutter/web/vendor/)은 커밋하므로 배포 서버에는 node/npm 이 필요 없다.",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "fixtures": "node tools/make-fixtures.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@tiptap/core": "^3.30.2",
+    "@tiptap/pm": "^3.30.2",
+    "@tiptap/starter-kit": "^3.30.2",
+    "@tiptap/extension-table": "^3.30.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.0.1"
+  }
+}
