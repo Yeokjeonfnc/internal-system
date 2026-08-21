@@ -496,6 +496,11 @@
 
   function fitTable(t) {
     if (!t || t.classList.contains('eap-approval-line')) return;
+    // `nested` 는 아래 엑셀 분기에서도 쓰인다. 예전에는 선언이 그 분기보다 16줄
+    // 뒤에 있어서(var 호이스팅으로 값은 undefined) **엑셀 분기의 `if (nested)` 가
+    // 항상 거짓**이었다. 그래서 다른 표 안에 들어간, 사용자가 폭을 조정한 엑셀 표가
+    // 100% 로 맞춰지지 않고 부모 칸을 넘쳐 나갔다.
+    var nested = !!(t.parentElement && t.parentElement.closest('table'));
     if (t.classList.contains('eap-excel-import')) {
       t.style.boxSizing = 'border-box';
       t.style.borderCollapse = 'collapse';
@@ -517,7 +522,6 @@
       relaxExcelCellWidths(t);
       return;
     }
-    var nested = !!(t.parentElement && t.parentElement.closest('table'));
     var cols = ownCols(t);
     t.style.boxSizing = 'border-box';
     t.style.height = '';

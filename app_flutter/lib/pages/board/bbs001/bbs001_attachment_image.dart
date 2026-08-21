@@ -60,7 +60,8 @@ class _BoardListThumbState extends State<BoardListThumb> {
           height: 56,
           fit: BoxFit.cover,
           gaplessPlayback: true,
-          errorBuilder: (_, _, _) => _placeholder(icon: Icons.broken_image_outlined),
+          errorBuilder: (_, _, _) =>
+              _placeholder(icon: Icons.broken_image_outlined),
         ),
       );
     }
@@ -185,7 +186,10 @@ class _ImageErrorBox extends StatelessWidget {
     return const SizedBox(
       height: 120,
       child: Center(
-        child: Icon(Icons.broken_image_outlined, color: FormStylePalette.textSecondary),
+        child: Icon(
+          Icons.broken_image_outlined,
+          color: FormStylePalette.textSecondary,
+        ),
       ),
     );
   }

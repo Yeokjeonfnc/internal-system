@@ -45,6 +45,12 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
 
   bool get _hasPreview => _previewHtml.trim().isNotEmpty;
 
+  /// 문서분류 선택지 — 기본 목록에, 현재 값이 목록에 없으면 그 값을 덧붙인다.
+  /// (예전 서식이나 외부에서 들어온 분류를 잃지 않으면서 화면에도 정확히 보이게 한다.)
+  List<String> get _categoryOptions => kEapFormCategories.contains(_category)
+      ? kEapFormCategories
+      : [_category, ...kEapFormCategories];
+
   @override
   void initState() {
     super.initState();
@@ -376,12 +382,14 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
                             label: '문서분류',
                             requiredField: true,
                             child: DropdownButtonFormField<String>(
-                              initialValue:
-                                  kEapFormCategories.contains(_category)
-                                  ? _category
-                                  : kEapFormCategories.first,
+                              // 목록에 없는 분류(예전 서식·외부에서 들어온 값)는
+                              // **항목으로 추가해서 그대로 보여 준다.**
+                              // 예전에는 그런 값을 저장값으로는 유지하면서 화면에는
+                              // 목록의 첫 항목('기타문서')을 표시했다. 그래서 사용자가
+                              // 손대지 않고 저장하면 **보이는 것과 저장되는 것이 달랐다.**
+                              initialValue: _category,
                               items: [
-                                for (final c in kEapFormCategories)
+                                for (final c in _categoryOptions)
                                   DropdownMenuItem(value: c, child: Text(c)),
                               ],
                               onChanged: (v) {

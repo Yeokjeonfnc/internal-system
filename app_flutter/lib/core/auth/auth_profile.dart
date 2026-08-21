@@ -75,9 +75,9 @@ class AuthProfile {
     final permsRaw = json[jsonKeyMenuPermissions];
     final permissions = permsRaw is List
         ? permsRaw
-            .whereType<Map<String, dynamic>>()
-            .map(MenuPermission.fromJson)
-            .toList()
+              .whereType<Map<String, dynamic>>()
+              .map(MenuPermission.fromJson)
+              .toList()
         : const <MenuPermission>[];
 
     return AuthProfile(
@@ -141,71 +141,70 @@ class AuthProfile {
   /// 서버는 비밀번호가 바뀌면 기존 토큰을 모두 무효화한다. 새 토큰을 반영하지 않으면
   /// 변경 직후 모든 요청이 401 로 떨어진다.
   AuthProfile afterPasswordChange({String? reissuedToken}) => AuthProfile(
-        userIdx: userIdx,
-        userId: userId,
-        userNm: userNm,
-        email: email,
-        deptIdx: deptIdx,
-        userPhone: userPhone,
-        deptNm: deptNm,
-        positionCd: positionCd,
-        positionNm: positionNm,
-        svYn: svYn,
-        ownerYn: ownerYn,
-        adminYn: adminYn,
-        storeIdx: storeIdx,
-        storeNm: storeNm,
-        joinDtRaw: joinDtRaw,
-        menuPermissions: menuPermissions,
-        accessToken: (reissuedToken != null && reissuedToken.isNotEmpty)
-            ? reissuedToken
-            : accessToken,
-        mustChangePassword: false,
-      );
+    userIdx: userIdx,
+    userId: userId,
+    userNm: userNm,
+    email: email,
+    deptIdx: deptIdx,
+    userPhone: userPhone,
+    deptNm: deptNm,
+    positionCd: positionCd,
+    positionNm: positionNm,
+    svYn: svYn,
+    ownerYn: ownerYn,
+    adminYn: adminYn,
+    storeIdx: storeIdx,
+    storeNm: storeNm,
+    joinDtRaw: joinDtRaw,
+    menuPermissions: menuPermissions,
+    accessToken: (reissuedToken != null && reissuedToken.isNotEmpty)
+        ? reissuedToken
+        : accessToken,
+    mustChangePassword: false,
+  );
 
   /// 비밀번호 변경 완료 후 강제 플래그를 내린 사본.
   AuthProfile clearMustChangePassword() => AuthProfile(
-        userIdx: userIdx,
-        userId: userId,
-        userNm: userNm,
-        email: email,
-        deptIdx: deptIdx,
-        userPhone: userPhone,
-        deptNm: deptNm,
-        positionCd: positionCd,
-        positionNm: positionNm,
-        svYn: svYn,
-        ownerYn: ownerYn,
-        adminYn: adminYn,
-        storeIdx: storeIdx,
-        storeNm: storeNm,
-        joinDtRaw: joinDtRaw,
-        menuPermissions: menuPermissions,
-        accessToken: accessToken,
-        mustChangePassword: false,
-      );
+    userIdx: userIdx,
+    userId: userId,
+    userNm: userNm,
+    email: email,
+    deptIdx: deptIdx,
+    userPhone: userPhone,
+    deptNm: deptNm,
+    positionCd: positionCd,
+    positionNm: positionNm,
+    svYn: svYn,
+    ownerYn: ownerYn,
+    adminYn: adminYn,
+    storeIdx: storeIdx,
+    storeNm: storeNm,
+    joinDtRaw: joinDtRaw,
+    menuPermissions: menuPermissions,
+    accessToken: accessToken,
+    mustChangePassword: false,
+  );
 
   Map<String, dynamic> toJson() => {
-        if (userIdx != null) jsonKeyUserIdx: userIdx,
-        jsonKeyUserId: userId,
-        jsonKeyUserNm: userNm,
-        jsonKeyEmail: email,
-        if (deptIdx != null) jsonKeyDeptIdx: deptIdx,
-        jsonKeyUserPhone: userPhone,
-        jsonKeyDeptNm: deptNm,
-        jsonKeyPositionCd: positionCd,
-        jsonKeyPositionNm: positionNm,
-        jsonKeySvYn: svYn,
-        jsonKeyOwnerYn: ownerYn,
-        jsonKeyAdminYn: adminYn,
-        if (storeIdx != null) jsonKeyStoreIdx: storeIdx,
-        jsonKeyStoreNm: storeNm,
-        jsonKeyJoinDt: joinDtRaw,
-        if (accessToken.isNotEmpty) jsonKeyAccessToken: accessToken,
-        if (mustChangePassword) jsonKeyMustChangePassword: true,
-        jsonKeyMenuPermissions:
-            menuPermissions.map((e) => e.toJson()).toList(),
-      };
+    if (userIdx != null) jsonKeyUserIdx: userIdx,
+    jsonKeyUserId: userId,
+    jsonKeyUserNm: userNm,
+    jsonKeyEmail: email,
+    if (deptIdx != null) jsonKeyDeptIdx: deptIdx,
+    jsonKeyUserPhone: userPhone,
+    jsonKeyDeptNm: deptNm,
+    jsonKeyPositionCd: positionCd,
+    jsonKeyPositionNm: positionNm,
+    jsonKeySvYn: svYn,
+    jsonKeyOwnerYn: ownerYn,
+    jsonKeyAdminYn: adminYn,
+    if (storeIdx != null) jsonKeyStoreIdx: storeIdx,
+    jsonKeyStoreNm: storeNm,
+    jsonKeyJoinDt: joinDtRaw,
+    if (accessToken.isNotEmpty) jsonKeyAccessToken: accessToken,
+    if (mustChangePassword) jsonKeyMustChangePassword: true,
+    jsonKeyMenuPermissions: menuPermissions.map((e) => e.toJson()).toList(),
+  };
 
   static String _joinDtString(Object? v) {
     if (v == null) return '';

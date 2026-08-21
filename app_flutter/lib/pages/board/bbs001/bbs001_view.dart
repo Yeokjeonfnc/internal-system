@@ -1313,26 +1313,25 @@ class _BoardPostDetailDialogState extends State<_BoardPostDetailDialog> {
           if (widget.canEdit)
             TextButton(
               onPressed: widget.onEdit,
+              // styleFrom 의 textStyle 은 테마 스타일과 **합쳐지지 않고 교체**된다.
+              // 여기에 fontFamily 를 안 적으면 번들 폰트(Pretendard)가 빠져
+              // CanvasKit 에서 한글이 빈 글자로 그려진다. 크기·굵기는 child 에 준다.
               style: TextButton.styleFrom(
                 foregroundColor: AppTheme.textSecondary,
-                textStyle: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
               ),
-              child: const Text('수정'),
+              child: const Text(
+                '수정',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+              ),
             ),
           if (widget.canDelete)
             TextButton(
               onPressed: widget.onDelete,
-              style: TextButton.styleFrom(
-                foregroundColor: AppTheme.accentRed,
-                textStyle: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
+              style: TextButton.styleFrom(foregroundColor: AppTheme.accentRed),
+              child: const Text(
+                '삭제',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
               ),
-              child: const Text('삭제'),
             ),
           IconButton(
             onPressed: () => Navigator.pop(context),
@@ -1383,11 +1382,7 @@ class _BoardPostDetailDialogState extends State<_BoardPostDetailDialog> {
             color: AppTheme.textSecondary,
           ),
         if (p.storeNm.trim().isNotEmpty)
-          StatusBadge(
-            p.storeNm,
-            showDot: false,
-            color: AppTheme.statusRenewal,
-          ),
+          StatusBadge(p.storeNm, showDot: false, color: AppTheme.statusRenewal),
       ],
     );
   }

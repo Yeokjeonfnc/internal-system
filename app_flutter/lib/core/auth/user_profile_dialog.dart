@@ -96,7 +96,9 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
         var storeNm = user.storeNm;
         if (storeNm.isEmpty && user.storeIdx != null && user.storeIdx! > 0) {
           try {
-            final store = await StoreApiService().getStoreByIndex(user.storeIdx!);
+            final store = await StoreApiService().getStoreByIndex(
+              user.storeIdx!,
+            );
             storeNm = store?.storeNm ?? '';
           } catch (_) {
             // 프로필 storeNm 보조 조회 실패 시 빈 값 유지
@@ -116,8 +118,9 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
               ? '미입력'
               : user.joinDtRaw.split('T').first;
           _positionCd = user.positionCd.isEmpty ? null : user.positionCd;
-          _positionController.text =
-              user.positionNm.isEmpty ? '사원' : user.positionNm;
+          _positionController.text = user.positionNm.isEmpty
+              ? '사원'
+              : user.positionNm;
           _svYn = user.svYn == 'Y';
         });
       }
@@ -274,7 +277,7 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
                 child: Text(
                   '확인',
                   style: TextStyle(
-              fontFamily: AppTheme.brandFontFamily,
+                    fontFamily: AppTheme.brandFontFamily,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -324,7 +327,7 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
                 child: Text(
                   '확인',
                   style: TextStyle(
-              fontFamily: AppTheme.brandFontFamily,
+                    fontFamily: AppTheme.brandFontFamily,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -356,7 +359,7 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
                 Text(
                   '사용자 정보',
                   style: TextStyle(
-              fontFamily: AppTheme.brandFontFamily,
+                    fontFamily: AppTheme.brandFontFamily,
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
                     color: FormStylePalette.textPrimary,
@@ -415,7 +418,7 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
                   : Text(
                       '정보 저장',
                       style: TextStyle(
-              fontFamily: AppTheme.brandFontFamily,
+                        fontFamily: AppTheme.brandFontFamily,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -437,10 +440,7 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
       ),
       const SizedBox(height: 16),
       _buildLabel('이름'),
-      _buildTextField(
-        controller: _nameController,
-        hintText: '',
-      ),
+      _buildTextField(controller: _nameController, hintText: ''),
       const SizedBox(height: 16),
       _buildLabel('핸드폰번호'),
       _buildTextField(
@@ -462,10 +462,7 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
   List<Widget> _buildEmployeeFields() {
     return [
       _buildLabel('이름'),
-      _buildTextField(
-        controller: _nameController,
-        hintText: '',
-      ),
+      _buildTextField(controller: _nameController, hintText: ''),
       const SizedBox(height: 16),
       _buildLabel('부서'),
       _buildTextField(
@@ -559,7 +556,7 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
       child: Text(
         text,
         style: TextStyle(
-              fontFamily: AppTheme.brandFontFamily,
+          fontFamily: AppTheme.brandFontFamily,
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: FormStylePalette.textPrimary,
@@ -610,7 +607,7 @@ class _UserProfileDialogState extends State<_UserProfileDialog> {
         ),
       ),
       style: TextStyle(
-              fontFamily: AppTheme.brandFontFamily,
+        fontFamily: AppTheme.brandFontFamily,
         fontSize: 14,
         color: enabled
             ? FormStylePalette.textPrimary

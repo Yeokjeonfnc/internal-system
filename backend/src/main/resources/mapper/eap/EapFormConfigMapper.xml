@@ -88,8 +88,20 @@
             enabled = COALESCE(#{body.enabled}, enabled),
             sort_order = COALESCE(#{body.sortOrder}, sort_order),
             category = COALESCE(NULLIF(TRIM(#{body.category}), ''), category),
-            content_html = #{body.contentHtml},
-            field_schema = #{body.fieldSchema},
+            <!--
+              본문과 필드정의는 **비어서 오면 덮어쓰지 않는다.**
+
+              다른 컬럼은 모두 COALESCE 가드가 있는데 이 둘만 무방비였다. 그래서
+              화면이 어떤 이유로든 빈 값을 보내면 이미 저장된 서식 본문이 통째로
+              지워졌다. 실제로 프론트에 그런 경로가 있었다(양식 편집기를 열지 않고
+              저장하면 fieldSchema 가 '[]' 로 초기화되던 문제 — 그쪽도 고쳤다).
+              한쪽만 고치면 다른 경로에서 같은 사고가 다시 난다.
+
+              NULL 과 빈 문자열만 막는다. '[]'(필드 없는 서식)나 실제 HTML 은
+              정상 값이므로 그대로 반영된다 — 지우는 것도 가능해야 한다.
+            -->
+            content_html = COALESCE(NULLIF(#{body.contentHtml}, ''), content_html),
+            field_schema = COALESCE(NULLIF(#{body.fieldSchema}, ''), field_schema),
             updated_at = CURRENT_TIMESTAMP
         WHERE form_code = #{formCode}
     </update>

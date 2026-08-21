@@ -265,13 +265,19 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
     try {
       final r = await showActivityApprovalLineDialog(context);
       if (!mounted || r == null) return null;
+      // 고른 사람을 모두 반영한다.
+      //
+      // 예전에는 반복문 첫 회차에서 곧바로 return 해서, 사용자가 여러 명을
+      // 선택해도 **첫 사람만 들어가고 나머지는 소리 없이 버려졌다.**
+      final picked = <String>[];
       for (var i = 0; i < r.names.length; i++) {
         final nm = r.names[i].trim();
         if (nm.isEmpty) continue;
         final title = i < r.titles.length ? r.titles[i].trim() : '';
-        return title.isEmpty ? nm : '$title $nm';
+        picked.add(title.isEmpty ? nm : '$title $nm');
       }
-      return null;
+      if (picked.isEmpty) return null;
+      return picked.join(', ');
     } finally {
       IframePointerGate.pop();
     }

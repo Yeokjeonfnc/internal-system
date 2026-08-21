@@ -12,11 +12,10 @@ class AuthLoginRequest {
   factory AuthLoginRequest({
     required String userId,
     required String userPassword,
-  }) =>
-      AuthLoginRequest._({
-        jsonKeyUserId: userId,
-        jsonKeyUserPassword: userPassword,
-      });
+  }) => AuthLoginRequest._({
+    jsonKeyUserId: userId,
+    jsonKeyUserPassword: userPassword,
+  });
 }
 
 /// `PUT /auth/profile` 본문 — 백엔드 `AuthProfileUpdateRequestDto`.

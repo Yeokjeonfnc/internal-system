@@ -9,10 +9,10 @@ import 'package:app_flutter/pages/franchise/str001/store_document_preview_kind.d
 
 class Bbs001ApiService extends BaseRepository {
   Future<List<BoardFolder>> getFolders(String userId) => getDataList(
-        BoardApiPaths.folders,
-        queryParameters: {BoardApiJsonKeys.userId: userId},
-        fromJson: BoardFolder.fromJson,
-      );
+    BoardApiPaths.folders,
+    queryParameters: {BoardApiJsonKeys.userId: userId},
+    fromJson: BoardFolder.fromJson,
+  );
 
   Future<BoardFolder?> createFolder({
     required String userId,
@@ -20,39 +20,34 @@ class Bbs001ApiService extends BaseRepository {
     int sortOrder = 0,
     bool ownerView = true,
     bool staffView = true,
-  }) =>
-      postDataOrNull(
-        BoardApiPaths.folders,
-        queryParameters: {BoardApiJsonKeys.userId: userId},
-        data: {
-          BoardApiJsonKeys.folderNm: folderNm,
-          BoardApiJsonKeys.sortOrder: sortOrder,
-          BoardApiJsonKeys.useYn: 'Y',
-          BoardApiJsonKeys.ownerViewYn: ownerView ? 'Y' : 'N',
-          BoardApiJsonKeys.staffViewYn: staffView ? 'Y' : 'N',
-        },
-        fromJson: BoardFolder.fromJson,
-      );
+  }) => postDataOrNull(
+    BoardApiPaths.folders,
+    queryParameters: {BoardApiJsonKeys.userId: userId},
+    data: {
+      BoardApiJsonKeys.folderNm: folderNm,
+      BoardApiJsonKeys.sortOrder: sortOrder,
+      BoardApiJsonKeys.useYn: 'Y',
+      BoardApiJsonKeys.ownerViewYn: ownerView ? 'Y' : 'N',
+      BoardApiJsonKeys.staffViewYn: staffView ? 'Y' : 'N',
+    },
+    fromJson: BoardFolder.fromJson,
+  );
 
   Future<List<BoardPost>> getPosts({
     required String userId,
     int? folderIdx,
     String keyword = '',
-  }) =>
-      getDataList(
-        BoardApiPaths.posts,
-        queryParameters: {
-          BoardApiJsonKeys.userId: userId,
-          BoardApiJsonKeys.folderIdx: ?folderIdx,
-          if (keyword.trim().isNotEmpty) BoardApiJsonKeys.keyword: keyword.trim(),
-        },
-        fromJson: BoardPost.fromJson,
-      );
+  }) => getDataList(
+    BoardApiPaths.posts,
+    queryParameters: {
+      BoardApiJsonKeys.userId: userId,
+      BoardApiJsonKeys.folderIdx: ?folderIdx,
+      if (keyword.trim().isNotEmpty) BoardApiJsonKeys.keyword: keyword.trim(),
+    },
+    fromJson: BoardPost.fromJson,
+  );
 
-  Future<BoardPost?> getPost({
-    required int postIdx,
-    required String userId,
-  }) =>
+  Future<BoardPost?> getPost({required int postIdx, required String userId}) =>
       getDataOrNull(
         BoardApiPaths.post(postIdx),
         queryParameters: {BoardApiJsonKeys.userId: userId},
@@ -62,25 +57,23 @@ class Bbs001ApiService extends BaseRepository {
   Future<BoardPost?> createPost({
     required String userId,
     required Map<String, dynamic> body,
-  }) =>
-      postDataOrNull(
-        BoardApiPaths.posts,
-        queryParameters: {BoardApiJsonKeys.userId: userId},
-        data: body,
-        fromJson: BoardPost.fromJson,
-      );
+  }) => postDataOrNull(
+    BoardApiPaths.posts,
+    queryParameters: {BoardApiJsonKeys.userId: userId},
+    data: body,
+    fromJson: BoardPost.fromJson,
+  );
 
   Future<BoardPost?> updatePost({
     required int postIdx,
     required String userId,
     required Map<String, dynamic> body,
-  }) =>
-      putDataOrNull(
-        BoardApiPaths.post(postIdx),
-        queryParameters: {BoardApiJsonKeys.userId: userId},
-        data: body,
-        fromJson: BoardPost.fromJson,
-      );
+  }) => putDataOrNull(
+    BoardApiPaths.post(postIdx),
+    queryParameters: {BoardApiJsonKeys.userId: userId},
+    data: body,
+    fromJson: BoardPost.fromJson,
+  );
 
   Future<bool> deletePost({
     required int postIdx,
@@ -101,12 +94,11 @@ class Bbs001ApiService extends BaseRepository {
   Future<List<BoardDocument>> getDocuments({
     required int postIdx,
     required String userId,
-  }) =>
-      getDataList(
-        BoardApiPaths.documents(postIdx),
-        queryParameters: {BoardApiJsonKeys.userId: userId},
-        fromJson: BoardDocument.fromJson,
-      );
+  }) => getDataList(
+    BoardApiPaths.documents(postIdx),
+    queryParameters: {BoardApiJsonKeys.userId: userId},
+    fromJson: BoardDocument.fromJson,
+  );
 
   Future<BoardDocument?> uploadDocument({
     required int postIdx,

@@ -199,13 +199,32 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _restoreSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _rememberPassword = prefs.getBool('rememberPassword') ?? false;
-      if (_rememberPassword) {
-        _savedUserId = prefs.getString('savedUserId')?.trim();
-        _savedPassword = prefs.getString('savedPassword');
+
+      // 저장된 값 하나가 예상과 다른 타입이면 getString/getBool 이 예외를 던지고,
+      // 그 예외가 아래 세션 복원까지 통째로 날려 버린다(= 전원 로그아웃).
+      // 항목별로 막아서, 하나가 망가져도 나머지는 살린다.
+      String? readString(String key) {
+        try {
+          final v = prefs.get(key);
+          return v is String ? v : null;
+        } catch (e) {
+          debugPrint('저장값 읽기 실패(무시): $key — $e');
+          return null;
+        }
       }
 
-      final userJson = prefs.getString('user');
+      try {
+        _rememberPassword = prefs.getBool('rememberPassword') ?? false;
+      } catch (e) {
+        debugPrint('저장값 읽기 실패(무시): rememberPassword — $e');
+        _rememberPassword = false;
+      }
+      if (_rememberPassword) {
+        _savedUserId = readString('savedUserId')?.trim();
+        _savedPassword = readString('savedPassword');
+      }
+
+      final userJson = readString('user');
       if (userJson != null && userJson.isNotEmpty) {
         try {
           final map = json.decode(userJson) as Map<String, dynamic>;
@@ -329,11 +348,23 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 로그아웃 — **자동 재로그인 재료까지 지운다.**
+  ///
+  /// 예전에는 `user` 키만 지웠다. 그런데 저장된 비밀번호(`savedPassword`)와
+  /// `rememberPassword` 는 그대로 남아서, 로그인 화면에서 **새로고침만 해도
+  /// 백그라운드 자동 로그인이 돌아 다시 들어가졌다.**
+  /// 공용 PC 에서는 앞사람이 로그아웃하고 자리를 떠도, 다음 사람이 새로고침하면
+  /// 앞사람 계정으로 들어가게 된다.
+  ///
+  /// 아이디(`savedUserId`)는 남겨 둔다 — 다음 로그인 때 입력칸을 채워 주는
+  /// 편의 기능이고, 그것만으로는 세션이 살아나지 않는다.
   Future<void> logout() async {
     _applyProfile(null);
+    _savedPassword = null;
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user');
+    await prefs.remove('savedPassword');
 
     notifyListeners();
   }
@@ -347,26 +378,28 @@ class AuthProvider extends ChangeNotifier {
     if (current == null || !_isSameUser(current, userIdx, userId)) {
       return;
     }
-    _applyProfile(AuthProfile(
-      userIdx: current.userIdx,
-      userId: current.userId,
-      userNm: current.userNm,
-      email: current.email,
-      deptIdx: current.deptIdx,
-      userPhone: current.userPhone,
-      deptNm: current.deptNm,
-      positionCd: current.positionCd,
-      positionNm: current.positionNm,
-      svYn: current.svYn,
-      ownerYn: current.ownerYn,
-      adminYn: current.adminYn,
-      storeIdx: current.storeIdx,
-      storeNm: current.storeNm,
-      joinDtRaw: current.joinDtRaw,
-      menuPermissions: List<MenuPermission>.unmodifiable(perms),
-      // 토큰이 빠지면 이후 모든 API 가 401 이 된다 — 반드시 유지.
-      accessToken: current.accessToken,
-    ));
+    _applyProfile(
+      AuthProfile(
+        userIdx: current.userIdx,
+        userId: current.userId,
+        userNm: current.userNm,
+        email: current.email,
+        deptIdx: current.deptIdx,
+        userPhone: current.userPhone,
+        deptNm: current.deptNm,
+        positionCd: current.positionCd,
+        positionNm: current.positionNm,
+        svYn: current.svYn,
+        ownerYn: current.ownerYn,
+        adminYn: current.adminYn,
+        storeIdx: current.storeIdx,
+        storeNm: current.storeNm,
+        joinDtRaw: current.joinDtRaw,
+        menuPermissions: List<MenuPermission>.unmodifiable(perms),
+        // 토큰이 빠지면 이후 모든 API 가 401 이 된다 — 반드시 유지.
+        accessToken: current.accessToken,
+      ),
+    );
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user', json.encode(_profile!.toJson()));

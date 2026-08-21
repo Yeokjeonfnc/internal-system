@@ -135,9 +135,7 @@ class _EapHtmlEditorHostWebState extends State<EapHtmlEditorHost>
       const Duration(seconds: 2),
       // 응답이 없으면 실패로 알린다 — 편집한 본문 대신 원본 템플릿이
       // 조용히 저장되는 것을 막는다.
-      onTimeout: () => throw StateError(
-        '본문을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.',
-      ),
+      onTimeout: () => throw StateError('본문을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.'),
     );
   }
 

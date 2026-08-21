@@ -71,13 +71,13 @@ class _ChangePasswordViewState extends State<ChangePasswordView> {
 
     // 변경 완료 — 재발급 토큰으로 갈아끼우고, 강제 플래그를 내리면
     // 라우터가 원래 화면으로 보내준다.
-    await context
-        .read<AuthProvider>()
-        .markPasswordChanged(reissuedToken: result.token);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('비밀번호가 변경되었습니다.')),
+    await context.read<AuthProvider>().markPasswordChanged(
+      reissuedToken: result.token,
     );
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('비밀번호가 변경되었습니다.')));
   }
 
   @override

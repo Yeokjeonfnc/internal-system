@@ -11,10 +11,7 @@ class AuthApiService extends BaseRepository {
     required String userPassword,
   }) async {
     try {
-      final body = AuthLoginRequest(
-        userId: userId,
-        userPassword: userPassword,
-      );
+      final body = AuthLoginRequest(userId: userId, userPassword: userPassword);
       final response = await client.post(
         AuthApiPaths.login,
         data: body.toRequestBody(),
@@ -44,10 +41,7 @@ class AuthApiService extends BaseRepository {
     try {
       final response = await client.post(
         AuthApiPaths.changePassword,
-        data: {
-          'currentPassword': currentPassword,
-          'newPassword': newPassword,
-        },
+        data: {'currentPassword': currentPassword, 'newPassword': newPassword},
       );
       if (response.statusCode == 200) {
         String? token;

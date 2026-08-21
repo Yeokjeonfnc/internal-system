@@ -68,10 +68,7 @@ class BoardRichBody {
         // JSON 파싱 실패 시 순수 텍스트로 폴백.
       }
     }
-    return BoardRichBody(
-      blocks: [BoardBodyBlock.text(raw)],
-      isRich: false,
-    );
+    return BoardRichBody(blocks: [BoardBodyBlock.text(raw)], isRich: false);
   }
 
   /// 블록 목록을 저장용 JSON 문자열로 직렬화한다.
@@ -155,10 +152,7 @@ class BoardRichBodyView extends StatelessWidget {
               else if ((block.text?.trim().isNotEmpty ?? false))
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(
-                    block.text!,
-                    style: kSearchFilterValueTextStyle,
-                  ),
+                  child: Text(block.text!, style: kSearchFilterValueTextStyle),
                 ),
           ],
         );

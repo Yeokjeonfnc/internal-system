@@ -128,9 +128,8 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost>
       // 예전에는 마지막으로 보냈던 원본 html 과 빈 스키마('[]')를 돌려줬다.
       // 그러면 사용자가 편집기에서 한 작업이 통째로 사라진 채 「확인」이 성공한 것처럼
       // 보이고, 저장하면 **필드 정의까지 함께 지워졌다.**
-      onTimeout: () => throw StateError(
-        '양식 편집기가 응답하지 않습니다. 편집기를 닫았다가 다시 열어 주세요.',
-      ),
+      onTimeout: () =>
+          throw StateError('양식 편집기가 응답하지 않습니다. 편집기를 닫았다가 다시 열어 주세요.'),
     );
   }
 
@@ -371,9 +370,7 @@ class _EapFormFillHostState extends State<EapFormFillHost>
     return c.future.timeout(
       const Duration(seconds: 3),
       // 응답이 없으면 실패로 알린다 — 조용히 빈 템플릿을 저장하지 않는다.
-      onTimeout: () => throw StateError(
-        '본문을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.',
-      ),
+      onTimeout: () => throw StateError('본문을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.'),
     );
   }
 

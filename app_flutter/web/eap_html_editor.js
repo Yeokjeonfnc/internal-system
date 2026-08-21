@@ -72,8 +72,17 @@
     });
     clone.querySelectorAll('.eap-w-del, .eap-h-del').forEach(function (el) { el.remove(); });
     var hasExcel = clone.querySelector('table.eap-excel-import');
+    // 표 레이아웃(colgroup·열 너비·행 높이)은 **저장할 때 지우지 않는다.**
+    //
+    // 예전에는 엑셀에서 붙여넣은 표가 하나도 없으면 preserveTableLayout 이 false 가
+    // 되어, sanitize 가 colgroup 과 표 크기 속성을 모두 걷어냈다. 그래서 편집기에서
+    // 열 경계를 드래그해 폭을 맞춰도 **저장 후 다시 열면 균등 폭으로 되돌아갔다.**
+    // 사용자가 직접 지정한 치수를 저장 단계에서 버리는 것은 어떤 경우에도 맞지 않는다.
+    // (colgroup 정리는 '붙여넣기 정리' 경로에서만 하면 된다.)
+    var keepLayout = hasExcel || formMode || composeMode
+      || !!clone.querySelector('[data-eap-user-col-layout="1"], table[data-eap-col-lock]');
     if (window.eapSanitizeFormHtml) {
-      window.eapSanitizeFormHtml(clone, hasExcel ? { preserveTableLayout: true } : {});
+      window.eapSanitizeFormHtml(clone, keepLayout ? { preserveTableLayout: true } : {});
     }
     if (window.eapFixDocTables) window.eapFixDocTables(clone);
     return clone.innerHTML;

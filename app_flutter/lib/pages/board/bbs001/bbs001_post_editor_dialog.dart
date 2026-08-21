@@ -125,8 +125,9 @@ class _BoardPostEditorDialogState extends State<_BoardPostEditorDialog> {
         final docLen = _quill.document.length;
         var index = sel.baseOffset;
         if (index < 0 || index > docLen) index = docLen > 0 ? docLen - 1 : 0;
-        final length =
-            (sel.extentOffset - sel.baseOffset).clamp(0, docLen).toInt();
+        final length = (sel.extentOffset - sel.baseOffset)
+            .clamp(0, docLen)
+            .toInt();
         // 사진을 자기 줄에 두기 위해 줄바꿈 사이에 임베드를 끼운다.
         _quill
           ..replaceText(

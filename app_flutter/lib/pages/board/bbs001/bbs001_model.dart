@@ -145,5 +145,6 @@ class BoardDocument {
 
 bool boardDocumentIsImage(String fileName, String contentType) {
   if (contentType.toLowerCase().startsWith('image/')) return true;
-  return storeDocumentPreviewKindFor(fileName) == StoreDocumentPreviewKind.image;
+  return storeDocumentPreviewKindFor(fileName) ==
+      StoreDocumentPreviewKind.image;
 }
