@@ -1,6 +1,10 @@
 spring:
   application:
     name: yeokjeon-erp-backend
+  config:
+    import:
+      - optional:file:./application-local.yml
+      - optional:file:./backend/application-local.yml
   
   servlet:
     multipart:
@@ -69,10 +73,12 @@ server:
 
 auth:
   token:
-    # 로그인 토큰 서명 키 — 반드시 config\backend.env 의 AUTH_TOKEN_SECRET 으로 주입할 것.
-    # 미설정 시 기동할 때마다 임의 키가 생성되어 재시작 시 전원 재로그인이 필요하다.
+    # 로그인 토큰 서명 키 — 운영은 config\backend.env 의 AUTH_TOKEN_SECRET.
+    # 로컬에서 비어 있으면 홈 디렉터리의 .yeokjeon-erp-local-auth-token-secret 에
+    # 키를 만들어 두고, 재시작해도 로그인을 유지한다.
     secret: ${AUTH_TOKEN_SECRET:}
     validity-hours: ${AUTH_TOKEN_VALIDITY_HOURS:12}
+    persist-local-secret: true
   # 신규 계정 생성 시 비밀번호를 비워두거나, 관리자가 "비밀번호 초기화"를 누르면
   # 이 값으로 설정된다. DB 비밀번호와 같은 값을 쓰지 않는 것을 권장 — 하나가
   # 유출되면 둘 다 위험해진다.
@@ -87,17 +93,6 @@ external:
   kakao:
     # 저장소에 키를 두지 않는다 — 환경변수 KAKAO_REST_API_KEY 로 주입.
     rest-api-key: ${KAKAO_REST_API_KEY:}
-
-daou:
-  office:
-    api-base-url: https://api.daouoffice.com
-    gateway-base-url: ${DAOU_GATEWAY_BASE_URL:https://gw.yeokjeonfnc.com}
-    client-id: ${DAOU_CLIENT_ID:dfacf1bcd6cedad3}
-    client-secret: ${DAOU_CLIENT_SECRET:badec6a7f7a5dfe2c4edc7eeb1eaefce}
-    # 다우 관리자에서 '시스템 연동 v4'로 발급한 양식 코드와 동일해야 함
-    form-code: ${DAOU_FORM_CODE:yeokjeon_eap01}
-    # 다우는 localhost 콜백을 거부하는 경우가 많음 — 공인 HTTPS 사용
-    callback-url: ${DAOU_CALLBACK_URL:https://test.yeokjeon.com/api/eap/status}
 
 yon:
   file:
