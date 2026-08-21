@@ -36,7 +36,6 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
   String _category = kEapFormCategories.first;
   String _previewHtml = '';
   String _fieldSchemaJson = '[]';
-  bool _loading = false;
   bool _saving = false;
   bool _deleting = false;
   bool _loaded = false;
@@ -49,7 +48,6 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
   @override
   void initState() {
     super.initState();
-    if (_isEdit) _loading = true;
   }
 
   @override
@@ -59,23 +57,86 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
     super.dispose();
   }
 
+  /// 불러온 서식을 화면 상태에 채운다.
+  ///
+  /// **build() 안에서 호출되므로 setState 를 쓰지 않는다.** 예전 코드는 여기서
+  /// setState 를 불렀는데, 그건 "build 도중 markNeedsBuild" 라 프레임워크가
+  /// 이 요소를 더티 목록에 넣었다가 build 끝에 _dirty 를 되돌려 **다시 그리지
+  /// 않고 버리는** 상태가 된다. 지금은 이 build 가 아래에서 곧바로 필드를 읽으므로
+  /// 값만 대입하면 충분하고, 부작용도 없다.
   void _applyForm(EapFormConfig form) {
     if (_loaded) return;
     _loaded = true;
     final html = eapStoredBodyToHtml(form.contentHtml, form.contentDelta);
     _builderCtrl.setHtml(html);
-    setState(() {
-      _formNoCtrl.text = form.formCode;
-      _formNameCtrl.text = form.formName;
-      _category = kEapFormCategories.contains(form.category)
-          ? form.category
-          : form.category.isEmpty
-          ? kEapFormCategories.first
-          : form.category;
-      _previewHtml = html;
-      _fieldSchemaJson = form.fieldSchema.isEmpty ? '[]' : form.fieldSchema;
-      _loading = false;
-    });
+    _formNoCtrl.text = form.formCode;
+    _formNameCtrl.text = form.formName;
+    _category = kEapFormCategories.contains(form.category)
+        ? form.category
+        : form.category.isEmpty
+        ? kEapFormCategories.first
+        : form.category;
+    _previewHtml = html;
+    _fieldSchemaJson = form.fieldSchema.isEmpty ? '[]' : form.fieldSchema;
+  }
+
+  /// 서식을 못 불러왔을 때 빈 화면 대신 이유를 보여 준다.
+  ///
+  /// 예전에는 실패해도 그냥 빈 등록 폼이 그려져서, 사용자에겐 "회색 화면"으로만
+  /// 보이고 무엇이 잘못됐는지 알 길이 없었다.
+  Widget _loadFailure(String message, {Object? error}) {
+    return ColoredBox(
+      color: AppTheme.appSurface,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 40,
+                color: Colors.grey.shade500,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  fontFamilyFallback: AppTheme.koreanFontFallback,
+                ),
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 8),
+                SelectableText(
+                  '$error',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => ref.invalidate(
+                      eapFormDetailProvider(widget.formCode!),
+                    ),
+                    child: const Text('다시 시도'),
+                  ),
+                  FilledButton(
+                    onPressed: () => context.go(EapRoutes.forms),
+                    child: const Text('목록으로'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   InputDecoration get _dec => InputDecoration(
@@ -227,16 +288,21 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
     final dateLabel =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
-    if (_isEdit) {
+    if (_isEdit && !_loaded) {
       final async = ref.watch(eapFormDetailProvider(widget.formCode!));
-      async.whenData((form) {
-        if (form != null) _applyForm(form);
-      });
-      if (_loading && !async.hasValue && !async.hasError) {
+      final form = async.valueOrNull;
+      if (form != null) {
+        _applyForm(form);
+      } else if (async.isLoading) {
         return const ColoredBox(
           color: AppTheme.appSurface,
           child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
         );
+      } else if (async.hasError) {
+        return _loadFailure('서식을 불러오지 못했습니다.', error: async.error);
+      } else {
+        // 요청은 끝났는데 값이 없다 = 삭제됐거나 문서번호가 잘못됐다.
+        return _loadFailure('서식 「${widget.formCode}」 을(를) 찾을 수 없습니다.');
       }
     }
 
