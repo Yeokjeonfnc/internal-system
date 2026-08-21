@@ -52,7 +52,7 @@ public class UsageLogService {
         if (!StringUtils.hasText(label)) {
             return;
         }
-        final String detail = "{" + label + "} 메뉴를 사용하였습니다.";
+        final String detail = "[" + label + "] 메뉴를 사용하였습니다.";
         try {
             usageLogMapper.insertMenu(
                     body.userId().trim(),

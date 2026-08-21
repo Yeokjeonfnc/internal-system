@@ -59,16 +59,19 @@
 
   function applyInlineWidgetWidth(row) {
     if (!row || !row.classList.contains('eap-widget')) return;
-    if (!widgetInTableCell(row)) return;
     var w = row.getAttribute('data-eap-width') || '';
     if (!w && row.getAttribute('data-eap-inline') !== '0') w = '10em';
-    if (!isPercentWidth(w)) return;
-    row.style.width = w;
-    row.style.maxWidth = '100%';
-    row.style.display = 'inline-block';
+    if (w) {
+      row.style.width = w;
+      row.style.maxWidth = '100%';
+      row.style.display = 'inline-block';
+      row.style.boxSizing = 'border-box';
+      row.style.verticalAlign = widgetInTableCell(row) ? 'middle' : 'baseline';
+    }
     row.querySelectorAll('input.eap-in-cell, textarea.eap-in-cell, select.eap-in-cell').forEach(function (inp) {
       inp.style.width = '100%';
       inp.style.maxWidth = '100%';
+      inp.style.boxSizing = 'border-box';
     });
   }
 
@@ -226,8 +229,8 @@
     page.innerHTML = html || '';
     if (window.eapMigrateDaouHtml) window.eapMigrateDaouHtml(page);
     if (window.eapSanitizeFormHtml) window.eapSanitizeFormHtml(page, { preserveTableLayout: true });
-    if (window.eapPrepareFormFillTables) window.eapPrepareFormFillTables(page);
-    else if (window.eapFixDocTables) window.eapFixDocTables(page);
+    if (window.eapInitFormFillLayout) window.eapInitFormFillLayout({ root: page });
+    else if (window.eapPrepareFormFillTables) window.eapPrepareFormFillTables(page);
     page.querySelectorAll('.eap-field, .eap-grid-field, .eap-widget[data-eap-type]').forEach(function (row) {
       if (row.classList.contains('eap-approval-line')) return;
       var val = fieldContainer(row);

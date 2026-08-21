@@ -906,6 +906,15 @@
   function setInspRowVisible(id, show) {
     var el = document.getElementById(id);
     if (!el) return;
+    var rowWrap = el.closest('.insp-id-row');
+    if (rowWrap) {
+      rowWrap.style.display = show ? '' : 'none';
+      var label = document.querySelector('label[for="' + id + '"]');
+      if (label) label.style.display = show ? '' : 'none';
+      var hint = document.getElementById(id + 'Hint');
+      if (hint) hint.style.display = show ? '' : 'none';
+      return;
+    }
     el.style.display = show ? '' : 'none';
     var prev = el.previousElementSibling;
     if (prev && prev.tagName === 'LABEL' && prev.getAttribute('for') === id) {
@@ -915,6 +924,57 @@
     if (next && next.id && /Hint$/i.test(next.id)) {
       next.style.display = show ? '' : 'none';
     }
+  }
+
+  function isConditionFieldType(type) {
+    return type && type !== 'sum_display' && !isAuto(type);
+  }
+
+  function listEditorFields(excludeEl) {
+    var out = [];
+    editor.querySelectorAll('.eap-widget[data-eap-id][data-eap-type]').forEach(function (el) {
+      if (el === excludeEl) return;
+      var type = el.getAttribute('data-eap-type') || '';
+      if (!isConditionFieldType(type)) return;
+      var id = (el.getAttribute('data-eap-id') || '').trim();
+      if (!id) return;
+      var label = (el.getAttribute('data-eap-label') || WIDGET_LABEL[type] || id).trim();
+      out.push({ id: id, label: label || id, type: type });
+    });
+    out.sort(function (a, b) {
+      return a.label.localeCompare(b.label, 'ko');
+    });
+    return out;
+  }
+
+  function fillShowFieldSelect(selectedId) {
+    var sel = document.getElementById('inspShowField');
+    if (!sel) return;
+    var current = selectedId != null ? String(selectedId) : sel.value;
+    sel.innerHTML = '<option value="">(없음 — 항상 표시)</option>';
+    listEditorFields(selectedWidget).forEach(function (f) {
+      var opt = document.createElement('option');
+      opt.value = f.id;
+      opt.textContent = f.label;
+      opt.title = f.id;
+      sel.appendChild(opt);
+    });
+    if (current) {
+      var found = false;
+      for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === current) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        var legacy = document.createElement('option');
+        legacy.value = current;
+        legacy.textContent = current + ' (저장된 ID)';
+        sel.appendChild(legacy);
+      }
+    }
+    sel.value = current || '';
   }
 
   function syncInspector() {
@@ -960,7 +1020,14 @@
       checkScaleEl.value = selectedWidget.getAttribute('data-eap-check-scale') || '100';
     }
     document.getElementById('inspSumGroup').value = selectedWidget.getAttribute('data-eap-sum-group') || '';
-    document.getElementById('inspShowField').value = selectedWidget.getAttribute('data-eap-show-field') || '';
+    var fieldId = selectedWidget.getAttribute('data-eap-id') || '';
+    if (!fieldId) {
+      fieldId = nextWid();
+      selectedWidget.setAttribute('data-eap-id', fieldId);
+    }
+    var fieldIdEl = document.getElementById('inspFieldId');
+    if (fieldIdEl) fieldIdEl.value = fieldId;
+    fillShowFieldSelect(selectedWidget.getAttribute('data-eap-show-field') || '');
     document.getElementById('inspShowValue').value = selectedWidget.getAttribute('data-eap-show-value') || '';
 
     var isChecks = type === 'checkbox' || type === 'radio';
@@ -978,8 +1045,12 @@
     }
     setInspRowVisible('inspRequired', !isAuto(type) && type !== 'sum_display');
     setInspRowVisible('inspSumGroup', type === 'amount' || type === 'number' || type === 'sum_display');
-    setInspRowVisible('inspShowField', type !== 'sum_display' && !isAuto(type));
-    setInspRowVisible('inspShowValue', type !== 'sum_display' && !isAuto(type));
+    var showCond = isConditionFieldType(type);
+    setInspRowVisible('inspFieldId', showCond);
+    setInspRowVisible('inspFieldIdHint', showCond);
+    setInspRowVisible('inspShowField', showCond);
+    setInspRowVisible('inspShowFieldHint', showCond);
+    setInspRowVisible('inspShowValue', showCond);
   }
 
   function applyInspector() {
@@ -1067,6 +1138,16 @@
       el.addEventListener('input', applyInspector);
       el.addEventListener('change', applyInspector);
     });
+    var copyBtn = document.getElementById('inspCopyId');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function () {
+        var id = (document.getElementById('inspFieldId').value || '').trim();
+        if (!id) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(id).catch(function () {});
+        }
+      });
+    }
     var ac = document.getElementById('inspApprCols');
     if (ac) ac.addEventListener('change', applyInspector);
     var del = document.getElementById('inspDel');

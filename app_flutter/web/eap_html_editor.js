@@ -169,23 +169,22 @@
 
   function prepareEditableTable(table) {
     if (!table || !editor.contains(table)) return table;
-    if (table.classList.contains('eap-excel-import')) return table;
     if (table.classList.contains('eap-approval-line') || table.classList.contains('eap-product-table')) {
       return table;
     }
     table.classList.add('eap-editable-table');
     table.style.boxSizing = 'border-box';
-    var nested = !!(table.parentElement && table.parentElement.closest('table'));
-    if (nested) {
+    if (shouldUsePctColLayout(table)) {
+      ensureTableColLayout(table);
+    } else if (isNestedTable(table)) {
       table.style.tableLayout = 'auto';
       if (!table.style.width && !table.getAttribute('width')) table.style.width = 'auto';
-      return table;
+    } else {
+      if (!table.style.width && !table.getAttribute('width')) {
+        table.style.width = '100%';
+      }
+      ensureTableColLayout(table);
     }
-    if (!table.style.width && !table.getAttribute('width')) {
-      table.style.width = '100%';
-    }
-    lockTableColLayout(table);
-    table.style.tableLayout = 'fixed';
     table.style.minWidth = '0';
     table.querySelectorAll('td, th').forEach(function (cell) {
       if (cell.closest('.eap-approval-line')) return;
@@ -274,9 +273,36 @@
     return next ? next.getBoundingClientRect().left : null;
   }
 
+  function isNestedTable(table) {
+    return !!(table && table.parentElement && table.parentElement.closest('table'));
+  }
+
+  function shouldUsePctColLayout(table) {
+    if (!table || table.classList.contains('eap-approval-line')) return false;
+    if (!isNestedTable(table)) return true;
+    var cols = countTableCols(table);
+    return cols >= 2 && cols <= 8;
+  }
+
+  function markUserColLayout(table) {
+    if (table) table.setAttribute('data-eap-user-col-layout', '1');
+  }
+
+  function ensureTableColLayout(table) {
+    if (!shouldUsePctColLayout(table)) return null;
+    var cg = lockTableColLayout(table);
+    if (!cg) return null;
+    table.style.tableLayout = 'fixed';
+    if (!table.style.width && !table.getAttribute('width')) {
+      table.style.width = '100%';
+    }
+    table.style.maxWidth = table.style.maxWidth || '100%';
+    return cg;
+  }
+
   function lockTableColLayout(table) {
     if (!table || table.classList.contains('eap-approval-line')) return null;
-    if (table.parentElement && table.parentElement.closest('table')) return null;
+    if (isNestedTable(table) && !shouldUsePctColLayout(table)) return null;
     var cg = ensureColGroup(table);
     if (!cg || !cg.children.length) return null;
     var px = measureColWidthsPx(table);
@@ -672,17 +698,49 @@
   function activeTitleEl() {
     var sel = window.getSelection();
     if (!sel || !sel.rangeCount) return null;
-    var n = sel.anchorNode;
-    if (n && n.nodeType === 3) n = n.parentNode;
-    if (!n || !n.closest) return null;
-    return n.closest('.eap-title');
+    var range = sel.getRangeAt(0);
+    var nodes = [range.startContainer, range.endContainer, sel.anchorNode, sel.focusNode];
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (!n) continue;
+      if (n.nodeType === 3) n = n.parentNode;
+      if (!n || !n.closest) continue;
+      var title = n.closest('.eap-title');
+      if (title && editor.contains(title)) return title;
+    }
+    return null;
+  }
+
+  function resolveTitleForAlign() {
+    var title = activeTitleEl();
+    if (title) return title;
+    var hdr = editor.querySelector('.eap-doc-header.eap-on');
+    if (hdr) {
+      title = hdr.querySelector('.eap-title');
+      if (title) return title;
+    }
+    return null;
+  }
+
+  function paintTitleAlign(title, align) {
+    if (!title || !editor.contains(title)) return;
+    var wrap = title.closest('.eap-title-wrap');
+    [wrap, title].forEach(function (el) {
+      if (!el) return;
+      el.style.setProperty('text-align', align, 'important');
+      el.removeAttribute('align');
+    });
+    title.querySelectorAll('*').forEach(function (el) {
+      el.style.removeProperty('text-align');
+      el.removeAttribute('align');
+    });
   }
 
   function applyTitleTextAlign(align) {
-    var title = activeTitleEl();
+    var title = resolveTitleForAlign();
     if (!title || !editor.contains(title)) return false;
     beforeEdit();
-    title.style.setProperty('text-align', align, 'important');
+    paintTitleAlign(title, align);
     afterEdit();
     return true;
   }
@@ -808,7 +866,7 @@
     var startB = closestAlignBlock(range.startContainer);
     if (startB && startB.classList && startB.classList.contains('eap-title')) {
       beforeEdit();
-      startB.style.setProperty('text-align', align, 'important');
+      paintTitleAlign(startB, align);
       afterEdit();
       return true;
     }
@@ -902,9 +960,17 @@
     var n = sel.anchorNode;
     if (n && n.nodeType === 3) n = n.parentNode;
     if (!n || !n.closest) return selectedCell;
+    if (n.closest('.eap-title')) return null;
     var cell = n.closest('td, th');
     if (cell && editor.contains(cell)) return cell;
-    return selectedCell;
+    if (selectedCell) {
+      var focus = sel.focusNode;
+      if (focus && focus.nodeType === 3) focus = focus.parentNode;
+      if ((n && selectedCell.contains(n)) || (focus && selectedCell.contains(focus))) {
+        return selectedCell;
+      }
+    }
+    return null;
   }
 
   function selectedCellsToTsv() {
@@ -1081,6 +1147,40 @@
     }
     afterEdit();
     selectTableCell(cell);
+    return true;
+  }
+
+  function pasteIntoTitle(title, html, text) {
+    if (!title || !editor.contains(title)) return false;
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return false;
+    var anchor = sel.anchorNode;
+    var focus = sel.focusNode;
+    if (!title.contains(anchor) && !title.contains(focus)) return false;
+    beforeEdit();
+    var range = sel.getRangeAt(0);
+    range.deleteContents();
+    if (html && /<[a-z]/i.test(html) && !hasTable(html)) {
+      var box = document.createElement('div');
+      box.innerHTML = lightClean(html);
+      box.querySelectorAll('script,meta,link,iframe,object,embed,table').forEach(function (n) { n.remove(); });
+      var frag = document.createDocumentFragment();
+      while (box.firstChild) frag.appendChild(box.firstChild);
+      range.insertNode(frag);
+    } else if (text) {
+      var lines = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+      lines.forEach(function (line, idx) {
+        if (idx > 0) range.insertNode(document.createElement('br'));
+        if (line) range.insertNode(document.createTextNode(line));
+      });
+    } else {
+      afterEdit();
+      return false;
+    }
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    afterEdit();
     return true;
   }
 
@@ -1290,6 +1390,7 @@
     if (!box || !selectedCell) return;
     var table = selectedCell.closest('table');
     if (!table) return;
+    if (shouldUsePctColLayout(table)) ensureTableColLayout(table);
     var wr = tableBox.getBoundingClientRect();
     var g = tableGrid(table);
     var n = Math.max(0, g.cols - 1);
@@ -1661,10 +1762,15 @@
     if (!selectedCell) return;
     pct = Math.max(5, Math.min(95, Math.round(pct)));
     var table = selectedCell.closest('table');
+    markUserColLayout(table);
+    beforeEdit();
     var cg = lockTableColLayout(table);
     var o = cellOrigin(table, selectedCell);
     var ci = o ? o.c : cellIndex(selectedCell);
-    if (!cg || !cg.children[ci]) return;
+    if (!cg || !cg.children[ci]) {
+      afterEdit();
+      return;
+    }
     var n = cg.children.length;
     var sp = cellSpan(selectedCell);
     var spanCols = (o && sp.cs > 1) ? sp.cs : 1;
@@ -1693,6 +1799,7 @@
     syncTableToolbarInputs();
     layoutTableBox();
     layoutColHandles();
+    afterEdit();
   }
 
   function applyRowHeightPx(h) {
@@ -1707,8 +1814,13 @@
   }
 
   function startColResize(table, colIdx, e) {
+    markUserColLayout(table);
+    beforeEdit();
     var cg = lockTableColLayout(table);
-    if (!cg) return;
+    if (!cg) {
+      afterEdit();
+      return;
+    }
     var cols = cg.children;
     if (!cols[colIdx]) return;
     var startX = e.clientX;
@@ -1731,6 +1843,7 @@
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       layoutColHandles();
+      afterEdit();
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -1840,7 +1953,7 @@
     if (!cell || !editor.contains(cell)) return;
     if (e.button !== 0) return;
     var rect = cell.getBoundingClientRect();
-    var nearRight = e.clientX >= rect.right - 8;
+    var nearRight = e.clientX >= rect.right - 12;
     var nearBottom = e.clientY >= rect.bottom - 8;
     var table = cell.closest('table');
     if (nearRight && table) {
@@ -1891,7 +2004,7 @@
       return;
     }
     var rect = cell.getBoundingClientRect();
-    if (e.clientX >= rect.right - 8) editor.style.cursor = 'col-resize';
+    if (e.clientX >= rect.right - 12) editor.style.cursor = 'col-resize';
     else if (e.clientY >= rect.bottom - 8) editor.style.cursor = 'row-resize';
     else editor.style.cursor = '';
   });
@@ -1998,6 +2111,11 @@
   }
   if (inspTblColW) {
     inspTblColW.addEventListener('change', function () {
+      tblColW.value = this.value;
+      applyColWidthPct(parseFloat(this.value) || 20);
+      syncTableToolbarInputs();
+    });
+    inspTblColW.addEventListener('input', function () {
       tblColW.value = this.value;
       applyColWidthPct(parseFloat(this.value) || 20);
       syncTableToolbarInputs();
@@ -2214,6 +2332,7 @@
       saveEditorSelection();
       return;
     }
+    saveEditorSelection();
     e.preventDefault();
   });
 
@@ -2618,7 +2737,7 @@
   });
 
   async function pasteClicked() {
-    focusEditor();
+    if (!restoreEditorSelection()) focusEditor();
     try {
       if (navigator.clipboard && navigator.clipboard.read) {
         var items = await navigator.clipboard.read();
@@ -2851,6 +2970,12 @@
   }
 
   function applyPaste(html, text) {
+    var title = activeTitleEl();
+    if (title && !hasTable(html || '')) {
+      if (pasteIntoTitle(title, html, text)) {
+        return;
+      }
+    }
     if (isMultiCellRange() && text && !hasTable(html || '')) {
       if (text.indexOf('\t') >= 0 || text.indexOf('\n') >= 0) {
         if (pasteGridIntoRange(parsePasteGrid(text))) {
@@ -2912,8 +3037,21 @@
     afterEdit();
   }
 
+  function shouldInterceptEditorPaste(e) {
+    var t = e && e.target;
+    if (!t || !t.closest) return true;
+    if (t.closest('#inspector, #palette, #linkDlg, #sourceBar')) return false;
+    if (t.closest('#bar') && t.closest('select, input, textarea')) return false;
+    if ((t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')
+        && !editor.contains(t)) {
+      return false;
+    }
+    return true;
+  }
+
   function onPaste(e) {
     if (sourceMode) return;
+    if (!shouldInterceptEditorPaste(e)) return;
     var clip = e.clipboardData;
     if (!clip) return;
     var html = clip.getData('text/html') || '';

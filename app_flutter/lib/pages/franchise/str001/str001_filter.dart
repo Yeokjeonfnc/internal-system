@@ -9,16 +9,22 @@ const List<String> kStoreContractStatusLabels = [
 ];
 
 /// 테이블·필터 공통 계약상태 표시명.
+///
+/// [Store.storeStatus] 코드를 우선해 칩 라벨과 일치시킨다.
 String storeContractStatusLabel(Store store) {
-  final nm = store.storeStatusNm.trim();
-  if (nm.isNotEmpty) return nm;
-  return switch (store.storeStatus.toLowerCase()) {
+  final fromCode = switch (store.storeStatus.trim().toLowerCase()) {
     'new' => '신규계약',
     'renewal' => '재계약',
     'transfer' => '양수도',
     'closed' => '폐점',
-    _ => store.storeStatus,
+    _ => '',
   };
+  if (fromCode.isNotEmpty) return fromCode;
+
+  final nm = store.storeStatusNm.trim();
+  if (kStoreContractStatusLabels.contains(nm)) return nm;
+
+  return nm.isNotEmpty ? nm : store.storeStatus.trim();
 }
 
 /// 선택된 계약상태(OR) — 비어 있으면 전체.
@@ -45,6 +51,40 @@ bool storeMatchesContractStatusCondition(String value, Store store) {
   final selected = parseContractStatusConditionValue(value);
   if (selected.isEmpty) return true;
   return selected.contains(storeContractStatusLabel(store));
+}
+
+/// legacy [StoreFilter.storeStatus] + 계약상태 조건 행을 하나로 합쳐 OR 적용.
+Set<String> collectContractStatusFilter(StoreFilter filter) {
+  final merged = Set<String>.from(filter.storeStatus);
+  for (final c in filter.conditions) {
+    if (c.field == StoreFilterField.contractStatus) {
+      merged.addAll(parseContractStatusConditionValue(c.value));
+    }
+  }
+  return merged;
+}
+
+bool storeMatchesNonContractConditions(StoreFilter filter, Store store) {
+  return filter.conditions
+      .where((c) => c.field != StoreFilterField.contractStatus)
+      .every((c) {
+        final value = c.value.trim();
+        if (value.isEmpty) return true;
+        final target = switch (c.field) {
+          StoreFilterField.storeName => store.storeNm,
+          StoreFilterField.storeCode => store.storeCd,
+          StoreFilterField.ownerName => store.ownerNm,
+          StoreFilterField.phone => store.storeTel,
+          StoreFilterField.address => '${store.address} ${store.addressDetail}',
+          StoreFilterField.contractStartDate => store.contStartDt,
+          StoreFilterField.contractEndDate => store.contEndDt,
+          StoreFilterField.contractStatus => '',
+          StoreFilterField.supervisor => '${store.svId} ${store.svNm}',
+          StoreFilterField.businessNumber => store.businessNumber,
+          StoreFilterField.notes => store.notes,
+        };
+        return target.toLowerCase().contains(value.toLowerCase());
+      });
 }
 
 class StoreFilter {

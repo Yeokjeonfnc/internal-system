@@ -93,9 +93,9 @@ body.eap-preview-paper .eap-a4 {
   line-height: 1.3;
 }
 
-.eap-a4 .eap-doc-header .eap-title { text-align: left; }
+/* 제목 정렬은 편집기에서 저장한 inline style 을 따른다. */
 
-.eap-a4 .eap-doc-title:not(.eap-doc-header .eap-doc-title) {
+.eap-a4:not(.eap-form-preview) .eap-doc-title:not(.eap-doc-header .eap-doc-title) {
   text-align: center;
   margin-bottom: 12px;
 }
@@ -176,6 +176,13 @@ body.eap-preview-paper .eap-a4 {
   min-width: 0;
   min-height: 0;
   vertical-align: baseline;
+}
+
+.eap-a4.eap-form-preview .eap-widget {
+  display: inline-block;
+  min-width: 72px;
+  min-height: 24px;
+  vertical-align: middle;
 }
 
 .eap-a4 .eap-widget .eap-w-del { display: none !important; }

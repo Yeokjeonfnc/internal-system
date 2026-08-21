@@ -4,7 +4,6 @@
     if (!root) return;
     root.querySelectorAll('.eap-doc-title').forEach(function (el) {
       el.className = 'eap-title';
-      el.removeAttribute('style');
     });
     root.querySelectorAll('.eap-title').forEach(function (title) {
       if (title.closest('.eap-doc-header')) return;
@@ -38,6 +37,24 @@
     }
   }
 
+  function ensureTitleWrap(header) {
+    if (!header) return;
+    var title = header.querySelector('.eap-title');
+    if (!title) return;
+    var wrap = title.closest('.eap-title-wrap');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.className = 'eap-title-wrap';
+      title.parentNode.insertBefore(wrap, title);
+      wrap.appendChild(title);
+    }
+  }
+
+  function preparePreviewHeaders(root) {
+    if (!root) return;
+    root.querySelectorAll('.eap-doc-header').forEach(ensureTitleWrap);
+  }
+
   function applyCheckScales(root) {
     if (!root) return;
     root.querySelectorAll('.eap-widget[data-eap-check-scale], .eap-w-checks[data-eap-check-scale]').forEach(function (w) {
@@ -52,6 +69,8 @@
     var found = false;
     root.querySelectorAll('table').forEach(function (t) {
       if (t.classList.contains('eap-excel-import') || t.classList.contains('eap-approval-line')) return;
+      if (t.classList.contains('eap-form-table') || t.classList.contains('eap-compact-table') || t.classList.contains('eap-product-table')) return;
+      if (t.querySelector('.eap-widget, tr.eap-field, .eap-field')) return;
       var hasColgroup = !!t.querySelector('colgroup');
       var hasInlineBorder = !!t.querySelector('td[style*="border"], th[style*="border"]');
       if (hasColgroup && hasInlineBorder) {
@@ -62,11 +81,8 @@
     return found;
   }
 
-  function initPreview(opts) {
-    opts = opts || {};
-    var root = document.querySelector('.eap-a4') || document.body;
-    if (!root) return;
-    mergeDocHeaders(root);
+  function prepareExcelTables(root) {
+    if (!root || !root.querySelectorAll) return;
     recoverExcelTables(root);
     root.querySelectorAll('table.eap-excel-import').forEach(function (t) {
       if (g.eapTrimExcelTableGrid) g.eapTrimExcelTableGrid(t);
@@ -74,6 +90,32 @@
       if (g.eapEnsureExcelColumnsFitContent) g.eapEnsureExcelColumnsFitContent(t);
       if (g.eapRelaxExcelCellWidths) g.eapRelaxExcelCellWidths(t);
     });
+  }
+
+  function initFormFillLayout(opts) {
+    opts = opts || {};
+    var root = opts.root || document.querySelector('.eap-a4');
+    if (!root) return;
+    mergeDocHeaders(root);
+    preparePreviewHeaders(root);
+    root.querySelectorAll('table.eap-excel-import').forEach(function (t) {
+      if (g.eapTrimExcelTableGrid) g.eapTrimExcelTableGrid(t);
+      if (g.eapPreserveExcelColWidths) g.eapPreserveExcelColWidths(t);
+      if (g.eapEnsureExcelColumnsFitContent) g.eapEnsureExcelColumnsFitContent(t);
+      if (g.eapRelaxExcelCellWidths) g.eapRelaxExcelCellWidths(t);
+    });
+    applyCheckScales(root);
+    if (g.eapPrepareFormFillTables) g.eapPrepareFormFillTables(root);
+    else if (g.eapFixDocTables) g.eapFixDocTables(root);
+  }
+
+  function initPreview(opts) {
+    opts = opts || {};
+    var root = opts.root || document.querySelector('.eap-a4') || document.body;
+    if (!root) return;
+    mergeDocHeaders(root);
+    preparePreviewHeaders(root);
+    prepareExcelTables(root);
     var hasExcel = root.querySelector('table.eap-excel-import');
     if (g.eapFixDocTables) {
       g.eapFixDocTables(root, {});
@@ -84,10 +126,13 @@
 
   function boot() {
     var body = document.body;
+    if (body.classList.contains('eap-form-fill-host')) return;
     initPreview({ readOnly: body.getAttribute('data-readonly') === '1' });
   }
 
   g.eapInitPreview = initPreview;
+  g.eapInitFormFillLayout = initFormFillLayout;
+  g.eapPrepareExcelTables = prepareExcelTables;
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
   } else {

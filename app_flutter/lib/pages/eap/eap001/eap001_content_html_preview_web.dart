@@ -12,11 +12,13 @@ Widget buildEapContentHtmlPreview(
   String htmlBody, {
   bool seamless = false,
   bool readOnly = false,
+  bool formDesignPreview = false,
 }) {
   return _EapContentHtmlPreviewWeb(
     htmlBody: htmlBody,
     seamless: seamless,
     readOnly: readOnly,
+    formDesignPreview: formDesignPreview,
   );
 }
 
@@ -25,11 +27,13 @@ class _EapContentHtmlPreviewWeb extends StatefulWidget {
     required this.htmlBody,
     this.seamless = false,
     this.readOnly = false,
+    this.formDesignPreview = false,
   });
 
   final String htmlBody;
   final bool seamless;
   final bool readOnly;
+  final bool formDesignPreview;
 
   @override
   State<_EapContentHtmlPreviewWeb> createState() =>
@@ -72,15 +76,17 @@ class _EapContentHtmlPreviewWebState extends State<_EapContentHtmlPreviewWeb>
       widget.htmlBody,
       seamless: widget.seamless,
       readOnly: widget.readOnly,
+      formDesignPreview: widget.formDesignPreview,
     );
   }
 
   @override
   void didUpdateWidget(covariant _EapContentHtmlPreviewWeb oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.htmlBody != widget.htmlBody ||
+    if (        oldWidget.htmlBody != widget.htmlBody ||
         oldWidget.seamless != widget.seamless ||
-        oldWidget.readOnly != widget.readOnly) {
+        oldWidget.readOnly != widget.readOnly ||
+        oldWidget.formDesignPreview != widget.formDesignPreview) {
       final iframe = _iframe;
       if (iframe != null) _applySrcdoc(iframe);
     }

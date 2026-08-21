@@ -954,7 +954,7 @@ class _StoreTable extends ConsumerWidget {
             0: const FixedColumnWidth(40),
             1: const FixedColumnWidth(120),
             2: const FlexColumnWidth(1),
-            3: const FixedColumnWidth(120),
+            3: const FixedColumnWidth(140),
             4: const FixedColumnWidth(88),
             5: const FixedColumnWidth(100),
             6: const FixedColumnWidth(150),

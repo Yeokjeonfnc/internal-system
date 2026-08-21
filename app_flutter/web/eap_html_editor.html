@@ -2,8 +2,9 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8"/>
-  <link rel="stylesheet" href="eap_doc_tables.css?v=20260821u"/>
-  <link rel="stylesheet" href="eap_html_editor.css?v=20260821u"/>
+  <link rel="stylesheet" href="eap_doc_tables.css?v=20260821zc"/>
+  <link rel="stylesheet" href="eap_html_editor.css?v=20260821zc"/>
+  <link rel="stylesheet" href="eap_form_design.css?v=20260821zc"/>
 </head>
 <body>
 <div id="wrap">
@@ -148,10 +149,19 @@
         <label for="inspSumGroup">자동 합계 ID</label>
         <input id="inspSumGroup" type="text" placeholder="동일 ID 숫자·통화 합산"/>
         <p id="inspSumHint" style="margin:-8px 0 10px;font-size:10px;color:#888">숫자·통화 항목에 같은 ID를 입력하면 자동합계 컴포넌트에 합산됩니다.</p>
-        <label for="inspShowField">조건 — 항목 ID</label>
-        <input id="inspShowField" type="text" placeholder="다른 항목 data-eap-id"/>
+        <label for="inspFieldId">이 항목 ID</label>
+        <div class="insp-id-row">
+          <input id="inspFieldId" type="text" readonly tabindex="-1"/>
+          <button type="button" id="inspCopyId" title="ID 복사">복사</button>
+        </div>
+        <p id="inspFieldIdHint" style="margin:-8px 0 10px;font-size:10px;color:#888">자동 부여 ID입니다. 다른 항목 조건을 쓸 때는 아래 목록에서 고르세요.</p>
+        <label for="inspShowField">조건 — 기준 항목</label>
+        <select id="inspShowField">
+          <option value="">(없음 — 항상 표시)</option>
+        </select>
+        <p id="inspShowFieldHint" style="margin:-8px 0 10px;font-size:10px;color:#888">다른 입력 항목을 고르면, 그 값이 아래와 같을 때만 이 항목이 보입니다.</p>
         <label for="inspShowValue">조건 — 값</label>
-        <input id="inspShowValue" type="text" placeholder="위 항목 값과 일치할 때 표시"/>
+        <input id="inspShowValue" type="text" placeholder="예: 예, 1, 선택한 옵션"/>
       </div>
       <div id="inspTable" style="display:none">
         <div class="inspType" id="inspTableTitle">표 · 셀 크기</div>
@@ -282,10 +292,10 @@
   </div>
   <input id="imgFile" type="file" accept="image/*" hidden/>
 </div>
-<script src="eap_doc_tables.js?v=20260821u"></script>
-<script src="eap_daou_import.js?v=20260821u"></script>
-<script src="eap_form_runtime.js?v=20260821u"></script>
-<script src="eap_form_editor_widgets.js?v=20260821u"></script>
-<script src="eap_html_editor.js?v=20260821u"></script>
+<script src="eap_doc_tables.js?v=20260821zc"></script>
+<script src="eap_daou_import.js?v=20260821zc"></script>
+<script src="eap_form_runtime.js?v=20260821zc"></script>
+<script src="eap_form_editor_widgets.js?v=20260821zc"></script>
+<script src="eap_html_editor.js?v=20260821zc"></script>
 </body>
 </html>

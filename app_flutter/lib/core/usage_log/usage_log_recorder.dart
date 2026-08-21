@@ -81,22 +81,12 @@ class UsageLogRecorder {
   }) {
     final fromPerm = permissionMenuNm?.trim();
     if (fromPerm != null && fromPerm.isNotEmpty) {
-      return _shortenMenuLabel(fromPerm);
+      return fromPerm;
     }
     final title = resolveRouteMeta(path).title.trim();
     if (title.isNotEmpty && title != '역전에프앤씨') {
-      return _shortenMenuLabel(title);
+      return title;
     }
     return menuCd;
-  }
-
-  static String _shortenMenuLabel(String name) {
-    if (name.endsWith('관리') && name.length > 2) {
-      return name.substring(0, name.length - 2);
-    }
-    if (name.endsWith('조회') && name.length > 2) {
-      return name.substring(0, name.length - 2);
-    }
-    return name;
   }
 }

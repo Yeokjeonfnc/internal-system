@@ -499,6 +499,18 @@
     if (t.classList.contains('eap-excel-import')) {
       t.style.boxSizing = 'border-box';
       t.style.borderCollapse = 'collapse';
+      if (t.getAttribute('data-eap-user-col-layout') === '1') {
+        t.style.tableLayout = 'fixed';
+        if (nested) {
+          t.style.width = '100%';
+          t.style.maxWidth = '100%';
+        } else {
+          t.style.width = t.style.width || '100%';
+          t.style.maxWidth = '100%';
+        }
+        ownCells(t).forEach(restoreCell);
+        return;
+      }
       t.style.tableLayout = 'fixed';
       preserveExcelColWidths(t);
       ensureExcelColumnsFitContent(t);
@@ -648,13 +660,16 @@
     table.setAttribute('data-eap-col-lock', '1');
   }
 
-  /** 기안 입력 — 편집기와 동일한 표 열 비율 유지 */
+  /** 기안 입력 — 편집기·미리보기와 동일한 표 열 비율 유지 (양식 표는 Excel로 오분류하지 않음) */
   function eapPrepareFormFillTables(root) {
     if (!root || !root.querySelectorAll) return;
     root.querySelectorAll('table').forEach(function (t) {
       if (t.classList.contains('eap-approval-line')) return;
       if (t.classList.contains('eap-excel-import')) {
         t.style.borderCollapse = 'collapse';
+        if (g.eapPreserveExcelColWidths) g.eapPreserveExcelColWidths(t);
+        if (g.eapEnsureExcelColumnsFitContent) g.eapEnsureExcelColumnsFitContent(t);
+        if (g.eapRelaxExcelCellWidths) g.eapRelaxExcelCellWidths(t);
         return;
       }
       var nested = !!(t.parentElement && t.parentElement.closest('table'));

@@ -416,6 +416,7 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
                                 child: eapContentHtmlPreview(
                                   _previewHtml,
                                   seamless: true,
+                                  formDesignPreview: true,
                                 ),
                               ),
                             )

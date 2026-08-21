@@ -8,6 +8,7 @@ Widget buildEapContentHtmlPreview(
   String htmlBody, {
   bool seamless = false,
   bool readOnly = false,
+  bool formDesignPreview = false,
 }) {
   final text = htmlBody.trim().isEmpty ? '(본문 없음)' : htmlBody;
   return ConstrainedBox(

@@ -1278,38 +1278,46 @@ class _BoardPostDetailDialogState extends State<_BoardPostDetailDialog> {
       padding: const EdgeInsets.fromLTRB(20, 10, 10, 10),
       child: Row(
         children: [
-          const Text(
-            '게시판',
-            style: TextStyle(
-              fontSize: 12.5,
-              color: AppTheme.textMuted,
-              fontWeight: FontWeight.w500,
-              fontFamilyFallback: AppTheme.koreanFontFallback,
+          Expanded(
+            child: Row(
+              children: [
+                const Text(
+                  '게시판',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: AppTheme.textMuted,
+                    fontWeight: FontWeight.w500,
+                    fontFamilyFallback: AppTheme.koreanFontFallback,
+                  ),
+                ),
+                if (p.folderNm.trim().isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6),
+                    child: Text(
+                      '/',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textPlaceholder,
+                      ),
+                    ),
+                  ),
+                  Flexible(
+                    child: Text(
+                      p.folderNm,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontFamilyFallback: AppTheme.koreanFontFallback,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (p.folderNm.trim().isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6),
-              child: Text(
-                '/',
-                style: TextStyle(fontSize: 12, color: AppTheme.textPlaceholder),
-              ),
-            ),
-            Flexible(
-              child: Text(
-                p.folderNm,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  color: AppTheme.textSecondary,
-                  fontWeight: FontWeight.w600,
-                  fontFamilyFallback: AppTheme.koreanFontFallback,
-                ),
-              ),
-            ),
-          ],
-          const Spacer(flex: 7),
           if (widget.canEdit)
             TextButton(
               onPressed: widget.onEdit,

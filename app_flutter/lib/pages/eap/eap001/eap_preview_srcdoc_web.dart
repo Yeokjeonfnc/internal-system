@@ -10,6 +10,7 @@ String buildEapPreviewSrcdoc(
   String body, {
   required bool seamless,
   required bool readOnly,
+  bool formDesignPreview = false,
 }) {
   final trimmed = body.trim();
   if (trimmed.isEmpty) {
@@ -20,13 +21,16 @@ String buildEapPreviewSrcdoc(
   final readOnlyAttr = readOnly ? ' data-readonly="1"' : '';
   final tableCss = eapWebAssetAbsolute('eap_doc_tables.css');
   final previewCss = eapWebAssetAbsolute('eap_preview.css');
+  final formDesignCss = eapWebAssetAbsolute(kEapFormDesignCss);
   final tableJs = eapWebAssetAbsolute('eap_doc_tables.js');
   final previewJs = eapWebAssetAbsolute('eap_preview.js');
   final headInject =
       '<link rel="stylesheet" href="$tableCss"/>'
       '<link rel="stylesheet" href="$previewCss"/>'
+      '${formDesignPreview ? '<link rel="stylesheet" href="$formDesignCss"/>' : ''}'
       '<script src="$tableJs"></script>'
       '<script src="$previewJs"></script>';
+  final a4Class = formDesignPreview ? 'eap-a4 eap-form-preview' : 'eap-a4';
 
   if (trimmed.toLowerCase().contains('<html')) {
     var htmlDoc = trimmed;
@@ -52,7 +56,7 @@ String buildEapPreviewSrcdoc(
 $headInject
 </head>
 <body class="$layoutClass"$readOnlyAttr>
-<div class="eap-a4">$trimmed</div>
+<div class="$a4Class">$trimmed</div>
 </body>
 </html>''';
 }
