@@ -75,6 +75,32 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
     }
   }
 
+  Widget _bodyMessage(String message, [Object? error]) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+            ),
+            if (error != null) ...[
+              const SizedBox(height: 8),
+              SelectableText(
+                '$error',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBodyHost() {
     final formCode = widget.formCode?.trim() ?? '';
 
@@ -88,6 +114,34 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
     }
 
     if (formCode.isNotEmpty && !_bodyHostsReady) {
+      // 서식 도착 여부를 **직접 구독**해서 판단한다.
+      //
+      // 예전에는 `_bodyHostsReady` 플래그 하나에만 의존했는데, 그 플래그를 켜는
+      // 경로가 ① build 의 `ref.listen`(값이 **바뀔 때만** 울린다) 과
+      // ② initState 의 1회성 `ref.read`(그 시점엔 아직 로딩이라 항상 null) 뿐이었다.
+      // 그래서 값이 "이미 도착해 있는" 재진입 상황에서는 ①도 ②도 적용하지 못해
+      // **스피너가 영영 멈추지 않았다.** (실측: /eap/forms/{code} 는 200 으로
+      // 잘 내려오는데 화면은 계속 로딩이었다.)
+      //
+      // 여기서 watch 하면 값이 언제 도착하든 그 프레임에 반영되고, 실패·없음도
+      // 화면에 드러난다. 실패를 표시하지 않으면 사용자에겐 그냥 멈춘 화면으로 보인다.
+      final async = ref.watch(eapFormDetailProvider(formCode));
+
+      // 값이 이미 캐시에 있어 `ref.listen` 이 울리지 않는 재진입 경로를 여기서 메운다.
+      // (적용은 setState 를 부르므로 build 가 끝난 뒤에 한다.)
+      final cached = async.valueOrNull;
+      if (cached != null && cached.formCode != _loadedFormCode) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _applyForm(cached);
+        });
+      }
+
+      if (async.hasError) {
+        return _bodyMessage('서식을 불러오지 못했습니다.', async.error);
+      }
+      if (async.hasValue && async.valueOrNull == null) {
+        return _bodyMessage('서식 「$formCode」 을(를) 찾을 수 없습니다.');
+      }
       return const Center(child: CircularProgressIndicator());
     }
 
