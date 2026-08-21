@@ -13,6 +13,7 @@ import 'package:app_flutter/pages/development/dev002/dev002_controller.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_controller.dart';
 import 'package:app_flutter/pages/development/dev003/dev003_controller.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_controller.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_provider.dart';
 
 /// 저장·삭제 등 쓰기 작업 후 전체 무효화.
 ///
@@ -25,6 +26,7 @@ void refreshAllScreenData(WidgetRef ref) {
   _invalidateProperties(ref);
   _invalidateSalesAreas(ref);
   _invalidateUsers(ref);
+  _invalidateEap(ref);
 }
 
 /// 화면 이동 시 무효화 — 방금 들어간 화면의 목록만 갱신한다.
@@ -48,6 +50,8 @@ void refreshRouteScreenData(WidgetRef ref, String path) {
     _invalidateSalesAreas(ref);
   } else if (menuCd == kMenuMst001) {
     _invalidateUsers(ref);
+  } else if (menuCd == kMenuEap001 || menuCd == kMenuMst007) {
+    _invalidateEap(ref);
   }
 }
 
@@ -86,4 +90,14 @@ void _invalidateSalesAreas(WidgetRef ref) {
 void _invalidateUsers(WidgetRef ref) {
   ref.invalidate(userDataProvider);
   ref.invalidate(userProvider);
+}
+
+/// 전자결재 — 문서함·서식 목록. 결재 진행은 다른 사람이 만드는 변화라
+/// 화면에 들어올 때마다 다시 읽는다.
+void _invalidateEap(WidgetRef ref) {
+  ref.invalidate(eapDocumentsProvider);
+  ref.invalidate(eapDocumentDetailProvider);
+  ref.invalidate(eapFormsProvider);
+  ref.invalidate(eapEnabledFormsProvider);
+  ref.invalidate(eapFormDetailProvider);
 }

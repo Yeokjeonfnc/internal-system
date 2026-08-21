@@ -45,6 +45,7 @@ import 'package:app_flutter/core/active_mst/active_mst_api_paths.dart';
 import 'package:app_flutter/core/property_mst/property_mst_write_request.dart';
 import 'package:app_flutter/core/store_mst/store_mst_write_request.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/core/api/api_client.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/menu/menu_route_access.dart';
 import 'package:app_flutter/core/auth/change_password_view.dart';
@@ -95,7 +96,7 @@ class AppRoutes {
   /// 메신저(사내 채팅).
   static const String chat = '/chat';
 
-  /// 전자결재 — 다우오피스 연동.
+  /// 전자결재.
   static const String eap = EapRoutes.root;
 }
 
@@ -109,7 +110,10 @@ Page<dynamic> _activityApprovalManagementPage(
 }
 
 Page<dynamic> _eapPage(BuildContext context, GoRouterState state) {
-  return NoTransitionPage(child: EapShell(path: state.uri.path));
+  return NoTransitionPage(
+    key: ValueKey(state.uri.toString()),
+    child: EapShell(path: state.uri.path, query: state.uri.queryParameters),
+  );
 }
 
 class AppRouteNames {
@@ -155,8 +159,7 @@ final List<AppRouteDef> appRouteDefs = <AppRouteDef>[
     path: AppRoutes.board,
     title: '게시판',
     parentPath: AppRoutes.dashboard,
-    pageBuilder: (context, state) =>
-        const NoTransitionPage(child: BoardView()),
+    pageBuilder: (context, state) => const NoTransitionPage(child: BoardView()),
   ),
   AppRouteDef(
     name: AppRouteNames.chat,
@@ -574,11 +577,44 @@ List<RouteBase> _shellChildRoutes() {
     GoRoute(
       path: AppRoutes.eap,
       redirect: (context, state) {
-        if (state.uri.path == AppRoutes.eap) return EapRoutes.home;
+        final path = state.uri.path;
+        if (path == AppRoutes.eap) {
+          return EapRoutes.home;
+        }
+        if (path == '${AppRoutes.eap}/settings') {
+          return EapRoutes.compose;
+        }
+        const legacyToInbox = {
+          'pending',
+          'received',
+          'cc-pending',
+          'scheduled',
+        };
+        const legacyToSent = {'drafted', 'temp-saved'};
+        const legacyToCc = {'cc-read'};
+        const legacyToAll = {'approved', 'official'};
+        final rest = path.startsWith('${AppRoutes.eap}/')
+            ? path.substring('${AppRoutes.eap}/'.length)
+            : '';
+        if (legacyToInbox.contains(rest)) return EapRoutes.inbox;
+        if (legacyToSent.contains(rest)) return EapRoutes.sent;
+        if (legacyToCc.contains(rest)) return EapRoutes.cc;
+        if (legacyToAll.contains(rest)) return EapRoutes.all;
         return null;
       },
       routes: [
         GoRoute(path: 'home', pageBuilder: _eapPage),
+        GoRoute(path: 'settings', pageBuilder: _eapPage),
+        GoRoute(path: 'compose', pageBuilder: _eapPage),
+        GoRoute(path: 'inbox', pageBuilder: _eapPage),
+        GoRoute(path: 'sent', pageBuilder: _eapPage),
+        GoRoute(path: 'cc', pageBuilder: _eapPage),
+        GoRoute(path: 'all', pageBuilder: _eapPage),
+        GoRoute(path: 'forms', pageBuilder: _eapPage),
+        GoRoute(path: 'forms/new', pageBuilder: _eapPage),
+        GoRoute(path: 'forms/edit/:formCode', pageBuilder: _eapPage),
+        GoRoute(path: 'doc/:docId', pageBuilder: _eapPage),
+        // 구 경로 — redirect 에서 새 메뉴로 보낸다.
         GoRoute(path: 'pending', pageBuilder: _eapPage),
         GoRoute(path: 'received', pageBuilder: _eapPage),
         GoRoute(path: 'cc-pending', pageBuilder: _eapPage),
@@ -587,14 +623,7 @@ List<RouteBase> _shellChildRoutes() {
         GoRoute(path: 'temp-saved', pageBuilder: _eapPage),
         GoRoute(path: 'approved', pageBuilder: _eapPage),
         GoRoute(path: 'cc-read', pageBuilder: _eapPage),
-        GoRoute(path: 'inbox', pageBuilder: _eapPage),
-        GoRoute(path: 'sent', pageBuilder: _eapPage),
         GoRoute(path: 'official', pageBuilder: _eapPage),
-        GoRoute(path: 'settings', pageBuilder: _eapPage),
-        GoRoute(
-          path: 'doc/:docId',
-          pageBuilder: _eapPage,
-        ),
       ],
     ),
     for (final def in appRouteDefs)
@@ -720,7 +749,14 @@ class _RouteDataRefreshBoundaryState
   @override
   void initState() {
     super.initState();
+    ApiReachability.recoveryTick.addListener(_onBackendRecovered);
     Future.microtask(_onRouteEntered);
+  }
+
+  @override
+  void dispose() {
+    ApiReachability.recoveryTick.removeListener(_onBackendRecovered);
+    super.dispose();
   }
 
   @override
@@ -731,10 +767,15 @@ class _RouteDataRefreshBoundaryState
     }
   }
 
+  void _onBackendRecovered() {
+    if (!mounted) return;
+    refreshAllScreenData(ref);
+  }
+
   void _onRouteEntered() {
     if (!mounted) return;
-    // 전체 무효화는 쓰기 작업의 몫이다 — 이동마다 부르면 세션 캐시가 매번 비워져
-    // 재진입 화면이 항상 스피너부터 뜨고 무관한 목록까지 다시 내려받는다.
+    // 전체 무효화는 쓰기 작업과 백엔드 복구의 몫이다 — 이동마다 부르면 세션 캐시가
+    // 매번 비워져 재진입 화면이 항상 스피너부터 뜨고 무관한 목록까지 다시 내려받는다.
     refreshRouteScreenData(ref, Uri.parse(widget.routeKey).path);
     _recordMenuUsage();
   }

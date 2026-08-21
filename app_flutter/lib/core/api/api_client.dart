@@ -65,12 +65,18 @@ class ApiClient {
           }
           handler.next(options);
         },
+        onResponse: (response, handler) {
+          ApiReachability.noteSuccess();
+          handler.next(response);
+        },
         onError: (err, handler) {
+          ApiReachability.noteError(err);
           // 401 = 세션이 끊겼다는 뜻(만료·무효화·서버 재시작·인증 도입 전 세션).
           // 여기서 알리지 않으면 화면은 로그인 상태로 남고 모든 목록이 빈 채로
           // 그려져, 사용자에겐 데이터가 사라진 것처럼 보인다.
-          final isLoginRequest =
-              err.requestOptions.path.contains(AuthApiPaths.login);
+          final isLoginRequest = err.requestOptions.path.contains(
+            AuthApiPaths.login,
+          );
           if (err.response?.statusCode == 401 && !isLoginRequest) {
             AuthTokenStore.notifySessionExpired();
           }
@@ -178,6 +184,8 @@ class ApiClient {
 
 /// 개발용 — 영업지역·지도 등 대용량 JSON 본문은 건수만 로그.
 class _DebugLogInterceptor extends Interceptor {
+  static bool _quiet(RequestOptions options) => options.extra['quiet'] == true;
+
   static bool _omitResponseBody(String path, String method) {
     if (path.contains('map-points')) return true;
     if (method == 'GET' && path.contains('sales-areas')) return true;
@@ -192,12 +200,18 @@ class _DebugLogInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    debugPrint('[DIO] → ${options.method} ${options.uri}');
+    if (!_quiet(options)) {
+      debugPrint('[DIO] → ${options.method} ${options.uri}');
+    }
     handler.next(options);
   }
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
+    if (_quiet(response.requestOptions)) {
+      handler.next(response);
+      return;
+    }
     final path = response.requestOptions.path;
     final method = response.requestOptions.method;
     if (_omitResponseBody(path, method)) {
@@ -214,10 +228,43 @@ class _DebugLogInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    debugPrint(
-      '[DIO] ✗ ${err.requestOptions.method} ${err.requestOptions.uri} '
-      '${err.message}',
-    );
+    if (!_quiet(err.requestOptions)) {
+      final reason = ApiReachability.isUnreachable(err)
+          ? 'backend unreachable'
+          : err.message;
+      debugPrint(
+        '[DIO] ✗ ${err.requestOptions.method} ${err.requestOptions.uri} '
+        '$reason',
+      );
+    }
     handler.next(err);
+  }
+}
+
+/// 백엔드가 내려갔다가 다시 뜬 시점을 알린다.
+/// 재시작 중 빈 목록으로 캐시된 화면을 한 번에 다시 불러오기 위해 쓴다.
+class ApiReachability {
+  ApiReachability._();
+
+  static final ValueNotifier<int> recoveryTick = ValueNotifier<int>(0);
+  static bool _down = false;
+
+  static bool isUnreachable(DioException e) {
+    return e.type == DioExceptionType.connectionError ||
+        e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.sendTimeout ||
+        e.type == DioExceptionType.receiveTimeout;
+  }
+
+  static void noteError(DioException e) {
+    if (isUnreachable(e)) {
+      _down = true;
+    }
+  }
+
+  static void noteSuccess() {
+    if (!_down) return;
+    _down = false;
+    recoveryTick.value++;
   }
 }

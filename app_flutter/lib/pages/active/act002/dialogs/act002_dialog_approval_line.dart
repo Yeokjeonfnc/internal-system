@@ -38,6 +38,8 @@ Future<ActivityApprovalLineResult?> showActivityApprovalLineDialog(
   List<String> initialNames = const [],
   List<String> initialTitles = const [],
   List<String> initialUserIds = const [],
+  Set<String> blockedKeys = const {},
+  String blockedMessage = '이미 다른 결재라인에 지정된 사람은 선택할 수 없습니다.',
 }) {
   return showDialog<ActivityApprovalLineResult?>(
     context: context,
@@ -51,6 +53,11 @@ Future<ActivityApprovalLineResult?> showActivityApprovalLineDialog(
           initialNames: _padToSlots(initialNames),
           initialTitles: _padToSlots(initialTitles),
           initialUserIds: _padToSlots(initialUserIds),
+          blockedKeys: {
+            for (final k in blockedKeys)
+              if (k.trim().isNotEmpty) k.trim().toUpperCase(),
+          },
+          blockedMessage: blockedMessage,
         ),
       );
     },
@@ -69,11 +76,15 @@ class _ApprovalLineDialog extends StatefulWidget {
     required this.initialNames,
     required this.initialTitles,
     required this.initialUserIds,
+    required this.blockedKeys,
+    required this.blockedMessage,
   });
 
   final List<String> initialNames;
   final List<String> initialTitles;
   final List<String> initialUserIds;
+  final Set<String> blockedKeys;
+  final String blockedMessage;
 
   @override
   State<_ApprovalLineDialog> createState() => _ApprovalLineDialogState();
@@ -190,6 +201,14 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
     return null;
   }
 
+  bool _isBlockedUser(User u) {
+    if (widget.blockedKeys.isEmpty) return false;
+    final id = u.userId.trim().toUpperCase();
+    final name = u.name.trim().toUpperCase();
+    return (id.isNotEmpty && widget.blockedKeys.contains(id)) ||
+        (name.isNotEmpty && widget.blockedKeys.contains(name));
+  }
+
   void _toggleRowCheck(int userIdx, bool checked) {
     setState(() {
       if (checked) {
@@ -225,9 +244,14 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
 
     var added = 0;
     var skippedDuplicate = 0;
+    var skippedBlocked = 0;
     var skippedFull = false;
     setState(() {
       for (final u in toAdd) {
+        if (_isBlockedUser(u)) {
+          skippedBlocked++;
+          continue;
+        }
         if (_lineNames.contains(u.name)) {
           skippedDuplicate++;
           continue;
@@ -239,19 +263,26 @@ class _ApprovalLineDialogState extends State<_ApprovalLineDialog> {
         }
         _lineNames[i] = u.name;
         _lineTitles[i] = u.positionNm;
-        _lineUserIds[i] = u.userId;
+        final loginId = u.userId.trim();
+        _lineUserIds[i] = loginId.isNotEmpty ? loginId : u.name.trim();
         added++;
       }
       _rowChecked.clear();
     });
 
     if (added == 0) {
-      final msg = skippedFull
+      final msg = skippedBlocked > 0
+          ? widget.blockedMessage
+          : skippedFull
           ? '결재 슬롯이 모두 찼습니다. 초기화 후 다시 추가하세요.'
           : skippedDuplicate > 0
           ? '이미 결재라인에 있는 사원입니다.'
           : '결재자를 추가하지 못했습니다.';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } else if (skippedBlocked > 0) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(widget.blockedMessage)));
     }
   }
 

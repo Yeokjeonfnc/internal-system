@@ -46,21 +46,50 @@ public class MenuAccessGuard {
         }
         List<MenuPermissionDto> perms = menuPermissionService.resolveForLogin(userId);
         for (MenuPermissionDto p : perms) {
-            if (!menuCd.equals(p.menuCd())) {
+            if (!menuCd.equalsIgnoreCase(p.menuCd())) {
                 continue;
             }
-            boolean allowed = switch (action) {
-                case VIEW -> p.canView();
-                case CREATE -> p.canCreate();
-                case UPDATE -> p.canUpdate();
-                case DELETE -> p.canDelete();
-            };
-            if (allowed) {
+            if (allows(p, action)) {
                 return;
             }
             break;
         }
         throw new AccessDeniedException("이 작업을 수행할 권한이 없습니다.");
+    }
+
+    /** [actions] 중 하나라도 허용되면 통과한다. */
+    public void ensureAny(String userId, String menuCd, Action... actions) {
+        if (userId == null || userId.isBlank()) {
+            throw new AccessDeniedException("로그인이 필요합니다.");
+        }
+        if (menuPermissionService.isSuperAdmin(userId)) {
+            return;
+        }
+        if (actions == null || actions.length == 0) {
+            throw new AccessDeniedException("이 작업을 수행할 권한이 없습니다.");
+        }
+        List<MenuPermissionDto> perms = menuPermissionService.resolveForLogin(userId);
+        for (MenuPermissionDto p : perms) {
+            if (!menuCd.equalsIgnoreCase(p.menuCd())) {
+                continue;
+            }
+            for (Action action : actions) {
+                if (allows(p, action)) {
+                    return;
+                }
+            }
+            break;
+        }
+        throw new AccessDeniedException("이 작업을 수행할 권한이 없습니다.");
+    }
+
+    private static boolean allows(MenuPermissionDto p, Action action) {
+        return switch (action) {
+            case VIEW -> p.canView();
+            case CREATE -> p.canCreate();
+            case UPDATE -> p.canUpdate();
+            case DELETE -> p.canDelete();
+        };
     }
 
     /** 슈퍼관리자 전용 작업(메뉴권한 부여 등). */

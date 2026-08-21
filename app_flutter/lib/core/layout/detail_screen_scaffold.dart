@@ -45,7 +45,7 @@ class DetailScreenHeadline extends StatelessWidget {
           Text(
             tail,
             style: const TextStyle(
-          fontFamily: AppTheme.brandFontFamily,
+              fontFamily: AppTheme.brandFontFamily,
               fontSize: 20,
               fontWeight: FontWeight.w700,
               color: FormStylePalette.textPrimary,
@@ -128,11 +128,15 @@ class DetailScreenWithTabs extends StatefulWidget {
     required this.title,
     required this.tabTitles,
     required this.tabPages,
+    this.toolbar,
   }) : assert(tabTitles.length == tabPages.length);
 
   final Widget title;
   final List<String> tabTitles;
   final List<Widget> tabPages;
+
+  /// 제목과 탭바 사이 (검색 필터 등).
+  final Widget? toolbar;
 
   @override
   State<DetailScreenWithTabs> createState() => _DetailScreenWithTabsState();
@@ -149,6 +153,7 @@ class _DetailScreenWithTabsState extends State<DetailScreenWithTabs> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             widget.title,
+            if (widget.toolbar != null) widget.toolbar!,
             DetailMainTabBar(tabTitles: widget.tabTitles),
             Expanded(
               child: Builder(

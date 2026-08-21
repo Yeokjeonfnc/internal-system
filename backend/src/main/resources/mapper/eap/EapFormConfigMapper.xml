@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.eap.mapper.EapFormConfigMapper">
+
+    <resultMap id="eapFormConfigRow" type="com.yeokjeon.erp.eap.dto.EapFormConfigJdbcRow">
+        <constructor>
+            <arg column="form_code" javaType="java.lang.String"/>
+            <arg column="form_name" javaType="java.lang.String"/>
+            <arg column="enabled" javaType="java.lang.Boolean"/>
+            <arg column="sort_order" javaType="java.lang.Integer"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="category" javaType="java.lang.String"/>
+            <arg column="content_html" javaType="java.lang.String"/>
+            <arg column="field_schema" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="created_by_nm" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="selectColumns">
+        form_code,
+        form_name,
+        enabled,
+        sort_order,
+        created_at,
+        updated_at,
+        category,
+        content_html,
+        field_schema,
+        created_by,
+        created_by_nm
+    </sql>
+
+    <select id="selectAll" resultMap="eapFormConfigRow">
+        SELECT <include refid="selectColumns"/>
+        FROM eap_form_config
+        ORDER BY sort_order, form_code
+    </select>
+
+    <select id="selectEnabled" resultMap="eapFormConfigRow">
+        SELECT <include refid="selectColumns"/>
+        FROM eap_form_config
+        WHERE enabled = TRUE
+        ORDER BY sort_order, form_code
+    </select>
+
+    <select id="selectByCode" resultMap="eapFormConfigRow">
+        SELECT <include refid="selectColumns"/>
+        FROM eap_form_config
+        WHERE form_code = #{formCode}
+    </select>
+
+    <select id="lockFormCode" resultType="java.lang.Object">
+        SELECT pg_advisory_xact_lock(hashtext('eap_form_config.form_code'))
+    </select>
+
+    <select id="selectNextSeq" resultType="int">
+        SELECT COALESCE(MAX(CAST(split_part(form_code, '-', 2) AS INTEGER)), 0) + 1
+        FROM eap_form_config
+        WHERE form_code ~ ('^' || #{year} || '-[0-9]+$')
+    </select>
+
+    <insert id="insert">
+        INSERT INTO eap_form_config (
+            form_code, form_name, enabled, sort_order,
+            created_at, updated_at,
+            category, content_html, created_by, created_by_nm, field_schema
+        ) VALUES (
+            #{formCode},
+            TRIM(#{body.formName}),
+            COALESCE(#{body.enabled}, TRUE),
+            COALESCE(#{body.sortOrder}, 0),
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP,
+            COALESCE(NULLIF(TRIM(#{body.category}), ''), '기타문서'),
+            #{body.contentHtml},
+            NULLIF(TRIM(#{body.createdBy}), ''),
+            NULLIF(TRIM(#{body.createdByNm}), ''),
+            #{body.fieldSchema}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE eap_form_config
+        SET form_name = TRIM(#{body.formName}),
+            enabled = COALESCE(#{body.enabled}, enabled),
+            sort_order = COALESCE(#{body.sortOrder}, sort_order),
+            category = COALESCE(NULLIF(TRIM(#{body.category}), ''), category),
+            content_html = #{body.contentHtml},
+            field_schema = #{body.fieldSchema},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE form_code = #{formCode}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM eap_form_config WHERE form_code = #{formCode}
+    </delete>
+</mapper>

@@ -1,0 +1,117 @@
+/* 전자결재 문서 표 — Word/HWP 는 칸 비율을 유지한다.
+   overflow-wrap:anywhere 는 짧은 칸을 세로글자로 만든다. */
+#editor, #page, #canvas {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+.eap-a4 {
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+#page table,
+#editor table,
+#canvas table,
+.eap-a4 table,
+.ck-content table {
+  border-collapse: collapse;
+  box-sizing: border-box;
+}
+#page > table:not(.eap-excel-import),
+#editor > table:not(.eap-excel-import),
+#canvas > table:not(.eap-excel-import),
+.eap-a4 > table:not(.eap-excel-import) {
+  width: 100%;
+}
+#page table:not(.eap-tsv):not(.eap-approval-line),
+.eap-a4 table:not(.eap-tsv):not(.eap-approval-line),
+#canvas table:not(.eap-tsv):not(.eap-approval-line),
+#editor table:not(.eap-tsv):not(.eap-approval-line),
+.ck-content table:not(.eap-tsv):not(.eap-approval-line) {
+  table-layout: auto;
+}
+#page table table,
+#editor table table,
+#canvas table table,
+.eap-a4 table table,
+.ck-content table table {
+  width: auto;
+  table-layout: auto;
+}
+#page img,
+#editor img,
+#canvas img,
+.eap-a4 img,
+.ck-content img {
+  max-width: 100%;
+  height: auto;
+}
+#page table:not(.eap-approval-line):not(.eap-tsv) td,
+#page table:not(.eap-approval-line):not(.eap-tsv) th,
+#editor table:not(.eap-approval-line):not(.eap-tsv) td,
+#editor table:not(.eap-approval-line):not(.eap-tsv) th,
+#canvas table:not(.eap-approval-line):not(.eap-tsv) td,
+#canvas table:not(.eap-approval-line):not(.eap-tsv) th,
+.eap-a4 table:not(.eap-approval-line):not(.eap-tsv) td,
+.eap-a4 table:not(.eap-approval-line):not(.eap-tsv) th {
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+table.eap-tsv {
+  table-layout: fixed;
+  width: 100%;
+}
+table.eap-approval-line {
+  table-layout: fixed;
+  width: auto;
+}
+
+/* Excel 붙여넣기 — 한 줄 유지, A4보다 넓어도 잘리지 않게 (가로 스크롤) */
+#editor table.eap-excel-import,
+#page table.eap-excel-import,
+#canvas table.eap-excel-import,
+.eap-a4 table.eap-excel-import {
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+  width: auto;
+  max-width: none !important;
+  min-width: 0;
+  margin: 8px auto;
+  box-sizing: border-box;
+}
+
+#editor table.eap-excel-import td,
+#editor table.eap-excel-import th,
+#page table.eap-excel-import td,
+#page table.eap-excel-import th,
+#canvas table.eap-excel-import td,
+#canvas table.eap-excel-import th,
+.eap-a4 table.eap-excel-import td,
+.eap-a4 table.eap-excel-import th {
+  box-sizing: border-box;
+  vertical-align: middle;
+  padding: 2px 4px;
+  line-height: 1.35;
+  min-width: 0;
+  max-width: none;
+  overflow: visible;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  border: none;
+}
+
+#editor table.eap-excel-import td *,
+#editor table.eap-excel-import th *,
+#page table.eap-excel-import td *,
+#page table.eap-excel-import th *,
+#canvas table.eap-excel-import td *,
+#canvas table.eap-excel-import th *,
+.eap-a4 table.eap-excel-import td *,
+.eap-a4 table.eap-excel-import th * {
+  white-space: inherit;
+  word-break: inherit;
+  overflow-wrap: inherit;
+}

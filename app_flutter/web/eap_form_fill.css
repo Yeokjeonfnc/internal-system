@@ -1,0 +1,497 @@
+/* 전자결재 기안 입력 — 미리보기(eap_preview.css)와 동일한 문서 골격 + 입력 전용 스타일 */
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body.eap-form-fill-host {
+  background: #E8E8E4;
+  font-family: Pretendard, 'Malgun Gothic', sans-serif;
+}
+
+#stage {
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  padding: 4px 0 16px;
+}
+
+#page.eap-a4.eap-form-fill {
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+  margin: 8px auto 24px;
+  padding: 20px 16px;
+  min-height: 480px;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.14);
+  background: #fff;
+  font-size: 10pt;
+  line-height: 1.5;
+  color: #212529;
+  box-sizing: border-box;
+}
+
+#page.eap-a4.eap-form-fill img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 제목·결재란 — 서식 미리보기와 동일 골격 */
+.eap-a4.eap-form-fill .eap-doc-header {
+  position: relative;
+  min-height: 72px;
+  margin-bottom: 12px;
+}
+
+.eap-a4.eap-form-fill .eap-title-wrap {
+  position: relative;
+  min-height: 28px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.eap-a4.eap-form-fill .eap-doc-header:has(.eap-approval-line) .eap-title-wrap {
+  padding-right: min(42%, 220px);
+}
+
+.eap-a4.eap-form-fill .eap-title {
+  font-size: 18pt;
+  font-weight: 700;
+  margin: 0;
+  padding: 4px 0;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.eap-a4.eap-form-fill .eap-approval-line {
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-collapse: collapse;
+  font-size: 9pt;
+  table-layout: fixed;
+  width: auto;
+  margin: 0;
+}
+
+.eap-a4.eap-form-fill .eap-approval-line td {
+  border: 1px solid #333;
+  padding: 4px 6px;
+  text-align: center;
+  vertical-align: middle;
+  min-width: 36px;
+}
+
+.eap-a4.eap-form-fill .eap-appr-lbl {
+  background: #F2F2F2;
+  font-weight: 600;
+  width: 24px;
+  line-height: 1.2;
+  font-size: 8pt;
+}
+
+.eap-a4.eap-form-fill .eap-appr-head { background: #F2F2F2; height: 24px; }
+.eap-a4.eap-form-fill .eap-appr-sign { height: 48px; }
+
+.eap-a4.eap-form-fill .eap-doc-contact {
+  text-align: right;
+  font-size: 9pt;
+  color: #444;
+  margin-bottom: 10px;
+}
+
+.eap-a4.eap-form-fill .eap-doc-split {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.eap-a4.eap-form-fill .eap-doc-logo {
+  flex: 0 0 42%;
+  min-height: 80px;
+  border: 1px solid #E0E0E0;
+  padding: 10px;
+}
+
+.eap-a4.eap-form-fill .eap-doc-notes {
+  border: 1px solid #333;
+  padding: 10px 12px;
+  font-size: 9pt;
+  line-height: 1.6;
+  margin: 12px 0;
+}
+
+/* 양식 메타 표(제목·합의 등) — eap-form-table */
+.eap-a4.eap-form-fill .eap-form-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0;
+  table-layout: fixed;
+}
+
+.eap-a4.eap-form-fill .eap-form-table td,
+.eap-a4.eap-form-fill .eap-form-table th {
+  border: 1px solid #333;
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+
+.eap-a4.eap-form-fill .eap-form-table .eap-lbl {
+  background: #F2F2F2;
+  font-weight: 600;
+  text-align: center;
+  width: 28%;
+}
+
+.eap-a4.eap-form-fill .eap-form-table .eap-val {
+  background: #fff;
+}
+
+.eap-a4.eap-form-fill table:not(.eap-approval-line):not(.eap-tsv):not(.eap-excel-import) td,
+.eap-a4.eap-form-fill table:not(.eap-approval-line):not(.eap-tsv):not(.eap-excel-import) th {
+  border: 1px solid #333;
+  padding: 6px 8px;
+  vertical-align: middle;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+.eap-a4.eap-form-fill > table:not(.eap-excel-import),
+.eap-a4.eap-form-fill table.eap-tsv {
+  width: 100%;
+}
+
+.eap-a4.eap-form-fill table table:not(.eap-excel-import) {
+  width: auto;
+  max-width: 100%;
+}
+
+.eap-a4.eap-form-fill table.eap-tsv,
+.eap-a4.eap-form-fill table.eap-editable-table.eap-tsv {
+  table-layout: fixed;
+}
+
+.eap-a4.eap-form-fill table.eap-editable-table.eap-tsv td,
+.eap-a4.eap-form-fill table.eap-editable-table.eap-tsv th {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* 위젯 → 실제 입력 치환 후에도 편집기·미리보기와 같은 칸 안 배치 */
+.eap-a4.eap-form-fill .eap-widget {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0 2px;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.eap-a4.eap-form-fill table.eap-excel-import td .eap-widget,
+.eap-a4.eap-form-fill table.eap-excel-import th .eap-widget {
+  vertical-align: middle;
+}
+
+.eap-a4.eap-form-fill table td .eap-widget[data-eap-inline="1"],
+.eap-a4.eap-form-fill table th .eap-widget[data-eap-inline="1"] {
+  vertical-align: baseline;
+}
+
+.eap-a4.eap-form-fill .eap-field td {
+  vertical-align: middle;
+  border: 1px solid #333;
+  padding: 8px;
+}
+
+.eap-a4.eap-form-fill .eap-lbl {
+  background: #F2F2F2;
+  font-weight: 600;
+  text-align: center;
+}
+
+.eap-a4.eap-form-fill .eap-val {
+  background: #fff;
+}
+
+.eap-a4.eap-form-fill .eap-richtext {
+  min-height: 60px;
+  padding: 4px 0;
+}
+
+.eap-a4.eap-form-fill input,
+.eap-a4.eap-form-fill select,
+.eap-a4.eap-form-fill textarea {
+  width: 100%;
+  border: 1px solid #D0D0CC;
+  border-radius: 3px;
+  padding: 6px 8px;
+  font: inherit;
+  background: #FAFAFA;
+  box-sizing: border-box;
+}
+
+.eap-a4.eap-form-fill table td input.eap-in-cell,
+.eap-a4.eap-form-fill table td select.eap-in-cell,
+.eap-a4.eap-form-fill table td textarea.eap-in-cell,
+.eap-a4.eap-form-fill table th input.eap-in-cell,
+.eap-a4.eap-form-fill table th select.eap-in-cell,
+.eap-a4.eap-form-fill table th textarea.eap-in-cell {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  font-size: 11px;
+  height: 24px;
+  border: 1px solid #BDBDBD;
+  border-radius: 3px;
+  background: #fff;
+  text-align: center;
+}
+
+.eap-a4.eap-form-fill table td input.eap-in-cell::placeholder,
+.eap-a4.eap-form-fill table td textarea.eap-in-cell::placeholder,
+.eap-a4.eap-form-fill table th input.eap-in-cell::placeholder,
+.eap-a4.eap-form-fill table th textarea.eap-in-cell::placeholder {
+  text-align: center;
+}
+
+.eap-a4.eap-form-fill table td textarea.eap-in-cell,
+.eap-a4.eap-form-fill table th textarea.eap-in-cell {
+  height: auto;
+  min-height: 48px;
+  padding: 4px;
+}
+
+.eap-a4.eap-form-fill table td select.eap-in-cell,
+.eap-a4.eap-form-fill table th select.eap-in-cell {
+  text-align: center;
+  text-align-last: center;
+}
+
+.eap-a4.eap-form-fill table td input[type=date].eap-in-cell,
+.eap-a4.eap-form-fill table th input[type=date].eap-in-cell {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.eap-a4.eap-form-fill input:focus,
+.eap-a4.eap-form-fill select:focus,
+.eap-a4.eap-form-fill textarea:focus {
+  outline: none;
+  border-color: #BC1F26;
+  background: #fff;
+}
+
+.eap-a4.eap-form-fill input[readonly] {
+  background: #F5F5F5;
+  color: #555;
+}
+
+.eap-a4.eap-form-fill textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.eap-a4.eap-form-fill .eap-checks {
+  --eap-check-scale: 1;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  gap: 8px 16px;
+}
+
+.eap-a4.eap-form-fill table td[colspan] .eap-checks,
+.eap-a4.eap-form-fill table th[colspan] .eap-checks,
+.eap-a4.eap-form-fill table td[colspan] .eap-widget,
+.eap-a4.eap-form-fill table th[colspan] .eap-widget {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+}
+
+.eap-a4.eap-form-fill .eap-checks .eap-check-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.eap-a4.eap-form-fill .eap-checks .eap-check-lbl {
+  display: inline-block;
+  line-height: 1.25;
+  font-size: calc(10pt * var(--eap-check-scale, 1));
+}
+
+.eap-a4.eap-form-fill .eap-checks input[type=checkbox],
+.eap-a4.eap-form-fill .eap-checks input[type=radio] {
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+  width: calc(14px * var(--eap-check-scale, 1));
+  height: calc(14px * var(--eap-check-scale, 1));
+  vertical-align: middle;
+}
+
+.eap-a4.eap-form-fill .eap-period {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.eap-a4.eap-form-fill .eap-period input[type=date] {
+  flex: 0 1 130px;
+  width: auto;
+  min-width: 120px;
+}
+
+.eap-a4.eap-form-fill .eap-period-dt select.eap-h,
+.eap-a4.eap-form-fill .eap-period-dt select.eap-m,
+.eap-a4.eap-form-fill .eap-time select.eap-h,
+.eap-a4.eap-form-fill .eap-time select.eap-m {
+  width: auto;
+  flex: 0 0 48px;
+  padding: 4px 2px;
+}
+
+.eap-a4.eap-form-fill .eap-u {
+  font-size: 9pt;
+  color: #555;
+  margin-right: 2px;
+}
+
+.eap-a4.eap-form-fill .eap-w-tilde {
+  margin: 0 2px;
+  color: #666;
+  font-weight: 600;
+}
+
+.eap-a4.eap-form-fill .eap-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.eap-a4.eap-form-fill .eap-widget > input,
+.eap-a4.eap-form-fill .eap-widget > select,
+.eap-a4.eap-form-fill .eap-widget > textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.eap-a4.eap-form-fill .eap-picker-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.eap-a4.eap-form-fill .eap-picker-row input {
+  flex: 1;
+}
+
+.eap-a4.eap-form-fill .eap-pick-btn {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #BC1F26;
+  background: #fff;
+  color: #BC1F26;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.eap-a4.eap-form-fill .eap-pick-btn:hover {
+  background: #FFF5F5;
+}
+
+.eap-a4.eap-form-fill .eap-field.eap-invalid .eap-val {
+  background: #FFF5F5;
+  outline: 1px solid #BC1F26;
+}
+
+.eap-a4.eap-form-fill .eap-compact-table {
+  flex: 1 1 auto;
+  margin: 0 !important;
+}
+
+.eap-a4.eap-form-fill .eap-compact-table .eap-field td {
+  padding: 6px 8px;
+  font-size: 9.5pt;
+}
+
+.eap-a4.eap-form-fill .eap-product-wrap {
+  margin: 10px 0;
+}
+
+.eap-a4.eap-form-fill .eap-product-toolbar {
+  display: none;
+}
+
+.eap-a4.eap-form-fill .eap-product-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+}
+
+.eap-a4.eap-form-fill .eap-product-table th,
+.eap-a4.eap-form-fill .eap-product-table td {
+  border: 1px solid #333;
+  padding: 4px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.eap-a4.eap-form-fill .eap-product-table th {
+  background: #F2F2F2;
+  font-weight: 600;
+}
+
+.eap-a4.eap-form-fill .eap-grid-field input,
+.eap-a4.eap-form-fill .eap-grid-field select {
+  width: 100%;
+  min-width: 48px;
+  font-size: 9pt;
+  padding: 4px;
+}
+
+.eap-a4.eap-form-fill .eap-row-tools {
+  text-align: right;
+  margin: 4px 0;
+}
+
+.eap-a4.eap-form-fill .eap-row-plus,
+.eap-a4.eap-form-fill .eap-row-minus,
+.eap-a4.eap-form-fill a.button.eap-row-plus,
+.eap-a4.eap-form-fill a.button.eap-row-minus {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 2px 10px;
+  border-radius: 3px;
+  background: #666;
+  color: #fff;
+  font-size: 9pt;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+}
+
+.eap-a4.eap-form-fill td.eap-cell-sel,
+.eap-a4.eap-form-fill th.eap-cell-sel,
+.eap-a4.eap-form-fill td.eap-cell-on,
+.eap-a4.eap-form-fill th.eap-cell-on {
+  outline: none !important;
+  box-shadow: none !important;
+}

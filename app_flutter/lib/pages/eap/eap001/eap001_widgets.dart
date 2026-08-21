@@ -4,10 +4,8 @@ import 'package:flutter/material.dart';
 
 import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
-import 'package:app_flutter/core/theme/app_dimensions.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
-import 'package:app_flutter/pages/eap/eap001/eap001_api.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_model.dart';
 
 class EapPageHeader extends StatelessWidget {
@@ -15,10 +13,12 @@ class EapPageHeader extends StatelessWidget {
     super.key,
     required this.title,
     this.showSearch = true,
+    this.trailing,
   });
 
   final String title;
   final bool showSearch;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +37,10 @@ class EapPageHeader extends StatelessWidget {
             ),
           ),
           const Spacer(),
+          if (trailing != null) ...[
+            trailing!,
+            const SizedBox(width: 4),
+          ],
           if (showSearch && !compact)
             SizedBox(
               width: 280,
@@ -136,46 +140,30 @@ class EapDocumentTable extends StatelessWidget {
   const EapDocumentTable({
     super.key,
     required this.documents,
-    this.showDocNum = false,
-    this.onRowTap,
+    this.onRowDoubleTap,
   });
 
   final List<EapDocument> documents;
-  final bool showDocNum;
-  final void Function(EapDocument doc)? onRowTap;
+  final void Function(EapDocument doc)? onRowDoubleTap;
 
   @override
   Widget build(BuildContext context) {
     if (documents.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 18, vertical: 24),
-        child: Center(
-          child: Text(
-            '표시할 문서가 없습니다.',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppTheme.textMuted,
-              fontFamilyFallback: AppTheme.koreanFontFallback,
-            ),
-          ),
-        ),
-      );
+      return const SizedBox.shrink();
     }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
       child: ErpDataTable(
-        minWidth: showDocNum ? 900 : 780,
+        minWidth: 920,
         tableBuilder: (context, width) {
-          final cols = <int, TableColumnWidth>{
-            0: const FixedColumnWidth(100),
-            1: const FixedColumnWidth(120),
-            2: const FixedColumnWidth(48),
-            3: FlexColumnWidth(showDocNum ? 2 : 3),
-            4: const FixedColumnWidth(52),
-            if (showDocNum) 5: const FixedColumnWidth(140),
-            if (showDocNum) 6: const FixedColumnWidth(88),
-            if (!showDocNum) 5: const FixedColumnWidth(88),
+          const cols = <int, TableColumnWidth>{
+            0: FixedColumnWidth(130),
+            1: FixedColumnWidth(110),
+            2: FlexColumnWidth(3),
+            3: FixedColumnWidth(100),
+            4: FixedColumnWidth(110),
+            5: FixedColumnWidth(88),
           };
 
           return Table(
@@ -183,16 +171,15 @@ class EapDocumentTable extends StatelessWidget {
             border: kErpTableInnerGridBorder,
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
-              TableRow(
+              const TableRow(
                 decoration: kErpTableHeaderRowDecoration,
                 children: [
-                  const ErpTableHeaderCell('기안일'),
-                  const ErpTableHeaderCell('결재양식'),
-                  const ErpTableHeaderCell('긴급'),
-                  const ErpTableHeaderCell('제목'),
-                  const ErpTableHeaderCell('첨부'),
-                  if (showDocNum) const ErpTableHeaderCell('문서번호'),
-                  const ErpTableHeaderCell('결재상태'),
+                  ErpTableHeaderCell('품의번호'),
+                  ErpTableHeaderCell('문서분류'),
+                  ErpTableHeaderCell('제목'),
+                  ErpTableHeaderCell('기안자'),
+                  ErpTableHeaderCell('기안일자'),
+                  ErpTableHeaderCell('상태'),
                 ],
               ),
               for (var i = 0; i < documents.length; i++)
@@ -206,16 +193,31 @@ class EapDocumentTable extends StatelessWidget {
 
   TableRow _docRow(BuildContext context, EapDocument doc, int index) {
     final bg = index.isEven ? AppTheme.tableRowEven : AppTheme.tableRowOdd;
+    Widget cell(Widget child) {
+      return ErpTableDoubleTapCell(
+        onDoubleTap: () => onRowDoubleTap?.call(doc),
+        child: child,
+      );
+    }
+
     return TableRow(
       decoration: BoxDecoration(color: bg),
       children: [
-        ErpTableBodyCell(doc.draftDateLabel, center: true),
-        ErpTableBodyCell(doc.formName, center: true),
-        ErpTableBodyCell(doc.urgent ? 'Y' : '', center: true),
-        _TitleCell(title: doc.title, onTap: () => onRowTap?.call(doc)),
-        _AttachmentCell(count: doc.attachmentCount),
-        if (showDocNum) ErpTableBodyCell(doc.docNum, center: true),
-        EapStatusBadge(status: doc.status),
+        cell(ErpTableBodyCell(
+          doc.docNum.isEmpty ? '-' : doc.docNum,
+          center: true,
+        )),
+        cell(ErpTableBodyCell(doc.formCategory, center: true)),
+        cell(_TitleCell(
+          title: doc.title,
+          onTap: () => onRowDoubleTap?.call(doc),
+        )),
+        cell(ErpTableBodyCell(
+          doc.drafterName.isEmpty ? '-' : doc.drafterName,
+          center: true,
+        )),
+        cell(ErpTableBodyCell(doc.draftDateLabel, center: true)),
+        cell(EapStatusBadge(status: doc.status)),
       ],
     );
   }
@@ -253,32 +255,6 @@ class _TitleCell extends StatelessWidget {
   }
 }
 
-class _AttachmentCell extends StatelessWidget {
-  const _AttachmentCell({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    if (count <= 0) {
-      return const ErpTableBodyCell('', center: true);
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.attach_file, size: 14, color: AppTheme.textMuted),
-          Text(
-            '$count',
-            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class EapStatusBadge extends StatelessWidget {
   const EapStatusBadge({super.key, required this.status});
 
@@ -287,6 +263,10 @@ class EapStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, fg) = switch (status) {
+      EapDocStatus.writing => (
+          const Color(0xFFFFF7E8),
+          const Color(0xFFB45309),
+        ),
       EapDocStatus.inProgress => (
           const Color(0xFFE8F5EC),
           const Color(0xFF1E8E4E),
@@ -298,6 +278,10 @@ class EapStatusBadge extends StatelessWidget {
       EapDocStatus.returned => (
           const Color(0xFFFDEEEE),
           AppTheme.accentRed,
+        ),
+      EapDocStatus.cancelled => (
+          const Color(0xFFF3F4F6),
+          const Color(0xFF6B7280),
         ),
       EapDocStatus.tempSave => (
           const Color(0xFFEFF6FF),
@@ -333,208 +317,3 @@ class EapStatusBadge extends StatelessWidget {
   }
 }
 
-class EapSettingsPanel extends StatefulWidget {
-  const EapSettingsPanel({super.key});
-
-  @override
-  State<EapSettingsPanel> createState() => _EapSettingsPanelState();
-}
-
-class _EapSettingsPanelState extends State<EapSettingsPanel> {
-  final _api = EapApiService();
-  EapConnectionTestResult? _result;
-  String? _error;
-  bool _loading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _runTest();
-  }
-
-  Future<void> _runTest() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final result = await _api.connectionTest();
-      if (!mounted) return;
-      setState(() {
-        _result = result;
-        _loading = false;
-        if (result == null) {
-          _error = '백엔드 /eap/connection-test 응답을 읽지 못했습니다.';
-        }
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = 'API 연결 실패: $e';
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final r = _result;
-
-    return Padding(
-      padding: const EdgeInsets.all(18),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppTheme.cardBackground,
-          borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-          border: Border.all(color: AppTheme.hairline),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'API 연동 테스트',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        fontFamilyFallback: AppTheme.koreanFontFallback,
-                      ),
-                    ),
-                  ),
-                  FilledButton.icon(
-                    onPressed: _loading ? null : _runTest,
-                    icon: _loading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.refresh, size: 18),
-                    label: Text(_loading ? '테스트 중…' : '다시 테스트'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.accentRed,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _statusRow('ERP API', r?.erpApiOk ?? false, r?.erpApiBaseUrl ?? '-'),
-              _statusRow(
-                '다우 인증키 설정',
-                r?.daouConfigured ?? false,
-                r?.daouConfigured == true ? '환경변수 등록됨' : '미설정',
-              ),
-              _statusRow(
-                '다우 서버 접속',
-                r?.daouReachable ?? false,
-                r?.daouApiBaseUrl ?? 'https://api.daouoffice.com',
-              ),
-              // 연결 테스트는 조회만 한다 — 예전처럼 기안 API 를 호출하면 확인할 때마다
-              // 다우오피스 결재함에 'ERP 연결 테스트' 문서가 실제로 쌓인다.
-              // 그래서 인증키 유효성(daouAuthOk)은 서버가 판정할 수 없고, 도달 여부만 표시한다.
-              _statusRow(
-                '다우 기안 API',
-                r?.daouReachable ?? false,
-                r?.daouMessage ?? (_error ?? '테스트 대기'),
-              ),
-              if (r != null) ...[
-                const SizedBox(height: 12),
-                _settingRow('formCode', r.formCode),
-                _settingRow('callbackUrl', r.callbackUrl),
-              ],
-              const SizedBox(height: 16),
-              Text(
-                'Client ID·Secret은 백엔드 환경변수 DAOU_CLIENT_ID / DAOU_CLIENT_SECRET 에 설정합니다.\n'
-                '설정 후 백엔드를 재시작하고 [다시 테스트]를 누르세요.',
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: Colors.grey.shade600,
-                  fontFamilyFallback: AppTheme.koreanFontFallback,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _statusRow(String label, bool ok, String detail) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            ok ? Icons.check_circle : Icons.cancel_outlined,
-            size: 18,
-            color: ok ? const Color(0xFF1E8E4E) : AppTheme.accentRed,
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 108,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppTheme.textMuted,
-                fontFamilyFallback: AppTheme.koreanFontFallback,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              detail,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                fontFamilyFallback: AppTheme.koreanFontFallback,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _settingRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppTheme.textMuted,
-                fontFamilyFallback: AppTheme.koreanFontFallback,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                fontFamilyFallback: AppTheme.koreanFontFallback,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

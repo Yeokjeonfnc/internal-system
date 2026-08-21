@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.eap.mapper.EapDocLineMapper">
+
+    <resultMap id="eapDocLineRow" type="com.yeokjeon.erp.eap.dto.EapDocLineJdbcRow">
+        <constructor>
+            <arg column="line_id" javaType="java.lang.Long"/>
+            <arg column="mapping_id" javaType="java.lang.Long"/>
+            <arg column="role_cd" javaType="java.lang.String"/>
+            <arg column="sort_order" javaType="java.lang.Integer"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="user_nm" javaType="java.lang.String"/>
+            <arg column="title_nm" javaType="java.lang.String"/>
+            <arg column="line_status" javaType="java.lang.String"/>
+            <arg column="acted_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <select id="selectByMappingId" resultMap="eapDocLineRow">
+        SELECT l.line_id,
+               l.mapping_id,
+               l.role_cd,
+               l.sort_order,
+               l.user_id,
+               COALESCE(NULLIF(TRIM(um.user_name), ''), NULLIF(TRIM(l.user_nm), ''), l.user_id) AS user_nm,
+               COALESCE(NULLIF(TRIM(l.title_nm), ''), '') AS title_nm,
+               l.line_status,
+               l.acted_at
+        FROM eap_doc_line l
+                 LEFT JOIN user_mst um ON um.user_id = l.user_id
+        WHERE l.mapping_id = #{mappingId}
+        ORDER BY CASE l.role_cd
+                     WHEN 'APPROVER' THEN 1
+                     WHEN 'AGREE' THEN 2
+                     WHEN 'CC' THEN 3
+                     WHEN 'VIEWER' THEN 4
+                     ELSE 9
+                 END,
+                 l.sort_order,
+                 l.line_id
+    </select>
+
+    <delete id="deleteByMappingId">
+        DELETE FROM eap_doc_line WHERE mapping_id = #{mappingId}
+    </delete>
+
+    <insert id="insert">
+        INSERT INTO eap_doc_line (
+            mapping_id, role_cd, sort_order, user_id, user_nm, title_nm, line_status, created_at
+        ) VALUES (
+            #{mappingId},
+            #{roleCd},
+            #{sortOrder},
+            #{userId},
+            #{userNm},
+            #{titleNm},
+            #{lineStatus},
+            NOW()
+        )
+    </insert>
+
+    <update id="updateLineStatus">
+        UPDATE eap_doc_line
+        SET line_status = #{lineStatus},
+            acted_at = NOW()
+        WHERE line_id = #{lineId}
+    </update>
+</mapper>
