@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app_flutter/core/auth/auth_profile.dart';
 import 'package:app_flutter/core/menu/menu_permission.dart';
 import 'package:app_flutter/core/menu/menu_route_access.dart';
@@ -9,7 +11,10 @@ class UsageLogRecorder {
   UsageLogRecorder._();
   static final UsageLogRecorder instance = UsageLogRecorder._();
 
+  static const _quietAfterFailure = Duration(seconds: 45);
+
   String? _lastLoggedPath;
+  DateTime? _skipUntil;
   final _api = UsageLogApiService();
 
   void onRouteChanged({
@@ -22,6 +27,9 @@ class UsageLogRecorder {
     if (_lastLoggedPath == path) return;
     _lastLoggedPath = path;
 
+    final until = _skipUntil;
+    if (until != null && DateTime.now().isBefore(until)) return;
+
     final menuCd = menuCdForPath(path);
     if (menuCd == null) return;
 
@@ -32,15 +40,38 @@ class UsageLogRecorder {
       path: path,
     );
 
-    _api.recordMenu(
-      userId: profile.userId,
-      userNm: profile.userNm,
-      deptNm: profile.deptNm,
-      positionNm: profile.positionNm,
-      svYn: profile.svYn,
-      menuCd: menuCd,
-      menuLabel: label,
+    unawaited(
+      _send(
+        userId: profile.userId,
+        userNm: profile.userNm,
+        deptNm: profile.deptNm,
+        positionNm: profile.positionNm,
+        svYn: profile.svYn,
+        menuCd: menuCd,
+        menuLabel: label,
+      ),
     );
+  }
+
+  Future<void> _send({
+    required String userId,
+    required String userNm,
+    String? deptNm,
+    String? positionNm,
+    String? svYn,
+    required String menuCd,
+    required String menuLabel,
+  }) async {
+    final ok = await _api.recordMenu(
+      userId: userId,
+      userNm: userNm,
+      deptNm: deptNm,
+      positionNm: positionNm,
+      svYn: svYn,
+      menuCd: menuCd,
+      menuLabel: menuLabel,
+    );
+    _skipUntil = ok ? null : DateTime.now().add(_quietAfterFailure);
   }
 
   static String _menuLabel({

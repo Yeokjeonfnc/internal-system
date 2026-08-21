@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Year;
 import java.util.List;
 
 @Service
@@ -42,11 +43,12 @@ public class EapFormConfigService {
 
     @Transactional
     public EapFormConfigDto create(EapFormConfigSaveRequestDto body) {
-        if (eapFormConfigMapper.selectByCode(body.formCode().trim()) != null) {
-            throw new IllegalArgumentException("이미 등록된 양식 코드입니다: " + body.formCode());
-        }
-        eapFormConfigMapper.insert(body);
-        return find(body.formCode().trim());
+        eapFormConfigMapper.lockFormCode();
+        String year = String.valueOf(Year.now().getValue());
+        int seq = eapFormConfigMapper.selectNextSeq(year);
+        String formCode = "%s-%04d".formatted(year, seq);
+        eapFormConfigMapper.insert(formCode, body);
+        return find(formCode);
     }
 
     @Transactional

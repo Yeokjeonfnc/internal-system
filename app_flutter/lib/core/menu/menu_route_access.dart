@@ -50,6 +50,9 @@ String? menuCdForPath(String path) {
       path.startsWith('${AppRoutes.masterOwnerUsers}/')) {
     return kMenuMst006;
   }
+  if (path == EapRoutes.forms || path.startsWith('${EapRoutes.forms}/')) {
+    return kMenuMst007;
+  }
   if (path == EapRoutes.root || path.startsWith('${EapRoutes.root}/')) {
     return kMenuEap001;
   }
@@ -108,6 +111,7 @@ final _menuListRoutes = <(String, String)>[
   (kMenuMst004, AppRoutes.masterChecklists),
   (kMenuMst005, AppRoutes.masterUsageLogs),
   (kMenuMst006, AppRoutes.masterOwnerUsers),
+  (kMenuMst007, EapRoutes.forms),
   (kMenuBbs001, AppRoutes.board),
 ];
 

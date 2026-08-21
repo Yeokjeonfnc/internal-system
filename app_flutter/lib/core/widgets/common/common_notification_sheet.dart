@@ -9,13 +9,11 @@ import 'package:provider/provider.dart' as provider;
 
 import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/notifications/notif_model.dart';
+import 'package:app_flutter/core/notifications/notif_open.dart';
 import 'package:app_flutter/core/notifications/notification_api_service.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/core/web/iframe_pointer_gate.dart';
 import 'package:app_flutter/core/widgets/common/erp_popup_list_stripes.dart';
-import 'package:app_flutter/pages/active/shared/activity_routes.dart';
-
-/// [notif_mst.notif_typ] — 활동 결재 알림.
-const String _kNotifTypeActivityApproval = 'ACTIVITY_APPROVAL';
 
 /// 로그인 유저 알림 목록을 화면 중앙 다이얼로그로 연다.
 Future<void> showNotificationInboxSheet(BuildContext context) async {
@@ -24,27 +22,29 @@ Future<void> showNotificationInboxSheet(BuildContext context) async {
   if (uid.isEmpty) return;
 
   if (!context.mounted) return;
-  await showDialog<void>(
-    context: context,
-    useRootNavigator: true,
-    barrierDismissible: true,
-    builder: (dialogCtx) {
-      final size = MediaQuery.sizeOf(dialogCtx);
-      final maxH = size.height * 0.72;
-      final maxW = math.min(520.0, size.width - 64);
-      return Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        clipBehavior: Clip.antiAlias,
-        backgroundColor: Colors.white,
-        child: SizedBox(
-          width: maxW,
-          height: maxH,
-          child: _NotificationInboxDialog(userId: uid),
-        ),
-      );
-    },
-  );
+  await IframePointerGate.whileBlocked(() async {
+    await showDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      barrierDismissible: true,
+      builder: (dialogCtx) {
+        final size = MediaQuery.sizeOf(dialogCtx);
+        final maxH = size.height * 0.72;
+        final maxW = math.min(520.0, size.width - 64);
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          clipBehavior: Clip.antiAlias,
+          backgroundColor: Colors.white,
+          child: SizedBox(
+            width: maxW,
+            height: maxH,
+            child: _NotificationInboxDialog(userId: uid),
+          ),
+        );
+      },
+    );
+  });
 }
 
 class _NotificationInboxDialog extends StatefulWidget {
@@ -138,10 +138,7 @@ class _NotificationInboxDialogState extends State<_NotificationInboxDialog> {
                     final row = _rows[i];
                     final idx = row.notifIdx;
                     final msg = row.msgTxt;
-                    final typ = row.notifTyp.trim();
-                    final actIdx = row.actIdx;
-                    final openApprovalDetail =
-                        typ == _kNotifTypeActivityApproval && actIdx != null;
+                    final openRoute = notifOpenRoute(row);
                     final read = row.readYn.toUpperCase() == 'Y';
                     final ts = row.createDt.isEmpty
                         ? ''
@@ -151,7 +148,7 @@ class _NotificationInboxDialogState extends State<_NotificationInboxDialog> {
                           ? erpPopupListRowBackground(i)
                           : const Color(0xFFFFF7ED),
                       child: InkWell(
-                        onTap: (idx == null && !openApprovalDetail)
+                        onTap: (idx == null && openRoute == null)
                             ? null
                             : () async {
                                 final router = GoRouter.of(context);
@@ -160,14 +157,10 @@ class _NotificationInboxDialogState extends State<_NotificationInboxDialog> {
                                 }
                                 if (!context.mounted) return;
                                 Navigator.of(context).pop();
-                                if (openApprovalDetail) {
-                                  final targetIdx = actIdx;
+                                if (openRoute != null) {
+                                  final target = openRoute;
                                   Future.microtask(() {
-                                    router.go(
-                                      ActivityRoutes.approvalActivityDetail(
-                                        targetIdx,
-                                      ),
-                                    );
+                                    router.go(target);
                                   });
                                 }
                               },

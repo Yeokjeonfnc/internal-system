@@ -11,5 +11,7 @@ public interface MstUserMapper {
 
     List<MstUserListJdbcRow> selectUsersEnriched(@Param("deptIdx") Integer deptIdx);
 
+    List<MstUserListJdbcRow> selectResignedUsersEnriched();
+
     MstUserListJdbcRow selectUserEnrichedById(@Param("userIdx") int userIdx);
 }

@@ -1,70 +1,22 @@
-// 전자결재(다우오피스) API.
+// 전자결재 API.
 
 import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_model.dart';
 
-class EapConnectionTestResult {
-  const EapConnectionTestResult({
-    required this.erpApiOk,
-    required this.daouConfigured,
-    required this.daouReachable,
-    required this.daouAuthOk,
-    required this.daouMessage,
-    required this.erpApiBaseUrl,
-    required this.daouApiBaseUrl,
-    required this.callbackUrl,
-    required this.formCode,
-  });
-
-  factory EapConnectionTestResult.fromJson(Map<String, dynamic> json) {
-    return EapConnectionTestResult(
-      erpApiOk: json['erpApiOk'] == true,
-      daouConfigured: json['daouConfigured'] == true,
-      daouReachable: json['daouReachable'] == true,
-      daouAuthOk: json['daouAuthOk'] == true,
-      daouMessage: json['daouMessage']?.toString() ?? '',
-      erpApiBaseUrl: json['erpApiBaseUrl']?.toString() ?? '',
-      daouApiBaseUrl: json['daouApiBaseUrl']?.toString() ?? '',
-      callbackUrl: json['callbackUrl']?.toString() ?? '',
-      formCode: json['formCode']?.toString() ?? '',
-    );
-  }
-
-  final bool erpApiOk;
-  final bool daouConfigured;
-  final bool daouReachable;
-  final bool daouAuthOk;
-  final String daouMessage;
-  final String erpApiBaseUrl;
-  final String daouApiBaseUrl;
-  final String callbackUrl;
-  final String formCode;
-}
-
 abstract final class EapApiPaths {
-  static const String health = '/eap/health';
-  static const String connectionTest = '/eap/connection-test';
   static const String forms = '/eap/forms';
   static String form(String formCode) => '/eap/forms/$formCode';
   static const String documents = '/eap/documents';
   static String document(String docId) => '/eap/documents/$docId';
+  static String approve(String docId) => '/eap/documents/$docId/approve';
+  static String reject(String docId) => '/eap/documents/$docId/reject';
   static const String draft = '/eap/draft';
 }
 
 class EapApiService extends BaseRepository {
-  Future<bool> health() async {
-    final map = await getDataMapOrNull(EapApiPaths.health);
-    return map?['status'] == 'UP';
-  }
-
-  Future<EapConnectionTestResult?> connectionTest() async {
-    final map = await getDataMapOrNull(EapApiPaths.connectionTest);
-    if (map == null) return null;
-    return EapConnectionTestResult.fromJson(map);
-  }
-
   Future<List<EapFormConfig>> listForms({bool enabledOnly = false}) async {
     try {
       return await getDataList(
@@ -104,26 +56,52 @@ class EapApiService extends BaseRepository {
     }
   }
 
-  Future<bool> deleteForm(String formCode) async {
+  Future<void> deleteForm(String formCode) async {
     try {
       final response = await client.delete(EapApiPaths.form(formCode));
-      return isHttpSuccess(response.statusCode);
+      if (!isHttpSuccess(response.statusCode)) {
+        final msg = envelopeMessage(response.data)?.trim();
+        throw StateError(
+          msg == null || msg.isEmpty
+              ? '서식 삭제에 실패했습니다 (${response.statusCode})'
+              : msg,
+        );
+      }
     } catch (e) {
       debugPrint('EapApiService.deleteForm: $e');
-      return false;
+      rethrow;
+    }
+  }
+
+  Future<EapFormConfig?> getForm(String formCode) async {
+    try {
+      return await getDataOrNull(
+        EapApiPaths.form(formCode),
+        fromJson: EapFormConfig.fromJson,
+      );
+    } catch (e) {
+      debugPrint('EapApiService.getForm: $e');
+      return null;
     }
   }
 
   Future<List<EapDocument>> listDocuments(String folder) async {
     try {
-      return await getDataList(
+      final r = await client.get(
         EapApiPaths.documents,
         queryParameters: {'folder': folder},
-        fromJson: EapDocument.fromJson,
       );
-    } catch (e) {
-      debugPrint('EapApiService.listDocuments: $e');
-      return const [];
+      if (!isHttpSuccess(r.statusCode) || r.data == null) {
+        final msg = envelopeMessage(r.data)?.trim();
+        throw StateError(
+          msg == null || msg.isEmpty
+              ? '문서 목록 조회에 실패했습니다 (${r.statusCode})'
+              : msg,
+        );
+      }
+      return parseDataList(r.data, EapDocument.fromJson);
+    } on DioException catch (e) {
+      throw StateError(dioErrorMessage(e, fallback: '문서 목록 조회에 실패했습니다.'));
     }
   }
 
@@ -148,6 +126,39 @@ class EapApiService extends BaseRepository {
       );
     } catch (e) {
       debugPrint('EapApiService.draft: $e');
+      rethrow;
+    }
+  }
+
+  Future<EapDocument> approve(String docId) async {
+    return postData(
+      EapApiPaths.approve(docId),
+      data: const <String, dynamic>{},
+      fromJson: EapDocument.fromJson,
+    );
+  }
+
+  Future<EapDocument> reject(String docId) async {
+    return postData(
+      EapApiPaths.reject(docId),
+      data: const <String, dynamic>{},
+      fromJson: EapDocument.fromJson,
+    );
+  }
+
+  Future<void> deleteDocument(String docId) async {
+    try {
+      final response = await client.delete(EapApiPaths.document(docId));
+      if (!isHttpSuccess(response.statusCode)) {
+        final msg = envelopeMessage(response.data)?.trim();
+        throw StateError(
+          msg == null || msg.isEmpty
+              ? '문서 삭제에 실패했습니다 (${response.statusCode})'
+              : msg,
+        );
+      }
+    } catch (e) {
+      debugPrint('EapApiService.deleteDocument: $e');
       rethrow;
     }
   }

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:app_flutter/pages/development/dev003/dev003_model.dart';
 import 'package:app_flutter/pages/development/dev003/map/sales_area_geometry.dart';
 
 /// 상세 지도 보기 옵션 기본값 — 가맹점 표시 Y, 영업지역(주변 구역) 표시 N.
@@ -140,6 +141,15 @@ abstract final class SalesAreaEditorMapMath {
     return out;
   }
 
+  static Map<String, dynamic> _zoneMapJson(SalesAreaMapPoint p) => {
+    'zoneIdx': p.zoneIdx,
+    'zoneNm': p.zoneNm,
+    'storeNm': p.storeNm,
+    'isClosed': SalesAreaRow.hasClosedPrefix(p.storeNm),
+    'geometryType': p.geometryType,
+    'geometryData': p.geometry!.toJson(),
+  };
+
   static List<Map<String, dynamic>> zonesInBoundsJson({
     required List<SalesAreaMapPoint> all,
     required double swLat,
@@ -168,12 +178,7 @@ abstract final class SalesAreaEditorMapMath {
       )) {
         continue;
       }
-      out.add({
-        'zoneIdx': p.zoneIdx,
-        'zoneNm': p.zoneNm,
-        'geometryType': p.geometryType,
-        'geometryData': g.toJson(),
-      });
+      out.add(_zoneMapJson(p));
     }
     return out;
   }
@@ -262,12 +267,7 @@ abstract final class SalesAreaEditorMapMath {
           p.brandCd != brandCd) {
         continue;
       }
-      out.add({
-        'zoneIdx': p.zoneIdx,
-        'zoneNm': p.zoneNm,
-        'geometryType': p.geometryType,
-        'geometryData': g.toJson(),
-      });
+      out.add(_zoneMapJson(p));
     }
     return out;
   }
@@ -288,12 +288,7 @@ abstract final class SalesAreaEditorMapMath {
       final lng = p.lng;
       if (lat == null || lng == null) continue;
       if (haversineMeters(centerLat, centerLng, lat, lng) > radiusM) continue;
-      out.add({
-        'zoneIdx': p.zoneIdx,
-        'zoneNm': p.zoneNm,
-        'geometryType': p.geometryType,
-        'geometryData': g.toJson(),
-      });
+      out.add(_zoneMapJson(p));
     }
     return out;
   }

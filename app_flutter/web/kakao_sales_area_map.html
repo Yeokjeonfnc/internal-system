@@ -289,6 +289,14 @@
       strokeOpacity: 0.9,
       strokeWeight: 2,
     };
+    /** 폐점 가맹점 영업지역 — 검정 마커와 동일 톤 */
+    const ZONE_CLOSED_STYLE = {
+      strokeColor: '#111827',
+      fillColor: '#6b7280',
+      fillOpacity: 0.28,
+      strokeOpacity: 0.85,
+      strokeWeight: 2,
+    };
     const urlParams = new URLSearchParams(window.location.search);
     const minimalUi = window.__yjForceMinimalUi === true
       || urlParams.get('ui') === 'minimal';
@@ -371,6 +379,10 @@
 
     function isClosedStoreName(name) {
       return String(name || '').trim().startsWith('[폐점]');
+    }
+
+    function zoneStyleForItem(item) {
+      return isClosedStoreName(item && item.storeNm) ? ZONE_CLOSED_STYLE : ZONE_NEARBY_STYLE;
     }
 
     function ensureMarkerImages() {
@@ -910,15 +922,16 @@
     function addGeometry(map, item, bounds) {
       const g = item.geometryData;
       if (!g) return;
+      const style = zoneStyleForItem(item);
       if (g.type === 'POLYGON' && g.paths && g.paths.length >= 3) {
         const path = g.paths.map((pt) => new kakao.maps.LatLng(Number(pt.lat), Number(pt.lng)));
         const polygon = new kakao.maps.Polygon({
           path,
-          strokeWeight: ZONE_NEARBY_STYLE.strokeWeight,
-          strokeColor: ZONE_NEARBY_STYLE.strokeColor,
-          strokeOpacity: ZONE_NEARBY_STYLE.strokeOpacity,
-          fillColor: ZONE_NEARBY_STYLE.fillColor,
-          fillOpacity: ZONE_NEARBY_STYLE.fillOpacity,
+          strokeWeight: style.strokeWeight,
+          strokeColor: style.strokeColor,
+          strokeOpacity: style.strokeOpacity,
+          fillColor: style.fillColor,
+          fillOpacity: style.fillOpacity,
         });
         polygon.setMap(map);
         overlays.push(polygon);
@@ -929,11 +942,11 @@
         const circle = new kakao.maps.Circle({
           center: new kakao.maps.LatLng(Number(g.center.lat), Number(g.center.lng)),
           radius: Number(g.radius),
-          strokeWeight: ZONE_NEARBY_STYLE.strokeWeight,
-          strokeColor: ZONE_NEARBY_STYLE.strokeColor,
-          strokeOpacity: ZONE_NEARBY_STYLE.strokeOpacity,
-          fillColor: ZONE_NEARBY_STYLE.fillColor,
-          fillOpacity: ZONE_NEARBY_STYLE.fillOpacity,
+          strokeWeight: style.strokeWeight,
+          strokeColor: style.strokeColor,
+          strokeOpacity: style.strokeOpacity,
+          fillColor: style.fillColor,
+          fillOpacity: style.fillOpacity,
         });
         circle.setMap(map);
         overlays.push(circle);

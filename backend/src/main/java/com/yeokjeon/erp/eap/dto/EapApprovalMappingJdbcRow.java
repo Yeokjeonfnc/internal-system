@@ -14,5 +14,8 @@ public record EapApprovalMappingJdbcRow(
         String title,
         String contentHtml,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt) {
+        OffsetDateTime updatedAt,
+        String formCategory,
+        String drafterName,
+        String drafterDept) {
 }

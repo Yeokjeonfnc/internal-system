@@ -14,6 +14,7 @@ import 'package:app_flutter/core/layout/app_shell_top_banner.dart';
 import '../router/app_router.dart';
 import '../router/route_meta.dart';
 import 'package:app_flutter/pages/active/shared/activity_routes.dart';
+import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 import '../theme/app_colors.dart';
 import '../theme/shell_tab_chrome.dart';
 import '../auth/auth_provider.dart';
@@ -507,67 +508,30 @@ class _SidebarNavigation extends StatelessWidget {
 
     final eapChildren = <Widget>[
       if (can(kMenuEap001) || can(kMenuAct002) || can(kMenuAct003)) ...[
-        const _SidebarGroupLabel('결재하기'),
         _SidebarSubMenuItem(
-          title: '결재 대기 문서',
-          selected: currentPath == EapRoutes.pending,
-          onTap: () => navigate(() => context.go(EapRoutes.pending)),
+          title: '기안하기',
+          selected: currentPath == EapRoutes.compose,
+          onTap: () => navigate(() => context.go(EapRoutes.compose)),
         ),
         _SidebarSubMenuItem(
-          title: '결재 수신 문서',
-          selected: currentPath == EapRoutes.received,
-          onTap: () => navigate(() => context.go(EapRoutes.received)),
-        ),
-        _SidebarSubMenuItem(
-          title: '참조/열람 대기 문서',
-          selected: currentPath == EapRoutes.ccPending,
-          onTap: () => navigate(() => context.go(EapRoutes.ccPending)),
-        ),
-        _SidebarSubMenuItem(
-          title: '결재 예정 문서',
-          selected: currentPath == EapRoutes.scheduled,
-          onTap: () => navigate(() => context.go(EapRoutes.scheduled)),
-        ),
-        const _SidebarGroupLabel('개인 문서함'),
-        _SidebarSubMenuItem(
-          title: '기안 문서함',
-          selected: currentPath == EapRoutes.drafted,
-          onTap: () => navigate(() => context.go(EapRoutes.drafted)),
-        ),
-        _SidebarSubMenuItem(
-          title: '임시 저장함',
-          selected: currentPath == EapRoutes.tempSaved,
-          onTap: () => navigate(() => context.go(EapRoutes.tempSaved)),
-        ),
-        _SidebarSubMenuItem(
-          title: '결재 문서함',
-          selected: currentPath == EapRoutes.approved,
-          onTap: () => navigate(() => context.go(EapRoutes.approved)),
-        ),
-        _SidebarSubMenuItem(
-          title: '참조/열람 문서함',
-          selected: currentPath == EapRoutes.ccRead,
-          onTap: () => navigate(() => context.go(EapRoutes.ccRead)),
-        ),
-        _SidebarSubMenuItem(
-          title: '수신 문서함',
+          title: '받은결재',
           selected: currentPath == EapRoutes.inbox,
           onTap: () => navigate(() => context.go(EapRoutes.inbox)),
         ),
         _SidebarSubMenuItem(
-          title: '발송 문서함',
+          title: '올린결재',
           selected: currentPath == EapRoutes.sent,
           onTap: () => navigate(() => context.go(EapRoutes.sent)),
         ),
         _SidebarSubMenuItem(
-          title: '공문 문서함',
-          selected: currentPath == EapRoutes.official,
-          onTap: () => navigate(() => context.go(EapRoutes.official)),
+          title: '수신참조결재',
+          selected: currentPath == EapRoutes.cc,
+          onTap: () => navigate(() => context.go(EapRoutes.cc)),
         ),
         _SidebarSubMenuItem(
-          title: '전자결재 환경설정',
-          selected: currentPath == EapRoutes.settings,
-          onTap: () => navigate(() => context.go(EapRoutes.settings)),
+          title: '전체문서',
+          selected: currentPath == EapRoutes.all,
+          onTap: () => navigate(() => context.go(EapRoutes.all)),
         ),
       ],
     ];
@@ -614,6 +578,14 @@ class _SidebarNavigation extends StatelessWidget {
               currentPath.startsWith('${AppRoutes.masterChecklists}/'),
           onTap: () => navigate(() => context.go(AppRoutes.masterChecklists)),
         ),
+      if (can(kMenuMst007))
+        _SidebarSubMenuItem(
+          title: '서식관리',
+          selected:
+              currentPath == EapRoutes.forms ||
+              currentPath.startsWith('${EapRoutes.forms}/'),
+          onTap: () => navigate(() => context.go(EapRoutes.forms)),
+        ),
       if (can(kMenuMst005))
         _SidebarSubMenuItem(
           title: '사용기록 조회',
@@ -631,9 +603,7 @@ class _SidebarNavigation extends StatelessWidget {
           color: AppTheme.sidebarBackground,
           border: inDrawer
               ? null
-              : const Border(
-                  right: BorderSide(color: AppTheme.hairline),
-                ),
+              : const Border(right: BorderSide(color: AppTheme.hairline)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -651,96 +621,105 @@ class _SidebarNavigation extends StatelessWidget {
                       _SidebarMenuItem(
                         icon: Icons.home_filled,
                         title: '홈',
-                selected: currentPath == AppRoutes.dashboard,
-                onTap: () => navigate(() => context.go(AppRoutes.dashboard)),
-              ),
-            if (can(kMenuBbs001))
-              _SidebarMenuItem(
-                icon: Icons.forum_outlined,
-                title: '게시판',
-                selected:
-                    currentPath == AppRoutes.board ||
-                    currentPath.startsWith('${AppRoutes.board}/'),
-                onTap: () => navigate(() => context.go(AppRoutes.board)),
-              ),
-            if (!auth.isFranchiseOwner)
-              _SidebarMenuItem(
-                icon: Icons.chat_bubble_outline,
-                title: '메신저',
-                selected:
-                    currentPath == AppRoutes.chat ||
-                    currentPath.startsWith('${AppRoutes.chat}/'),
-                onTap: () => navigate(() => context.go(AppRoutes.chat)),
-              ),
-            if (can(kMenuStr001))
-              _SidebarMenuItem(
-                icon: Icons.store_mall_directory,
-                title: '가맹점 관리',
-                selected:
-                    currentPath == AppRoutes.stores ||
-                    currentPath.startsWith('${AppRoutes.stores}/'),
-                onTap: () => navigate(() => context.go(AppRoutes.stores)),
-              ),
-            if (devChildren.isNotEmpty)
-              _SidebarExpandableMenuItem(
-                icon: Icons.architecture_rounded,
-                title: '개발 관리',
-                initiallyExpanded:
-                    currentPath == AppRoutes.founders ||
-                    currentPath.startsWith('${AppRoutes.founders}/') ||
-                    currentPath == AppRoutes.properties ||
-                    currentPath.startsWith('${AppRoutes.properties}/') ||
-                    currentPath == AppRoutes.salesAreas ||
-                    currentPath.startsWith('${AppRoutes.salesAreas}/'),
-                children: devChildren,
-              ),
-            if (actChildren.isNotEmpty)
-              _SidebarExpandableMenuItem(
-                icon: Icons.edit_note,
-                title: '활동 관리',
-                initiallyExpanded:
-                    currentPath == AppRoutes.activities ||
-                    currentPath.startsWith('${AppRoutes.activities}/'),
-                children: actChildren,
-              ),
-            if (eapChildren.isNotEmpty)
-              _SidebarExpandableMenuItem(
-                icon: Icons.approval_outlined,
-                title: '전자결재',
-                initiallyExpanded:
-                    currentPath == EapRoutes.root ||
-                    currentPath.startsWith('${EapRoutes.root}/'),
-                onHeaderTap: () => navigate(() => context.go(EapRoutes.home)),
-                children: eapChildren,
-              ),
-            if (mstChildren.isNotEmpty)
-              _SidebarExpandableMenuItem(
-                icon: Icons.people_alt,
-                title: '마스터 관리',
-                initiallyExpanded: currentPath.startsWith(
-                  '${AppRoutes.master}/',
-                ),
-                children: mstChildren,
-              ),
-            if (isNativeMobileApp && !auth.isFranchiseOwner)
-              _SidebarMenuItem(
-                icon: Icons.nfc,
-                title: '출입 관리',
-                selected: false,
-                onTap: () => navigate(() {
-                  final profile = auth.profile;
-                  if (profile == null || !profile.canUseStoreEntryTag) {
-                    unawaited(
-                      showAlertDialog(
-                        context,
-                        '태그 사용 권한이 없습니다.\n사원 관리에서 태그 사용을 허용해 주세요.',
+                        selected: currentPath == AppRoutes.dashboard,
+                        onTap: () =>
+                            navigate(() => context.go(AppRoutes.dashboard)),
                       ),
-                    );
-                    return;
-                  }
-                  context.push(AppRoutes.storeEntry);
-                }),
-              ),
+                    if (can(kMenuBbs001))
+                      _SidebarMenuItem(
+                        icon: Icons.forum_outlined,
+                        title: '게시판',
+                        selected:
+                            currentPath == AppRoutes.board ||
+                            currentPath.startsWith('${AppRoutes.board}/'),
+                        onTap: () =>
+                            navigate(() => context.go(AppRoutes.board)),
+                      ),
+                    if (!auth.isFranchiseOwner)
+                      _SidebarMenuItem(
+                        icon: Icons.chat_bubble_outline,
+                        title: '메신저',
+                        selected:
+                            currentPath == AppRoutes.chat ||
+                            currentPath.startsWith('${AppRoutes.chat}/'),
+                        onTap: () => navigate(() => context.go(AppRoutes.chat)),
+                      ),
+                    if (can(kMenuStr001))
+                      _SidebarMenuItem(
+                        icon: Icons.store_mall_directory,
+                        title: '가맹점 관리',
+                        selected:
+                            currentPath == AppRoutes.stores ||
+                            currentPath.startsWith('${AppRoutes.stores}/'),
+                        onTap: () =>
+                            navigate(() => context.go(AppRoutes.stores)),
+                      ),
+                    if (devChildren.isNotEmpty)
+                      _SidebarExpandableMenuItem(
+                        icon: Icons.architecture_rounded,
+                        title: '개발 관리',
+                        initiallyExpanded:
+                            currentPath == AppRoutes.founders ||
+                            currentPath.startsWith('${AppRoutes.founders}/') ||
+                            currentPath == AppRoutes.properties ||
+                            currentPath.startsWith(
+                              '${AppRoutes.properties}/',
+                            ) ||
+                            currentPath == AppRoutes.salesAreas ||
+                            currentPath.startsWith('${AppRoutes.salesAreas}/'),
+                        children: devChildren,
+                      ),
+                    if (actChildren.isNotEmpty)
+                      _SidebarExpandableMenuItem(
+                        icon: Icons.edit_note,
+                        title: '활동 관리',
+                        initiallyExpanded:
+                            currentPath == AppRoutes.activities ||
+                            currentPath.startsWith('${AppRoutes.activities}/'),
+                        children: actChildren,
+                      ),
+                    if (eapChildren.isNotEmpty)
+                      _SidebarExpandableMenuItem(
+                        icon: Icons.approval_outlined,
+                        title: '전자결재',
+                        initiallyExpanded:
+                            (currentPath == EapRoutes.root ||
+                                currentPath.startsWith('${EapRoutes.root}/')) &&
+                            currentPath != EapRoutes.forms &&
+                            !currentPath.startsWith('${EapRoutes.forms}/'),
+                        onHeaderTap: () =>
+                            navigate(() => context.go(EapRoutes.home)),
+                        children: eapChildren,
+                      ),
+                    if (mstChildren.isNotEmpty)
+                      _SidebarExpandableMenuItem(
+                        icon: Icons.people_alt,
+                        title: '마스터 관리',
+                        initiallyExpanded:
+                            currentPath.startsWith('${AppRoutes.master}/') ||
+                            currentPath == EapRoutes.forms ||
+                            currentPath.startsWith('${EapRoutes.forms}/'),
+                        children: mstChildren,
+                      ),
+                    if (isNativeMobileApp && !auth.isFranchiseOwner)
+                      _SidebarMenuItem(
+                        icon: Icons.nfc,
+                        title: '출입 관리',
+                        selected: false,
+                        onTap: () => navigate(() {
+                          final profile = auth.profile;
+                          if (profile == null || !profile.canUseStoreEntryTag) {
+                            unawaited(
+                              showAlertDialog(
+                                context,
+                                '태그 사용 권한이 없습니다.\n사원 관리에서 태그 사용을 허용해 주세요.',
+                              ),
+                            );
+                            return;
+                          }
+                          context.push(AppRoutes.storeEntry);
+                        }),
+                      ),
                   ],
                 ),
               ),
@@ -830,9 +809,7 @@ class _SidebarMenuItem extends StatelessWidget {
                   : SystemMouseCursors.basic,
               leading: Icon(
                 icon,
-                color: selected
-                    ? AppTheme.accentRed
-                    : const Color(0xFF6E6E74),
+                color: selected ? AppTheme.accentRed : const Color(0xFF6E6E74),
                 size: 20,
               ),
               title: Text(
@@ -1014,30 +991,6 @@ class _SidebarSubMenuItem extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 확장형 메뉴 하위 항목들을 묶는 클릭 불가 소제목(예: 전자결재의 "결재하기").
-class _SidebarGroupLabel extends StatelessWidget {
-  const _SidebarGroupLabel(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(44, 10, 12, 4),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: AppTheme.textMuted,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.2,
-          fontFamilyFallback: AppTheme.koreanFontFallback,
         ),
       ),
     );

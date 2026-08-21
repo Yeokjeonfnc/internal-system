@@ -5,11 +5,9 @@ import jakarta.validation.constraints.Size;
 
 public record EapFormConfigUpdateRequestDto(
         @NotBlank @Size(max = 200) String formName,
-        @Size(max = 16) String integrationType,
-        @Size(max = 32) String erpSourceMenu,
-        @Size(max = 64) String htmlTemplateKey,
-        Boolean useEmail,
-        Boolean useBoard,
         Boolean enabled,
-        Integer sortOrder) {
+        Integer sortOrder,
+        @Size(max = 64) String category,
+        String contentHtml,
+        String fieldSchema) {
 }

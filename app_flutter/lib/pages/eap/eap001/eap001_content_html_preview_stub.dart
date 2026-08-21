@@ -4,10 +4,14 @@ import 'package:flutter/material.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
 
-Widget buildEapContentHtmlPreview(String htmlBody) {
+Widget buildEapContentHtmlPreview(
+  String htmlBody, {
+  bool seamless = false,
+  bool readOnly = false,
+}) {
   final text = htmlBody.trim().isEmpty ? '(본문 없음)' : htmlBody;
   return ConstrainedBox(
-    constraints: const BoxConstraints(minHeight: 120, maxHeight: 520),
+    constraints: BoxConstraints(minHeight: seamless ? 0 : 1280),
     child: SingleChildScrollView(
       child: SelectableText(
         text,

@@ -19,5 +19,7 @@ public record MstUserListJdbcRow(
         String positionNm,
         String ownerYn,
         LocalDate joinDt,
+        String workYn,
+        LocalDate leaveDt,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {}

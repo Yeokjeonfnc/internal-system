@@ -14,6 +14,7 @@ import com.yeokjeon.erp.master.dto.UserIdAvailabilityDto;
 import com.yeokjeon.erp.master.dto.UserMstCreateRequestDto;
 import com.yeokjeon.erp.master.dto.UserMstDto;
 import com.yeokjeon.erp.master.dto.UserMstUpdateRequestDto;
+import com.yeokjeon.erp.master.dto.UserResignRequestDto;
 import com.yeokjeon.erp.master.mapper.EmpNoMapper;
 import com.yeokjeon.erp.master.service.MstService;
 import jakarta.validation.Valid;
@@ -23,6 +24,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /** 사원·부서 — `/users`, `/dept` 유지. */
@@ -64,6 +66,12 @@ public class MstController {
             @RequestParam(required = false) Integer deptIdx) {
         List<UserMstDto> users = mstService.getAll(deptIdx);
         return ResponseEntity.ok(ApiResponse.success(users));
+    }
+
+    @GetMapping("/users/resigned")
+    public ResponseEntity<ApiResponse<List<UserMstDto>>> resignedUserList(HttpServletRequest request) {
+        menuAccessGuard.ensureSuperAdmin(callerId(request));
+        return ResponseEntity.ok(ApiResponse.success(mstService.getResigned()));
     }
 
     @GetMapping("/users/{userIdx}")
@@ -117,7 +125,7 @@ public class MstController {
     @DeleteMapping("/users/{userIdx}")
     public ResponseEntity<ApiResponse<Void>> userDelete(
             @PathVariable Integer userIdx, HttpServletRequest request) {
-        menuAccessGuard.ensure(callerId(request), MenuCodes.MST001, MenuAccessGuard.Action.DELETE);
+        menuAccessGuard.ensureSuperAdmin(callerId(request));
         // 삭제 전에 로그인 ID 를 확보해 둔다 — 지운 뒤에는 조회할 수 없다.
         UserMstDto target = mstService.get(userIdx);
         mstService.remove(userIdx);
@@ -125,6 +133,24 @@ public class MstController {
             tokenInvalidationRegistry.invalidateAll(target.userId());
         }
         return ResponseEntity.ok(ApiResponse.success("사용자가 삭제되었습니다.", null));
+    }
+
+    /**
+     * 퇴사 처리 — 관리자(admin_yn) 전용. 계정 행은 유지하고 재직 플래그만 내린다.
+     * 발급된 토큰도 전부 끊는다.
+     */
+    @PostMapping("/users/{userIdx}/resign")
+    public ResponseEntity<ApiResponse<UserMstDto>> userResign(
+            @PathVariable Integer userIdx,
+            @RequestBody(required = false) UserResignRequestDto body,
+            HttpServletRequest request) {
+        menuAccessGuard.ensureSuperAdmin(callerId(request));
+        LocalDate leaveDt = body != null ? body.leaveDt() : null;
+        UserMstDto updated = mstService.resign(userIdx, leaveDt);
+        if (updated != null && updated.userId() != null && !updated.userId().isBlank()) {
+            tokenInvalidationRegistry.invalidateAll(updated.userId());
+        }
+        return ResponseEntity.ok(ApiResponse.success("퇴사 처리되었습니다.", updated));
     }
 
     /**

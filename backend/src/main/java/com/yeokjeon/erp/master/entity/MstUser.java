@@ -65,4 +65,11 @@ public class MstUser {
 
     @Column(name = "join_dt")
     private LocalDate joinDt;
+
+    /** 재직 여부 — N 이면 퇴사 처리된 사원(로그인 불가). */
+    @Column(name = "work_yn", length = 1)
+    private Character workYn;
+
+    @Column(name = "leave_dt")
+    private LocalDate leaveDt;
 }

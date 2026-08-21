@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:app_flutter/core/api/base_repository.dart';
@@ -9,7 +10,7 @@ abstract final class UsageLogApiPaths {
 }
 
 class UsageLogApiService extends BaseRepository {
-  Future<void> recordMenu({
+  Future<bool> recordMenu({
     required String userId,
     required String userNm,
     String? deptNm,
@@ -30,9 +31,12 @@ class UsageLogApiService extends BaseRepository {
           'menuCd': ?menuCd,
           'menuLabel': menuLabel,
         },
+        options: Options(extra: const {'quiet': true}),
       );
-    } catch (e, st) {
-      debugPrint('recordMenu usage log failed: $e\n$st');
+      return true;
+    } catch (_) {
+      // 백엔드 재시작 중 연결 실패는 업무에 영향 없는 부가 기록이라 콘솔에 남기지 않는다.
+      return false;
     }
   }
 

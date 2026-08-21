@@ -1,5 +1,7 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:app_flutter/core/api/api_client.dart';
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/core/owner_user/owner_user_write_request.dart';
 import 'package:app_flutter/pages/master/mst006/mst006_model.dart';
@@ -14,7 +16,11 @@ class Mst006ApiService extends BaseRepository {
       }
       return parseDataList(r.data, OwnerUser.fromJson);
     } catch (e, st) {
-      debugPrint('getOwners failed: $e\n$st');
+      if (e is DioException && ApiReachability.isUnreachable(e)) {
+        debugPrint('getOwners failed: backend unreachable');
+      } else {
+        debugPrint('getOwners failed: $e\n$st');
+      }
       rethrow;
     }
   }

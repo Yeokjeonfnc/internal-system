@@ -47,6 +47,7 @@
                  LEFT JOIN user_menu_auth uma
                            ON uma.menu_cd = m.menu_cd AND uma.user_idx = #{userIdx}
         WHERE m.use_yn = 'Y'
+        AND m.menu_type = 'L'
         ORDER BY m.sort_order, m.menu_cd
     </select>
 

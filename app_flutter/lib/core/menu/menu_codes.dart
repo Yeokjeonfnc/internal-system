@@ -27,7 +27,7 @@ const String kMenuAct003 = 'act003';
 /// 활동관리 — 활동 계획 캘린더
 const String kMenuAct004 = 'act004';
 
-/// 전자결재 — 다우오피스 연동
+/// 전자결재
 const String kMenuEap001 = 'eap001';
 
 /// 사이드바 그룹(폴더) — DB menu_mst.menu_type = G
@@ -59,3 +59,6 @@ const String kMenuMst005 = 'mst005';
 
 /// 마스터 — 가맹주관리
 const String kMenuMst006 = 'mst006';
+
+/// 마스터 — 서식관리
+const String kMenuMst007 = 'mst007';

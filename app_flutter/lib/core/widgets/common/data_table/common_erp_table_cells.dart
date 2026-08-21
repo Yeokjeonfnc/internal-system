@@ -33,9 +33,7 @@ class ErpTableHeaderCell extends StatelessWidget {
           text,
           style: TextStyle(
             color: AppTheme.textMuted,
-            fontSize: compact
-                ? AppDimensions.tableHeaderFontSizeCompact
-                : 11,
+            fontSize: compact ? AppDimensions.tableHeaderFontSizeCompact : 11,
             fontWeight: FontWeight.w600,
             height: 1.2,
             fontFamilyFallback: AppTheme.koreanFontFallback,
@@ -89,7 +87,7 @@ class ErpTableBodyCell extends StatelessWidget {
         child: Text(
           text,
           style: TextStyle(
-            fontSize: compact ? AppDimensions.tableBodyFontSizeCompact : 12.5,
+            fontSize: compact ? AppDimensions.tableBodyFontSizeCompact : 15,
             height: 1.2,
             color: AppTheme.textPrimary,
             fontFamilyFallback: AppTheme.koreanFontFallback,

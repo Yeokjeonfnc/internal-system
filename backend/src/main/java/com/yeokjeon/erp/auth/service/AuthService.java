@@ -65,6 +65,17 @@ public class AuthService {
             return null;
         }
 
+        // 퇴사 처리된 사원은 로그인을 막는다(컬럼 미적용 DB 는 통과).
+        try {
+            String workYn = authProfileMapper.selectWorkYn(userId);
+            if (workYn != null && "N".equalsIgnoreCase(workYn.trim())) {
+                log.info("퇴사 처리된 계정 로그인 차단: userId={}", userId);
+                return null;
+            }
+        } catch (Exception e) {
+            log.warn("재직 여부 조회 생략(컬럼 미적용 가능): userId={}, {}", userId, e.getMessage());
+        }
+
         /*
          * --- 여기서부터는 전부 "부가 정보"다 ---
          * 해시 전환, 사용기록, 메뉴 권한, 관리자 표시, 강제변경 표시.

@@ -16,6 +16,9 @@ public interface AuthProfileMapper {
     /** 최초 로그인 시 비밀번호 변경 강제 여부('Y'/'N'). */
     String selectPwdResetYn(@Param("userId") String userId);
 
+    /** 재직 여부('Y'/'N'). 선택 컬럼 — 미적용 DB 에서는 예외가 난다. */
+    String selectWorkYn(@Param("userId") String userId);
+
     int updatePasswordHash(
             @Param("userId") String userId, @Param("passwordHash") String passwordHash);
 

@@ -1,0 +1,233 @@
+/* 전자결재 본문 HTML 미리보기 — 문서 상세·서식 미리보기 */
+
+html, body {
+  margin: 0;
+  box-sizing: border-box;
+}
+
+body.eap-preview-fill {
+  height: 100%;
+  overflow: auto;
+  background: #fff;
+}
+
+body.eap-preview-paper {
+  overflow: auto;
+  background: #E8E8E4;
+}
+
+.eap-a4 {
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  background: #fff;
+  font-family: 'Malgun Gothic', Pretendard, sans-serif;
+  font-size: 10pt;
+  line-height: 1.5;
+  color: #212529;
+  overflow: visible;
+}
+
+body.eap-preview-fill .eap-a4 {
+  margin: 0;
+  padding: 0 8px 24px;
+  min-height: auto;
+  box-shadow: none;
+}
+
+body.eap-preview-paper .eap-a4 {
+  margin: 8px 0 24px;
+  padding: 20px 16px;
+  min-height: 480px;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.14);
+}
+
+.eap-a4 img { max-width: 100%; height: auto; }
+
+.eap-a4 table {
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.eap-a4 > table:not(.eap-excel-import) { width: 100%; }
+
+.eap-a4 table.eap-excel-import {
+  max-width: none !important;
+  width: auto;
+}
+
+.eap-a4 table:not(.eap-tsv):not(.eap-approval-line):not(.eap-excel-import) {
+  table-layout: auto !important;
+}
+
+.eap-a4 table table:not(.eap-excel-import) {
+  width: auto !important;
+  table-layout: auto !important;
+}
+
+.eap-a4 td, .eap-a4 th {
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+.eap-a4 table:not(.eap-approval-line):not(.eap-excel-import) td,
+.eap-a4 table:not(.eap-approval-line):not(.eap-excel-import) th {
+  border: 1px solid #333;
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+
+.eap-a4 .eap-doc-header {
+  position: relative;
+  min-height: 72px;
+  margin-bottom: 12px;
+}
+
+.eap-a4 .eap-title, .eap-a4 .eap-doc-title {
+  font-size: 18pt;
+  font-weight: 700;
+  margin: 0;
+  padding: 4px 0;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+}
+
+.eap-a4 .eap-doc-header .eap-title { text-align: left; }
+
+.eap-a4 .eap-doc-title:not(.eap-doc-header .eap-doc-title) {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.eap-a4 .eap-approval-line {
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-collapse: collapse;
+  font-size: 9pt;
+  table-layout: fixed;
+  width: auto;
+  margin: 0;
+}
+
+.eap-a4 .eap-approval-line td {
+  border: 1px solid #333;
+  padding: 4px 6px;
+  text-align: center;
+  vertical-align: middle;
+  min-width: 36px;
+}
+
+.eap-a4 .eap-appr-lbl {
+  background: #F2F2F2;
+  font-weight: 600;
+  width: 24px;
+  line-height: 1.2;
+  font-size: 8pt;
+}
+
+.eap-a4 .eap-appr-head { background: #F2F2F2; height: 24px; }
+.eap-a4 .eap-appr-sign { height: 48px; }
+
+.eap-a4 .eap-doc-contact {
+  text-align: right;
+  font-size: 9pt;
+  color: #444;
+  margin-bottom: 10px;
+}
+
+.eap-a4 .eap-doc-split {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.eap-a4 .eap-doc-logo {
+  flex: 0 0 42%;
+  min-height: 80px;
+  border: 1px solid #E0E0E0;
+  padding: 10px;
+}
+
+.eap-a4 .eap-doc-notes {
+  border: 1px solid #333;
+  padding: 10px 12px;
+  font-size: 9pt;
+  line-height: 1.6;
+  margin: 12px 0;
+}
+
+.eap-a4 .eap-doc-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  font-size: 10pt;
+  font-weight: 700;
+  color: #BC1F26;
+}
+
+.eap-a4 .eap-widget {
+  display: inline;
+  background: transparent;
+  border: none;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  vertical-align: baseline;
+}
+
+.eap-a4 .eap-widget .eap-w-del { display: none !important; }
+.eap-a4 .eap-w-face-wrap { display: inline; }
+
+.eap-a4 .eap-w-face select,
+.eap-a4 .eap-w-face input {
+  height: 22px;
+  font-size: 10pt;
+  border: 1px solid #CCC;
+  border-radius: 2px;
+}
+
+.eap-a4 .eap-w-h, .eap-a4 .eap-w-m { width: 42px; }
+.eap-a4 .eap-w-date { width: 128px; }
+.eap-a4 .eap-w-unit { font-size: 9pt; color: #555; }
+.eap-a4 .eap-w-tilde { margin: 0 4px; }
+.eap-a4 .eap-w-checks {
+  --eap-check-scale: 1;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  gap: 8px 16px;
+}
+.eap-a4 .eap-w-checks .eap-w-check-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.eap-a4 .eap-w-checks .eap-w-check-lbl {
+  display: inline-block;
+  line-height: 1.25;
+  font-size: calc(9pt * var(--eap-check-scale, 1));
+}
+.eap-a4 .eap-w-checks input[type=checkbox],
+.eap-a4 .eap-w-checks input[type=radio] {
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+  width: calc(13px * var(--eap-check-scale, 1));
+  height: calc(13px * var(--eap-check-scale, 1));
+  vertical-align: middle;
+}
+
+.eap-a4 .eap-w-sum {
+  background: #FFF8E1;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 9pt;
+}
+

@@ -10,26 +10,18 @@ import java.util.List;
 @Mapper
 public interface EapApprovalMappingMapper {
 
-    List<EapApprovalMappingJdbcRow> selectByFolder(@Param("folder") String folder);
+    List<EapApprovalMappingJdbcRow> selectByFolder(
+            @Param("folder") String folder,
+            @Param("userId") String userId);
+
+    /** 전체 문서(관리자) — 사용자 필터 없음 */
+    List<EapApprovalMappingJdbcRow> selectAllDocuments();
 
     EapApprovalMappingJdbcRow selectByDocumentId(@Param("documentId") String documentId);
 
     EapApprovalMappingJdbcRow selectById(@Param("id") long id);
 
     int insert(EapApprovalMappingInsertParam param);
-
-    int updateStatusByDocumentId(
-            @Param("documentId") String documentId,
-            @Param("status") String status);
-
-    /**
-     * docId / ERP-{id} / 매핑 id 등 여러 키로 상태 반영.
-     * {@code newDaouDocumentId} 가 있으면 daou_document_id 도 동기화.
-     */
-    int updateStatusByLookup(
-            @Param("lookupId") String lookupId,
-            @Param("status") String status,
-            @Param("newDaouDocumentId") String newDaouDocumentId);
 
     int updateDaouDocument(
             @Param("id") long id,
@@ -40,5 +32,8 @@ public interface EapApprovalMappingMapper {
     int updateDraftContent(
             @Param("id") long id,
             @Param("title") String title,
-            @Param("contentHtml") String contentHtml);
+            @Param("contentHtml") String contentHtml,
+            @Param("status") String status);
+
+    int deleteById(@Param("id") long id);
 }

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app_flutter/core/state/base_list_provider.dart';
@@ -12,12 +11,7 @@ final mst006ApiServiceProvider = Provider<Mst006ApiService>(
 );
 
 final ownerUserDataProvider = FutureProvider<List<OwnerUser>>((ref) async {
-  try {
-    return await ref.watch(mst006ApiServiceProvider).getOwners();
-  } catch (e) {
-    debugPrint('가맹점주 목록 조회 실패: $e');
-    return const [];
-  }
+  return await ref.watch(mst006ApiServiceProvider).getOwners();
 });
 
 final ownerUserDetailProvider = FutureProvider.family<OwnerUser?, int>((

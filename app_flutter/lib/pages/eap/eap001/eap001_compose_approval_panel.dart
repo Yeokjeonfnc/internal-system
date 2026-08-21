@@ -1,0 +1,155 @@
+// 전자결재 기안 — 접기/펼치기 결재정보 패널.
+
+import 'package:flutter/material.dart';
+
+import 'package:app_flutter/core/auth/auth_provider.dart';
+import 'package:app_flutter/core/theme/app_colors.dart';
+import 'package:app_flutter/pages/active/act002/act002_approval_table.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_compose_lines.dart';
+
+class EapComposeApprovalPanel extends StatelessWidget {
+  const EapComposeApprovalPanel({
+    super.key,
+    required this.lines,
+    required this.auth,
+    required this.dateLabel,
+    required this.expanded,
+    required this.onToggleExpanded,
+    required this.onPickApprovers,
+    required this.onPickAgreers,
+    required this.onPickCcs,
+    required this.onPickViewers,
+  });
+
+  final EapComposeLineSet lines;
+  final AuthProvider auth;
+  final String dateLabel;
+  final bool expanded;
+  final VoidCallback onToggleExpanded;
+  final VoidCallback onPickApprovers;
+  final VoidCallback onPickAgreers;
+  final VoidCallback onPickCcs;
+  final VoidCallback onPickViewers;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: onToggleExpanded,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+            child: Row(
+              children: [
+                Icon(
+                  expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 22,
+                  color: AppTheme.textMuted,
+                ),
+                const SizedBox(width: 4),
+                const Text(
+                  '결재 정보',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    fontFamilyFallback: AppTheme.koreanFontFallback,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    lines.approvalSummary,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _LinePickButton(label: '결재', onPressed: onPickApprovers),
+              _LinePickButton(label: '합의', onPressed: onPickAgreers),
+              _LinePickButton(label: '참조', onPressed: onPickCcs),
+              _LinePickButton(label: '열람', onPressed: onPickViewers),
+            ],
+          ),
+        ),
+        if (expanded)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: ApprovalInfoTable(
+              approvalStampSlots: lines.approvers.names,
+              rankStampSlots: lines.approvers.titles,
+              approvalUserIds: lines.approvers.userIds,
+              apprAckUserIds: const {},
+              apprAckDateByUserId: const {},
+              documentWrittenAt: dateLabel,
+              writerSealDate: '',
+              loadedApprStatus: null,
+              deptNm: () {
+                final dept = auth.profile?.deptNm.trim() ?? '';
+                return dept.isEmpty ? '-' : dept;
+              }(),
+              drafterNm: auth.userName.isEmpty ? auth.userId : auth.userName,
+              onPickApproval: onPickApprovers,
+              rankUnderName: true,
+              approvalSlot0IsDrafter: false,
+              extraNameRows: [
+                ApprovalInfoNameRow(
+                  label: '합의자',
+                  names: lines.agreers.names,
+                  titles: lines.agreers.titles,
+                  userIds: lines.agreers.userIds,
+                  useSeals: true,
+                  onPick: onPickAgreers,
+                ),
+                ApprovalInfoNameRow(
+                  label: '참조자',
+                  names: lines.ccs.names,
+                  titles: lines.ccs.titles,
+                  onPick: onPickCcs,
+                ),
+                ApprovalInfoNameRow(
+                  label: '열람자',
+                  names: lines.viewers.names,
+                  titles: lines.viewers.titles,
+                  onPick: onPickViewers,
+                ),
+              ],
+            ),
+          ),
+        const Divider(height: 1),
+      ],
+    );
+  }
+}
+
+class _LinePickButton extends StatelessWidget {
+  const _LinePickButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: AppTheme.accentRed,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: const TextStyle(fontSize: 12),
+      ),
+      child: Text(label),
+    );
+  }
+}

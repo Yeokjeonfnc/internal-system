@@ -46,7 +46,7 @@ Uri salesAreaEditorEmbedPageUri() {
     params['appkey'] = appKey;
   }
   // HTML 변경 시 캐시 무효화 (Flutter Web iframe).
-  params['v'] = '20260608zonegeom';
+  params['v'] = '20260821closedzone';
   return uri.replace(queryParameters: params);
 }
 

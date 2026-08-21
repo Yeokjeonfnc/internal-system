@@ -131,6 +131,14 @@
       strokeOpacity: 0.9,
       strokeWeight: 2,
     };
+    /** 폐점 가맹점 영업지역 — 검정 마커와 동일 톤 */
+    const ZONE_CLOSED_STYLE = {
+      strokeColor: '#111827',
+      fillColor: '#6b7280',
+      fillOpacity: 0.28,
+      strokeOpacity: 0.85,
+      strokeWeight: 2,
+    };
 
     let map;
     let drawingManager;
@@ -941,9 +949,10 @@
               && Number(z.zoneIdx) === Number(merged.zoneIdx)) {
             return;
           }
+          const closed = z.isClosed === true || isClosedStoreName(z.storeNm);
           addZonePolygon(
             z.geometryData,
-            ZONE_NEARBY_STYLE,
+            closed ? ZONE_CLOSED_STYLE : ZONE_NEARBY_STYLE,
             roadviewClick,
             z.geometryType,
           );

@@ -76,7 +76,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         AuthTokenService.Verified verified = authTokenService.verifyDetailed(token);
         if (verified == null) {
             log.debug("인증 실패(토큰 없음/무효): {} {}", request.getMethod(), path);
-            reject(response, HttpServletResponse.SC_UNAUTHORIZED, "로그인이 필요합니다.");
+            reject(request, response, HttpServletResponse.SC_UNAUTHORIZED, "로그인이 필요합니다.");
             return;
         }
         String authenticatedUserId = verified.userId();
@@ -84,7 +84,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         // 비밀번호 변경·계정 삭제 이전에 발급된 토큰은 서명이 맞아도 받지 않는다.
         if (!tokenInvalidationRegistry.isStillValid(authenticatedUserId, verified.issuedAt())) {
             log.info("무효화된 토큰 차단: userId={} ({} {})", authenticatedUserId, request.getMethod(), path);
-            reject(response, HttpServletResponse.SC_UNAUTHORIZED, "다시 로그인해 주세요.");
+            reject(request, response, HttpServletResponse.SC_UNAUTHORIZED, "다시 로그인해 주세요.");
             return;
         }
 
@@ -107,7 +107,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                     claimedUserId,
                     request.getMethod(),
                     path);
-            reject(response, HttpServletResponse.SC_FORBIDDEN, "다른 사용자의 권한으로 요청할 수 없습니다.");
+            reject(request, response, HttpServletResponse.SC_FORBIDDEN, "다른 사용자의 권한으로 요청할 수 없습니다.");
             return;
         }
 
@@ -135,8 +135,20 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                 : null;
     }
 
-    private static void reject(HttpServletResponse response, int status, String message)
+    private static void reject(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            int status,
+            String message)
             throws IOException {
+        // 인증 필터는 DispatcherServlet 앞에서 응답을 끝낸다. CORS 헤더가 없으면
+        // 브라우저는 401 을 연결 오류로 숨기고, 화면은 로그인 상태로 빈 목록만 보여 준다.
+        String origin = request.getHeader("Origin");
+        if (origin != null && !origin.isBlank()) {
+            response.setHeader("Access-Control-Allow-Origin", origin);
+            response.setHeader("Access-Control-Allow-Credentials", "true");
+            response.setHeader("Vary", "Origin");
+        }
         response.setStatus(status);
         response.setContentType("application/json");
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

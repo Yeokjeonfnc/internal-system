@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app_flutter/core/auth/auth_provider.dart';
-import 'package:app_flutter/core/notifications/notification_api_service.dart';
 import 'package:app_flutter/core/notifications/notif_model.dart';
+import 'package:app_flutter/core/notifications/notif_open.dart';
+import 'package:app_flutter/core/notifications/notification_api_service.dart';
 import 'package:app_flutter/core/router/app_router.dart' show AppRoutes;
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/widgets/common/common_responsive_grid.dart';
@@ -32,8 +33,8 @@ abstract final class _DashPalette {
 /// 세션 캐시 — 재진입 시 즉시 표시(keepAlive), 저장 흐름에서 invalidate.
 final dashboardHomeDataProvider =
     FutureProvider.family<_DashboardHomeData, String>((ref, uid) {
-  return _loadDashboardHomeData(uid);
-});
+      return _loadDashboardHomeData(uid);
+    });
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -161,8 +162,6 @@ class _DashboardHomeData {
   final List<ActivityRow> recentActivities;
 }
 
-const String _kNotifTypeActivityApproval = 'ACTIVITY_APPROVAL';
-
 bool _isSameMonth(String raw, DateTime now) {
   final s = raw.trim();
   if (s.isEmpty) return false;
@@ -206,11 +205,7 @@ Future<_DashboardHomeData> _loadDashboardHomeData(String userId) async {
   final approvalRows = await approvalsFuture;
 
   final recentNotifs = notifsAll
-      .where(
-        (n) =>
-            n.notifTyp.trim() == _kNotifTypeActivityApproval &&
-            n.actIdx != null,
-      )
+      .where((n) => notifOpenRoute(n) != null)
       .take(5)
       .toList();
 
@@ -423,12 +418,12 @@ class _RecentNotifsCard extends StatelessWidget {
                   final row = recentNotifs[i];
                   final msg = row.msgTxt.trim();
                   final ts = _formatShortDate(row.createDt);
-                  final actIdx = row.actIdx;
+                  final openRoute = notifOpenRoute(row);
                   return Material(
                     color: Colors.transparent,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(10),
-                      onTap: (actIdx == null)
+                      onTap: (openRoute == null)
                           ? null
                           : () async {
                               final notifIdx = row.notifIdx;
@@ -439,9 +434,7 @@ class _RecentNotifsCard extends StatelessWidget {
                                 );
                               }
                               if (!context.mounted) return;
-                              context.go(
-                                ActivityRoutes.approvalActivityDetail(actIdx),
-                              );
+                              context.go(openRoute);
                             },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(

@@ -24,7 +24,7 @@ Uri salesAreaMapEmbedPageUri() {
   final uri = Uri.parse(
     origin,
   ).resolve(baseHref).resolve('kakao_sales_area_map.html');
-  final params = <String, String>{'ui': 'minimal', 'v': '20260608closedsearch'};
+  final params = <String, String>{'ui': 'minimal', 'v': '20260821closedzone'};
   final appKey = resolveKakaoMapAppKey(
     localStorageValue: readKakaoMapAppKeyFromLocalStorage(),
   );

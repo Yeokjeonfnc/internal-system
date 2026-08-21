@@ -5,8 +5,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart' as provider;
 
 import 'package:app_flutter/core/api/common_code_api_service.dart';
+import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/format/korean_phone_display.dart';
 import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
@@ -14,8 +17,10 @@ import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_detail_action_buttons.dart';
+import 'package:app_flutter/core/widgets/common/form/common_date_input_with_picker.dart';
 import 'package:app_flutter/core/widgets/common/form/common_labeled_form_row.dart';
 import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
+import 'package:app_flutter/core/router/app_router.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_api.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_controller.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
@@ -313,6 +318,92 @@ class _UserInfoPanelState extends ConsumerState<_UserInfoPanel> {
     unawaited(showAlertDialog(context, '취소되었습니다.'));
   }
 
+  bool get _isSuperAdmin =>
+      provider.Provider.of<AuthProvider>(context, listen: false).isSuperAdmin;
+
+  bool get _isSelf {
+    final me = provider.Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).profile?.userIdx;
+    return me != null && me == widget.userIdx;
+  }
+
+  Future<void> _confirmAndResign() async {
+    final user = widget.user;
+    if (user == null) return;
+    if (_isSelf) {
+      await showAlertDialog(context, '본인 계정은 퇴사 처리할 수 없습니다.');
+      return;
+    }
+    final confirmed = await showDialog<({bool ok, String leaveDt})>(
+      context: context,
+      builder: (dialogContext) => _ResignConfirmDialog(user: user),
+    );
+    if (confirmed == null || !confirmed.ok || !mounted) return;
+
+    try {
+      await ref.read(mst001ApiServiceProvider).resignUser(
+            widget.userIdx,
+            leaveDt: confirmed.leaveDt,
+          );
+      if (!mounted) return;
+      ref.invalidate(userDataProvider);
+      ref.invalidate(userDetailProvider(widget.userIdx));
+      await showAlertDialog(context, '퇴사 처리되었습니다.');
+      if (!mounted) return;
+      context.go(AppRoutes.masterUsers);
+    } catch (e) {
+      if (!mounted) return;
+      await showAlertDialog(context, '퇴사 처리에 실패했습니다.\n$e');
+    }
+  }
+
+  Future<void> _confirmAndDelete() async {
+    final user = widget.user;
+    if (user == null) return;
+    if (_isSelf) {
+      await showAlertDialog(context, '본인 계정은 삭제할 수 없습니다.');
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('사원 삭제'),
+        content: Text(
+          '${user.name}(${user.userId.isEmpty ? '로그인ID 없음' : user.userId}) '
+          '사원을 완전히 삭제하시겠습니까?\n\n'
+          '삭제된 데이터는 복구할 수 없습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.accentRed),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref.read(mst001ApiServiceProvider).deleteUser(widget.userIdx);
+      if (!mounted) return;
+      ref.invalidate(userDataProvider);
+      ref.invalidate(userDetailProvider(widget.userIdx));
+      await showAlertDialog(context, '삭제되었습니다.');
+      if (!mounted) return;
+      context.go(AppRoutes.masterUsers);
+    } catch (e) {
+      if (!mounted) return;
+      await showAlertDialog(context, '삭제에 실패했습니다.\n$e');
+    }
+  }
+
   Future<void> _save() async {
     if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
@@ -399,9 +490,12 @@ class _UserInfoPanelState extends ConsumerState<_UserInfoPanel> {
                       title: '사원 상세 정보',
                       isEditing: _isEditing,
                       isSaving: _saving,
+                      showAdminActions: _isSuperAdmin && !_isEditing,
                       onEnterEdit: _enterEdit,
                       onSave: _save,
                       onCancel: _cancelEdit,
+                      onResign: _confirmAndResign,
+                      onDelete: _confirmAndDelete,
                     ),
                     const SizedBox(height: 14),
                     const Divider(
@@ -838,14 +932,20 @@ class _UserPanelHeader extends StatelessWidget {
     required this.onEnterEdit,
     required this.onSave,
     required this.onCancel,
+    this.showAdminActions = false,
+    this.onResign,
+    this.onDelete,
   });
 
   final String title;
   final bool isEditing;
   final bool isSaving;
+  final bool showAdminActions;
   final VoidCallback onEnterEdit;
   final VoidCallback onSave;
   final VoidCallback onCancel;
+  final VoidCallback? onResign;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -862,6 +962,40 @@ class _UserPanelHeader extends StatelessWidget {
             ),
           ),
         ),
+        if (showAdminActions) ...[
+          OutlinedButton(
+            onPressed: onResign,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.accentRed,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+            child: const Text(
+              '퇴사 처리',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                fontFamilyFallback: AppTheme.koreanFontFallback,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            onPressed: onDelete,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.accentRed,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+            child: const Text(
+              '삭제',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                fontFamilyFallback: AppTheme.koreanFontFallback,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
         if (isEditing) ...[
           SaveActionButton(
             menuCd: kMenuMst001,
@@ -912,6 +1046,88 @@ class _YnFieldChip extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 퇴사 처리 확인 — 퇴사일을 지정한 뒤 처리한다.
+class _ResignConfirmDialog extends StatefulWidget {
+  const _ResignConfirmDialog({required this.user});
+
+  final User user;
+
+  @override
+  State<_ResignConfirmDialog> createState() => _ResignConfirmDialogState();
+}
+
+class _ResignConfirmDialogState extends State<_ResignConfirmDialog> {
+  DateTime? _leaveDt = DateTime.now();
+
+  String _leaveDtYmdForApi() {
+    final d = _leaveDt ?? DateTime.now();
+    final y = d.year.toString().padLeft(4, '0');
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '$y-$m-$day';
+  }
+
+  Future<void> _pickLeaveDt() async {
+    final picked = await showAccentDatePicker(
+      context: context,
+      initialDate: _leaveDt ?? DateTime.now(),
+    );
+    if (picked != null && mounted) {
+      setState(() => _leaveDt = picked);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = widget.user;
+    return AlertDialog(
+      title: const Text('퇴사 처리'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '${user.name}(${user.userId.isEmpty ? '로그인ID 없음' : user.userId}) '
+              '사원을 퇴사 처리하시겠습니까?\n\n'
+              '계정은 유지되지만 로그인이 차단되고 재직 목록에서 제외됩니다.',
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.45,
+                fontFamilyFallback: AppTheme.koreanFontFallback,
+              ),
+            ),
+            const SizedBox(height: 16),
+            LabeledFormRow(
+              label: '퇴사일자',
+              child: DateInputWithPicker(
+                value: _leaveDt,
+                onPick: _pickLeaveDt,
+                onChanged: (value) => setState(() => _leaveDt = value),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, (ok: false, leaveDt: '')),
+          child: const Text('취소'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(
+            context,
+            (ok: true, leaveDt: _leaveDtYmdForApi()),
+          ),
+          style: FilledButton.styleFrom(backgroundColor: AppTheme.accentRed),
+          child: const Text('퇴사 처리'),
+        ),
+      ],
     );
   }
 }

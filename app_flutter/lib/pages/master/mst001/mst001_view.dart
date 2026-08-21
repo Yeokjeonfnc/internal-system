@@ -7,7 +7,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart' as provider;
 
+import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/format/korean_phone_display.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
@@ -21,6 +23,7 @@ import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_controller.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_csv.dart';
+import 'package:app_flutter/pages/master/mst001/mst001_dialog_resigned_users.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_filter.dart';
 import 'package:app_flutter/pages/master/mst001/mst001_model.dart';
 import 'package:app_flutter/core/router/app_router.dart';
@@ -125,6 +128,10 @@ class _UserListViewState extends ConsumerState<UserListView> {
         final filter = ref.watch(userProvider);
         final n = ref.read(userProvider.notifier);
         final rows = n.getFilteredList();
+        final isSuperAdmin = provider.Provider.of<AuthProvider>(
+          context,
+          listen: false,
+        ).isSuperAdmin;
         final departmentNames = _distinctSorted(users.map((u) => u.department));
         final positionNames = _distinctSorted(users.map((u) => u.positionNm));
 
@@ -161,6 +168,32 @@ class _UserListViewState extends ConsumerState<UserListView> {
           registerMenuCd: kMenuMst001,
           onRegister: () => context.push(AppRoutes.masterUsersRegister),
           extraHeaderActions: [
+            if (isSuperAdmin)
+              OutlinedButton.icon(
+                onPressed: () => showResignedUsersDialog(
+                  context,
+                  ref.read(mst001ApiServiceProvider),
+                ),
+                icon: const Icon(Icons.person_off_outlined, size: 18),
+                label: const Text(
+                  '퇴사자관리',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    fontFamilyFallback: AppTheme.koreanFontFallback,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
             OutlinedButton.icon(
               onPressed: () => _resetPasswords(rows),
               icon: const Icon(Icons.lock_reset_outlined, size: 18),

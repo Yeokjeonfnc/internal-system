@@ -6,5 +6,13 @@ import 'package:app_flutter/pages/eap/eap001/eap001_content_html_preview_stub.da
     if (dart.library.html) 'package:app_flutter/pages/eap/eap001/eap001_content_html_preview_web.dart'
     as impl;
 
-Widget eapContentHtmlPreview(String htmlBody) =>
-    impl.buildEapContentHtmlPreview(htmlBody);
+Widget eapContentHtmlPreview(
+  String htmlBody, {
+  bool seamless = false,
+  bool readOnly = false,
+}) =>
+    impl.buildEapContentHtmlPreview(
+      htmlBody,
+      seamless: seamless,
+      readOnly: readOnly,
+    );

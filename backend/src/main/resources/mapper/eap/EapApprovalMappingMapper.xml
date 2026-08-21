@@ -17,6 +17,9 @@
             <arg column="content_html" javaType="java.lang.String"/>
             <arg column="created_at" javaType="java.time.OffsetDateTime"/>
             <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="form_category" javaType="java.lang.String"/>
+            <arg column="drafter_name" javaType="java.lang.String"/>
+            <arg column="drafter_dept" javaType="java.lang.String"/>
         </constructor>
     </resultMap>
 
@@ -32,9 +35,14 @@
                m.title,
                m.content_html,
                m.created_at,
-               m.updated_at
+               m.updated_at,
+               COALESCE(NULLIF(TRIM(f.category), ''), '기타문서') AS form_category,
+               COALESCE(NULLIF(TRIM(um.user_name), ''), m.draft_user_id) AS drafter_name,
+               COALESCE(NULLIF(TRIM(dm.dept_nm), ''), '') AS drafter_dept
         FROM erp_approval_mappings m
                  LEFT JOIN eap_form_config f ON f.form_code = m.daou_form_code
+                 LEFT JOIN user_mst um ON UPPER(TRIM(um.user_id)) = UPPER(TRIM(m.draft_user_id))
+                 LEFT JOIN dept_mst dm ON dm.dept_idx = um.dept_idx
     </sql>
 
     <sql id="selectJoinList">
@@ -49,41 +57,199 @@
                m.title,
                CAST(NULL AS TEXT) AS content_html,
                m.created_at,
-               m.updated_at
+               m.updated_at,
+               COALESCE(NULLIF(TRIM(f.category), ''), '기타문서') AS form_category,
+               COALESCE(NULLIF(TRIM(um.user_name), ''), m.draft_user_id) AS drafter_name,
+               COALESCE(NULLIF(TRIM(dm.dept_nm), ''), '') AS drafter_dept
         FROM erp_approval_mappings m
                  LEFT JOIN eap_form_config f ON f.form_code = m.daou_form_code
+                 LEFT JOIN user_mst um ON UPPER(TRIM(um.user_id)) = UPPER(TRIM(m.draft_user_id))
+                 LEFT JOIN dept_mst dm ON dm.dept_idx = um.dept_idx
+    </sql>
+
+    <!-- 결재라인 user_id·user_nm·user_mst 와 로그인 ID 대조(대소문자 무시) -->
+    <sql id="lineUserIsCaller">
+        (
+            UPPER(TRIM(l.user_id)) = UPPER(TRIM(#{userId}))
+            OR UPPER(TRIM(COALESCE(l.user_nm, ''))) = UPPER(TRIM(#{userId}))
+            OR EXISTS (
+                SELECT 1 FROM user_mst um_line
+                WHERE UPPER(TRIM(um_line.user_id)) = UPPER(TRIM(#{userId}))
+                  AND (
+                      UPPER(TRIM(um_line.user_id)) = UPPER(TRIM(l.user_id))
+                      OR UPPER(TRIM(um_line.user_name)) = UPPER(TRIM(l.user_id))
+                      OR UPPER(TRIM(um_line.user_name)) = UPPER(TRIM(COALESCE(l.user_nm, '')))
+                  )
+            )
+        )
+    </sql>
+
+    <!-- 로그인 사용자 = 기안자 (user_id 또는 해당 계정의 이름과 draft_user_id 대조) -->
+    <sql id="callerIsDrafter">
+        (
+            UPPER(TRIM(COALESCE(m.draft_user_id, ''))) = UPPER(TRIM(#{userId}))
+            OR EXISTS (
+                SELECT 1 FROM user_mst um_draft
+                WHERE UPPER(TRIM(um_draft.user_id)) = UPPER(TRIM(#{userId}))
+                  AND (
+                      UPPER(TRIM(um_draft.user_id)) = UPPER(TRIM(COALESCE(m.draft_user_id, '')))
+                      OR UPPER(TRIM(um_draft.user_name)) = UPPER(TRIM(COALESCE(m.draft_user_id, '')))
+                  )
+            )
+        )
+    </sql>
+
+    <sql id="callerIsNotDrafter">
+        NOT <include refid="callerIsDrafter"/>
+    </sql>
+
+    <!-- 결재자·합의자는 올린결재(상신)에 넣지 않는다. -->
+    <sql id="callerHasInboxRole">
+        EXISTS (
+            SELECT 1 FROM eap_doc_line l
+            WHERE l.mapping_id = m.id
+              AND <include refid="lineUserIsCaller"/>
+              AND UPPER(TRIM(l.role_cd)) IN ('APPROVER', 'AGREE')
+        )
+    </sql>
+
+    <sql id="callerLacksInboxRole">
+        NOT EXISTS (
+            SELECT 1 FROM eap_doc_line l
+            WHERE l.mapping_id = m.id
+              AND <include refid="lineUserIsCaller"/>
+              AND UPPER(TRIM(l.role_cd)) IN ('APPROVER', 'AGREE')
+        )
     </sql>
 
     <select id="selectByFolder" resultMap="eapApprovalMappingRow">
         <include refid="selectJoinList"/>
         <where>
             <choose>
+                <when test="folder == 'inbox-pending'">
+                    m.status IN ('INPROGRESS', 'DRAFT', 'WRITING')
+                    AND #{userId} IS NOT NULL AND #{userId} != ''
+                    AND EXISTS (
+                        SELECT 1 FROM eap_doc_line l
+                        WHERE l.mapping_id = m.id
+                          AND <include refid="lineUserIsCaller"/>
+                          AND UPPER(TRIM(l.role_cd)) IN ('APPROVER', 'AGREE')
+                          AND UPPER(TRIM(COALESCE(l.line_status, 'WAIT'))) IN ('WAIT', '')
+                    )
+                </when>
+                <when test="folder == 'inbox-progress'">
+                    m.status IN ('INPROGRESS', 'DRAFT', 'WRITING')
+                    AND #{userId} IS NOT NULL AND #{userId} != ''
+                    AND EXISTS (
+                        SELECT 1 FROM eap_doc_line l
+                        WHERE l.mapping_id = m.id
+                          AND <include refid="lineUserIsCaller"/>
+                          AND UPPER(TRIM(l.role_cd)) IN ('APPROVER', 'AGREE')
+                          AND UPPER(TRIM(l.line_status)) = 'DONE'
+                    )
+                </when>
+                <when test="folder == 'inbox-complete'">
+                    m.status = 'COMPLETE'
+                    AND #{userId} IS NOT NULL AND #{userId} != ''
+                    AND <include refid="callerHasInboxRole"/>
+                </when>
+                <when test="folder == 'inbox-rejected'">
+                    m.status = 'RETURN'
+                    AND #{userId} IS NOT NULL AND #{userId} != ''
+                    AND <include refid="callerHasInboxRole"/>
+                </when>
+                <when test="folder == 'sent'">
+                    #{userId} IS NOT NULL AND #{userId} != ''
+                    AND <include refid="callerIsDrafter"/>
+                    AND <include refid="callerLacksInboxRole"/>
+                    AND m.status IN ('INPROGRESS', 'DRAFT', 'WRITING', 'COMPLETE', 'RETURN', 'CANCEL')
+                </when>
+                <when test="folder == 'drafted'">
+                    #{userId} IS NOT NULL AND #{userId} != ''
+                    AND <include refid="callerIsDrafter"/>
+                    AND <include refid="callerLacksInboxRole"/>
+                    AND m.status IN ('WRITING', 'DRAFT', 'TEMPSAVE', 'INPROGRESS', 'COMPLETE', 'RETURN', 'CANCEL')
+                </when>
+                <when test="folder == 'sent-open'">
+                    #{userId} IS NOT NULL AND #{userId} != ''
+                    AND <include refid="callerIsDrafter"/>
+                    AND <include refid="callerLacksInboxRole"/>
+                    AND m.status IN ('INPROGRESS', 'DRAFT', 'WRITING')
+                </when>
+                <when test="folder == 'sent-complete'">
+                    #{userId} IS NOT NULL AND #{userId} != ''
+                    AND <include refid="callerIsDrafter"/>
+                    AND <include refid="callerLacksInboxRole"/>
+                    AND m.status = 'COMPLETE'
+                </when>
+                <when test="folder == 'sent-rejected'">
+                    #{userId} IS NOT NULL AND #{userId} != ''
+                    AND <include refid="callerIsDrafter"/>
+                    AND <include refid="callerLacksInboxRole"/>
+                    AND m.status = 'RETURN'
+                </when>
+                <when test="folder == 'sent-temp' or folder == 'temp-saved'">
+                    #{userId} IS NOT NULL AND #{userId} != ''
+                    AND <include refid="callerIsDrafter"/>
+                    AND <include refid="callerLacksInboxRole"/>
+                    AND m.status = 'TEMPSAVE'
+                </when>
+                <when test="folder == 'cc' or folder == 'cc-read'">
+                    m.status NOT IN ('TEMPSAVE')
+                    AND #{userId} IS NOT NULL AND #{userId} != ''
+                    AND EXISTS (
+                        SELECT 1 FROM eap_doc_line l
+                        WHERE l.mapping_id = m.id
+                          AND <include refid="lineUserIsCaller"/>
+                          AND UPPER(TRIM(l.role_cd)) IN ('CC', 'VIEWER')
+                    )
+                    AND <include refid="callerLacksInboxRole"/>
+                </when>
+                <when test="folder == 'all'">
+                    #{userId} IS NOT NULL AND #{userId} != ''
+                    AND (
+                        <include refid="callerIsDrafter"/>
+                        OR EXISTS (
+                            SELECT 1 FROM eap_doc_line l
+                            WHERE l.mapping_id = m.id
+                              AND <include refid="lineUserIsCaller"/>
+                              AND UPPER(TRIM(l.role_cd)) IN ('APPROVER', 'AGREE', 'CC', 'VIEWER')
+                        )
+                    )
+                </when>
                 <when test="folder == 'pending' or folder == 'received' or folder == 'cc-pending' or folder == 'scheduled'">
-                    m.status IN ('WRITING', 'DRAFT', 'TEMPSAVE', 'INPROGRESS')
-                </when>
-                <when test="folder == 'drafted' or folder == 'sent'">
-                    m.status IN ('WRITING', 'DRAFT', 'TEMPSAVE', 'INPROGRESS', 'COMPLETE', 'RETURN', 'CANCEL')
-                </when>
-                <when test="folder == 'temp-saved'">
-                    m.status IN ('TEMPSAVE', 'DRAFT')
+                    #{userId} IS NOT NULL AND #{userId} != ''
+                    AND (
+                        TRIM(m.draft_user_id) = TRIM(#{userId})
+                        OR EXISTS (
+                            SELECT 1 FROM eap_doc_line l
+                            WHERE l.mapping_id = m.id
+                              AND TRIM(l.user_id) = TRIM(#{userId})
+                        )
+                    )
+                    AND m.status IN ('WRITING', 'DRAFT', 'TEMPSAVE', 'INPROGRESS')
                 </when>
                 <when test="folder == 'writing'">
                     m.status = 'WRITING'
                 </when>
-                <when test="folder == 'approved' or folder == 'cc-read'">
+                <when test="folder == 'approved'">
                     m.status = 'COMPLETE'
                 </when>
                 <when test="folder == 'cancelled' or folder == 'canceled'">
                     m.status = 'CANCEL'
                 </when>
                 <otherwise>
-                    1 = 1
+                    1 = 0
                 </otherwise>
             </choose>
         </where>
         ORDER BY m.created_at DESC, m.id DESC
     </select>
 
+    <select id="selectAllDocuments" resultMap="eapApprovalMappingRow">
+        <include refid="selectJoinList"/>
+        ORDER BY m.created_at DESC, m.id DESC
+    </select>
     <select id="selectByDocumentId" resultMap="eapApprovalMappingRow">
         <include refid="selectJoin"/>
         WHERE m.daou_document_id = #{documentId}
@@ -118,30 +284,6 @@
         )
     </insert>
 
-    <update id="updateStatusByDocumentId">
-        UPDATE erp_approval_mappings
-        SET status = #{status},
-            updated_at = NOW()
-        WHERE daou_document_id = #{documentId}
-    </update>
-
-    <update id="updateStatusByLookup">
-        UPDATE erp_approval_mappings
-        SET status = #{status},
-            daou_document_id = CASE
-                WHEN #{newDaouDocumentId} IS NOT NULL AND #{newDaouDocumentId} != ''
-                    THEN #{newDaouDocumentId}
-                ELSE daou_document_id
-            END,
-            updated_at = NOW()
-        WHERE daou_document_id = #{lookupId}
-           OR CAST(id AS VARCHAR) = #{lookupId}
-           OR CONCAT('MAP-', id) = #{lookupId}
-           OR CONCAT('ERP-', id) = #{lookupId}
-           OR CONCAT('REDIRECT-', id) = #{lookupId}
-           OR CONCAT('LOCAL-', id) = #{lookupId}
-    </update>
-
     <update id="updateDaouDocument">
         UPDATE erp_approval_mappings
         SET daou_document_id = #{daouDocumentId},
@@ -154,8 +296,13 @@
         UPDATE erp_approval_mappings
         SET title = #{title},
             content_html = #{contentHtml},
+            status = COALESCE(NULLIF(TRIM(#{status}), ''), status),
             updated_at = NOW()
         WHERE id = #{id}
-          AND UPPER(COALESCE(status, '')) = 'WRITING'
+          AND UPPER(COALESCE(status, '')) IN ('WRITING', 'TEMPSAVE', 'DRAFT')
     </update>
+
+    <delete id="deleteById">
+        DELETE FROM erp_approval_mappings WHERE id = #{id}
+    </delete>
 </mapper>

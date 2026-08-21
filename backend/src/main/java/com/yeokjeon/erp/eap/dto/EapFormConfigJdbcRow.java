@@ -5,13 +5,13 @@ import java.time.OffsetDateTime;
 public record EapFormConfigJdbcRow(
         String formCode,
         String formName,
-        String integrationType,
-        String erpSourceMenu,
-        String htmlTemplateKey,
-        Boolean useEmail,
-        Boolean useBoard,
         Boolean enabled,
         Integer sortOrder,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt) {
+        OffsetDateTime updatedAt,
+        String category,
+        String contentHtml,
+        String fieldSchema,
+        String createdBy,
+        String createdByNm) {
 }

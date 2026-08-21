@@ -2,80 +2,101 @@
 
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'dart:html' as html;
-import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
 
-Widget buildEapContentHtmlPreview(String htmlBody) {
-  return _EapContentHtmlPreviewWeb(htmlBody: htmlBody);
+import 'package:app_flutter/pages/eap/eap001/eap_iframe_bridge_web.dart';
+import 'package:app_flutter/pages/eap/eap001/eap_preview_srcdoc_web.dart';
+
+Widget buildEapContentHtmlPreview(
+  String htmlBody, {
+  bool seamless = false,
+  bool readOnly = false,
+}) {
+  return _EapContentHtmlPreviewWeb(
+    htmlBody: htmlBody,
+    seamless: seamless,
+    readOnly: readOnly,
+  );
 }
 
 class _EapContentHtmlPreviewWeb extends StatefulWidget {
-  const _EapContentHtmlPreviewWeb({required this.htmlBody});
+  const _EapContentHtmlPreviewWeb({
+    required this.htmlBody,
+    this.seamless = false,
+    this.readOnly = false,
+  });
 
   final String htmlBody;
+  final bool seamless;
+  final bool readOnly;
 
   @override
   State<_EapContentHtmlPreviewWeb> createState() =>
       _EapContentHtmlPreviewWebState();
 }
 
-class _EapContentHtmlPreviewWebState extends State<_EapContentHtmlPreviewWeb> {
+class _EapContentHtmlPreviewWebState extends State<_EapContentHtmlPreviewWeb>
+    with EapIframePointerGateMixin {
   late final String _viewType;
   html.IFrameElement? _iframe;
+  var _alive = true;
+
+  @override
+  html.IFrameElement? get iframeForPointerGate => _iframe;
+
+  @override
+  bool get iframeHostAlive => _alive;
 
   @override
   void initState() {
     super.initState();
-    _viewType =
-        'eap-content-html-${identityHashCode(this)}-${DateTime.now().microsecondsSinceEpoch}';
+    _viewType = registerEapIframeView('eap-preview', _createIframe());
+    bindEapIframePointerGate();
+  }
+
+  html.IFrameElement _createIframe() {
     final iframe = html.IFrameElement()
       ..style.border = 'none'
       ..style.width = '100%'
       ..style.height = '100%'
-      ..srcdoc = _wrapHtml(widget.htmlBody);
+      ..style.overflow = 'hidden'
+      ..style.display = 'block';
+    _applySrcdoc(iframe);
     _iframe = iframe;
-    ui_web.platformViewRegistry.registerViewFactory(
-      _viewType,
-      (int viewId) => iframe,
+    return iframe;
+  }
+
+  void _applySrcdoc(html.IFrameElement iframe) {
+    iframe.srcdoc = buildEapPreviewSrcdoc(
+      widget.htmlBody,
+      seamless: widget.seamless,
+      readOnly: widget.readOnly,
     );
   }
 
   @override
   void didUpdateWidget(covariant _EapContentHtmlPreviewWeb oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.htmlBody != widget.htmlBody) {
-      _iframe?.srcdoc = _wrapHtml(widget.htmlBody);
+    if (oldWidget.htmlBody != widget.htmlBody ||
+        oldWidget.seamless != widget.seamless ||
+        oldWidget.readOnly != widget.readOnly) {
+      final iframe = _iframe;
+      if (iframe != null) _applySrcdoc(iframe);
     }
   }
 
-  static String _wrapHtml(String body) {
-    final trimmed = body.trim();
-    if (trimmed.isEmpty) {
-      return '<!DOCTYPE html><html><body><p style="color:#888;font-family:sans-serif;">본문 없음</p></body></html>';
-    }
-    if (trimmed.toLowerCase().contains('<html')) {
-      return trimmed;
-    }
-    return '''<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<style>
-  body { margin: 12px; font-family: 'Malgun Gothic', Pretendard, sans-serif; font-size: 10pt; color: #212529; }
-  table { border-collapse: collapse; }
-</style>
-</head>
-<body>$trimmed</body>
-</html>''';
+  @override
+  void dispose() {
+    _alive = false;
+    unbindEapIframePointerGate();
+    retireEapIframe(_iframe);
+    _iframe = null;
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 640,
-      width: double.infinity,
-      child: HtmlElementView(viewType: _viewType),
-    );
+    return buildEapIframeView(_viewType);
   }
 }

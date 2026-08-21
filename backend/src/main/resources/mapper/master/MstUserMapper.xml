@@ -17,6 +17,8 @@
             <arg column="position_nm" javaType="java.lang.String"/>
             <arg column="owner_yn" javaType="java.lang.String"/>
             <arg column="join_dt" javaType="java.time.LocalDate"/>
+            <arg column="work_yn" javaType="java.lang.String"/>
+            <arg column="leave_dt" javaType="java.time.LocalDate"/>
             <arg column="created_at" javaType="java.time.OffsetDateTime"/>
             <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
         </constructor>
@@ -35,6 +37,8 @@
                pos.code_nm AS position_nm,
                CAST(u.owner_yn AS VARCHAR) AS owner_yn,
                u.join_dt,
+               CAST(u.work_yn AS VARCHAR) AS work_yn,
+               u.leave_dt,
                u.created_at,
                u.updated_at
         FROM user_mst u
@@ -47,11 +51,19 @@
         <include refid="userEnrichedSelect"/>
         <where>
             COALESCE(CAST(u.owner_yn AS VARCHAR), 'N') &lt;&gt; 'Y'
+            AND COALESCE(CAST(u.work_yn AS VARCHAR), 'Y') = 'Y'
             <if test="deptIdx != null">
                 AND u.dept_idx = #{deptIdx}
             </if>
         </where>
         ORDER BY u.user_name
+    </select>
+
+    <select id="selectResignedUsersEnriched" resultMap="mstUserListJdbcRow">
+        <include refid="userEnrichedSelect"/>
+        WHERE COALESCE(CAST(u.owner_yn AS VARCHAR), 'N') &lt;&gt; 'Y'
+          AND COALESCE(CAST(u.work_yn AS VARCHAR), 'Y') = 'N'
+        ORDER BY u.leave_dt DESC NULLS LAST, u.user_name
     </select>
 
     <select id="selectUserEnrichedById" resultMap="mstUserListJdbcRow">

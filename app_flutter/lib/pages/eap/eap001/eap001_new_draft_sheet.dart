@@ -4,48 +4,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app_flutter/core/theme/app_colors.dart';
-import 'package:app_flutter/pages/eap/eap001/eap001_basic_draft_view.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:app_flutter/core/web/iframe_pointer_gate.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_provider.dart';
-import 'package:app_flutter/pages/eap/eap001/eap001_transfer_draft_view.dart';
-import 'package:app_flutter/pages/eap/eap001/eap001_transfer_form_data.dart';
+import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 
 Future<void> showEapNewDraftSheet(BuildContext context) async {
-  final formCode = await showModalBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (ctx) => const _EapNewDraftSheet(),
-  );
-  if (!context.mounted || formCode == null || formCode.isEmpty) return;
-
-  // 바텀시트 dispose 직후 플랫폼 뷰/iframe 부착 시 Web EngineFlutterView race 방지
-  await Future<void>.delayed(const Duration(milliseconds: 320));
-  if (!context.mounted) return;
-
-  // 업무기안(yeokjeon_eap01)
-  if (formCode == kEapBasicFormCode ||
-      formCode.toLowerCase().contains('eap01')) {
-    await openEapBasicDraft(context, formCode: formCode);
-    return;
+  IframePointerGate.push();
+  try {
+    final formCode = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => const _EapNewDraftSheet(),
+    );
+    if (!context.mounted || formCode == null || formCode.isEmpty) return;
+    context.go(EapRoutes.composeWith(formCode));
+  } finally {
+    IframePointerGate.pop();
   }
-
-  // 양수도·명의변경(yeokjeon_eap02) — ERP 전용 작성 화면
-  if (formCode == kEapTransferFormCode ||
-      formCode.toLowerCase().contains('eap02')) {
-    await openEapTransferDraft(context, formCode: formCode);
-    return;
-  }
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(
-        '선택한 양식($formCode)용 작성 화면은 아직 없습니다.\n'
-        '업무기안($kEapBasicFormCode) 또는 '
-        '양수도 / 명의변경 품의서($kEapTransferFormCode)를 선택해 주세요.',
-      ),
-      duration: const Duration(seconds: 5),
-    ),
-  );
 }
 
 class _EapNewDraftSheet extends ConsumerStatefulWidget {
@@ -59,7 +37,9 @@ class _EapNewDraftSheetState extends ConsumerState<_EapNewDraftSheet> {
   String? _formCode;
 
   void _onWrite() {
-    final code = _formCode;
+    final forms = ref.read(eapEnabledFormsProvider).valueOrNull;
+    final code = _formCode ??
+        (forms != null && forms.isNotEmpty ? forms.first.formCode : null);
     if (code == null || code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('결재 양식을 선택해 주세요.')),
@@ -122,22 +102,8 @@ class _EapNewDraftSheetState extends ConsumerState<_EapNewDraftSheet> {
                             ),
                           )
                           .toList();
-                      // 양수도 양식을 기본 선택
-                      String? preferred;
-                      for (final f in forms) {
-                        if (f.formCode == kEapTransferFormCode) {
-                          preferred = f.formCode;
-                          break;
-                        }
-                      }
                       final selected = _formCode ??
-                          preferred ??
                           (forms.isNotEmpty ? forms.first.formCode : null);
-                      if (_formCode == null && selected != null) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) setState(() => _formCode = selected);
-                        });
-                      }
                       return DropdownButtonFormField<String>(
                         initialValue: selected,
                         decoration: const InputDecoration(

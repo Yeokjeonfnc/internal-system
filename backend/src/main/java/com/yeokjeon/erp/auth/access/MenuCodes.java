@@ -58,4 +58,7 @@ public final class MenuCodes {
 
     /** 가맹점주 관리 */
     public static final String MST006 = "mst006";
+
+    /** 서식관리 */
+    public static final String MST007 = "mst007";
 }

@@ -12,6 +12,8 @@ abstract final class UserMstApiJsonKeys {
   static const String positionCd = 'positionCd';
   static const String positionNm = 'positionNm';
   static const String joinDt = 'joinDt';
+  static const String workYn = 'workYn';
+  static const String leaveDt = 'leaveDt';
 
   static const String userPassword = 'userPassword';
 

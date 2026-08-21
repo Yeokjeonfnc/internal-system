@@ -5,8 +5,36 @@ import 'package:provider/provider.dart' as provider;
 
 import 'package:app_flutter/core/accessibility/font_scale_provider.dart';
 
-class AppTextScaleShell extends StatelessWidget {
+class AppTextScaleShell extends StatefulWidget {
   const AppTextScaleShell({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<AppTextScaleShell> createState() => _AppTextScaleShellState();
+}
+
+class _AppTextScaleShellState extends State<AppTextScaleShell> {
+  late final OverlayEntry _entry = OverlayEntry(
+    builder: (context) => _AppTextScaleBody(child: widget.child),
+  );
+
+  @override
+  void didUpdateWidget(covariant AppTextScaleShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.child, widget.child)) {
+      _entry.markNeedsBuild();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Overlay(initialEntries: [_entry]);
+  }
+}
+
+class _AppTextScaleBody extends StatelessWidget {
+  const _AppTextScaleBody({required this.child});
 
   final Widget child;
 
@@ -51,8 +79,7 @@ class _FontScaleBadge extends StatelessWidget {
   Widget build(BuildContext context) => Material(
     color: Colors.transparent,
     child: Tooltip(
-      message:
-          'Ctrl + \uB9C8\uC6B0\uC2A4 \uD720\uC744\uB85C \uAE00\uC790 \uD06C\uAE30 \uC870\uC808',
+      message: 'Ctrl + 마우스 휠로 글자 크기 조절',
       child: InkWell(
         onTap: settings.reset,
         borderRadius: BorderRadius.circular(18),

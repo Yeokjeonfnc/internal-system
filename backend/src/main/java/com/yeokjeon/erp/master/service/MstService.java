@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -47,6 +48,12 @@ public class MstService {
 
     public List<UserMstDto> getAll(Integer deptIdx) {
         return mstUserMapper.selectUsersEnriched(deptIdx).stream()
+                .map(UserMstDto::fromJdbcRow)
+                .collect(Collectors.toList());
+    }
+
+    public List<UserMstDto> getResigned() {
+        return mstUserMapper.selectResignedUsersEnriched().stream()
                 .map(UserMstDto::fromJdbcRow)
                 .collect(Collectors.toList());
     }
@@ -164,6 +171,26 @@ public class MstService {
         log.info("사용자 삭제 완료: {}", userIdx);
     }
 
+    /**
+     * 퇴사 처리 — 계정 행은 유지하고 재직 플래그만 내린다. 로그인·SV 권한을 끊고
+     * 목록에서는 제외된다({@code work_yn='N'}).
+     */
+    @Transactional
+    public UserMstDto resign(int userIdx, LocalDate leaveDt) {
+        MstUser user = mstUserRepository.findById(userIdx)
+                .orElseThrow(() -> new ResourceNotFoundException("사용자", "userIdx", userIdx));
+        if (user.getWorkYn() != null && user.getWorkYn() == 'N') {
+            throw new IllegalStateException("이미 퇴사 처리된 사원입니다.");
+        }
+        user.setWorkYn('N');
+        user.setLeaveDt(leaveDt != null ? leaveDt : LocalDate.now());
+        user.setSvYn('N');
+        normalize(user);
+        MstUser saved = mstUserRepository.save(user);
+        log.info("사용자 퇴사 처리 완료: {}", userIdx);
+        return loadUserDtoAfterSave(saved);
+    }
+
     private static String trimToNull(String s) {
         if (s == null) {
             return null;
@@ -185,6 +212,9 @@ public class MstService {
         }
         if (user.getOwnerYn() == null) {
             user.setOwnerYn('N');
+        }
+        if (user.getWorkYn() == null) {
+            user.setWorkYn('Y');
         }
     }
 

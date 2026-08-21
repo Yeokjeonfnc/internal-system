@@ -15,6 +15,10 @@ User _$UserFromJson(Map<String, dynamic> json) => User(
   email: json['userEmail'] as String,
   joinDt: _joinDtFromJson(json['joinDt']),
   svYn: _svYnFromJsonField(json['svYn']),
+  workYn: json['workYn'] == null
+      ? WorkYn.yes
+      : _workYnFromJsonField(json['workYn']),
+  leaveDt: _joinDtFromJson(json['leaveDt']),
   ownerYn: json['ownerYn'] == null
       ? OwnerYn.no
       : _ownerYnFromJsonField(json['ownerYn']),
@@ -35,5 +39,7 @@ Map<String, dynamic> _$UserToJson(User instance) => <String, dynamic>{
   'joinDt': instance.joinDt,
   'userId': instance.userId,
   'svYn': _svYnToJson(instance.svYn),
+  'workYn': _workYnToJson(instance.workYn),
+  'leaveDt': instance.leaveDt,
   'ownerYn': _ownerYnToJson(instance.ownerYn),
 };

@@ -10,6 +10,8 @@ enum SvYn { yes, no }
 
 enum OwnerYn { yes, no }
 
+enum WorkYn { yes, no }
+
 @JsonSerializable()
 class User {
   const User({
@@ -21,6 +23,8 @@ class User {
     required this.email,
     required this.joinDt,
     required this.svYn,
+    this.workYn = WorkYn.yes,
+    this.leaveDt = '',
     this.ownerYn = OwnerYn.no,
     this.userId = '',
     this.deptIdx,
@@ -65,6 +69,17 @@ class User {
     toJson: _svYnToJson,
   )
   final SvYn svYn;
+
+  @JsonKey(
+    name: UserMstApiJsonKeys.workYn,
+    fromJson: _workYnFromJsonField,
+    toJson: _workYnToJson,
+    defaultValue: WorkYn.yes,
+  )
+  final WorkYn workYn;
+
+  @JsonKey(name: UserMstApiJsonKeys.leaveDt, fromJson: _joinDtFromJson)
+  final String leaveDt;
 
   @JsonKey(
     name: UserMstApiJsonKeys.ownerYn,
@@ -173,6 +188,17 @@ SvYn _svYnFromJsonField(Object? value) {
 }
 
 String _svYnToJson(SvYn v) => v == SvYn.yes ? 'Y' : 'N';
+
+WorkYn _workYnFromJsonField(Object? value) {
+  if (value is WorkYn) return value;
+  if (value is bool) return value ? WorkYn.yes : WorkYn.no;
+  if (value is num) return value != 0 ? WorkYn.yes : WorkYn.no;
+  final s = value?.toString().trim().toUpperCase() ?? '';
+  if (s == 'Y' || s == 'TRUE' || s == '1') return WorkYn.yes;
+  return WorkYn.no;
+}
+
+String _workYnToJson(WorkYn v) => v == WorkYn.yes ? 'Y' : 'N';
 
 OwnerYn _ownerYnFromJsonField(Object? value) {
   if (value is OwnerYn) return value;

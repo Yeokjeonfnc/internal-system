@@ -152,8 +152,7 @@ public class ActController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "userId", required = false) String userId,
             HttpServletRequest request) {
-        menuAccessGuard.ensure(
-                MenuAccessGuard.callerId(request), MenuCodes.ACT002, MenuAccessGuard.Action.CREATE);
+        ensureAct002Write(request, actIdx);
         log.info("활동 첨부 업로드: actIdx={}, file={}", actIdx, file.getOriginalFilename());
         ActAttachmentDto created = actAttachmentService.upload(actIdx, file, userId);
         return ResponseEntity
@@ -192,8 +191,7 @@ public class ActController {
             @PathVariable Integer actIdx,
             @RequestParam("file") MultipartFile file,
             HttpServletRequest request) {
-        menuAccessGuard.ensure(
-                MenuAccessGuard.callerId(request), MenuCodes.ACT002, MenuAccessGuard.Action.CREATE);
+        ensureAct002Write(request, actIdx);
         log.info("활동 전자서명 업로드: actIdx={}", actIdx);
         actSignatureService.upload(actIdx, file);
         return ResponseEntity.ok(ApiResponse.success("전자서명이 저장되었습니다", null));
@@ -244,8 +242,7 @@ public class ActController {
     @PostMapping("/activities")
     public ResponseEntity<ApiResponse<ActiveMstResponseDto>> activityCreate(
             @RequestBody ActiveMstWriteRequestDto body, HttpServletRequest request) {
-        menuAccessGuard.ensure(
-                MenuAccessGuard.callerId(request), MenuCodes.ACT002, MenuAccessGuard.Action.CREATE);
+        ensureAct002Register(request);
         log.info("활동관리 생성 요청");
         ActiveMstResponseDto created = actService.create(body);
         return ResponseEntity
@@ -258,8 +255,7 @@ public class ActController {
             @PathVariable Integer actIdx,
             @RequestBody ActiveMstWriteRequestDto body,
             HttpServletRequest request) {
-        menuAccessGuard.ensure(
-                MenuAccessGuard.callerId(request), MenuCodes.ACT002, MenuAccessGuard.Action.UPDATE);
+        ensureAct002Write(request, actIdx);
         log.info("활동관리 수정 요청: {}", actIdx);
         ActiveMstResponseDto updated = actService.update(actIdx, body);
         return ResponseEntity.ok(ApiResponse.success("활동관리가 수정되었습니다", updated));
@@ -364,5 +360,39 @@ public class ActController {
                 MenuAccessGuard.callerId(request), MenuCodes.ACT003, MenuAccessGuard.Action.UPDATE);
         actService.markActivityApprovalAcknowledged(userId, actIdx, apprNotes);
         return ResponseEntity.ok(ApiResponse.success("결재 확인이 반영되었습니다.", null));
+    }
+
+    /**
+     * 활동등록 화면은 사이드바 조회(VIEW)만 있어도 열린다.
+     * 현장 계정은 등록/수정 체크가 비어 있는 경우가 많아, 본인 기안 작성·첨부는
+     * 조회만으로도 허용한다. 타인 문서 수정·삭제는 기존처럼 수정/삭제 권한이 필요하다.
+     */
+    private void ensureAct002Register(HttpServletRequest request) {
+        menuAccessGuard.ensureAny(
+                MenuAccessGuard.callerId(request),
+                MenuCodes.ACT002,
+                MenuAccessGuard.Action.VIEW,
+                MenuAccessGuard.Action.CREATE,
+                MenuAccessGuard.Action.UPDATE);
+    }
+
+    private void ensureAct002Write(HttpServletRequest request, Integer actIdx) {
+        String caller = MenuAccessGuard.callerId(request);
+        if (actIdx == null) {
+            ensureAct002Register(request);
+            return;
+        }
+        ActiveMstResponseDto existing = actService.one(actIdx);
+        String status = existing.apprStatus() == null ? "" : existing.apprStatus().trim();
+        String writer = existing.svId() == null ? "" : existing.svId().trim();
+        String uid = caller == null ? "" : caller.trim();
+        boolean ownDraft = "DRAFT".equalsIgnoreCase(status)
+                && !writer.isEmpty()
+                && writer.equalsIgnoreCase(uid);
+        if (ownDraft) {
+            ensureAct002Register(request);
+            return;
+        }
+        menuAccessGuard.ensure(caller, MenuCodes.ACT002, MenuAccessGuard.Action.UPDATE);
     }
 }

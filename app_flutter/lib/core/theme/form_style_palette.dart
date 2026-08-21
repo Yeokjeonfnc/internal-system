@@ -31,9 +31,8 @@ class FormStylePalette {
   /// 헤더 행 배경.
   static const Color tableHeaderBg = AppTheme.tableHeaderBackground;
 
-  /// 결재정보 표 — 좌측 열: 목록 [ErpDataTable] 헤더와 동일 ([AppTheme.accentRed] + 흰 글씨).
-  /// 본문 칸: 카드·필드와 맞는 밝은 배경 (참고 이미지 틴트 금지).
-  static const Color approvalTableLabelColumn = AppTheme.accentRed;
+  /// 결재정보 표 — 좌측 열: 살몬 레드 + 흰 글씨. 본문 칸: 흰 배경.
+  static const Color approvalTableLabelColumn = Color.fromARGB(255, 218, 79, 86);
   static const Color approvalTableDataBg = AppTheme.cardBackground;
   static const Color approvalTableBorder = panelBorder;
 

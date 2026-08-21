@@ -17,7 +17,13 @@ public interface EapFormConfigMapper {
 
     EapFormConfigJdbcRow selectByCode(@Param("formCode") String formCode);
 
-    int insert(EapFormConfigSaveRequestDto body);
+    void lockFormCode();
+
+    int selectNextSeq(@Param("year") String year);
+
+    int insert(
+            @Param("formCode") String formCode,
+            @Param("body") EapFormConfigSaveRequestDto body);
 
     int update(
             @Param("formCode") String formCode,

@@ -21,6 +21,8 @@ public record UserMstDto(
         String positionNm,
         Character ownerYn,
         LocalDate joinDt,
+        Character workYn,
+        LocalDate leaveDt,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -38,6 +40,8 @@ public record UserMstDto(
                 r.positionNm(),
                 firstChar(r.ownerYn()),
                 r.joinDt(),
+                firstChar(r.workYn()),
+                r.leaveDt(),
                 r.createdAt() != null ? r.createdAt().toInstant() : null,
                 r.updatedAt() != null ? r.updatedAt().toInstant() : null);
     }
@@ -57,6 +61,8 @@ public record UserMstDto(
                 null,
                 u.getOwnerYn(),
                 u.getJoinDt(),
+                u.getWorkYn(),
+                u.getLeaveDt(),
                 u.getCreatedAt() != null ? u.getCreatedAt().toInstant() : null,
                 u.getUpdatedAt() != null ? u.getUpdatedAt().toInstant() : null);
     }

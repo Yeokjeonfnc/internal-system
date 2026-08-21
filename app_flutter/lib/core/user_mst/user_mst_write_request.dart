@@ -29,4 +29,6 @@ abstract final class UserMstApiPaths {
   static String one(int userIdx) => '$root/$userIdx';
 
   static const String checkUserId = '$root/check-user-id';
+
+  static const String resigned = '$root/resigned';
 }

@@ -1,3 +1,52 @@
+import 'package:app_flutter/pages/franchise/str001/str001_model.dart';
+
+/// 가맹점 목록 — 계약상태 다중 선택 칩 라벨.
+const List<String> kStoreContractStatusLabels = [
+  '신규계약',
+  '재계약',
+  '양수도',
+  '폐점',
+];
+
+/// 테이블·필터 공통 계약상태 표시명.
+String storeContractStatusLabel(Store store) {
+  final nm = store.storeStatusNm.trim();
+  if (nm.isNotEmpty) return nm;
+  return switch (store.storeStatus.toLowerCase()) {
+    'new' => '신규계약',
+    'renewal' => '재계약',
+    'transfer' => '양수도',
+    'closed' => '폐점',
+    _ => store.storeStatus,
+  };
+}
+
+/// 선택된 계약상태(OR) — 비어 있으면 전체.
+bool storeMatchesContractStatusFilter(Set<String> selected, Store store) {
+  if (selected.isEmpty) return true;
+  return selected.contains(storeContractStatusLabel(store));
+}
+
+/// 조건 값 — 쉼표 구분 계약상태(다중 선택).
+Set<String> parseContractStatusConditionValue(String value) {
+  return value
+      .split(',')
+      .map((e) => e.trim())
+      .where(kStoreContractStatusLabels.contains)
+      .toSet();
+}
+
+String joinContractStatusConditionValue(Set<String> selected) {
+  final list = selected.toList()..sort();
+  return list.join(',');
+}
+
+bool storeMatchesContractStatusCondition(String value, Store store) {
+  final selected = parseContractStatusConditionValue(value);
+  if (selected.isEmpty) return true;
+  return selected.contains(storeContractStatusLabel(store));
+}
+
 class StoreFilter {
   const StoreFilter({
     this.storeKeyword = '',
@@ -32,13 +81,19 @@ class StoreFilter {
   );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-    'version': 2,
+    'version': 3,
+    'storeStatus': storeStatus.toList(growable: false),
     'conditions': conditions.map((e) => e.toJson()).toList(),
   };
 
   factory StoreFilter.fromJson(Map<String, dynamic> json) {
     final rawConditions = json['conditions'];
+    final rawStatuses = json['storeStatus'];
+    final statuses = rawStatuses is List
+        ? rawStatuses.map((e) => e.toString()).toSet()
+        : const <String>{};
     return StoreFilter(
+      storeStatus: statuses,
       conditions: rawConditions is List
           ? rawConditions
                 .whereType<Map>()
@@ -91,6 +146,7 @@ enum StoreFilterField {
   address('\uC8FC\uC18C'),
   contractStartDate('\uACC4\uC57D \uC2DC\uC791\uC77C'),
   contractEndDate('\uACC4\uC57D \uB9CC\uB8CC\uC77C'),
+  contractStatus('\uACC4\uC57D\uC0C1\uD0DC'),
   supervisor('SV \uB2F4\uB2F9\uC790'),
   businessNumber('\uC0AC\uC5C5\uC790\uBC88\uD638'),
   notes('\uBE44\uACE0');

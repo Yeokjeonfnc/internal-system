@@ -118,10 +118,7 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
             duration: const Duration(seconds: 20),
             content: SelectionArea(
               child: Text(
-              formatApiUserMessage(
-                e,
-                fallback: '검색 조건 저장에 실패했습니다.',
-              ),
+                formatApiUserMessage(e, fallback: '검색 조건 저장에 실패했습니다.'),
               ),
             ),
           ),
@@ -165,7 +162,7 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
       } else if (def.id == CommonSearchFieldId.storeStatus) {
         items.add(
           const _StoreContractStatusMultiSlot(
-            availableStatuses: ['신규계약', '재계약', '양수도', '폐점'],
+            availableStatuses: kStoreContractStatusLabels,
           ).toItem(),
         );
       } else if (def.id == CommonSearchFieldId.regionCd) {
@@ -547,7 +544,8 @@ class _StoreConditionFilter extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                if (filter.conditions.isNotEmpty)
+                if (filter.conditions.isNotEmpty ||
+                    filter.storeStatus.isNotEmpty)
                   TextButton(
                     onPressed: () =>
                         notifier.replaceFilter(const StoreFilter()),
@@ -618,10 +616,23 @@ class _StoreConditionRow extends StatelessWidget {
           )
           .toList(growable: false),
       onChanged: (value) {
-        if (value != null) onChanged(condition.copyWith(field: value));
+        if (value == null) return;
+        var nextValue = condition.value;
+        if (value == StoreFilterField.contractStatus) {
+          if (condition.field != StoreFilterField.contractStatus) {
+            nextValue = '';
+          } else if (parseContractStatusConditionValue(nextValue).isEmpty &&
+              kStoreContractStatusLabels.contains(nextValue.trim())) {
+            nextValue = joinContractStatusConditionValue({nextValue.trim()});
+          }
+        } else if (condition.field == StoreFilterField.contractStatus) {
+          nextValue = '';
+        }
+        onChanged(condition.copyWith(field: value, value: nextValue));
       },
     );
     final value = _StoreConditionValueField(
+      field: condition.field,
       initialValue: condition.value,
       onChanged: (next) => onChanged(condition.copyWith(value: next)),
     );
@@ -663,10 +674,12 @@ class _StoreConditionRow extends StatelessWidget {
 
 class _StoreConditionValueField extends StatefulWidget {
   const _StoreConditionValueField({
+    required this.field,
     required this.initialValue,
     required this.onChanged,
   });
 
+  final StoreFilterField field;
   final String initialValue;
   final ValueChanged<String> onChanged;
 
@@ -683,7 +696,9 @@ class _StoreConditionValueFieldState extends State<_StoreConditionValueField> {
   @override
   void didUpdateWidget(covariant _StoreConditionValueField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.initialValue != _controller.text) {
+    if (oldWidget.field != widget.field ||
+        (widget.field != StoreFilterField.contractStatus &&
+            widget.initialValue != _controller.text)) {
       _controller.text = widget.initialValue;
     }
   }
@@ -695,15 +710,66 @@ class _StoreConditionValueFieldState extends State<_StoreConditionValueField> {
   }
 
   @override
-  Widget build(BuildContext context) => TextField(
-    controller: _controller,
-    decoration: const InputDecoration(
-      isDense: true,
-      hintText: '\uAC80\uC0C9\uD560 \uAC12 \uC785\uB825',
-      prefixIcon: Icon(Icons.search_rounded, size: 19),
-    ),
-    onChanged: widget.onChanged,
-  );
+  Widget build(BuildContext context) {
+    if (widget.field == StoreFilterField.contractStatus) {
+      final selected = parseContractStatusConditionValue(widget.initialValue);
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final status in kStoreContractStatusLabels)
+            FilterChip(
+              showCheckmark: false,
+              label: Text(
+                status,
+                style: TextStyle(
+                  fontSize: kSearchFilterFontSize,
+                  fontWeight: selected.contains(status)
+                      ? FontWeight.w700
+                      : FontWeight.w500,
+                  color: _contractStatusChipColor(
+                    status,
+                    selected: selected.contains(status),
+                  ),
+                  fontFamilyFallback: AppTheme.koreanFontFallback,
+                ),
+              ),
+              selected: selected.contains(status),
+              onSelected: (_) {
+                final next = Set<String>.from(selected);
+                if (next.contains(status)) {
+                  next.remove(status);
+                } else {
+                  next.add(status);
+                }
+                widget.onChanged(joinContractStatusConditionValue(next));
+              },
+              selectedColor: _contractStatusChipSelectedBg(status),
+              backgroundColor: Colors.white,
+              side: BorderSide(
+                color: _contractStatusChipBorder(
+                  status,
+                  selected.contains(status),
+                ),
+                width: selected.contains(status) ? 1.4 : 1,
+              ),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+            ),
+        ],
+      );
+    }
+    return TextField(
+      controller: _controller,
+      decoration: const InputDecoration(
+        isDense: true,
+        hintText: '\uAC80\uC0C9\uD560 \uAC12 \uC785\uB825',
+        prefixIcon: Icon(Icons.search_rounded, size: 19),
+      ),
+      onChanged: widget.onChanged,
+    );
+  }
 }
 
 Color _contractStatusChipColor(String label, {required bool selected}) {

@@ -12,6 +12,9 @@ import 'package:app_flutter/pages/development/dev001/dev001_controller.dart';
 import 'package:app_flutter/pages/development/dev003/dev003_controller.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_controller.dart';
 
+import 'package:app_flutter/pages/master/mst006/mst006_controller.dart';
+import 'package:app_flutter/pages/eap/eap001/eap001_provider.dart';
+
 void refreshAllScreenData(WidgetRef ref) {
   SessionListCache.clearAll();
   ref.invalidate(dashboardHomeDataProvider);
@@ -33,4 +36,10 @@ void refreshAllScreenData(WidgetRef ref) {
   ref.invalidate(userProvider);
   ref.invalidate(dev003DataProvider);
   ref.invalidate(salesAreaProvider);
+  ref.invalidate(ownerUserDataProvider);
+  ref.invalidate(eapDocumentsProvider);
+  ref.invalidate(eapDocumentDetailProvider);
+  ref.invalidate(eapFormsProvider);
+  ref.invalidate(eapEnabledFormsProvider);
+  ref.invalidate(eapFormDetailProvider);
 }

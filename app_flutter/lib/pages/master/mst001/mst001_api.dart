@@ -82,6 +82,37 @@ class Mst001ApiService extends BaseRepository {
     await client.delete(UserMstApiPaths.one(userIdx));
   }
 
+  /// 퇴사자 목록 — 관리자 전용.
+  Future<List<User>> getResignedUsers() async {
+    try {
+      final r = await client.get(UserMstApiPaths.resigned);
+      if (r.statusCode != 200 || r.data == null) return const [];
+      final root = parseEnvelopeRoot(r.data);
+      final data = root?['data'];
+      if (data is! List) return const [];
+      final users = <User>[];
+      for (final raw in data) {
+        if (raw is! Map) continue;
+        try {
+          users.add(User.fromJson(Map<String, dynamic>.from(raw)));
+        } catch (e) {
+          debugPrint('getResignedUsers row parse skip: $e');
+        }
+      }
+      return users;
+    } catch (e, st) {
+      debugPrint('getResignedUsers failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  /// 퇴사 처리 — 계정 행은 유지하고 재직 플래그만 내린다(관리자 전용).
+  Future<User> resignUser(int userIdx, {required String leaveDt}) => postData(
+        '${UserMstApiPaths.one(userIdx)}/resign',
+        data: {'leaveDt': leaveDt},
+        fromJson: User.fromJson,
+      );
+
   /// 비밀번호를 초기값으로 되돌린다. 로그인ID가 없는 사원 등 서버가 거부한
   /// 경우도 예외를 던지지 않고 사유를 그대로 돌려준다(일괄 처리용).
   Future<ResetPasswordResult> resetPassword(int userIdx) async {

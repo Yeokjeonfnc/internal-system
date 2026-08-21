@@ -7,30 +7,30 @@
         <constructor>
             <arg column="form_code" javaType="java.lang.String"/>
             <arg column="form_name" javaType="java.lang.String"/>
-            <arg column="integration_type" javaType="java.lang.String"/>
-            <arg column="erp_source_menu" javaType="java.lang.String"/>
-            <arg column="html_template_key" javaType="java.lang.String"/>
-            <arg column="use_email" javaType="java.lang.Boolean"/>
-            <arg column="use_board" javaType="java.lang.Boolean"/>
             <arg column="enabled" javaType="java.lang.Boolean"/>
             <arg column="sort_order" javaType="java.lang.Integer"/>
             <arg column="created_at" javaType="java.time.OffsetDateTime"/>
             <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="category" javaType="java.lang.String"/>
+            <arg column="content_html" javaType="java.lang.String"/>
+            <arg column="field_schema" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="created_by_nm" javaType="java.lang.String"/>
         </constructor>
     </resultMap>
 
     <sql id="selectColumns">
         form_code,
         form_name,
-        integration_type,
-        erp_source_menu,
-        html_template_key,
-        use_email,
-        use_board,
         enabled,
         sort_order,
         created_at,
-        updated_at
+        updated_at,
+        category,
+        content_html,
+        field_schema,
+        created_by,
+        created_by_nm
     </sql>
 
     <select id="selectAll" resultMap="eapFormConfigRow">
@@ -52,36 +52,44 @@
         WHERE form_code = #{formCode}
     </select>
 
+    <select id="lockFormCode" resultType="java.lang.Object">
+        SELECT pg_advisory_xact_lock(hashtext('eap_form_config.form_code'))
+    </select>
+
+    <select id="selectNextSeq" resultType="int">
+        SELECT COALESCE(MAX(CAST(split_part(form_code, '-', 2) AS INTEGER)), 0) + 1
+        FROM eap_form_config
+        WHERE form_code ~ ('^' || #{year} || '-[0-9]+$')
+    </select>
+
     <insert id="insert">
         INSERT INTO eap_form_config (
-            form_code, form_name, integration_type, erp_source_menu,
-            html_template_key, use_email, use_board, enabled, sort_order,
-            created_at, updated_at
+            form_code, form_name, enabled, sort_order,
+            created_at, updated_at,
+            category, content_html, created_by, created_by_nm, field_schema
         ) VALUES (
-            TRIM(#{formCode}),
-            TRIM(#{formName}),
-            COALESCE(NULLIF(TRIM(#{integrationType}), ''), 'v4'),
-            NULLIF(TRIM(#{erpSourceMenu}), ''),
-            NULLIF(TRIM(#{htmlTemplateKey}), ''),
-            COALESCE(#{useEmail}, FALSE),
-            COALESCE(#{useBoard}, FALSE),
-            COALESCE(#{enabled}, TRUE),
-            COALESCE(#{sortOrder}, 0),
+            #{formCode},
+            TRIM(#{body.formName}),
+            COALESCE(#{body.enabled}, TRUE),
+            COALESCE(#{body.sortOrder}, 0),
             CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP
+            CURRENT_TIMESTAMP,
+            COALESCE(NULLIF(TRIM(#{body.category}), ''), '기타문서'),
+            #{body.contentHtml},
+            NULLIF(TRIM(#{body.createdBy}), ''),
+            NULLIF(TRIM(#{body.createdByNm}), ''),
+            #{body.fieldSchema}
         )
     </insert>
 
     <update id="update">
         UPDATE eap_form_config
         SET form_name = TRIM(#{body.formName}),
-            integration_type = COALESCE(NULLIF(TRIM(#{body.integrationType}), ''), integration_type),
-            erp_source_menu = NULLIF(TRIM(#{body.erpSourceMenu}), ''),
-            html_template_key = NULLIF(TRIM(#{body.htmlTemplateKey}), ''),
-            use_email = COALESCE(#{body.useEmail}, use_email),
-            use_board = COALESCE(#{body.useBoard}, use_board),
             enabled = COALESCE(#{body.enabled}, enabled),
             sort_order = COALESCE(#{body.sortOrder}, sort_order),
+            category = COALESCE(NULLIF(TRIM(#{body.category}), ''), category),
+            content_html = #{body.contentHtml},
+            field_schema = #{body.fieldSchema},
             updated_at = CURRENT_TIMESTAMP
         WHERE form_code = #{formCode}
     </update>
