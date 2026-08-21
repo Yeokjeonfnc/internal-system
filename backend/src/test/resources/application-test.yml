@@ -13,8 +13,3 @@ spring:
   h2:
     console:
       enabled: true
-
-auth:
-  token:
-    secret: test-auth-token-secret-key-32chars-min
-    persist-local-secret: false

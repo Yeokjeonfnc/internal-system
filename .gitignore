@@ -24,8 +24,6 @@ env/
 .env
 .env.*
 *.env
-application-local.yml
-.local-auth-token-secret
 secrets.json
 credentials.json
 firebase_options.dart

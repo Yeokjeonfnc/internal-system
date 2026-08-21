@@ -1,7 +1,7 @@
 # 역전 F&C 내부 ERP — 프로젝트 상세 설명
 
 > 이 문서는 **포트폴리오 작성·면접 준비·인수인계**를 위해 저장소(`internal-system`)를 기준으로 정리한 설명서입니다.  
-> 개발 실행 방법은 루트 `README.md`, 배포는 `deploy/README.md`를 참고하세요.
+> 개발 실행 방법은 루트 `README.md`, 배포는 `deploy/README.md`, 전자결재 연동 설계는 `docs/EAP_DAOU_IMPLEMENTATION_PLAN.md`를 참고하세요.
 
 ---
 
@@ -23,7 +23,7 @@
 | 현장 활동 | 방문 기록, 체크리스트, 결재·지시 |
 | 조직·권한 | 사원·부서·메뉴 권한 |
 | 협업 | 게시판, 메신저 |
-| 전자결재 | ERP 자체 기안·결재(기안하기/받은/올린/수신참조/전체문서) |
+| 전자결재 | 그룹웨어(다우오피스)와 연동한 기안 |
 
 이 프로젝트는 위 업무를 **하나의 웹/데스크톱 ERP**로 모으고, 목록·검색·상세·권한·결재 흐름을 표준 UI로 통일하는 것이 목표입니다.
 
@@ -67,6 +67,7 @@
 
 | 연동 | 용도 |
 |------|------|
+| **다우오피스 OpenAPI** | 전자결재 기안·상태 콜백 (`eap` 도메인) |
 | **카카오 지도 JS API** | 영업지역·가맹점 위치 검색/편집 |
 | (선택) NFC | 매장 출입 태그 등록·현장 앱 |
 
@@ -85,7 +86,7 @@ internal-system/
 │       ├── master/          # 사원·부서·권한·이용로그·점주계정
 │       ├── board/           # 게시판
 │       ├── chat/            # 메신저
-│       ├── eap/             # 자체 전자결재
+│       ├── eap/             # 다우 전자결재
 │       └── common/          # 공통코드 등
 ├── app_flutter/             # Flutter 클라이언트
 │   └── lib/
@@ -110,7 +111,7 @@ internal-system/
         │
         ├── MyBatis (목록·집계)
         ├── JPA (단건 저장)
-        └── 외부 API (카카오 지도 등)
+        └── 외부 API (다우 전자결재 등)
 ```
 
 ### 5.2 백엔드 역할 분리
@@ -209,15 +210,18 @@ internal-system/
 | `bbs001` | 게시판 | 폴더·게시글 |
 | `msg001` | 메신저 | WebSocket 기반 채팅방 |
 
-### 6.7 전자결재 (`eap001`) — ERP 자체 결재
+### 6.7 전자결재 (`eap001`) — 다우오피스 연동
 
-사이드바: 기안하기 / 받은결재 / 올린결재 / 수신참조결재 / 전체문서. 서식 관리는 기안하기 화면의 버튼으로 연다.
+> 사이드바 메뉴는 운영상 **비표시** 처리해 둔 상태일 수 있으나, 코드·API·양식은 저장소에 남아 있습니다.
 
 | 구성 | 설명 |
 |------|------|
-| Flutter | 서식 선택 → 결재라인(결재/합의/참조/열람) → 제목·본문 → 저장(`INPROGRESS`) / 임시저장(`TEMPSAVE`) |
-| Backend | `erp_approval_mappings` + `eap_doc_line`에 저장. 폴더 목록은 로그인 사용자 기준. 결재/반려 API |
-| 상태 | 임시저장 → 진행중 → 완료 / 반려 |
+| Flutter | 업무기안(`yeokjeon_eap01`), 양수도/명의변경(`yeokjeon_eap02`) HTML 작성 → `POST /api/eap/draft` |
+| Backend | 매핑 테이블 저장, 다우 OpenAPI로 기안 화면 URL(302) 반환, 상태 콜백 `POST /api/eap/status` |
+| 상태 | `WRITING`(작성중) → 임시저장/진행/완료/취소 등 콜백으로 갱신 |
+| 양식 | 다우 양식에는 `data-id="appContent"` 슬롯만 두고, ERP가 본문 HTML을 주입 |
+
+포트폴리오에서는 **“외부 그룹웨어 OpenAPI 연동 + 콜백 기반 상태 동기화”** 경험으로 설명하기 좋습니다.
 
 ---
 
@@ -250,6 +254,7 @@ internal-system/
    - MyBatis(조회) / JPA(저장) 역할 분리
 
 4. **외부 시스템 연동**  
+   - 다우 전자결재: partnerDocId·콜백 필드 매핑, 작성중/임시저장/진행 상태 모델  
    - 카카오맵: dart-define으로 API 키 주입
 
 ---
@@ -258,7 +263,7 @@ internal-system/
 
 - 운영 DB: PostgreSQL (`yeokjeon_db` 등)
 - 스키마/시드: `deploy/db/` (`001_schema.sql`, migrations 등)
-- **주의**: `application.yml`에 DB 비밀번호가 있을 수 있음 → 포트폴리오·공개 저장소에는 **마스킹·환경변수화** 권장
+- **주의**: `application.yml`에 DB 비밀번호·다우 키가 있을 수 있음 → 포트폴리오·공개 저장소에는 **마스킹·환경변수화** 권장
 - 로그인: `POST /api/auth/login` → 이후 메뉴 권한에 따라 화면 접근
 
 ---
@@ -278,13 +283,13 @@ internal-system/
 
 ### 한 줄 소개 예시
 
-> Flutter + Spring Boot 기반 프랜차이즈 본사 ERP. 가맹점·창업자·물건·현장활동·권한·메신저·자체 전자결재를 통합하고, 목록 UX·성능 최적화를 담당.
+> Flutter + Spring Boot 기반 프랜차이즈 본사 ERP. 가맹점·창업자·물건·현장활동·권한·메신저를 통합하고, 그룹웨어(다우) 전자결재 OpenAPI 연동 및 목록 UX·성능 최적화를 담당.
 
 ### 깊게 쓸 에피소드 후보 (2~3개만)
 
 1. **공통 ERP UI 프레임** — ShellRoute, 목록 템플릿, RuleListNotifier, 메뉴 권한  
 2. **성능** — 병렬 API + 세션 캐시로 홈/목록 체감 지연 축소  
-3. **자체 전자결재** — 기안·결재라인·폴더함(받은/올린/수신참조/전체)·결재/반려 흐름
+3. **전자결재 연동** — ERP 작성 HTML → 다우 `appContent` 주입, 콜백으로 상태 동기화  
 
 ### 주의
 
@@ -300,6 +305,9 @@ internal-system/
 |------|------|
 | `README.md` | 실행, 스택, 메뉴 표, API 개요 |
 | `docs/ERP_PROJECT_GUIDE.md` | 개발 규칙·매핑·테이블 색인 |
+| `docs/EAP_DAOU_IMPLEMENTATION_PLAN.md` | 다우 전자결재 구현 계획 |
+| `docs/daou_yeokjeon_eap01_form_appcontent.html` | 업무기안 다우 양식(슬림) |
+| `docs/daou_yeokjeon_eap02_form_appcontent.html` | 양수도 다우 양식(슬림) |
 | `deploy/README.md` | DB·필드 서버 배포 |
 | `.cursorrules` | Flutter ERP UI/폴더 규칙 |
 | `수정사항.md` | 점검·버그픽스·성능 개선 로그 |
