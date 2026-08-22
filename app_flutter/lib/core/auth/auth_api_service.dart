@@ -23,8 +23,13 @@ class AuthApiService extends BaseRepository {
     } on DioException catch (e) {
       debugPrint('로그인 에러: $e');
       rethrow;
-    } catch (e) {
-      debugPrint('로그인 에러: $e');
+    } catch (e, st) {
+      // 여기로 오는 것은 응답 파싱·타입 오류 같은 **우리 쪽 결함**이다.
+      // 예전에는 조용히 null 을 돌려줬는데, 그러면 화면에는 "아이디 또는 비밀번호가
+      // 올바르지 않습니다" 로 표시된다. 비밀번호는 맞는데 로그인이 안 되는 상황에서
+      // 사용자도 우리도 원인을 알 수 없게 된다. 로그로 남기고 그대로 올린다.
+      debugPrint('로그인 응답 처리 실패: $e\n$st');
+      rethrow;
     }
     return null;
   }

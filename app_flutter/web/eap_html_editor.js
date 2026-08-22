@@ -2935,13 +2935,22 @@
     return html;
   }
 
+  /** 붙여넣기한 문서의 <style> 을 편집기에 적용한다. */
   function injectStyles(cssList) {
+    if (!cssList || !cssList.length) return;
+    // 예전에는 붙여넣을 때마다 <style> 을 head 에 **무한정 덧붙였다.**
+    // 워드·엑셀 문서를 몇 번만 붙여넣어도 규칙이 수백 개로 쌓여 렌더가 느려지고,
+    // 예전에 붙여넣은 문서의 스타일이 지금 문서에까지 계속 영향을 준다.
+    // 붙여넣기용 스타일은 **마지막 것만** 유지한다.
+    var MAX_KEEP = 8;
     cssList.forEach(function (css) {
       var s = document.createElement('style');
       s.setAttribute('data-eap-paste', '1');
       s.textContent = window.eapSanitizePasteCss ? window.eapSanitizePasteCss(css) : css;
       document.head.appendChild(s);
     });
+    var all = document.head.querySelectorAll('style[data-eap-paste="1"]');
+    for (var i = 0; i < all.length - MAX_KEEP; i++) all[i].remove();
   }
 
   function editorLooksEmpty() {

@@ -10,6 +10,27 @@ import 'package:flutter/material.dart';
 
 import 'package:app_flutter/core/web/iframe_pointer_gate.dart';
 
+/// 이 메시지가 **내가 띄운 iframe** 에서 온 것인지 확인한다.
+///
+/// 각 호스트는 `html.window.onMessage` 라는 **전역** 스트림을 듣는다. 그래서
+/// 같은 화면에 iframe 이 둘 이상 있으면(기안하기는 채우기용·편집기용 두 개를
+/// 동시에 들고 있다) 서로의 응답까지 받아 보게 되고, 요청 id 가 겹치면 엉뚱한
+/// 쪽 답을 자기 것으로 처리한다. 광고·확장프로그램 등 제3의 프레임이 같은
+/// 모양의 메시지를 보내는 것도 막지 못한다.
+///
+/// 출처(origin) 검사는 여기서 쓸 수 없다 — iframe 이 같은 출처라서 구분이 안 된다.
+/// 보낸 창(window) 자체가 내 iframe 인지로 판정한다.
+bool isFromEapIframe(html.MessageEvent e, html.IFrameElement? iframe) {
+  if (iframe == null) return false;
+  final win = e.source;
+  if (win == null) return false;
+  try {
+    return identical(win, iframe.contentWindow);
+  } catch (_) {
+    return false;
+  }
+}
+
 /// iframe ↔ Flutter postMessage 페이로드 파싱.
 Map<dynamic, dynamic>? parseEapIframeMessage(dynamic raw) {
   if (raw is Map) return raw;

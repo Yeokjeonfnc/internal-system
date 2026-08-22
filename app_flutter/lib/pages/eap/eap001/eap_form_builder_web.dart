@@ -154,6 +154,8 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost>
   }
 
   void _onMessage(html.MessageEvent e) {
+    // 전역 메시지 스트림이라 다른 iframe 의 응답도 들어온다 — 내 것만 처리한다.
+    if (!isFromEapIframe(e, _iframe)) return;
     final data = parseEapIframeMessage(e.data);
     if (data == null) return;
     final type = data['type']?.toString();
@@ -406,6 +408,8 @@ class _EapFormFillHostState extends State<EapFormFillHost>
   }
 
   void _onMessage(html.MessageEvent e) {
+    // 전역 메시지 스트림이라 다른 iframe 의 응답도 들어온다 — 내 것만 처리한다.
+    if (!isFromEapIframe(e, _iframe)) return;
     final data = parseEapIframeMessage(e.data);
     if (data == null) return;
     final type = data['type']?.toString();

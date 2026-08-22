@@ -11,6 +11,7 @@ import 'package:app_flutter/core/theme/form_style_palette.dart';
 import 'package:app_flutter/core/widgets/common/form/common_labeled_form_row.dart';
 import 'package:app_flutter/core/widgets/common/form/common_readonly_field.dart';
 import 'package:app_flutter/pages/eap/eap001/dialogs/eap001_dialog_form_builder.dart';
+import 'package:app_flutter/core/web/iframe_pointer_gate.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_content_html_preview.dart';
 import 'package:app_flutter/pages/eap/eap001/eap_form_builder.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_model.dart';
@@ -162,6 +163,13 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
   Future<void> _openBuilder() async {
     if (_openingBuilder) return;
     setState(() => _openingBuilder = true);
+    // 다이얼로그가 떠 있는 동안 뒤쪽 미리보기 iframe 의 마우스 입력을 끈다.
+    //
+    // iframe 은 Flutter 가 그리는 화면 위에 얹힌 별개의 DOM 이라, 모달을 띄워도
+    // **그 위로 겹친 영역의 클릭을 iframe 이 먼저 가져간다.** 그래서 편집기
+    // 다이얼로그 안을 눌렀는데 아무 반응이 없는 일이 생긴다.
+    // (기안하기 쪽 `_pickLine`·`_pickFormField` 는 이미 이 처리를 하고 있었다.)
+    IframePointerGate.push();
     try {
       final result = await showEapFormEditorDialog(
         context,
@@ -173,6 +181,7 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
         _fieldSchemaJson = result.schemaJson;
       });
     } finally {
+      IframePointerGate.pop();
       if (mounted) setState(() => _openingBuilder = false);
     }
   }

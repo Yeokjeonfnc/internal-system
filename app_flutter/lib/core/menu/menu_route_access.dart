@@ -116,9 +116,7 @@ final _menuListRoutes = <(String, String)>[
 ];
 
 /// 조회 권한이 있는 첫 화면 경로(대시보드 우선).
-String? firstAllowedRoute(
-  bool Function(String menuCd) canViewMenu,
-) {
+String? firstAllowedRoute(bool Function(String menuCd) canViewMenu) {
   for (final entry in _menuListRoutes) {
     if (canViewMenu(entry.$1)) {
       return entry.$2;
