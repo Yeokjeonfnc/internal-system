@@ -109,7 +109,7 @@ void main() {
     // 확인 화면이 사원관리 목록을 그대로 다시 보여주는 것과 다를 게 없다"는
     // 신고를 재현·검증하기 위한 테스트.
 
-    ParsedUserCsvRow _rowFrom(User u) => ParsedUserCsvRow(
+    ParsedUserCsvRow rowFrom(User u) => ParsedUserCsvRow(
           name: u.name,
           department: u.department,
           positionNm: u.positionNm,
@@ -121,13 +121,13 @@ void main() {
 
     test('CSV 를 그대로 재업로드하면(무변경) 변경 없음으로 판정한다', () {
       final existing = _user(idx: 1, name: '홍길동', userId: 'hong');
-      final diff = diffUserCsvRow(_rowFrom(existing), existing);
+      final diff = diffUserCsvRow(rowFrom(existing), existing);
       expect(diff.hasAnyChange, isFalse);
     });
 
     test('부서만 바뀌면 부서만 변경으로 표시되고 다른 필드는 아니다', () {
       final existing = _user(idx: 1, name: '홍길동', userId: 'hong');
-      final row = _rowFrom(existing);
+      final row = rowFrom(existing);
       final changedRow = ParsedUserCsvRow(
         name: row.name,
         department: '영업2팀',
@@ -149,7 +149,7 @@ void main() {
 
     test('태그사용여부(Y/N)만 바뀌어도 감지된다', () {
       final existing = _user(idx: 1, name: '홍길동', userId: 'hong', sv: SvYn.no);
-      final row = _rowFrom(existing);
+      final row = rowFrom(existing);
       final changedRow = ParsedUserCsvRow(
         name: row.name,
         department: row.department,
@@ -184,7 +184,7 @@ void main() {
 
     test('로그인ID 자체가 바뀌면 감지된다(이름 기반 ID → 이메일로 전환)', () {
       final existing = _user(idx: 1, name: '홍길동', userId: 'hong');
-      final row = _rowFrom(existing);
+      final row = rowFrom(existing);
       final changedRow = ParsedUserCsvRow(
         userIdx: row.userIdx,
         name: row.name,

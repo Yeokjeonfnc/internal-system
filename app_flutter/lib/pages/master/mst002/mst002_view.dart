@@ -556,6 +556,11 @@ class _DepartmentTreePane extends StatelessWidget {
                     vertical: 8,
                   ),
                   itemCount: rows.length,
+                  // onReorderItem 로 바꾸라는 경고는 로컬 SDK(3.41.4)엔 아직 그
+                  // 콜백 자체가 없다 — CI가 channel: stable 로 버전을 고정하지
+                  // 않아 그 사이 나온 최신 stable 에서만 뜬다. 동작 자체는 여전히
+                  // 정상이라 API 를 검증 없이 바꾸는 대신 여기서만 억제해 둔다.
+                  // ignore: deprecated_member_use
                   onReorder: onReorder,
                   itemBuilder: rowFor,
                 )

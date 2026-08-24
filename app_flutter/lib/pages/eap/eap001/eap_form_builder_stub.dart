@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 class EapFormBuilderController {
   String _html = '';
-  String _schemaJson = '[]';
+  final String _schemaJson = '[]';
 
   void setHtml(String html) => _html = html;
 
@@ -25,13 +25,13 @@ class EapFormBuilderHost extends StatelessWidget {
 
 class EapFormFillController {
   String _html = '';
-  Map<String, String> _context = {};
 
   void setHtml(String html) => _html = html;
 
-  void setContext(Map<String, String> context) {
-    _context = Map<String, String>.from(context);
-  }
+  // 웹 버전(eap_form_builder_web.dart)과 같은 인터페이스를 맞추기 위한 자리.
+  // 이 스텁은 애초에 아무것도 그리지 않으므로(build 가 "웹에서만" 안내만 띄움)
+  // 받은 값을 저장해 봐야 읽는 곳이 없다 — 그래서 저장하지 않고 버린다.
+  void setContext(Map<String, String> context) {}
 
   Future<String> getHtml() async => _html;
 

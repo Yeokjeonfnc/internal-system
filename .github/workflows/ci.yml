@@ -29,7 +29,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          # 버전을 안 박아 두면 stable 채널이 그 사이 올라간 날 로컬에서는
+          # 안 나던 새 lint(deprecated_member_use 등)가 CI에서만 갑자기
+          # 뜬다 — 커밋과 무관하게 빨간불이 뜨는 원인이 된다. 로컬 개발
+          # SDK(flutter_sdk/flutter, 3.41.4)와 맞춰 고정한다.
+          flutter-version: "3.41.4"
       - run: flutter pub get
       - name: Dart analyze
         run: dart analyze

@@ -199,7 +199,8 @@ class Mal001ApiService extends BaseRepository {
       if (!isHttpSuccess(r.statusCode) || r.data == null) {
         _failResponse(r, '메일함 현황을 불러오지 못했습니다');
       }
-      return parseData(r.data, MailCounts.fromJson);
+      final result = parseData(r.data, MailCounts.fromJson);
+      return result;
     } on DioException catch (e) {
       _failDio(e, '메일함 현황을 불러오지 못했습니다.');
     }
@@ -232,23 +233,24 @@ class Mal001ApiService extends BaseRepository {
       final r = await client.patch(
         MailApiPaths.flags(mailIdx),
         data: <String, dynamic>{
-          if (read != null) 'read': read,
-          if (spam != null) 'spam': spam,
+          'read': ?read,
+          'spam': ?spam,
           // 중요표시. 서버가 아직 이 필드를 모르면 그냥 무시하고 200 을 준다 —
           // 그래서 화면은 응답으로 돌아온 `starred` 를 믿고 다시 그린다.
           // (요청만 보고 켜 두면 새로고침했을 때 별이 사라져 더 헷갈린다.)
-          if (starred != null) 'starred': starred,
+          'starred': ?starred,
           // 담당자 필드 이름이 `ownerUserId` 인 이유는 `userId` 가
           // `AuthTokenFilter` 예약어이기 때문이다(서버 DTO 주석과 동일).
-          if (ownerUserId != null) 'ownerUserId': ownerUserId,
-          if (partnerIdx != null) 'partnerIdx': partnerIdx,
-          if (mappingId != null) 'mappingId': mappingId,
+          'ownerUserId': ?ownerUserId,
+          'partnerIdx': ?partnerIdx,
+          'mappingId': ?mappingId,
         },
       );
       if (!isHttpSuccess(r.statusCode) || r.data == null) {
         _failResponse(r, '메일 상태 변경에 실패했습니다');
       }
-      return parseData(r.data, MailListItem.fromJson);
+      final result = parseData(r.data, MailListItem.fromJson);
+      return result;
     } on DioException catch (e) {
       _failDio(e, '메일 상태 변경에 실패했습니다.');
     }
@@ -317,7 +319,8 @@ class Mal001ApiService extends BaseRepository {
       if (!isHttpSuccess(r.statusCode) || r.data == null) {
         _failResponse(r, '첨부파일 업로드에 실패했습니다');
       }
-      return parseData(r.data, MailAttachment.fromJson);
+      final result = parseData(r.data, MailAttachment.fromJson);
+      return result;
     } on DioException catch (e) {
       _failDio(e, '첨부파일 업로드에 실패했습니다.');
     }
@@ -358,7 +361,8 @@ class Mal001ApiService extends BaseRepository {
       if (!isHttpSuccess(r.statusCode) || r.data == null) {
         _failResponse(r, '본문을 다시 가져오지 못했습니다');
       }
-      return parseData(r.data, MailDetail.fromJson);
+      final result = parseData(r.data, MailDetail.fromJson);
+      return result;
     } on DioException catch (e) {
       _failDio(e, '본문을 다시 가져오지 못했습니다.');
     }
@@ -390,7 +394,7 @@ class Mal001ApiService extends BaseRepository {
           // 실패"로 100% 실패했다.
           'mailIdxes': mailIdxList,
           'action': action,
-          if (targetFolderIdx != null) 'targetFolderIdx': targetFolderIdx,
+          'targetFolderIdx': ?targetFolderIdx,
         },
       );
       if (!isHttpSuccess(r.statusCode) || r.data == null) {
@@ -539,8 +543,8 @@ class Mal001ApiService extends BaseRepository {
       if (!isHttpSuccess(r.statusCode) || r.data == null) {
         _failResponse(r, '메일 환경설정을 불러오지 못했습니다');
       }
-      return parseDataOrNull(r.data, MailPreferences.fromJson) ??
-          MailPreferences.defaults;
+      final result = parseDataOrNull(r.data, MailPreferences.fromJson);
+      return result ?? MailPreferences.defaults;
     } on DioException catch (e) {
       _failDioFeature(e, '메일 환경설정', '메일 환경설정을 불러오지 못했습니다.');
     }
@@ -555,7 +559,8 @@ class Mal001ApiService extends BaseRepository {
       if (!isHttpSuccess(r.statusCode) || r.data == null) {
         _failResponse(r, '메일 환경설정 저장에 실패했습니다');
       }
-      return parseDataOrNull(r.data, MailPreferences.fromJson) ?? body;
+      final result = parseDataOrNull(r.data, MailPreferences.fromJson);
+      return result ?? body;
     } on DioException catch (e) {
       _failDioFeature(e, '메일 환경설정', '메일 환경설정 저장에 실패했습니다.');
     }
@@ -645,8 +650,8 @@ class Mal001ApiService extends BaseRepository {
         _failResponse(r, '자동전달 설정을 불러오지 못했습니다');
       }
       // 아직 설정한 적이 없으면 서버가 빈 응답을 줄 수 있다 — 그건 "꺼짐"이다.
-      return parseDataOrNull(r.data, MailForwardSetting.fromJson) ??
-          MailForwardSetting.off;
+      final result = parseDataOrNull(r.data, MailForwardSetting.fromJson);
+      return result ?? MailForwardSetting.off;
     } on DioException catch (e) {
       _failDioFeature(e, '메일 자동전달', '자동전달 설정을 불러오지 못했습니다.');
     }
@@ -658,7 +663,8 @@ class Mal001ApiService extends BaseRepository {
       if (!isHttpSuccess(r.statusCode) || r.data == null) {
         _failResponse(r, '자동전달 설정 저장에 실패했습니다');
       }
-      return parseDataOrNull(r.data, MailForwardSetting.fromJson) ?? body;
+      final result = parseDataOrNull(r.data, MailForwardSetting.fromJson);
+      return result ?? body;
     } on DioException catch (e) {
       _failDioFeature(e, '메일 자동전달', '자동전달 설정 저장에 실패했습니다.');
     }

@@ -173,7 +173,8 @@ class EapApiService extends BaseRepository {
       if (!isHttpSuccess(r.statusCode) || r.data == null) {
         _failResponse(r, '결재 처리에 실패했습니다');
       }
-      return parseData(r.data, EapDocument.fromJson);
+      final result = parseData(r.data, EapDocument.fromJson);
+      return result;
     } on DioException catch (e) {
       _failDio(e, '결재 처리에 실패했습니다.');
     }
@@ -188,7 +189,8 @@ class EapApiService extends BaseRepository {
       if (!isHttpSuccess(r.statusCode) || r.data == null) {
         _failResponse(r, '반려 처리에 실패했습니다');
       }
-      return parseData(r.data, EapDocument.fromJson);
+      final result = parseData(r.data, EapDocument.fromJson);
+      return result;
     } on DioException catch (e) {
       _failDio(e, '반려 처리에 실패했습니다.');
     }
