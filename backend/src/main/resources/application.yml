@@ -94,6 +94,40 @@ daou:
     form-code: ${DAOU_FORM_CODE:yeokjeon_eap01}
     callback-url: ${DAOU_CALLBACK_URL:http://localhost:3001/api/eap/status}
 
+resend:
+  api-base-url: https://api.resend.com
+  # 저장소에 키를 두지 않는다 — 환경변수로 주입. 비어 있어도 앱은 정상 기동하고 메일 기능만 비활성.
+  api-key: ${RESEND_API_KEY:}
+  webhook-secret: ${RESEND_WEBHOOK_SECRET:}
+  from-email: ${RESEND_FROM_EMAIL:}
+  from-name: ${RESEND_FROM_NAME:역전에프앤씨}
+  # 요청 본문의 fromEmail 로 허용할 주소(콤마 구분). 비우면 from-email 하나만 허용한다.
+  # Resend 는 검증된 도메인인지만 보므로, 이 목록이 없으면 도메인 안의 임의 주소(ceo@ 등)로
+  # 사칭 발송이 가능하다. 부서별 발신 주소가 필요할 때만 여기에 추가할 것.
+  allowed-from-emails: ${RESEND_ALLOWED_FROM_EMAILS:}
+  timeout-seconds: ${RESEND_TIMEOUT_SECONDS:15}
+  body-max-bytes: ${RESEND_BODY_MAX_BYTES:1048576}
+  search-max-bytes: ${RESEND_SEARCH_MAX_BYTES:102400}
+  snippet-max-chars: 300
+  attachment-max-bytes: ${RESEND_ATTACHMENT_MAX_BYTES:26214400}
+  sync:
+    # 현장(3001)·운영(3011) 인스턴스가 같은 코드로 동시에 뜨면 스케줄러가 두 배로 돌아
+    # Resend rate limit(10 req/s)을 갉아먹는다. 기본은 꺼 두고 한 인스턴스에서만 켠다.
+    enabled: ${RESEND_SYNC_ENABLED:false}
+    # 주기를 짧게 잡는다. 폴링 자체는 DB 인덱스 조회 한 번이라 싸고(대상 행이 없으면
+    # API 호출도 없다), 사용자가 체감하는 지연이 곧 이 값이다. 30초였을 때는 메일을
+    # 받고도 "본문을 아직 가져오는 중" 안내가 30초간 떠 있었다.
+    body-interval-ms: 2000
+    send-interval-ms: 1500
+    attachment-interval-ms: 4000
+    maintenance-interval-ms: 300000
+    batch-size: 20
+    max-try-cnt: 5
+    backoff-minutes: 5
+  webhook:
+    tolerance-seconds: 300      # Svix 규격 ±5분
+    verify-signature: ${RESEND_WEBHOOK_VERIFY:true}
+
 yon:
   file:
     storage-root: ${FILE_STORAGE_ROOT:./storage}

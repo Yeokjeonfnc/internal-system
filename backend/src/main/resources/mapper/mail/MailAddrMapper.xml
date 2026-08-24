@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.mail.mapper.MailAddrMapper">
+
+    <resultMap id="mailAddrRow" type="com.yeokjeon.erp.mail.dto.MailAddrDtlJdbcRow">
+        <constructor>
+            <arg column="mail_idx" javaType="java.lang.Long"/>
+            <arg column="addr_type" javaType="java.lang.String"/>
+            <arg column="seq" javaType="java.lang.Integer"/>
+            <arg column="email" javaType="java.lang.String"/>
+            <arg column="disp_nm" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <!--
+        정렬을 FROM → TO → CC → BCC → REPLY_TO 순으로 고정한다.
+        상세 화면이 이 순서를 그대로 그리므로, DB 반환 순서에 맡기면
+        같은 메일을 두 번 열었을 때 수신자 순서가 달라 보인다.
+    -->
+    <select id="selectByMailIdx" resultMap="mailAddrRow">
+        SELECT a.mail_idx,
+               a.addr_type,
+               a.seq,
+               a.email,
+               a.disp_nm
+        FROM mail_addr_dtl a
+        WHERE a.mail_idx = #{mailIdx}
+        ORDER BY CASE a.addr_type
+                     WHEN 'FROM' THEN 1
+                     WHEN 'TO' THEN 2
+                     WHEN 'CC' THEN 3
+                     WHEN 'BCC' THEN 4
+                     WHEN 'REPLY_TO' THEN 5
+                     ELSE 9
+                 END,
+                 a.seq
+    </select>
+
+    <!--
+        메일 한 통에 수신자가 수십 명일 수 있어 건별 INSERT 는 왕복이 그만큼 늘어난다.
+        본문 재수집처럼 같은 참여자가 다시 들어오는 경로가 있어 ON CONFLICT DO NOTHING
+        으로 막았다(PK 가 mail_idx + addr_type + seq).
+
+        email 을 LOWER 로 정규화하는 이유: 주소 검색이 이 컬럼의 완전일치에 의존하는데
+        발신자마다 대소문자를 제각각 써서 그대로 두면 같은 사람이 여러 명으로 갈라진다.
+    -->
+    <insert id="insertBatch">
+        INSERT INTO mail_addr_dtl (mail_idx, addr_type, seq, email, disp_nm)
+        VALUES
+        <foreach collection="rows" item="r" separator=",">
+            (#{mailIdx},
+             #{r.addrType},
+             #{r.seq},
+             LOWER(#{r.email}),
+             #{r.dispNm,jdbcType=VARCHAR})
+        </foreach>
+        ON CONFLICT (mail_idx, addr_type, seq) DO NOTHING
+    </insert>
+
+    <delete id="deleteByMailIdx">
+        DELETE FROM mail_addr_dtl WHERE mail_idx = #{mailIdx}
+    </delete>
+
+    <!--
+        "이 주소와 주고받은 메일 전부" — ERP 메일 기능의 존재 이유인 질의다.
+        저장 시 소문자로 정규화하므로 검색어도 LOWER 로 맞춰야 인덱스
+        idx_mail_addr_dtl_email (email, mail_idx) 을 그대로 탄다.
+        한 메일에 같은 주소가 TO 와 CC 로 중복될 수 있어 DISTINCT 가 필요하다.
+    -->
+    <select id="selectMailIdxByEmail" resultType="java.lang.Long">
+        SELECT DISTINCT a.mail_idx
+        FROM mail_addr_dtl a
+                 JOIN mail_mst m ON m.mail_idx = a.mail_idx AND m.deleted_yn = false
+        WHERE a.email = LOWER(#{email})
+        ORDER BY a.mail_idx DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

@@ -58,8 +58,7 @@ class EapFormBuilderHost extends ConsumerStatefulWidget {
   ConsumerState<EapFormBuilderHost> createState() => _EapFormBuilderHostState();
 }
 
-class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost>
-    with EapIframePointerGateMixin {
+class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost> {
   late final String _viewType;
   html.IFrameElement? _iframe;
   StreamSubscription<html.MessageEvent>? _sub;
@@ -67,12 +66,6 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost>
   int _req = 0;
   final Map<int, Completer<({String html, String schemaJson})>> _pending = {};
   var _alive = true;
-
-  @override
-  html.IFrameElement? get iframeForPointerGate => _iframe;
-
-  @override
-  bool get iframeHostAlive => _alive;
 
   @override
   void initState() {
@@ -85,7 +78,6 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost>
     _sub = html.window.onMessage.listen(_onMessage);
     _loadSub = iframe.onLoad.listen((_) {
       if (!_alive || !mounted) return;
-      refreshEapIframePointerGate();
       if (widget.controller._html.isNotEmpty) {
         _postSetHtml(widget.controller._html);
       }
@@ -94,13 +86,28 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost>
       setHtml: _postSetHtml,
       getFormData: _postGetFormData,
     );
-    bindEapIframePointerGate();
+    // 이 iframe 은 **일부러 `IframePointerGate` 를 안 듣는다.**
+    //
+    // 이 위젯은 항상 `showEapFormEditorDialog` 안에서만 만들어진다(=이 다이얼로그
+    // 자체가 편집기 화면이다). 그런데 그 다이얼로그를 여는 쪽(`_openBuilder`)은
+    // 열기 *전에* `IframePointerGate.push()` 를 불러서, 다이얼로그 **뒤에 깔린**
+    // 서식 미리보기 iframe 이 클릭을 가로채지 못하게 막는다.
+    //
+    // 문제는 그 게이트가 전역 카운터라 이 iframe 도 같은 신호를 듣고 있었다는
+    // 것이다 — 다이얼로그가 뜨자마자(=게이트가 켜져 있는 채로) 이 iframe 이
+    // `bindEapIframePointerGate()` 로 구독을 걸면, 처음 한 번은 물론이고 다이얼로그가
+    // 닫힐 때까지 계속 `pointer-events:none` 상태로 남는다. 팔레트·캔버스·속성
+    // 패널이 전부 이 iframe 안에 있으므로 **다이얼로그의 확인/취소만 빼고 전부
+    // 클릭이 안 먹는 것**처럼 보였다 — 실제 신고된 증상과 정확히 일치한다.
+    //
+    // 이 위젯은 항상 모달의 "맨 앞" 콘텐츠이지 뒤에 깔리는 배경이 아니므로,
+    // 게이트를 아예 구독하지 않는 것이 옳다(뒤에 깔린 미리보기를 막는 목적은
+    // 그 미리보기 쪽 호스트가 이미 담당한다).
   }
 
   @override
   void dispose() {
     _alive = false;
-    unbindEapIframePointerGate();
     widget.controller.detach();
     _loadSub?.cancel();
     _sub?.cancel();

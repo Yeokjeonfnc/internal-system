@@ -13,11 +13,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
- * 실시간 메신저 푸시 채널.
+ * 실시간 푸시 채널 — 메신저 + ERP 알림.
  *
  * <p>핸드셰이크 URL 의 {@code ?userId=...} 로 사용자를 식별하고 세션을 등록한다.
  * 방/메시지 조회·전송은 REST 로 처리하고, 이 소켓은 서버→클라이언트 푸시 전용이다.
  * 클라이언트가 보내는 프레임은 ping 정도만 처리한다.
+ *
+ * <p><b>클래스·경로 이름은 chat 이지만 메일 수신 알림도 이 소켓으로 나간다</b>
+ * ({@code MailNotifyService} → {@link ChatSessionRegistry#sendToUsers}).
+ * 경로를 새로 파지 않은 근거는 {@link ChatWebSocketConfig} 주석 참고.
+ * 이 핸들러 자체는 프레임 내용을 모르므로 알림 때문에 고칠 것은 없다.
  */
 @Slf4j
 @Component

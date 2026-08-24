@@ -34,9 +34,41 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AuthTokenFilter extends OncePerRequestFilter {
 
-    /** 토큰 없이 호출할 수 있는 경로(서블릿 context-path `/api` 를 제외한 값). */
-    private static final Set<String> PUBLIC_PATHS = Set.of("/auth/login", "/health");
+    /**
+     * 토큰 없이 호출할 수 있는 경로(서블릿 context-path `/api` 를 제외한 값).
+     *
+     * <p>`/mail/webhook` 은 Resend 서버가 직접 POST 하는 엔드포인트라 우리 로그인 토큰을
+     * 실을 방법이 없다. 대신 Svix 서명(svix-id/svix-timestamp/svix-signature)이 유일한
+     * 방어선이므로, {@code SvixSignatureVerifier} 검증을 절대 우회하게 두지 말 것.
+     *
+     * <p>이 집합은 {@code contains} 완전일치로 비교한다 — 웹훅에 하위 경로를 만들면
+     * 그 경로는 인증이 걸려 Resend 가 401 만 받고 이벤트를 넘기지 못한다.
+     */
+    private static final Set<String> PUBLIC_PATHS =
+            Set.of("/auth/login", "/health", "/mail/webhook");
 
+    /**
+     * 완전일치로는 열 수 없어 접두사로 여는 경로.
+     *
+     * <p>{@code /mail/open/{token}.gif} 는 수신확인 추적픽셀이다. 경로 안에 토큰이
+     * 들어가므로 {@link #PUBLIC_PATHS} 의 완전일치로는 구조적으로 등록할 수 없다.
+     * 수신자의 메일 클라이언트가 부르는 요청이라 우리 로그인 토큰이 실릴 수 없고,
+     * 인증을 걸어 두면 전부 401 이 되어 수신확인이 하나도 잡히지 않는다
+     * (수신자 화면에는 깨진 이미지만 남는다).
+     *
+     * <p>토큰 자체가 방어선이다 — mail_idx 에서 HMAC 으로 유도한 값이라 서버 키
+     * 없이는 위조할 수 없고, 유출돼도 열람 시각이 기록될 뿐 메일 내용은 나가지 않는다.
+     */
+    private static final String OPEN_PIXEL_PREFIX = "/mail/open/";
+
+    /**
+     * 쿼리 토큰({@code ?token=})을 허용하는 WebSocket 경로.
+     *
+     * <p>이름은 chat 이지만 메신저 전용 채널이 아니다 — 메일 수신 알림도 이 소켓으로
+     * 나간다({@code ChatWebSocketConfig} 주석 참고). 실시간 푸시 경로를 새로 추가하는
+     * 일이 생기면 <b>여기에도 반드시 함께 등록해야 한다</b>. 안 그러면 브라우저는
+     * 헤더를 못 실어 토큰이 아예 전달되지 않고, 핸드셰이크가 401 로 끊긴다.
+     */
     private static final String WS_PATH = "/ws/chat";
 
     /** 요청 처리 중 현재 로그인 사용자를 참조할 때 쓰는 속성 키. */
@@ -51,7 +83,8 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
-        return PUBLIC_PATHS.contains(pathWithinApi(request));
+        String path = pathWithinApi(request);
+        return PUBLIC_PATHS.contains(path) || path.startsWith(OPEN_PIXEL_PREFIX);
     }
 
     @Override

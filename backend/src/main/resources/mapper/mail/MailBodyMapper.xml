@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.mail.mapper.MailBodyMapper">
+
+    <!--
+        headers_raw 는 DB 상 jsonb 지만 String 으로 받는다. 우리는 헤더를 구조적으로
+        질의하지 않고 원문 보존만 하면 되므로 역직렬화 비용을 치를 이유가 없다.
+        PostgreSQL 드라이버가 jsonb 를 getString 으로 그대로 돌려준다.
+    -->
+    <resultMap id="mailBodyRow" type="com.yeokjeon.erp.mail.dto.MailBodyJdbcRow">
+        <constructor>
+            <arg column="mail_idx" javaType="java.lang.Long"/>
+            <arg column="body_text" javaType="java.lang.String"/>
+            <arg column="body_html" javaType="java.lang.String"/>
+            <arg column="headers_raw" javaType="java.lang.String"/>
+            <arg column="search_txt" javaType="java.lang.String"/>
+            <arg column="truncated_yn" javaType="java.lang.Boolean"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <select id="selectByMailIdx" resultMap="mailBodyRow">
+        SELECT b.mail_idx,
+               b.body_text,
+               b.body_html,
+               b.headers_raw,
+               b.search_txt,
+               b.truncated_yn,
+               b.created_at,
+               b.updated_at
+        FROM mail_body b
+        WHERE b.mail_idx = #{mailIdx}
+    </select>
+
+    <!--
+        INSERT 가 아니라 UPSERT 인 이유: 본문 수집은 재시도되는 작업이고 수동
+        재수집(refresh-body)도 같은 경로를 탄다. INSERT 로 두면 두 번째 시도가
+        PK 충돌로 죽는다.
+
+        headers_raw 만 COALESCE 로 기존 값을 지키는 이유: Resend 는 수신 메일을
+        30일만 보관해서, 재수집 시점에 헤더가 비어 오면 그 값은 두 번 다시
+        얻을 수 없다. 본문은 다시 채워지지만 헤더는 유실되면 끝이다.
+    -->
+    <insert id="upsert">
+        INSERT INTO mail_body (
+            mail_idx, body_text, body_html, headers_raw, search_txt, truncated_yn,
+            created_at, updated_at
+        ) VALUES (
+            #{mailIdx},
+            #{bodyText,jdbcType=VARCHAR},
+            #{bodyHtml,jdbcType=VARCHAR},
+            CAST(#{headersRaw,jdbcType=VARCHAR} AS jsonb),
+            #{searchTxt,jdbcType=VARCHAR},
+            #{truncatedYn},
+            now(),
+            now()
+        )
+        ON CONFLICT (mail_idx) DO UPDATE
+        SET body_text    = EXCLUDED.body_text,
+            body_html    = EXCLUDED.body_html,
+            headers_raw  = COALESCE(EXCLUDED.headers_raw, mail_body.headers_raw),
+            search_txt   = EXCLUDED.search_txt,
+            truncated_yn = EXCLUDED.truncated_yn,
+            updated_at   = now()
+    </insert>
+
+    <delete id="deleteByMailIdx">
+        DELETE FROM mail_body WHERE mail_idx = #{mailIdx}
+    </delete>
+</mapper>

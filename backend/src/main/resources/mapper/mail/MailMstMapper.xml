@@ -1,0 +1,1044 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.mail.mapper.MailMstMapper">
+
+    <!--
+        arg 순서 = MailMstJdbcRow 생성자 인자 순서 = mail_mst 컬럼 순서.
+        셋 중 하나만 틀어져도 컴파일은 통과하고 런타임에 값이 뒤섞인다.
+    -->
+    <resultMap id="mailMstRow" type="com.yeokjeon.erp.mail.dto.MailMstJdbcRow">
+        <constructor>
+            <arg column="mail_idx" javaType="java.lang.Long"/>
+            <arg column="thread_idx" javaType="java.lang.Long"/>
+            <arg column="direction" javaType="java.lang.String"/>
+            <arg column="resend_email_id" javaType="java.lang.String"/>
+            <arg column="rfc_message_id" javaType="java.lang.String"/>
+            <arg column="in_reply_to" javaType="java.lang.String"/>
+            <arg column="refs_txt" javaType="java.lang.String"/>
+            <arg column="subject" javaType="java.lang.String"/>
+            <arg column="subject_norm" javaType="java.lang.String"/>
+            <arg column="from_email" javaType="java.lang.String"/>
+            <arg column="from_nm" javaType="java.lang.String"/>
+            <arg column="to_summary" javaType="java.lang.String"/>
+            <arg column="snippet" javaType="java.lang.String"/>
+            <arg column="att_cnt" javaType="java.lang.Integer"/>
+            <arg column="body_status" javaType="java.lang.String"/>
+            <arg column="body_try_cnt" javaType="java.lang.Integer"/>
+            <arg column="body_tried_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="body_err" javaType="java.lang.String"/>
+            <arg column="send_status" javaType="java.lang.String"/>
+            <arg column="send_try_cnt" javaType="java.lang.Integer"/>
+            <arg column="send_tried_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="send_err" javaType="java.lang.String"/>
+            <arg column="last_status" javaType="java.lang.String"/>
+            <arg column="last_status_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="read_yn" javaType="java.lang.String"/>
+            <arg column="spam_yn" javaType="java.lang.String"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="partner_idx" javaType="java.lang.Integer"/>
+            <arg column="mapping_id" javaType="java.lang.Long"/>
+            <arg column="mail_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="deleted_yn" javaType="java.lang.Boolean"/>
+            <!-- 2차 확장 컬럼. ALTER TABLE 로 뒤에 붙었으므로 여기서도 맨 뒤다 -->
+            <arg column="star_yn" javaType="java.lang.String"/>
+            <arg column="folder_idx" javaType="java.lang.Long"/>
+            <arg column="scheduled_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="read_receipt_yn" javaType="java.lang.String"/>
+            <arg column="opened_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="open_cnt" javaType="java.lang.Integer"/>
+            <arg column="importance" javaType="java.lang.String"/>
+            <!-- 3차 확장 컬럼. 역시 ALTER TABLE 로 뒤에 붙었으므로 여기서도 맨 뒤다 -->
+            <arg column="fwd_src_idx" javaType="java.lang.Long"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="mailCountsRow" type="com.yeokjeon.erp.mail.dto.MailCountsJdbcRow">
+        <constructor>
+            <arg column="inbox" javaType="java.lang.Integer"/>
+            <arg column="inbox_unread" javaType="java.lang.Integer"/>
+            <arg column="sent" javaType="java.lang.Integer"/>
+            <arg column="draft" javaType="java.lang.Integer"/>
+            <arg column="scheduled" javaType="java.lang.Integer"/>
+            <arg column="failed" javaType="java.lang.Integer"/>
+            <arg column="spam" javaType="java.lang.Integer"/>
+            <arg column="spam_unread" javaType="java.lang.Integer"/>
+            <arg column="trash" javaType="java.lang.Integer"/>
+            <arg column="star" javaType="java.lang.Integer"/>
+            <arg column="star_unread" javaType="java.lang.Integer"/>
+            <arg column="all_cnt" javaType="java.lang.Integer"/>
+            <arg column="all_unread" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <!--
+        사용자 정의 메일함 건수. 컬럼명이 DTO 필드명과 그대로 맞아떨어져서
+        resultMap 없이 resultType 만으로도 되지만, record 는 setter 가 없어
+        MyBatis 가 생성자 매핑을 해야 한다. 순서를 명시해 두지 않으면 인자 순서가
+        바뀌었을 때 조용히 어긋난다.
+    -->
+    <resultMap id="mailFolderCountRow" type="com.yeokjeon.erp.mail.dto.MailFolderCountDto">
+        <constructor>
+            <!--
+                **원시 타입 별칭에 주의.** MyBatis 에서 javaType="long"/"int" 은
+                Long/Integer(박싱)로 해석되고, 원시 long/int 는 "_long"/"_int" 이다.
+                MailFolderCountDto 는 record 라 생성자 인자가 원시 타입인데, 박싱 타입으로
+                적으면 MyBatis 가 일치하는 생성자를 못 찾아 **런타임에** 터진다
+                (getDeclaredConstructor 가 정확히 일치하는 시그니처를 요구한다).
+                컴파일도 SQL 검증도 통과하므로 화면을 열어 봐야 발견되는 종류의 실수다.
+            -->
+            <arg column="folder_idx" javaType="_long"/>
+            <arg column="folder_nm" javaType="java.lang.String"/>
+            <arg column="total" javaType="_int"/>
+            <arg column="unread" javaType="_int"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="mailMstColumns">
+        m.mail_idx,
+        m.thread_idx,
+        m.direction,
+        m.resend_email_id,
+        m.rfc_message_id,
+        m.in_reply_to,
+        m.refs_txt,
+        m.subject,
+        m.subject_norm,
+        m.from_email,
+        m.from_nm,
+        m.to_summary,
+        m.snippet,
+        m.att_cnt,
+        m.body_status,
+        m.body_try_cnt,
+        m.body_tried_at,
+        m.body_err,
+        m.send_status,
+        m.send_try_cnt,
+        m.send_tried_at,
+        m.send_err,
+        m.last_status,
+        m.last_status_at,
+        m.read_yn,
+        m.spam_yn,
+        m.user_id,
+        m.partner_idx,
+        m.mapping_id,
+        m.mail_at,
+        m.created_at,
+        m.updated_at,
+        m.deleted_yn,
+        m.star_yn,
+        m.folder_idx,
+        m.scheduled_at,
+        m.read_receipt_yn,
+        m.opened_at,
+        m.open_cnt,
+        m.importance,
+        m.fwd_src_idx
+    </sql>
+
+    <!--
+        목록과 카운트가 반드시 같은 조건으로 돌아야 "목록 3건 / 카운트 5건" 사고가 안 난다.
+        그래서 WHERE 를 조각으로 빼서 두 쿼리가 공유한다.
+
+        미매칭 폴더를 1 = 0 으로 막는 이유: 오타 난 폴더명에 전체 메일을 흘리면
+        임시보관·스팸까지 통째로 노출된다. 모르는 값이면 아무것도 안 주는 쪽이 안전하다.
+    -->
+    <sql id="folderWhere">
+        <where>
+            <choose>
+                <!--
+                    받은메일함에 `folder_idx IS NULL` 이 반드시 있어야 한다.
+                    사용자가 메일을 자기 메일함으로 옮겼는데 받은메일함에도 계속 보이면
+                    "정리했는데 그대로"인 상태가 되어 사용자 정의 메일함이 무의미해진다.
+                    (스팸·휴지통과 달리 사용자 함은 '분류'가 아니라 '이동'이다.)
+                -->
+                <when test="q.folder == 'inbox'">
+                    m.direction = 'IN' AND m.deleted_yn = false AND m.spam_yn = 'N'
+                    AND m.folder_idx IS NULL
+                </when>
+                <when test="q.folder == 'sent'">
+                    m.direction = 'OUT' AND m.send_status = 'SENT' AND m.deleted_yn = false
+                </when>
+                <!--
+                    임시보관함에서 SCHEDULED 는 제외된다(IN 목록에 없다). 예약 메일은
+                    예약메일함이라는 자기 자리가 따로 있어서, 양쪽에 다 보이면
+                    사용자가 같은 메일을 두 군데서 지우려 든다.
+                -->
+                <when test="q.folder == 'draft'">
+                    m.direction = 'OUT' AND m.send_status IN ('DRAFT', 'QUEUED') AND m.deleted_yn = false
+                </when>
+                <!--
+                    예약메일함. scheduled_at 이 아니라 send_status 로 고르는 이유는,
+                    예약이 취소되거나 이미 발송된 뒤에도 scheduled_at 값 자체는 이력으로
+                    남기 때문이다. "지금 예약 상태인가"는 상태 컬럼만이 답할 수 있다.
+                -->
+                <when test="q.folder == 'scheduled'">
+                    m.direction = 'OUT' AND m.send_status = 'SCHEDULED' AND m.deleted_yn = false
+                </when>
+                <when test="q.folder == 'failed'">
+                    m.direction = 'OUT' AND m.send_status = 'FAILED' AND m.deleted_yn = false
+                </when>
+                <when test="q.folder == 'spam'">
+                    m.spam_yn = 'Y' AND m.deleted_yn = false
+                </when>
+                <!--
+                    휴지통은 deleted_yn = true 하나만 본다. 방향·스팸 여부를 더 걸면
+                    "지웠는데 휴지통에 없는" 메일이 생겨 복구할 방법이 사라진다.
+                -->
+                <when test="q.folder == 'trash'">
+                    m.deleted_yn = true
+                </when>
+                <!--
+                    중요표시. 다우오피스와 같이 폴더가 아니라 빠른검색 항목이라
+                    받은/보낸/사용자함을 가리지 않고 전부 걸린다(휴지통만 제외).
+                -->
+                <when test="q.folder == 'star'">
+                    m.star_yn = 'Y' AND m.deleted_yn = false
+                </when>
+                <!--
+                    안읽음 빠른검색. 수신 메일만 대상이다 — 내가 쓴 메일은 작성 시점에
+                    read_yn='Y' 로 저장되지만, 혹시 'N' 인 행이 섞여도 여기 걸리면
+                    "내가 안 읽은 내 메일"이라는 이상한 항목이 뜬다.
+                -->
+                <when test="q.folder == 'unread'">
+                    m.read_yn = 'N' AND m.direction = 'IN' AND m.deleted_yn = false
+                    AND m.spam_yn = 'N'
+                </when>
+                <!--
+                    사용자 정의 메일함. folderIdx 가 없으면 1 = 0 으로 막는다 —
+                    조건 없는 folder_idx 조회는 남의 메일함 내용까지 전부 흘린다.
+                    (ownerUserId 필터는 mine=false 면 붙지 않으므로 여기서 막아야 한다.)
+                -->
+                <when test="q.folder == 'folder'">
+                    <choose>
+                        <when test="q.folderIdx != null">
+                            m.folder_idx = #{q.folderIdx} AND m.deleted_yn = false
+                        </when>
+                        <otherwise>
+                            1 = 0
+                        </otherwise>
+                    </choose>
+                </when>
+                <!--
+                    전체메일.
+
+                    스팸을 뺀다. '전체'라는 이름 때문에 조건을 deleted_yn 하나로 뒀더니
+                    스팸메일함으로 분류한 메일이 여기 그대로 섞여 나왔다 — 스팸으로
+                    치운다는 것은 "목록에서 안 보이게 한다"는 뜻인데, 전체메일에 남으면
+                    치운 의미가 없다. 휴지통을 빼는 것과 같은 이유다.
+
+                    보낸메일은 뺄 이유가 없다(그게 '전체'다). 스팸만 뺀다.
+
+                    ※ selectFolderCounts 의 all_cnt/all_unread 도 반드시 같은 조건이어야
+                      "목록 3건 / 뱃지 5건" 사고가 안 난다.
+                -->
+                <when test="q.folder == 'all'">
+                    m.deleted_yn = false AND m.spam_yn = 'N'
+                </when>
+                <otherwise>
+                    1 = 0
+                </otherwise>
+            </choose>
+            <if test="q.ownerUserId != null and q.ownerUserId != ''">
+                AND m.user_id = #{q.ownerUserId}
+            </if>
+            <!--
+                본문(mail_body)까지 뒤지지 않고 mail_mst 안에서만 찾는다.
+                목록 검색이 매번 본문 테이블을 조인하면 느려지고, 미리보기(snippet)에
+                이미 본문 앞부분이 들어 있어 실사용 검색은 대부분 여기서 걸린다.
+            -->
+            <if test="q.keyword != null and q.keyword != ''">
+                AND (m.subject ILIKE '%' || #{q.keyword} || '%'
+                     OR m.from_email ILIKE '%' || #{q.keyword} || '%'
+                     OR m.to_summary ILIKE '%' || #{q.keyword} || '%'
+                     OR m.snippet ILIKE '%' || #{q.keyword} || '%')
+            </if>
+            <!-- toDate 는 미만 비교다. 서비스가 '다음날 자정'을 넘겨 주므로 종일 포함이 된다 -->
+            <if test="q.fromDate != null">
+                AND m.mail_at &gt;= #{q.fromDate}
+            </if>
+            <if test="q.toDate != null">
+                AND m.mail_at &lt; #{q.toDate}
+            </if>
+        </where>
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="mailIdx" keyColumn="mail_idx">
+        <!--
+            NOT NULL 기본값 컬럼은 여기서 COALESCE 로 막는다. 호출부마다 기본값을
+            챙기게 하면 언젠가 한 곳이 빠지고 그때 제약 위반으로 INSERT 가 통째로 죽는다.
+        -->
+        INSERT INTO mail_mst (
+            thread_idx, direction, resend_email_id, rfc_message_id, in_reply_to, refs_txt,
+            subject, subject_norm, from_email, from_nm, to_summary, snippet,
+            att_cnt, body_status, send_status, read_yn,
+            user_id, partner_idx, mapping_id, mail_at, created_at, updated_at,
+            scheduled_at, read_receipt_yn, importance
+        ) VALUES (
+            #{threadIdx},
+            #{direction},
+            #{resendEmailId,jdbcType=VARCHAR},
+            #{rfcMessageId,jdbcType=VARCHAR},
+            #{inReplyTo,jdbcType=VARCHAR},
+            #{refsTxt,jdbcType=VARCHAR},
+            #{subject,jdbcType=VARCHAR},
+            #{subjectNorm,jdbcType=VARCHAR},
+            LOWER(#{fromEmail}),
+            #{fromNm,jdbcType=VARCHAR},
+            #{toSummary,jdbcType=VARCHAR},
+            #{snippet,jdbcType=VARCHAR},
+            COALESCE(#{attCnt,jdbcType=INTEGER}, 0),
+            COALESCE(#{bodyStatus,jdbcType=VARCHAR}, 'PENDING'),
+            #{sendStatus,jdbcType=VARCHAR},
+            COALESCE(#{readYn,jdbcType=VARCHAR}, 'N'),
+            #{userId,jdbcType=VARCHAR},
+            #{partnerIdx,jdbcType=INTEGER},
+            #{mappingId,jdbcType=BIGINT},
+            COALESCE(#{mailAt,jdbcType=TIMESTAMP_WITH_TIMEZONE}, now()),
+            now(),
+            now(),
+            #{scheduledAt,jdbcType=TIMESTAMP_WITH_TIMEZONE},
+            COALESCE(#{readReceiptYn,jdbcType=VARCHAR}, 'N'),
+            COALESCE(#{importance,jdbcType=VARCHAR}, 'N')
+        )
+    </insert>
+
+    <select id="selectByIdx" resultMap="mailMstRow">
+        SELECT <include refid="mailMstColumns"/>
+        FROM mail_mst m
+        WHERE m.mail_idx = #{mailIdx}
+    </select>
+
+    <select id="selectByResendEmailId" resultMap="mailMstRow">
+        SELECT <include refid="mailMstColumns"/>
+        FROM mail_mst m
+        WHERE m.resend_email_id = #{resendEmailId}
+    </select>
+
+    <select id="selectIdxByResendEmailId" resultType="java.lang.Long">
+        SELECT m.mail_idx
+        FROM mail_mst m
+        WHERE m.resend_email_id = #{resendEmailId}
+    </select>
+
+    <select id="selectByFolder" resultMap="mailMstRow">
+        SELECT <include refid="mailMstColumns"/>
+        FROM mail_mst m
+        <include refid="folderWhere"/>
+        ORDER BY m.mail_at DESC, m.mail_idx DESC
+        LIMIT #{q.limit} OFFSET #{q.offset}
+    </select>
+
+    <select id="countByFolder" resultType="int">
+        SELECT COUNT(*)
+        FROM mail_mst m
+        <include refid="folderWhere"/>
+    </select>
+
+    <!--
+        폴더별 건수를 한 번의 스캔으로 모은다. count 를 6번 던지면 왕복도 6배지만
+        무엇보다 각 쿼리 사이에 메일이 들어와 합계가 서로 안 맞는 순간이 생긴다.
+        COUNT 는 bigint 라 Integer 매핑을 위해 명시적으로 캐스팅한다.
+    -->
+    <select id="selectFolderCounts" resultMap="mailCountsRow">
+        SELECT
+            CAST(COUNT(*) FILTER (WHERE m.direction = 'IN'
+                                    AND m.deleted_yn = false
+                                    AND m.spam_yn = 'N'
+                                    AND m.folder_idx IS NULL) AS INTEGER)     AS inbox,
+            CAST(COUNT(*) FILTER (WHERE m.direction = 'IN'
+                                    AND m.deleted_yn = false
+                                    AND m.spam_yn = 'N'
+                                    AND m.folder_idx IS NULL
+                                    AND m.read_yn = 'N') AS INTEGER)          AS inbox_unread,
+            CAST(COUNT(*) FILTER (WHERE m.direction = 'OUT'
+                                    AND m.send_status = 'SENT'
+                                    AND m.deleted_yn = false) AS INTEGER)     AS sent,
+            CAST(COUNT(*) FILTER (WHERE m.direction = 'OUT'
+                                    AND m.send_status IN ('DRAFT', 'QUEUED')
+                                    AND m.deleted_yn = false) AS INTEGER)     AS draft,
+            CAST(COUNT(*) FILTER (WHERE m.direction = 'OUT'
+                                    AND m.send_status = 'SCHEDULED'
+                                    AND m.deleted_yn = false) AS INTEGER)     AS scheduled,
+            CAST(COUNT(*) FILTER (WHERE m.direction = 'OUT'
+                                    AND m.send_status = 'FAILED'
+                                    AND m.deleted_yn = false) AS INTEGER)     AS failed,
+            CAST(COUNT(*) FILTER (WHERE m.spam_yn = 'Y'
+                                    AND m.deleted_yn = false) AS INTEGER)     AS spam,
+            CAST(COUNT(*) FILTER (WHERE m.spam_yn = 'Y'
+                                    AND m.deleted_yn = false
+                                    AND m.read_yn = 'N') AS INTEGER)          AS spam_unread,
+            CAST(COUNT(*) FILTER (WHERE m.deleted_yn = true) AS INTEGER)      AS trash,
+            CAST(COUNT(*) FILTER (WHERE m.star_yn = 'Y'
+                                    AND m.deleted_yn = false) AS INTEGER)     AS star,
+            CAST(COUNT(*) FILTER (WHERE m.star_yn = 'Y'
+                                    AND m.deleted_yn = false
+                                    AND m.read_yn = 'N') AS INTEGER)          AS star_unread,
+            <!--
+                folderWhere 의 'all' 과 <b>같은 조건</b>이어야 한다(스팸 제외).
+                한쪽만 고치면 "목록 3건인데 뱃지는 5건" 이 되고, 사용자는 안 보이는
+                두 건을 찾느라 헤맨다.
+            -->
+            CAST(COUNT(*) FILTER (WHERE m.deleted_yn = false
+                                    AND m.spam_yn = 'N') AS INTEGER)          AS all_cnt,
+            <!--
+                '전체메일'의 안읽음은 받은 메일만 센다. 발신 메일은 작성 시점에
+                read_yn='Y' 로 저장되지만, 웹훅으로 들어온 행이 섞여도 "내가 보낸 메일을
+                내가 안 읽음"으로 잡히는 일이 없어야 뱃지 숫자가 사이드바 합계와 맞는다.
+            -->
+            CAST(COUNT(*) FILTER (WHERE m.deleted_yn = false
+                                    AND m.spam_yn = 'N'
+                                    AND m.direction = 'IN'
+                                    AND m.read_yn = 'N') AS INTEGER)          AS all_unread
+        FROM mail_mst m
+        <where>
+            <if test="ownerUserId != null and ownerUserId != ''">
+                m.user_id = #{ownerUserId}
+            </if>
+        </where>
+    </select>
+
+    <!--
+        사용자 정의 메일함별 건수 (mal001-I).
+
+        mail_folder_mst 를 왼쪽에 두고 LEFT JOIN 한다 — 메일이 0통인 메일함도 사이드바에
+        남아야 한다. mail_mst 를 기준으로 GROUP BY 하면 빈 메일함이 통째로 사라져
+        사용자가 "내가 만든 함이 없어졌다"고 오해한다.
+
+        조인 조건에 deleted_yn = false 를 넣는 것이 핵심이다. WHERE 로 빼면 LEFT JOIN 이
+        INNER JOIN 처럼 동작해서(불일치 행의 NULL 이 조건에 걸려 탈락) 빈 메일함이 다시 사라진다.
+
+        ownerUserId 가 비면 아무 행도 주지 않는다. 메일함은 개인 소유물이라 "전체 사용자의
+        메일함 건수"라는 개념 자체가 없고, 조건을 빼면 남의 메일함이 내 사이드바에 뜬다.
+    -->
+    <select id="selectCustomFolderCounts" resultMap="mailFolderCountRow">
+        SELECT
+            f.mail_folder_idx                                              AS folder_idx,
+            f.folder_nm                                                    AS folder_nm,
+            CAST(COUNT(m.mail_idx) AS INTEGER)                             AS total,
+            CAST(COUNT(m.mail_idx) FILTER (WHERE m.read_yn = 'N'
+                                             AND m.direction = 'IN') AS INTEGER) AS unread
+        FROM mail_folder_mst f
+        LEFT JOIN mail_mst m
+               ON m.folder_idx = f.mail_folder_idx
+              AND m.deleted_yn = false
+        <where>
+            <choose>
+                <when test="ownerUserId != null and ownerUserId != ''">
+                    f.user_id = #{ownerUserId}
+                </when>
+                <otherwise>
+                    1 = 0
+                </otherwise>
+            </choose>
+        </where>
+        GROUP BY f.mail_folder_idx, f.folder_nm, f.sort_order
+        ORDER BY f.sort_order, f.mail_folder_idx
+    </select>
+
+    <select id="selectByThreadIdx" resultMap="mailMstRow">
+        SELECT <include refid="mailMstColumns"/>
+        FROM mail_mst m
+        WHERE m.thread_idx = #{threadIdx}
+          AND m.deleted_yn = false
+        ORDER BY m.mail_at, m.mail_idx
+    </select>
+
+    <select id="selectByPartnerIdx" resultMap="mailMstRow">
+        SELECT <include refid="mailMstColumns"/>
+        FROM mail_mst m
+        WHERE m.partner_idx = #{partnerIdx}
+          AND m.deleted_yn = false
+        ORDER BY m.mail_at DESC, m.mail_idx DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectByMappingId" resultMap="mailMstRow">
+        SELECT <include refid="mailMstColumns"/>
+        FROM mail_mst m
+        WHERE m.mapping_id = #{mappingId}
+          AND m.deleted_yn = false
+        ORDER BY m.mail_at DESC, m.mail_idx DESC
+    </select>
+
+    <!--
+        본문 수집 대기열. ORDER BY 를 부분 인덱스
+        idx_mail_mst_body_pending (body_tried_at NULLS FIRST, mail_idx) 와 똑같이 맞춰
+        정렬이 인덱스를 그대로 타게 했다.
+
+        resend_email_id 가 없으면 Received Emails API 를 부를 키가 없으므로 제외한다.
+        빼지 않으면 워커가 매 주기마다 같은 행을 집어 들고 아무것도 못 한 채 시도 횟수만 태운다.
+    -->
+    <select id="selectBodyPending" resultMap="mailMstRow">
+        SELECT <include refid="mailMstColumns"/>
+        FROM mail_mst m
+        WHERE m.body_status = 'PENDING'
+          AND m.direction = 'IN'
+          AND m.deleted_yn = false
+          AND m.resend_email_id IS NOT NULL
+          AND m.body_try_cnt &lt; #{maxTryCnt}
+          AND (m.body_tried_at IS NULL
+               OR m.body_tried_at &lt; now() - (#{backoffMinutes} * INTERVAL '1 minute'))
+        ORDER BY m.body_tried_at NULLS FIRST, m.mail_idx
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectSendQueued" resultMap="mailMstRow">
+        SELECT <include refid="mailMstColumns"/>
+        FROM mail_mst m
+        WHERE m.send_status = 'QUEUED'
+          AND m.direction = 'OUT'
+          AND m.deleted_yn = false
+          AND m.send_try_cnt &lt; #{maxTryCnt}
+          AND (m.send_tried_at IS NULL
+               OR m.send_tried_at &lt; now() - (#{backoffMinutes} * INTERVAL '1 minute'))
+        ORDER BY m.send_tried_at NULLS FIRST, m.mail_idx
+        LIMIT #{limit}
+    </select>
+
+    <!--
+        외부 호출 '직전'에 부르고 곧바로 커밋해야 한다. 호출 중 프로세스가 죽어도
+        시도 횟수가 남아야 재기동 후 같은 행을 무한히 다시 집지 않는다.
+    -->
+    <update id="markBodyTried">
+        UPDATE mail_mst
+        SET body_try_cnt  = body_try_cnt + 1,
+            body_tried_at = now(),
+            updated_at    = now()
+        WHERE mail_idx = #{mailIdx}
+    </update>
+
+    <!--
+        본문 수집 대상 선점 (mal001-M).
+
+        markBodyTried 와 SET 절은 같지만 WHERE 가 selectBodyPending 의 조건 전체를
+        그대로 갖는다. 이게 핵심이다 — UPDATE 는 행 잠금을 잡고 조건을 재확인하므로,
+        즉시 트리거와 워커가 같은 행을 동시에 노려도 정확히 한 쪽만 1건 갱신을 받는다.
+
+        SELECT ... FOR UPDATE SKIP LOCKED 를 쓰지 않은 이유: 그러려면 잠금을 쥔 채
+        Resend 호출이 끝날 때까지 트랜잭션을 열어 둬야 하는데, 이 코드베이스의 대전제가
+        "외부 HTTP 는 절대 트랜잭션 안에서 하지 않는다"이다(MailReceiveService 클래스
+        주석). 조건부 UPDATE 는 잠금이 그 한 문장 안에서 끝나면서 같은 배타성을 준다.
+
+        조건을 selectBodyPending 과 다르게 만들면 안 된다. 워커가 고른 행을 선점이
+        계속 거부해 본문이 영원히 PENDING 으로 남는다.
+    -->
+    <update id="claimBodyPending">
+        UPDATE mail_mst
+        SET body_try_cnt  = body_try_cnt + 1,
+            body_tried_at = now(),
+            updated_at    = now()
+        WHERE mail_idx        = #{mailIdx}
+          AND body_status     = 'PENDING'
+          AND direction       = 'IN'
+          AND deleted_yn      = false
+          AND resend_email_id IS NOT NULL
+          AND body_try_cnt &lt; #{maxTryCnt}
+          AND (body_tried_at IS NULL
+               OR body_tried_at &lt; now() - (#{backoffMinutes} * INTERVAL '1 minute'))
+    </update>
+
+    <update id="updateBodyDone">
+        UPDATE mail_mst
+        SET body_status    = 'DONE',
+            body_err       = NULL,
+            body_tried_at  = now(),
+            snippet        = COALESCE(#{snippet,jdbcType=VARCHAR}, snippet),
+            att_cnt        = COALESCE(#{attCnt,jdbcType=INTEGER}, att_cnt),
+            rfc_message_id = COALESCE(#{rfcMessageId,jdbcType=VARCHAR}, rfc_message_id),
+            in_reply_to    = COALESCE(#{inReplyTo,jdbcType=VARCHAR}, in_reply_to),
+            refs_txt       = COALESCE(#{refsTxt,jdbcType=VARCHAR}, refs_txt),
+            updated_at     = now()
+        WHERE mail_idx = #{mailIdx}
+    </update>
+
+    <!--
+        실패했다고 곧바로 FAILED 로 굳히지 않는다. 그러면 일시적인 네트워크 오류
+        한 번에 본문이 영영 안 채워지고, selectBodyPending 의 maxTryCnt/backoffMinutes
+        가 아무 의미가 없어진다. body_try_cnt 는 markBodyTried 가 이미 올려 둔 값이므로
+        시도가 소진됐을 때만 FAILED 로 확정한다.
+
+        임계값을 상수 5 로 박아 두면 안 된다. selectBodyPending 은 설정값
+        (resend.sync.max-try-cnt)으로 대상을 고르는데 여기만 5 로 고정하면 두 숫자가
+        어긋난다. 예를 들어 max-try-cnt=3 이면 3회 실패한 행이 3 >= 5 가 거짓이라
+        PENDING 으로 되돌아가고, selectBodyPending 은 body_try_cnt &lt; 3 을 요구해
+        다시는 집지 않는다 — 실패 표시도 없이 영원히 PENDING 에 갇힌다.
+        그래서 호출부가 같은 설정값을 maxTryCnt 로 넘긴다.
+
+        permanent=true 는 재시도가 무의미한 실패(resend_email_id 자체가 없는 등)다.
+        시도 횟수와 무관하게 즉시 FAILED 로 확정한다.
+    -->
+    <update id="updateBodyFailed">
+        UPDATE mail_mst
+        SET body_err      = #{bodyErr,jdbcType=VARCHAR},
+            body_tried_at = now(),
+            body_status   =
+                <choose>
+                    <when test="permanent">'FAILED'</when>
+                    <otherwise>
+                        CASE WHEN body_try_cnt &gt;= #{maxTryCnt} THEN 'FAILED' ELSE 'PENDING' END
+                    </otherwise>
+                </choose>,
+            updated_at    = now()
+        WHERE mail_idx = #{mailIdx}
+    </update>
+
+    <update id="markSendTried">
+        UPDATE mail_mst
+        SET send_try_cnt  = send_try_cnt + 1,
+            send_tried_at = now(),
+            updated_at    = now()
+        WHERE mail_idx = #{mailIdx}
+    </update>
+
+    <!--
+        발송 대상 선점 (mal001-M). claimBodyPending 과 같은 장치의 발송판이다.
+
+        WHERE 는 selectSendQueued 의 조건 전체 + mail_idx 다. 즉시 트리거와 워커가
+        같은 메일을 동시에 집으면 한 쪽만 1을 받고, 진 쪽은 조용히 물러난다.
+
+        Idempotency-Key 에만 의지하지 않는 이유는 매퍼 인터페이스 주석 참고
+        (rate limit 이중 소모 · 동시 요청 409 · 24시간 만료).
+    -->
+    <update id="claimSendQueued">
+        UPDATE mail_mst
+        SET send_try_cnt  = send_try_cnt + 1,
+            send_tried_at = now(),
+            updated_at    = now()
+        WHERE mail_idx    = #{mailIdx}
+          AND send_status = 'QUEUED'
+          AND direction   = 'OUT'
+          AND deleted_yn  = false
+          AND send_try_cnt &lt; #{maxTryCnt}
+          AND (send_tried_at IS NULL
+               OR send_tried_at &lt; now() - (#{backoffMinutes} * INTERVAL '1 minute'))
+    </update>
+
+    <!--
+        DRAFT 일 때만 올린다. 이미 QUEUED/SENT 인 메일에 큐잉을 또 걸면
+        워커가 같은 메일을 두 번 발송한다(Idempotency-Key 는 24시간 뒤 만료된다).
+    -->
+    <update id="updateSendQueued">
+        UPDATE mail_mst
+        SET send_status = 'QUEUED',
+            send_err    = NULL,
+            updated_at  = now()
+        WHERE mail_idx    = #{mailIdx}
+          AND direction   = 'OUT'
+          AND send_status = 'DRAFT'
+          AND deleted_yn  = false
+    </update>
+
+    <!--
+        last_status 를 COALESCE 로만 채우는 이유: delivered/bounced 웹훅이 발송 API
+        응답보다 먼저 도착하는 경우가 있다. 무조건 'sent' 로 덮으면 이미 기록된
+        상위 상태가 지워진다.
+    -->
+    <update id="updateSendSent">
+        UPDATE mail_mst
+        SET send_status     = 'SENT',
+            send_err        = NULL,
+            resend_email_id = COALESCE(#{resendEmailId,jdbcType=VARCHAR}, resend_email_id),
+            mail_at         = COALESCE(#{mailAt,jdbcType=TIMESTAMP_WITH_TIMEZONE}, mail_at),
+            send_tried_at   = now(),
+            last_status     = COALESCE(last_status, 'sent'),
+            last_status_at  = COALESCE(last_status_at, now()),
+            updated_at      = now()
+        WHERE mail_idx = #{mailIdx}
+    </update>
+
+    <!--
+        updateBodyFailed 와 같은 이유로, 재시도 여지가 있는 실패는 시도가 소진됐을 때만
+        FAILED 로 확정한다. 임계값을 상수로 박지 않고 maxTryCnt 를 받는 이유도 같다 —
+        selectSendQueued 의 send_try_cnt &lt; maxTryCnt 와 숫자가 갈리면 메일이
+        QUEUED 로 영원히 갇힌다(updateSendQueued 는 DRAFT 만 갱신하므로 복구 경로도 없다).
+
+        permanent=true 는 재시도해도 결과가 같은 확정 실패다.
+          - 받는 사람/본문이 없어 요청 자체를 만들지 못한 경우
+          - 422 같은 비재시도성 4xx (ResendApiException.retryable()=false)
+        이때 시도 횟수와 무관하게 FAILED 로 굳히지 않으면, 호출부는 "FAILED" 를 돌려주는데
+        DB 는 QUEUED 로 남아 화면(임시보관)과 상태가 어긋나고 워커가 5회까지 헛발송한다.
+    -->
+    <update id="updateSendFailed">
+        UPDATE mail_mst
+        SET send_err      = #{sendErr,jdbcType=VARCHAR},
+            send_tried_at = now(),
+            send_status   =
+                <choose>
+                    <when test="permanent">'FAILED'</when>
+                    <otherwise>
+                        CASE WHEN send_try_cnt &gt;= #{maxTryCnt} THEN 'FAILED' ELSE 'QUEUED' END
+                    </otherwise>
+                </choose>,
+            updated_at    = now()
+        WHERE mail_idx = #{mailIdx}
+    </update>
+
+    <!--
+        바운스/failed 웹훅 전용. updateSendFailed 를 쓰면 안 된다.
+
+        바운스는 '발송 실패'가 아니라 '발송은 성공했고 수신 서버가 거부했다'는 사후 통지다.
+        그 시점의 행은 send_status='SENT', send_try_cnt=1 이라 updateSendFailed 의
+        임계값 분기를 태우면 SENT → QUEUED 로 후퇴하고, 백오프가 지나면 워커가 그 행을
+        다시 집어 '반송된 주소로 재발송'한다. 재발송이 성공하면 updateSendSent 가
+        send_err 을 NULL 로 지워 바운스 사유까지 사라진다.
+
+        그래서 시도 횟수와 상태를 보지 않고 무조건 FAILED 로 확정한다. send_tried_at 은
+        건드리지 않는다 — 그건 발송 워커의 백오프 기준이지 웹훅 도착 시각이 아니다.
+        direction='OUT' 조건은 수신 메일에 배달 상태가 잘못 찍히는 것을 막는다.
+    -->
+    <update id="markSendBounced">
+        UPDATE mail_mst
+        SET send_err    = #{sendErr,jdbcType=VARCHAR},
+            send_status = 'FAILED',
+            updated_at  = now()
+        WHERE mail_idx  = #{mailIdx}
+          AND direction = 'OUT'
+    </update>
+
+    <!--
+        서열이 낮은 이벤트로 덮어쓰지 않는다. 웹훅은 순서를 보장하지 않아서
+        늦게 도착한 delivered(40) 가 먼저 기록된 bounced(90) 를 지우면
+        "성공적으로 배달됨"으로 보이는 실패 메일이 생긴다.
+        기존 값이 NULL 이면 ELSE 0 으로 떨어져 무엇이든 들어갈 수 있다.
+    -->
+    <update id="updateLastStatus">
+        UPDATE mail_mst
+        SET last_status    = #{lastStatus},
+            last_status_at = COALESCE(#{lastStatusAt,jdbcType=TIMESTAMP_WITH_TIMEZONE}, now()),
+            updated_at     = now()
+        WHERE mail_idx = #{mailIdx}
+          AND #{rank} &gt;= CASE last_status
+                              WHEN 'scheduled'        THEN 10
+                              WHEN 'sent'             THEN 20
+                              WHEN 'delivery_delayed' THEN 30
+                              WHEN 'delivered'        THEN 40
+                              WHEN 'opened'           THEN 50
+                              WHEN 'clicked'          THEN 60
+                              WHEN 'bounced'          THEN 90
+                              WHEN 'complained'       THEN 90
+                              WHEN 'failed'           THEN 90
+                              WHEN 'suppressed'       THEN 90
+                              ELSE 0
+                          END
+    </update>
+
+    <!--
+        PATCH 의미론: 요청에 없던(null) 필드는 기존 값을 유지한다.
+        read/spam 은 Boolean 이고 컬럼은 char(1) 이라 COALESCE 로는 타입이 안 맞아
+        CASE 로 3분기(미지정/참/거짓)를 명시했다. jdbcType 을 박아 둔 이유는
+        null 을 넘길 때 PostgreSQL 이 파라미터 타입을 추론하지 못하면 실패하기 때문이다.
+    -->
+    <update id="updateFlags">
+        UPDATE mail_mst
+        SET read_yn     = CASE
+                              WHEN #{body.read,jdbcType=BOOLEAN} IS NULL THEN read_yn
+                              WHEN #{body.read,jdbcType=BOOLEAN} THEN 'Y'
+                              ELSE 'N'
+                          END,
+            <!--
+                중요표시(별). read/spam 과 같은 3분기다.
+
+                목록 응답에는 처음부터 star 가 있었는데 이 갱신 경로에만 빠져 있어서,
+                화면에서 별을 눌러도 서버에 남지 않았다(일괄 동작의 STAR/UNSTAR 로는 됐다).
+            -->
+            star_yn     = CASE
+                              WHEN #{body.star,jdbcType=BOOLEAN} IS NULL THEN star_yn
+                              WHEN #{body.star,jdbcType=BOOLEAN} THEN 'Y'
+                              ELSE 'N'
+                          END,
+            spam_yn     = CASE
+                              WHEN #{body.spam,jdbcType=BOOLEAN} IS NULL THEN spam_yn
+                              WHEN #{body.spam,jdbcType=BOOLEAN} THEN 'Y'
+                              ELSE 'N'
+                          END,
+            user_id     = COALESCE(#{body.ownerUserId,jdbcType=VARCHAR}, user_id),
+            partner_idx = COALESCE(#{body.partnerIdx,jdbcType=INTEGER}, partner_idx),
+            mapping_id  = COALESCE(#{body.mappingId,jdbcType=BIGINT}, mapping_id),
+            updated_at  = now()
+        WHERE mail_idx   = #{mailIdx}
+          AND deleted_yn = false
+    </update>
+
+    <update id="updateReadYn">
+        UPDATE mail_mst
+        SET read_yn    = #{readYn},
+            updated_at = now()
+        WHERE mail_idx   = #{mailIdx}
+          AND deleted_yn = false
+          AND read_yn   != #{readYn}
+    </update>
+
+    <!-- att_cnt 는 캐시값이라 첨부가 바뀔 때마다 실제 건수로 다시 센다 -->
+    <update id="updateAttCnt">
+        UPDATE mail_mst
+        SET att_cnt = CAST((SELECT COUNT(*)
+                            FROM mail_att a
+                            WHERE a.mail_idx = mail_mst.mail_idx
+                              AND a.deleted_yn = false) AS SMALLINT),
+            updated_at = now()
+        WHERE mail_idx = #{mailIdx}
+    </update>
+
+    <!-- 메일 이력은 감사 대상이라 물리 삭제하지 않는다 -->
+    <update id="softDelete">
+        UPDATE mail_mst
+        SET deleted_yn = true,
+            updated_at = now()
+        WHERE mail_idx   = #{mailIdx}
+          AND deleted_yn = false
+    </update>
+
+    <!-- ── 2차 확장 ──────────────────────────────────────────────────────── -->
+
+    <!--
+        목록 일괄 동작 (mal001-B).
+
+        **소유자 조건(user_id)을 절대 빼지 말 것.** mailIdxes 는 화면이 준 값이라
+        남의 mail_idx 가 섞여 올 수 있고, 그때 이 조건 하나가 유일한 방어선이다.
+
+        [담당자 미지정 메일] user_id IS NULL 인 메일도 대상에 넣는다.
+
+        수신 메일은 MailReceiveService 가 담당자 없이(user_id = NULL) 저장한다. 그런데
+        받은메일함 목록 조회는 ownerUserId 를 강제하지 않아 모두가 그 메일을 본다.
+        조건을 "본인 소유만" 으로 두면 <b>화면에 보이는 메일을 선택했는데 아무 일도
+        일어나지 않는다</b> — 받은메일함에서 읽음처리·삭제가 통째로 먹통이 된다.
+        보이는 것과 만질 수 있는 것을 일치시키는 쪽이 맞다.
+
+        이렇게 넓혀도 방어선은 남는다. 남이 <b>담당자로 지정한</b> 메일은 여전히
+        user_id 가 달라 걸러진다. 추가로 열리는 것은 아무에게도 배정되지 않은,
+        어차피 모두가 열람할 수 있는 메일뿐이다.
+
+        빈 목록이면 IN () 이 문법 오류라 1 = 0 으로 막는다(MailThreadMapper 와 같은 방식).
+
+        deleted_yn 조건이 동작마다 다른 이유:
+          DELETE  — 아직 안 지운 것만(이미 휴지통이면 건드릴 필요가 없다)
+          RESTORE — 휴지통에 있는 것만
+          나머지  — 휴지통 밖의 메일만. 휴지통 안에서 읽음/중요표시를 바꿔 봐야
+                   목록에 드러나지 않고, 복구했을 때 사용자가 기억하지 못하는
+                   상태 변화만 남는다.
+    -->
+    <update id="bulkUpdate">
+        UPDATE mail_mst m
+        SET
+        <choose>
+            <when test="action == 'READ'">     read_yn = 'Y'  </when>
+            <when test="action == 'UNREAD'">   read_yn = 'N'  </when>
+            <when test="action == 'STAR'">     star_yn = 'Y'  </when>
+            <when test="action == 'UNSTAR'">   star_yn = 'N'  </when>
+            <when test="action == 'DELETE'">   deleted_yn = true  </when>
+            <when test="action == 'RESTORE'">  deleted_yn = false </when>
+            <when test="action == 'SPAM'">     spam_yn = 'Y'  </when>
+            <when test="action == 'NOTSPAM'">  spam_yn = 'N'  </when>
+            <!--
+                folderIdx 가 null 이면 folder_idx 를 NULL 로 되돌린다(기본함 복귀).
+                COALESCE 를 쓰면 안 된다 — null 이 "안 바꿈"이 아니라 "기본함으로"라는
+                의미 있는 값이라서다.
+
+                목적지 메일함이 본인 것인지는 서비스가 먼저 확인한다. 여기서 EXISTS 로
+                한 번 더 막지 않는 이유는, 남의 메일함 idx 를 넣었을 때 조용히 0건 갱신으로
+                끝나면 사용자가 원인을 알 수 없기 때문이다(서비스가 404 로 분명히 알린다).
+            -->
+            <when test="action == 'MOVE'">
+                folder_idx = #{folderIdx,jdbcType=BIGINT}
+            </when>
+            <otherwise>
+                <!--
+                    도달하지 않는다(MailBulkAction.from 이 먼저 거른다). 그래도 SET 절이
+                    비면 SQL 문법 오류라, 아무것도 바꾸지 않는 자기대입을 둔다.
+                -->
+                mail_idx = m.mail_idx
+            </otherwise>
+        </choose>
+            , updated_at = now()
+        WHERE (m.user_id = #{userId} OR m.user_id IS NULL)
+        <choose>
+            <when test="mailIdxes != null and mailIdxes.size() &gt; 0">
+                AND m.mail_idx IN
+                <foreach collection="mailIdxes" item="idx" open="(" separator="," close=")">
+                    #{idx}
+                </foreach>
+            </when>
+            <otherwise>
+                AND 1 = 0
+            </otherwise>
+        </choose>
+        <choose>
+            <when test="action == 'RESTORE'">
+                AND m.deleted_yn = true
+            </when>
+            <otherwise>
+                AND m.deleted_yn = false
+            </otherwise>
+        </choose>
+    </update>
+
+    <!--
+        완전 삭제(물리 삭제) — 되돌릴 수 없는 유일한 동작.
+
+        mail_body / mail_att / mail_event_log 가 ON DELETE CASCADE 로 매달려 있어
+        본문·첨부·배달 이력까지 함께 사라진다.
+
+        **deleted_yn = true 조건이 안전장치다.** 목록에서 바로 완전삭제가 되면 실수
+        한 번에 복구 불가능한 손실이 생긴다. 휴지통을 한 번 거치게 하는 것이 사실상의
+        확인 단계이므로, 이 조건을 빼면 그 장치가 통째로 사라진다.
+
+        mail_thread_mst.mail_cnt 는 여기서 손대지 않는다 — 그건 touch 로 다시 세는
+        캐시값이고, 삭제 대상이 여러 스레드에 흩어져 있어 한 문장으로 맞출 수 없다.
+        호출부(MailBulkService)가 영향받은 스레드를 모아 touch 한다.
+    -->
+    <delete id="purgeByIdxes">
+        DELETE FROM mail_mst m
+        <!-- 소유자 조건은 bulkUpdate 와 같은 이유로 NULL 을 포함한다(위 주석 참고). -->
+        WHERE (m.user_id = #{userId} OR m.user_id IS NULL)
+          AND m.deleted_yn = true
+        <choose>
+            <when test="mailIdxes != null and mailIdxes.size() &gt; 0">
+                AND m.mail_idx IN
+                <foreach collection="mailIdxes" item="idx" open="(" separator="," close=")">
+                    #{idx}
+                </foreach>
+            </when>
+            <otherwise>
+                AND 1 = 0
+            </otherwise>
+        </choose>
+    </delete>
+
+    <!--
+        예약발송 확정 (mal001-F).
+
+        DRAFT/QUEUED 에서만 올린다. 이미 SENT 인 메일을 예약으로 되돌리면 보낸메일함에서
+        사라져 발송 이력이 없어진 것처럼 보인다(updateSendQueued 와 같은 방어).
+
+        resend_email_id 를 함께 넣는 이유: 예약 취소·시각 변경은 이 id 로만 할 수 있다.
+        COALESCE 로 기존 값을 지키는 것은 재시도 시 두 번째 호출이 null 을 들고 와도
+        첫 번째로 받은 id 를 잃지 않게 하려는 것이다.
+    -->
+    <update id="updateScheduled">
+        UPDATE mail_mst
+        SET send_status     = 'SCHEDULED',
+            scheduled_at    = #{scheduledAt,jdbcType=TIMESTAMP_WITH_TIMEZONE},
+            resend_email_id = COALESCE(#{resendEmailId,jdbcType=VARCHAR}, resend_email_id),
+            send_err        = NULL,
+            updated_at      = now()
+        WHERE mail_idx    = #{mailIdx}
+          AND direction   = 'OUT'
+          AND send_status IN ('DRAFT', 'QUEUED', 'SCHEDULED')
+          AND deleted_yn  = false
+    </update>
+
+    <!--
+        예약 취소 — SCHEDULED → DRAFT.
+
+        resend_email_id 를 NULL 로 지우는 것이 핵심이다. 남겨 두면
+          (1) 임시보관함에서 고쳐 다시 보낼 때 uq_mail_mst_resend_email_id 에 걸리고,
+          (2) 뒤늦게 도착한 웹훅이 취소된 메일에 배달 상태를 찍는다.
+        Resend 쪽 취소는 서비스가 먼저 호출한다 — 여기서 상태만 되돌리면
+        DB 는 DRAFT 인데 예약 시각이 되면 실제로 메일이 나가는 최악의 상태가 된다.
+
+        scheduled_at 은 지운다. 값이 남으면 "예약이 아닌데 예약 시각이 있는" 행이 되어
+        화면이 예약 뱃지를 계속 그린다.
+    -->
+    <update id="updateScheduleCancelled">
+        UPDATE mail_mst
+        SET send_status     = 'DRAFT',
+            scheduled_at    = NULL,
+            resend_email_id = NULL,
+            send_err        = NULL,
+            updated_at      = now()
+        WHERE mail_idx    = #{mailIdx}
+          AND direction   = 'OUT'
+          AND send_status = 'SCHEDULED'
+          AND deleted_yn  = false
+    </update>
+
+    <!--
+        수신확인 기록 (mal001-G).
+
+        opened_at 은 COALESCE 로 최초 1회만 남긴다 — 알고 싶은 것은 "언제 처음 열었나"이고,
+        매번 덮으면 그 값이 사라진다. open_cnt 는 호출마다 올린다.
+
+        open_cnt 는 smallint(최대 32767)다. LEAST 로 상한에서 멈추게 하지 않으면
+        넘치는 순간 예외가 나고, 그러면 추적픽셀 응답이 500 이 되어 수신자 본문에
+        깨진 이미지 아이콘이 뜬다. 열람 카운터 하나 때문에 상대 화면을 망칠 수는 없다.
+
+        direction = 'OUT' 조건은 수신 메일에 열람 기록이 찍히는 것을 막는다.
+        deleted_yn 은 보지 않는다 — 발신자가 보낸메일함에서 지웠어도 수신자 쪽 메일은
+        살아 있어 픽셀이 호출될 수 있고, 그 사실 자체는 기록해 두는 편이 맞다.
+    -->
+    <update id="markOpened">
+        UPDATE mail_mst
+        SET opened_at  = COALESCE(opened_at, now()),
+            open_cnt   = LEAST(open_cnt + 1, 32767),
+            updated_at = now()
+        WHERE mail_idx  = #{mailIdx}
+          AND direction = 'OUT'
+    </update>
+
+    <!-- ── 3차 확장: 자동분류 · 자동전달 ─────────────────────────────────── -->
+
+    <!--
+        자동분류 규칙의 '메일함 이동' (mal001-K).
+
+        bulkUpdate 의 MOVE 를 재사용하지 않는 이유는 소유자 조건 때문이다. bulkUpdate 는
+        "요청자 본인 또는 담당자 미지정" 메일만 건드리는데, 규칙을 적용하는 주체는
+        <b>요청자가 아니라 수신자 주소로 찾아낸 사용자</b>다. 그 조건을 그대로 쓰면
+        규칙이 조용히 0건 갱신으로 끝난다.
+
+        대신 direction='IN' 과 fwd_src_idx IS NULL 로 대상을 좁힌다. 규칙은 수신 메일에만
+        걸리고, 자동전달로 만들어진 메일은 규칙 대상이 아니다.
+
+        목적지 메일함이 규칙 주인의 것인지는 규칙을 <b>만들 때</b> 확인한다(MailRuleService).
+        메일함이 지워지면 규칙도 함께 지워지므로(ON DELETE CASCADE) 여기서 다시 볼 필요가 없다.
+    -->
+    <update id="updateRuleFolder">
+        UPDATE mail_mst
+        SET folder_idx = #{folderIdx,jdbcType=BIGINT},
+            updated_at = now()
+        WHERE mail_idx    = #{mailIdx}
+          AND direction   = 'IN'
+          AND deleted_yn  = false
+          AND fwd_src_idx IS NULL
+    </update>
+
+    <!--
+        자동전달로 만들어진 메일에 원본 번호를 남긴다 (mal001-L).
+
+        이 표시가 무한 전달을 막는 장치다. 표시가 있는 행은 규칙·전달 엔진이 건너뛰고,
+        "이 원본을 이미 전달했는가"({@code countByFwdSrcIdx})의 근거도 이 값이다.
+
+        MailSendService.compose 에 이 필드를 넘기지 않고 사후에 UPDATE 하는 이유:
+        compose 의 요청 DTO 는 화면이 보내는 값이라, 거기에 fwdSrcIdx 를 열어 두면
+        클라이언트가 임의의 메일을 "전달로 생성된 것"으로 표시해 규칙 적용에서 빼돌릴 수 있다.
+
+        이미 값이 있으면 덮어쓰지 않는다(IS NULL 조건). 원본은 하나뿐이라 두 번 찍힐 일이
+        없지만, 찍힌다면 그건 버그이고 조용히 덮어쓰면 추적이 불가능해진다.
+    -->
+    <update id="updateFwdSrcIdx">
+        UPDATE mail_mst
+        SET fwd_src_idx = #{fwdSrcIdx},
+            updated_at  = now()
+        WHERE mail_idx    = #{mailIdx}
+          AND fwd_src_idx IS NULL
+    </update>
+
+    <!--
+        이 원본을 이미 전달했는가.
+
+        본문 수동 재수집(refresh-body)이 같은 전달 경로를 다시 타기 때문에 필요하다.
+        이 검사가 없으면 사용자가 "본문 다시 받기"를 누를 때마다 전달 메일이 한 통씩 더 나간다.
+
+        삭제 여부를 보지 않는다 — 전달 후 원본을 지우는 설정이면 전달 메일이
+        deleted_yn=true 인 원본을 가리키게 되는데, 그것도 "이미 전달함"의 증거다.
+    -->
+    <select id="countByFwdSrcIdx" resultType="int">
+        SELECT COUNT(*)
+        FROM mail_mst m
+        WHERE m.fwd_src_idx = #{fwdSrcIdx}
+    </select>
+</mapper>

@@ -10,11 +10,14 @@ import 'package:provider/provider.dart' as provider;
 import 'package:app_flutter/core/layout/app_compact_layout.dart';
 import 'package:app_flutter/core/layout/app_mobile_only.dart';
 import 'package:app_flutter/core/layout/app_shell_top_banner.dart';
+import 'package:app_flutter/core/chat/chat_providers.dart';
 
 import '../router/app_router.dart';
 import '../router/route_meta.dart';
 import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
+import 'package:app_flutter/pages/mail/shared/mail_routes.dart';
+import 'package:app_flutter/pages/mail/shared/mail_sidebar_menu.dart';
 import '../theme/app_colors.dart';
 import '../theme/shell_tab_chrome.dart';
 import '../auth/auth_provider.dart';
@@ -36,9 +39,13 @@ class MainFrameLayout extends ConsumerStatefulWidget {
 class _MainFrameLayoutState extends ConsumerState<MainFrameLayout> {
   String? _lastSyncedLocation;
 
+  /// 실시간 소켓을 붙여 둔 사용자. 같은 사용자로 다시 부르지 않기 위한 표식이다.
+  String? _realtimeUserId;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _ensureRealtimeConnected();
     final loc = GoRouterState.of(context).uri.path;
     if (_lastSyncedLocation == loc) return;
     _lastSyncedLocation = loc;
@@ -46,6 +53,29 @@ class _MainFrameLayoutState extends ConsumerState<MainFrameLayout> {
       if (!mounted) return;
       ref.read(tabManagerProvider.notifier).syncWithRoute(loc);
     });
+  }
+
+  /// 로그인 직후 실시간 푸시 소켓(`/api/ws/chat`)에 붙는다.
+  ///
+  /// **왜 앱 셸에서 하는가.** 이 소켓은 메신저 메시지만이 아니라 **메일 수신 알림**도
+  /// 실어 나른다(서버 `ChatSessionRegistry` 는 도메인 중립이라 한 소켓을 공유한다).
+  /// 예전처럼 메신저 화면(`Msg001View`)에서만 연결하면 "메신저를 한 번도 안 연 사람은
+  /// 메일 알림도 못 받는" 상태가 된다 — 알림은 어느 화면에 있든 와야 한다.
+  ///
+  /// 여러 번 불려도 안전하다. `ChatService.init` 은 같은 사용자로 연결이 살아 있으면
+  /// 그대로 돌아가고, 여기서도 사용자가 바뀔 때만 부른다. 로그인 전(userId 비어 있음)
+  /// 에는 아무 것도 하지 않는다 — 토큰 없이 붙어 봐야 서버가 401 로 끊는다.
+  void _ensureRealtimeConnected() {
+    final auth = provider.Provider.of<AuthProvider>(context, listen: false);
+    final uid = auth.userId.trim();
+    if (uid.isEmpty || _realtimeUserId == uid) return;
+    _realtimeUserId = uid;
+    ref
+        .read(chatServiceProvider)
+        .init(
+          userId: uid,
+          userName: auth.userName.isEmpty ? '나' : auth.userName,
+        );
   }
 
   @override
@@ -508,6 +538,31 @@ class _SidebarNavigation extends StatelessWidget {
         ),
     ];
 
+    // 메일 — 메일함 하나가 사이드바 한 줄이다.
+    //
+    // 예전에는 '메일' 한 줄만 있고 받은/보낸/임시보관은 화면 안쪽 탭이었다. 메일함을
+    // 옮길 때마다 메일 화면에 들어가 탭을 다시 골라야 해서 불편하다는 지적이 있었다.
+    // 전자결재(eapChildren)와 같은 방식으로 그룹 아래에 펼친다.
+    //
+    // 항목 정의를 여기에 또 쓰지 않고 `kMailSidebarEntries` 를 순회하는 이유:
+    // 메일함이 늘거나 이름이 바뀔 때 사이드바와 메일 모듈이 어긋나는 걸 막기 위해서다.
+    // (DB menu_mst 의 sort_order 와 같은 순서로 정의돼 있다.)
+    //
+    // 메일만 3단계다(메일 ▾ / 보낸메일함 ▾ / 예약메일함). 예약메일은 "아직 안 나간
+    // 보낸메일"이라 형제로 두면 보낸메일함을 볼 때 예약 건을 못 보고 지나친다.
+    // 계층은 `kMailSidebarEntries` 가 들고 있고 여기서는 그대로 펼치기만 한다.
+    final mailChildren = <Widget>[
+      for (final entry in kMailSidebarEntries)
+        if (can(entry.menuCd))
+          _mailSidebarItem(
+            context: context,
+            entry: entry,
+            currentPath: currentPath,
+            can: can,
+            navigate: navigate,
+          ),
+    ];
+
     final eapChildren = <Widget>[
       if (can(kMenuEap001) || can(kMenuAct002) || can(kMenuAct003)) ...[
         _SidebarSubMenuItem(
@@ -637,6 +692,17 @@ class _SidebarNavigation extends StatelessWidget {
                         onTap: () =>
                             navigate(() => context.go(AppRoutes.board)),
                       ),
+                    if (mailChildren.isNotEmpty)
+                      _SidebarExpandableMenuItem(
+                        icon: Icons.mail_outline,
+                        title: '메일',
+                        initiallyExpanded:
+                            currentPath == AppRoutes.mail ||
+                            currentPath.startsWith('${AppRoutes.mail}/'),
+                        onHeaderTap: () =>
+                            navigate(() => context.go(MailRoutes.inbox)),
+                        children: mailChildren,
+                      ),
                     if (!auth.isFranchiseOwner)
                       _SidebarMenuItem(
                         icon: Icons.chat_bubble_outline,
@@ -727,7 +793,9 @@ class _SidebarNavigation extends StatelessWidget {
               ),
             ),
             const Divider(height: 1, thickness: 1, color: AppTheme.hairline),
-            const _SidebarUserProfile(),
+            // currentPath 를 넘기는 이유: 이 줄의 알림 벨이 "메일 화면에 있을 때는
+            // 새 메일 토스트를 띄우지 않는다"를 판단하는 데 쓴다.
+            _SidebarUserProfile(currentPath: currentPath),
           ],
         ),
       ),
@@ -767,6 +835,49 @@ class _SidebarBrand extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 메일 항목 한 줄 — 자식이 있으면 3단계 그룹, 없으면 평범한 하위 항목.
+///
+/// 메일함 정의(`kMailSidebarEntries`)는 메일 모듈이 갖고 있고 사이드바는 그것을
+/// 그리기만 한다. 분기를 이 함수 한 곳에 모아 두면 계층이 또 늘어나도 순회 코드를
+/// 건드릴 필요가 없다.
+Widget _mailSidebarItem({
+  required BuildContext context,
+  required MailSidebarEntry entry,
+  required String currentPath,
+  required bool Function(String menuCd) can,
+  required void Function(void Function() action) navigate,
+}) {
+  // 권한이 없는 자식은 빼고 나서 판단한다. 보낸메일함 권한만 있고 예약메일함
+  // 권한이 없는 사용자에게 화살표를 보여 주면, 눌러도 아무것도 안 나와 고장으로 보인다.
+  final visibleChildren = <Widget>[
+    for (final child in entry.children)
+      if (can(child.menuCd))
+        _SidebarSubMenuItem(
+          title: child.title,
+          depth: 2,
+          selected: isMailSidebarEntrySelected(child, currentPath),
+          onTap: () => navigate(() => context.go(child.path)),
+        ),
+  ];
+
+  if (visibleChildren.isEmpty) {
+    return _SidebarSubMenuItem(
+      title: entry.title,
+      selected: isMailSidebarEntrySelected(entry, currentPath),
+      onTap: () => navigate(() => context.go(entry.path)),
+    );
+  }
+  return _SidebarSubMenuGroup(
+    title: entry.title,
+    selected: isMailSidebarEntrySelected(entry, currentPath),
+    // 자식(예약메일함)을 보고 있으면 펼친 채로 시작한다 — 접힌 채로 두면
+    // 지금 보고 있는 메뉴가 사이드바에서 사라져 어디에 있는지 알 수 없다.
+    initiallyExpanded: mailSidebarEntryHasSelectedChild(entry, currentPath),
+    onTap: () => navigate(() => context.go(entry.path)),
+    children: visibleChildren,
+  );
 }
 
 class _SidebarMenuItem extends StatelessWidget {
@@ -943,11 +1054,25 @@ class _SidebarSubMenuItem extends StatelessWidget {
     required this.title,
     this.selected = false,
     this.onTap,
+    this.depth = 1,
+    this.trailing,
   });
 
   final String title;
   final bool selected;
   final VoidCallback? onTap;
+
+  /// 들여쓰기 단계. 1 = 그룹 바로 아래(기존 동작), 2 = 그 아래 한 단계 더.
+  ///
+  /// 3단계용 위젯을 따로 만들지 않고 여기서 여백만 늘리는 이유: 색·글자크기·점
+  /// 모양을 복제하면 언젠가 한쪽만 고쳐져 두 단계의 생김새가 어긋난다.
+  final int depth;
+
+  /// 오른쪽 끝에 붙일 것(펼침 화살표 등). null 이면 아무것도 그리지 않는다.
+  final Widget? trailing;
+
+  /// 1단계는 상위 아이콘 폭에 맞춰 44, 한 단계 더 들어갈 때마다 14 씩 민다.
+  double get _leftPadding => 44 + (depth - 1) * 14;
 
   @override
   Widget build(BuildContext context) {
@@ -963,7 +1088,7 @@ class _SidebarSubMenuItem extends StatelessWidget {
               : SystemMouseCursors.basic,
           borderRadius: BorderRadius.circular(6),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(44, 9, 12, 9),
+            padding: EdgeInsets.fromLTRB(_leftPadding, 9, 12, 9),
             child: Row(
               children: [
                 Container(
@@ -990,6 +1115,7 @@ class _SidebarSubMenuItem extends StatelessWidget {
                     ),
                   ),
                 ),
+                ?trailing,
               ],
             ),
           ),
@@ -999,8 +1125,103 @@ class _SidebarSubMenuItem extends StatelessWidget {
   }
 }
 
+/// 하위 항목이면서 **자기 자신도 이동하는** 3단계 부모.
+///
+/// [_SidebarExpandableMenuItem] 은 상위(아이콘 있는) 줄 전용이고, 그 아래 단계에는
+/// 접기/펴기가 없었다. 보낸메일함처럼 "누르면 열리는 메일함인데 아래에 예약메일함이
+/// 딸린" 항목이 생겨 이 위젯을 뒀다.
+///
+/// 겉모습은 [_SidebarSubMenuItem] 을 그대로 쓰고(색·글자·점 모양이 어긋나지 않게),
+/// 펼침/접힘 동작·시간은 [_SidebarExpandableMenuItem] 과 똑같이 맞춘다.
+class _SidebarSubMenuGroup extends StatefulWidget {
+  const _SidebarSubMenuGroup({
+    required this.title,
+    required this.children,
+    this.selected = false,
+    this.initiallyExpanded = false,
+    this.onTap,
+  });
+
+  final String title;
+  final List<Widget> children;
+  final bool selected;
+  final bool initiallyExpanded;
+
+  /// 줄 자체를 눌렀을 때의 이동. 이동과 **함께 펼친다** —
+  /// 보낸메일함을 열었으면 그 아래 예약메일함도 보이는 편이 자연스럽다.
+  final VoidCallback? onTap;
+
+  @override
+  State<_SidebarSubMenuGroup> createState() => _SidebarSubMenuGroupState();
+}
+
+class _SidebarSubMenuGroupState extends State<_SidebarSubMenuGroup> {
+  late bool _expanded = widget.initiallyExpanded || widget.selected;
+
+  @override
+  void didUpdateWidget(covariant _SidebarSubMenuGroup oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 경로가 바뀌어 자식이 선택되면 펼친 상태를 유지한다
+    // (`_SidebarExpandableMenuItem` 과 같은 규칙).
+    //
+    // 자기 자신이 선택될 때도 펼친다. 다른 메일함에서 보낸메일함으로 넘어왔을 때
+    // 접힌 채로 두면 예약메일함이 사이드바에서 아예 사라져 못 찾는다.
+    if ((!oldWidget.initiallyExpanded && widget.initiallyExpanded) ||
+        (!oldWidget.selected && widget.selected)) {
+      _expanded = true;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SidebarSubMenuItem(
+          title: widget.title,
+          selected: widget.selected,
+          onTap: () {
+            setState(() => _expanded = true);
+            widget.onTap?.call();
+          },
+          // 화살표는 이동과 별개로 접었다 펼 수 있어야 한다. 줄 전체를 토글로
+          // 쓰면 보낸메일함으로 이동할 방법이 없어진다.
+          trailing: InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(4),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(
+                _expanded ? Icons.expand_less : Icons.expand_more,
+                size: 16,
+                color: widget.selected
+                    ? AppTheme.accentRed
+                    : const Color(0xFF9A9A9E),
+              ),
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 180),
+          firstChild: const SizedBox(height: 0),
+          secondChild: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: widget.children,
+          ),
+          crossFadeState: _expanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+        ),
+      ],
+    );
+  }
+}
+
 class _SidebarUserProfile extends StatelessWidget {
-  const _SidebarUserProfile();
+  const _SidebarUserProfile({required this.currentPath});
+
+  /// 현재 화면 경로 — [NotificationBellIconButton] 의 토스트 중복 억제에 쓴다.
+  final String currentPath;
 
   @override
   Widget build(BuildContext context) {
@@ -1070,7 +1291,7 @@ class _SidebarUserProfile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              const NotificationBellIconButton(),
+              NotificationBellIconButton(currentPath: currentPath),
               IconButton(
                 tooltip: '설정',
                 onPressed: () {

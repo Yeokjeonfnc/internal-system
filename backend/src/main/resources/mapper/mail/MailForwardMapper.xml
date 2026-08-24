@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.mail.mapper.MailForwardMapper">
+
+    <!--
+        arg 순서 = JdbcRow 생성자 인자 순서 = 컬럼 순서.
+        한 칸만 어긋나도 컴파일은 통과하고 런타임에 값만 뒤섞인다.
+    -->
+    <resultMap id="mailForwardSettingRow"
+               type="com.yeokjeon.erp.mail.dto.MailForwardSettingJdbcRow">
+        <constructor>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="use_yn" javaType="java.lang.String"/>
+            <arg column="forward_email" javaType="java.lang.String"/>
+            <arg column="keep_original_yn" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="mailForwardRuleRow"
+               type="com.yeokjeon.erp.mail.dto.MailForwardRuleJdbcRow">
+        <constructor>
+            <arg column="mail_fwd_rule_idx" javaType="java.lang.Long"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="match_type" javaType="java.lang.String"/>
+            <arg column="match_val" javaType="java.lang.String"/>
+            <arg column="forward_email" javaType="java.lang.String"/>
+            <arg column="use_yn" javaType="java.lang.String"/>
+            <arg column="sort_order" javaType="java.lang.Integer"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="settingColumns">
+        s.user_id,
+        s.use_yn,
+        s.forward_email,
+        s.keep_original_yn,
+        s.created_at,
+        s.updated_at
+    </sql>
+
+    <sql id="ruleColumns">
+        f.mail_fwd_rule_idx,
+        f.user_id,
+        f.match_type,
+        f.match_val,
+        f.forward_email,
+        f.use_yn,
+        f.sort_order,
+        f.created_at,
+        f.updated_at
+    </sql>
+
+    <!-- ── 전체 설정 ────────────────────────────────────────────────────── -->
+
+    <select id="selectSetting" resultMap="mailForwardSettingRow">
+        SELECT <include refid="settingColumns"/>
+        FROM mail_forward_setting s
+        WHERE s.user_id = #{userId}
+    </select>
+
+    <!--
+        upsert.
+
+        forward_email 은 LOWER 로 눕혀 저장한다. 판정할 때 소문자로 비교하므로
+        (루프 방지 검사가 주소 비교에 기대고 있다) 저장 단계에서 맞춰 두는 편이 안전하다.
+
+        use_yn='N' 이면 forward_email 을 지우지 않고 그대로 둔다. 잠깐 껐다 켜는 사용이
+        흔한데 주소가 사라지면 매번 다시 입력해야 한다. DB CHECK 도 "켜져 있으면 주소가
+        있어야 한다" 방향이라 끈 상태의 주소는 문제가 없다.
+    -->
+    <insert id="upsertSetting">
+        INSERT INTO mail_forward_setting (
+            user_id, use_yn, forward_email, keep_original_yn, created_at, updated_at
+        ) VALUES (
+            #{userId},
+            COALESCE(#{useYn,jdbcType=VARCHAR}, 'N'),
+            LOWER(#{forwardEmail,jdbcType=VARCHAR}),
+            COALESCE(#{keepOriginalYn,jdbcType=VARCHAR}, 'Y'),
+            now(),
+            now()
+        )
+        ON CONFLICT (user_id) DO UPDATE
+        SET use_yn           = EXCLUDED.use_yn,
+            forward_email    = COALESCE(EXCLUDED.forward_email, mail_forward_setting.forward_email),
+            keep_original_yn = EXCLUDED.keep_original_yn,
+            updated_at       = now()
+    </insert>
+
+    <!-- ── 예외 규칙 ────────────────────────────────────────────────────── -->
+
+    <select id="selectRulesByUserId" resultMap="mailForwardRuleRow">
+        SELECT <include refid="ruleColumns"/>
+        FROM mail_forward_rule f
+        WHERE f.user_id = #{userId}
+        ORDER BY f.sort_order, f.mail_fwd_rule_idx
+    </select>
+
+    <!--
+        수신 시 적용할 규칙만.
+
+        정렬 첫 키가 match_type 인 것이 핵심이다. tax@hometax.go.kr 이라는 주소 규칙과
+        hometax.go.kr 이라는 도메인 규칙이 둘 다 있으면 <b>더 구체적인 주소 규칙</b>이
+        이겨야 한다. sort_order 를 첫 키로 두면 사용자가 순서를 만지다가 도메인 규칙을
+        위로 올리는 순간 주소 규칙이 죽는데, 그건 사용자가 의도한 바가 아니다.
+    -->
+    <select id="selectActiveRulesByUserId" resultMap="mailForwardRuleRow">
+        SELECT <include refid="ruleColumns"/>
+        FROM mail_forward_rule f
+        WHERE f.user_id = #{userId}
+          AND f.use_yn  = 'Y'
+        ORDER BY CASE f.match_type WHEN 'EMAIL' THEN 0 ELSE 1 END,
+                 f.sort_order,
+                 f.mail_fwd_rule_idx
+    </select>
+
+    <!-- 소유자 조건이 있어 남의 규칙이면 null 이 온다. 서비스가 404 로 바꾼다 -->
+    <select id="selectRuleByIdx" resultMap="mailForwardRuleRow">
+        SELECT <include refid="ruleColumns"/>
+        FROM mail_forward_rule f
+        WHERE f.mail_fwd_rule_idx = #{ruleIdx}
+          AND f.user_id           = #{userId}
+    </select>
+
+    <insert id="insertRule" useGeneratedKeys="true"
+            keyProperty="mailFwdRuleIdx" keyColumn="mail_fwd_rule_idx">
+        INSERT INTO mail_forward_rule (
+            user_id, match_type, match_val, forward_email, use_yn, sort_order,
+            created_at, updated_at
+        ) VALUES (
+            #{userId},
+            #{matchType},
+            LOWER(#{matchVal}),
+            LOWER(#{forwardEmail}),
+            COALESCE(#{useYn,jdbcType=VARCHAR}, 'Y'),
+            COALESCE(#{sortOrder,jdbcType=INTEGER}, 0),
+            now(),
+            now()
+        )
+    </insert>
+
+    <!-- 부분 수정 — null 인 항목은 기존 값을 유지한다(PATCH 의미론) -->
+    <update id="updateRule">
+        UPDATE mail_forward_rule
+        SET match_type    = COALESCE(#{matchType,jdbcType=VARCHAR}, match_type),
+            match_val     = COALESCE(LOWER(#{matchVal,jdbcType=VARCHAR}), match_val),
+            forward_email = COALESCE(LOWER(#{forwardEmail,jdbcType=VARCHAR}), forward_email),
+            use_yn        = COALESCE(#{useYn,jdbcType=VARCHAR}, use_yn),
+            sort_order    = COALESCE(#{sortOrder,jdbcType=INTEGER}, sort_order),
+            updated_at    = now()
+        WHERE mail_fwd_rule_idx = #{ruleIdx}
+          AND user_id           = #{userId}
+    </update>
+
+    <delete id="deleteRule">
+        DELETE FROM mail_forward_rule
+        WHERE mail_fwd_rule_idx = #{ruleIdx}
+          AND user_id           = #{userId}
+    </delete>
+
+    <select id="countRulesByUserId" resultType="int">
+        SELECT COUNT(*)
+        FROM mail_forward_rule f
+        WHERE f.user_id = #{userId}
+    </select>
+
+    <!--
+        중복 검사. uq_mail_fwd_rule_match 와 같은 축(user_id, match_type, match_val)을 봐야
+        판정이 어긋나지 않는다. 비교값은 저장 시 소문자라 여기서도 눕혀 비교한다.
+    -->
+    <select id="countRuleByMatch" resultType="int">
+        SELECT COUNT(*)
+        FROM mail_forward_rule f
+        WHERE f.user_id    = #{userId}
+          AND f.match_type = #{matchType}
+          AND f.match_val  = LOWER(#{matchVal})
+        <if test="excludeIdx != null">
+            AND f.mail_fwd_rule_idx != #{excludeIdx}
+        </if>
+    </select>
+
+    <select id="selectNextRuleSortOrder" resultType="int">
+        SELECT COALESCE(MAX(f.sort_order) + 1, 0)
+        FROM mail_forward_rule f
+        WHERE f.user_id = #{userId}
+    </select>
+</mapper>

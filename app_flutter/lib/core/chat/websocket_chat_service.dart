@@ -13,6 +13,15 @@
 //   WebSocket  ws(s)://host/api/ws/chat?userId=
 //     S→C  {"type":"message","message":{...}}
 //     S→C  {"type":"roomCreated","room":{...}}
+//     S→C  {"type":"messageDeleted","roomIdx":..,"messageIdx":..}
+//     S→C  {"type":"notification","notifTyp":"MAIL_RECEIVED",...}   ← 메신저와 무관
+//
+// **경로 이름은 chat 이지만 이 소켓은 메신저 전용이 아니다.** 서버의
+// `ChatSessionRegistry` 는 `userId → 세션` 맵일 뿐이라 도메인 중립이고, 메일 수신
+// 알림도 같은 소켓으로 나온다. 사용자당 소켓을 하나로 유지하려는 의도적인 재사용이며,
+// 서버 쪽 근거는 `ChatWebSocketConfig` 주석에 있다. 그래서 이 서비스는 메신저 화면이
+// 아니라 **앱 셸(MainFrameLayout)에서 로그인 직후** init() 된다 — 메신저를 한 번도
+// 안 열어도 알림은 와야 하기 때문이다.
 //
 // 사용하려면 chat_service.dart 의 kUseMockChat = false 로 설정한다.
 
@@ -27,6 +36,7 @@ import 'package:app_flutter/core/api/api_client.dart';
 import 'package:app_flutter/core/auth/auth_token_store.dart';
 import 'package:app_flutter/core/chat/chat_model.dart';
 import 'package:app_flutter/core/chat/chat_service.dart';
+import 'package:app_flutter/core/notifications/notification_realtime.dart';
 
 class WebSocketChatService implements ChatService {
   final ApiClient _api = ApiClient();
@@ -262,6 +272,16 @@ class WebSocketChatService implements ChatService {
         _markLocalMessageDeleted(roomId, messageId);
         unawaited(_refreshRooms());
         break;
+      // 메일 수신 등 ERP 알림(notif_mst). 메신저와 아무 상관이 없지만 소켓이 하나라
+      // 여기로 들어온다. 이 서비스는 내용을 해석하지 않고 그대로 흘려보내기만 한다
+      // — 알림함·배지를 아는 것은 core/notifications 쪽이다.
+      case 'notification':
+        NotificationRealtime.instance.publish(
+          NotifPushEvent.fromFrame(frame),
+        );
+        break;
+      // default 를 두지 않는다. 서버가 새 프레임 타입을 먼저 배포해도 구 버전 앱이
+      // 조용히 무시하고 넘어가야 하위 호환이 유지된다.
     }
   }
 

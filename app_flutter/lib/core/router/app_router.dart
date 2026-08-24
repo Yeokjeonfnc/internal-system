@@ -15,6 +15,8 @@ import 'package:app_flutter/pages/active/act003/act003_view.dart';
 import 'package:app_flutter/pages/active/act004/act004_view.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_shell.dart';
 import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
+import 'package:app_flutter/pages/mail/mal001/mal001_shell.dart';
+import 'package:app_flutter/pages/mail/shared/mail_routes.dart';
 import 'package:app_flutter/pages/master/mst002/mst002_view.dart';
 import 'package:app_flutter/pages/board/bbs001/bbs001_view.dart';
 import 'package:app_flutter/pages/messenger/msg001/msg001_view.dart';
@@ -98,6 +100,9 @@ class AppRoutes {
 
   /// 전자결재.
   static const String eap = EapRoutes.root;
+
+  /// 메일(Resend 연동).
+  static const String mail = MailRoutes.root;
 }
 
 Page<dynamic> _activityApprovalManagementPage(
@@ -113,6 +118,13 @@ Page<dynamic> _eapPage(BuildContext context, GoRouterState state) {
   return NoTransitionPage(
     key: ValueKey(state.uri.toString()),
     child: EapShell(path: state.uri.path, query: state.uri.queryParameters),
+  );
+}
+
+Page<dynamic> _mailPage(BuildContext context, GoRouterState state) {
+  return NoTransitionPage(
+    key: ValueKey(state.uri.toString()),
+    child: MailShell(path: state.uri.path, query: state.uri.queryParameters),
   );
 }
 
@@ -624,6 +636,25 @@ List<RouteBase> _shellChildRoutes() {
         GoRoute(path: 'approved', pageBuilder: _eapPage),
         GoRoute(path: 'cc-read', pageBuilder: _eapPage),
         GoRoute(path: 'official', pageBuilder: _eapPage),
+      ],
+    ),
+    // 메일 — 전자결재와 같은 SPA 셸 방식이라 `appRouteDefs` 를 쓰지 않는다.
+    GoRoute(
+      path: AppRoutes.mail,
+      redirect: (context, state) =>
+          state.uri.path == AppRoutes.mail ? MailRoutes.inbox : null,
+      routes: [
+        // 메일함 하나 = 사이드바 메뉴 하나(grp_mail 아래 mal001~mal008).
+        GoRoute(path: 'inbox', pageBuilder: _mailPage),
+        GoRoute(path: 'sent', pageBuilder: _mailPage),
+        GoRoute(path: 'draft', pageBuilder: _mailPage),
+        GoRoute(path: 'scheduled', pageBuilder: _mailPage),
+        GoRoute(path: 'spam', pageBuilder: _mailPage),
+        GoRoute(path: 'trash', pageBuilder: _mailPage),
+        GoRoute(path: 'all', pageBuilder: _mailPage),
+        GoRoute(path: 'settings', pageBuilder: _mailPage),
+        GoRoute(path: 'compose', pageBuilder: _mailPage),
+        GoRoute(path: 'm/:mailIdx', pageBuilder: _mailPage),
       ],
     ),
     for (final def in appRouteDefs)

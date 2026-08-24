@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.mail.mapper.MailRuleMapper">
+
+    <!--
+        arg 순서 = MailRuleJdbcRow 생성자 인자 순서 = mail_rule 컬럼 순서.
+        셋 중 하나만 틀어져도 컴파일은 통과하고 런타임에 값이 뒤섞인다
+        (MailMstMapper.xml 의 같은 주석 참고).
+    -->
+    <resultMap id="mailRuleRow" type="com.yeokjeon.erp.mail.dto.MailRuleJdbcRow">
+        <constructor>
+            <arg column="mail_rule_idx" javaType="java.lang.Long"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="rule_nm" javaType="java.lang.String"/>
+            <arg column="sort_order" javaType="java.lang.Integer"/>
+            <arg column="use_yn" javaType="java.lang.String"/>
+            <arg column="from_op" javaType="java.lang.String"/>
+            <arg column="from_val" javaType="java.lang.String"/>
+            <arg column="to_op" javaType="java.lang.String"/>
+            <arg column="to_val" javaType="java.lang.String"/>
+            <arg column="subj_op" javaType="java.lang.String"/>
+            <arg column="subj_val" javaType="java.lang.String"/>
+            <arg column="action_type" javaType="java.lang.String"/>
+            <arg column="action_folder_idx" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="mailRuleColumns">
+        r.mail_rule_idx,
+        r.user_id,
+        r.rule_nm,
+        r.sort_order,
+        r.use_yn,
+        r.from_op,
+        r.from_val,
+        r.to_op,
+        r.to_val,
+        r.subj_op,
+        r.subj_val,
+        r.action_type,
+        r.action_folder_idx,
+        r.created_at,
+        r.updated_at
+    </sql>
+
+    <!--
+        정렬은 sort_order → idx 순.
+
+        값이 같을 때 idx 로 한 번 더 정렬하는 것이 중요하다. 기준이 하나뿐이면 순서가
+        매 조회마다 달라질 수 있는데, 이 순서는 화면 표시용이 아니라 <b>규칙 우선순위</b>다.
+        같은 메일이 조회 시점에 따라 다른 메일함으로 가는 상황이 생긴다.
+    -->
+    <select id="selectByUserId" resultMap="mailRuleRow">
+        SELECT <include refid="mailRuleColumns"/>
+        FROM mail_rule r
+        WHERE r.user_id = #{userId}
+        ORDER BY r.sort_order, r.mail_rule_idx
+    </select>
+
+    <!-- 수신 파이프라인 전용. 꺼 둔 규칙(use_yn='N')은 애초에 읽지 않는다 -->
+    <select id="selectActiveByUserId" resultMap="mailRuleRow">
+        SELECT <include refid="mailRuleColumns"/>
+        FROM mail_rule r
+        WHERE r.user_id = #{userId}
+          AND r.use_yn  = 'Y'
+        ORDER BY r.sort_order, r.mail_rule_idx
+    </select>
+
+    <!--
+        소유자 조건이 붙어 있어 남의 규칙이면 null 이 돌아온다. 서비스는 이 null 을 404 로
+        바꾼다 — 403 은 "그 번호의 규칙이 존재한다"는 사실을 알려 주는 셈이다
+        (MailFolderMapper.selectByIdx 와 같은 판단).
+    -->
+    <select id="selectByIdx" resultMap="mailRuleRow">
+        SELECT <include refid="mailRuleColumns"/>
+        FROM mail_rule r
+        WHERE r.mail_rule_idx = #{ruleIdx}
+          AND r.user_id       = #{userId}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true"
+            keyProperty="mailRuleIdx" keyColumn="mail_rule_idx">
+        <!--
+            비교값은 LOWER 로 눕혀 저장한다. 판정도 소문자로 하므로(MailRuleMatcher)
+            여기서 맞춰 두면 "대문자로 등록한 규칙만 안 걸린다" 같은 일이 없다.
+            제목 조건까지 눕히는 이유도 같다 — 원문 보존이 목적인 값이 아니라 비교값이다.
+
+            NOT NULL 기본값은 COALESCE 로 막는다. 호출부마다 챙기게 하면 언젠가 한 곳이
+            빠지고 그때 제약 위반으로 INSERT 가 통째로 죽는다.
+        -->
+        INSERT INTO mail_rule (
+            user_id, rule_nm, sort_order, use_yn,
+            from_op, from_val, to_op, to_val, subj_op, subj_val,
+            action_type, action_folder_idx, created_at, updated_at
+        ) VALUES (
+            #{userId},
+            #{ruleNm},
+            COALESCE(#{sortOrder,jdbcType=INTEGER}, 0),
+            COALESCE(#{useYn,jdbcType=VARCHAR}, 'Y'),
+            #{fromOp,jdbcType=VARCHAR},
+            LOWER(#{fromVal,jdbcType=VARCHAR}),
+            #{toOp,jdbcType=VARCHAR},
+            LOWER(#{toVal,jdbcType=VARCHAR}),
+            #{subjOp,jdbcType=VARCHAR},
+            LOWER(#{subjVal,jdbcType=VARCHAR}),
+            #{actionType},
+            #{actionFolderIdx,jdbcType=BIGINT},
+            now(),
+            now()
+        )
+    </insert>
+
+    <!--
+        부분 수정 — null 인 항목은 기존 값을 유지한다(PATCH 의미론).
+
+        조건 세 쌍만 COALESCE 를 쓸 수 없다. "조건을 지운다"가 곧 NULL 이라, null 이
+        "안 바꿈"인지 "지움"인지 SQL 안에서는 구분할 방법이 없다. 그래서 호출부가
+        fromGiven/toGiven/subjGiven 으로 "요청에 그 조건이 실려 있었는가"를 알려 준다
+        (MailFolderMapper.update 의 parentGiven 과 같은 방식).
+
+        action_type 과 action_folder_idx 는 반드시 같이 바뀐다. 따로 바꾸면
+        "MOVE 인데 대상 메일함 없음" 같은 조합이 순간적으로 만들어져 CHECK 에 걸린다.
+
+        소유자 조건이 없으면 idx 만 바꿔 남의 규칙을 고칠 수 있다.
+    -->
+    <update id="update">
+        UPDATE mail_rule
+        SET rule_nm    = COALESCE(#{ruleNm,jdbcType=VARCHAR}, rule_nm),
+            use_yn     = COALESCE(#{useYn,jdbcType=VARCHAR}, use_yn),
+            sort_order = COALESCE(#{sortOrder,jdbcType=INTEGER}, sort_order),
+            <if test="fromGiven">
+            from_op  = #{fromOp,jdbcType=VARCHAR},
+            from_val = LOWER(#{fromVal,jdbcType=VARCHAR}),
+            </if>
+            <if test="toGiven">
+            to_op  = #{toOp,jdbcType=VARCHAR},
+            to_val = LOWER(#{toVal,jdbcType=VARCHAR}),
+            </if>
+            <if test="subjGiven">
+            subj_op  = #{subjOp,jdbcType=VARCHAR},
+            subj_val = LOWER(#{subjVal,jdbcType=VARCHAR}),
+            </if>
+            <if test="actionGiven">
+            action_type       = #{actionType,jdbcType=VARCHAR},
+            action_folder_idx = #{actionFolderIdx,jdbcType=BIGINT},
+            </if>
+            updated_at = now()
+        WHERE mail_rule_idx = #{ruleIdx}
+          AND user_id       = #{userId}
+    </update>
+
+    <!--
+        순서 재지정을 한 문장으로 끝낸다.
+
+        규칙마다 UPDATE 를 던지면 중간에 실패했을 때 순서가 반쯤 섞인 상태가 남는데,
+        그 상태에서는 어느 규칙이 먼저 적용되는지 사용자도 서버도 알 수 없다.
+
+        VALUES 목록의 <b>배열 위치</b>가 곧 새 sort_order 다(index="i"). 화면이 드래그로
+        재배열한 결과를 그대로 보내면 되고, 숫자를 각자 계산하지 않으니 두 규칙이 같은
+        순서를 갖는 상태가 만들어질 수 없다.
+
+        CAST 를 명시하는 이유: VALUES 목록의 첫 행이 타입을 결정하는데 JDBC 파라미터는
+        타입이 미정이라 PostgreSQL 이 "could not determine data type" 으로 거부한다.
+
+        빈 목록은 호출부가 먼저 막는다(VALUES () 는 문법 오류라 SQL 로는 방어가 안 된다).
+    -->
+    <update id="reorder">
+        UPDATE mail_rule r
+        SET sort_order = v.ord,
+            updated_at = now()
+        FROM (VALUES
+        <foreach collection="ruleIdxes" item="idx" index="i" separator=",">
+            (CAST(#{idx} AS bigint), CAST(#{i} AS integer))
+        </foreach>
+        ) AS v(rule_idx, ord)
+        WHERE r.mail_rule_idx = v.rule_idx
+          AND r.user_id       = #{userId}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM mail_rule
+        WHERE mail_rule_idx = #{ruleIdx}
+          AND user_id       = #{userId}
+    </delete>
+
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*)
+        FROM mail_rule r
+        WHERE r.user_id = #{userId}
+    </select>
+
+    <!-- 맨 뒤에 붙일 정렬값. 행이 없으면 MAX 가 NULL 이라 COALESCE 로 0 을 준다 -->
+    <select id="selectNextSortOrder" resultType="int">
+        SELECT COALESCE(MAX(r.sort_order) + 1, 0)
+        FROM mail_rule r
+        WHERE r.user_id = #{userId}
+    </select>
+</mapper>

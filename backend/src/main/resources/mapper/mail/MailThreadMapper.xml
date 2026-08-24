@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.mail.mapper.MailThreadMapper">
+
+    <resultMap id="mailThreadRow" type="com.yeokjeon.erp.mail.dto.MailThreadMstJdbcRow">
+        <constructor>
+            <arg column="thread_idx" javaType="java.lang.Long"/>
+            <arg column="subject_norm" javaType="java.lang.String"/>
+            <arg column="first_mail_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="last_mail_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="mail_cnt" javaType="java.lang.Integer"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="mailThreadColumns">
+        t.thread_idx,
+        t.subject_norm,
+        t.first_mail_at,
+        t.last_mail_at,
+        t.mail_cnt,
+        t.created_at,
+        t.updated_at
+    </sql>
+
+    <select id="selectByIdx" resultMap="mailThreadRow">
+        SELECT <include refid="mailThreadColumns"/>
+        FROM mail_thread_mst t
+        WHERE t.thread_idx = #{threadIdx}
+    </select>
+
+    <!--
+        정확 매칭(1순위). 두 방향을 모두 본다.
+          정방향 — 내가 들고 온 References/In-Reply-To 가 기존 메일의 Message-ID 를 가리킴
+          역방향 — 기존 메일의 In-Reply-To 가 내 Message-ID 를 가리킴
+        역방향이 필요한 이유는 웹훅 도착 순서가 보장되지 않아 답장이 원본보다
+        먼저 저장되는 일이 실제로 있기 때문이다.
+
+        빈 리스트가 오면 IN () 은 문법 오류라 1 = 0 으로 막는다.
+    -->
+    <select id="selectThreadIdxByMessageIds" resultType="java.lang.Long">
+        SELECT m.thread_idx
+        FROM mail_mst m
+        <where>
+            <choose>
+                <when test="messageIds != null and messageIds.size() &gt; 0">
+                    (
+                        m.rfc_message_id IN
+                        <foreach collection="messageIds" item="mid" open="(" separator="," close=")">
+                            #{mid}
+                        </foreach>
+                        OR m.in_reply_to IN
+                        <foreach collection="messageIds" item="midRev" open="(" separator="," close=")">
+                            #{midRev}
+                        </foreach>
+                    )
+                </when>
+                <otherwise>
+                    1 = 0
+                </otherwise>
+            </choose>
+        </where>
+        ORDER BY m.mail_at DESC, m.mail_idx DESC
+        LIMIT 1
+    </select>
+
+    <!--
+        제목 폴백(2순위). 헤더를 제대로 안 붙이는 메일 클라이언트가 실무에 흔해서
+        이게 없으면 답장마다 새 스레드가 생긴다.
+
+        withinDays 로 기간을 좁히는 이유: '회신', '문의' 같은 흔한 제목이
+        몇 년 치 메일을 한 스레드로 뭉쳐 버리는 사고를 막는다.
+        빈 제목끼리 묶이면 무관한 메일이 전부 한 덩어리가 되므로 명시적으로 제외한다.
+    -->
+    <select id="selectThreadIdxBySubjectNorm" resultType="java.lang.Long">
+        SELECT t.thread_idx
+        FROM mail_thread_mst t
+        WHERE t.subject_norm = #{subjectNorm}
+          AND t.subject_norm != ''
+          AND t.last_mail_at &gt;= now() - (#{withinDays} * INTERVAL '1 day')
+        ORDER BY t.last_mail_at DESC, t.thread_idx DESC
+        LIMIT 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="threadIdx" keyColumn="thread_idx">
+        INSERT INTO mail_thread_mst (
+            subject_norm, first_mail_at, last_mail_at, mail_cnt, created_at, updated_at
+        ) VALUES (
+            COALESCE(#{subjectNorm,jdbcType=VARCHAR}, ''),
+            COALESCE(#{firstMailAt,jdbcType=TIMESTAMP_WITH_TIMEZONE}, now()),
+            COALESCE(#{lastMailAt,jdbcType=TIMESTAMP_WITH_TIMEZONE}, now()),
+            0,
+            now(),
+            now()
+        )
+    </insert>
+
+    <!--
+        캐시값(mail_cnt / first_mail_at / last_mail_at)을 mail_mst 기준으로 다시 계산한다.
+        증분(+1)이 아니라 전량 재계산인 이유: 메일 삭제·재처리·중복 삽입 시도가 섞이면
+        증분은 반드시 어긋나는데, 스레드 하나에 속한 메일 수는 많아야 수십 건이라
+        다시 세는 비용이 무시할 만하다.
+
+        메일이 하나도 없으면(전부 삭제) 집계가 NULL 을 돌려주는데, NOT NULL 컬럼이라
+        COALESCE 로 기존 값을 유지한다.
+    -->
+    <update id="touch">
+        UPDATE mail_thread_mst t
+        SET mail_cnt      = CAST(COALESCE(s.cnt, 0) AS INTEGER),
+            first_mail_at = COALESCE(s.first_at, t.first_mail_at),
+            last_mail_at  = COALESCE(s.last_at, t.last_mail_at),
+            updated_at    = now()
+        FROM (SELECT COUNT(*)      AS cnt,
+                     MIN(m.mail_at) AS first_at,
+                     MAX(m.mail_at) AS last_at
+              FROM mail_mst m
+              WHERE m.thread_idx = #{threadIdx}
+                AND m.deleted_yn = false) s
+        WHERE t.thread_idx = #{threadIdx}
+    </update>
+
+    <select id="selectRecent" resultMap="mailThreadRow">
+        SELECT <include refid="mailThreadColumns"/>
+        FROM mail_thread_mst t
+        ORDER BY t.last_mail_at DESC, t.thread_idx DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

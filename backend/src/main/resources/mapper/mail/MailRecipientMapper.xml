@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.mail.mapper.MailRecipientMapper">
+
+    <resultMap id="mailRecipientRow" type="com.yeokjeon.erp.mail.dto.MailRecipientJdbcRow">
+        <constructor>
+            <arg column="type" javaType="java.lang.String"/>
+            <arg column="ref_idx" javaType="java.lang.Long"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="email" javaType="java.lang.String"/>
+            <arg column="dept_nm" javaType="java.lang.String"/>
+            <arg column="member_cnt" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <!--
+        조직도 통합 검색 (mal001-J) — 사원 + 거래처 + 부서.
+
+        UNION ALL 을 쓰는 이유: 출처가 달라 중복이 애초에 생길 수 없고, UNION(중복 제거)은
+        정렬 비용만 더한다.
+
+        세 갈래의 컬럼 개수·순서·타입이 <b>정확히</b> 같아야 한다. 하나라도 어긋나면
+        PostgreSQL 이 "UNION types ... cannot be matched" 로 즉시 거부한다.
+        ref_idx 는 세 테이블 모두 integer PK 지만 DTO 가 Long 이라 bigint 로 맞춰 캐스팅한다.
+
+        정렬은 타입 → 이름 순으로 고정한다. 관련도 순으로 정렬하려면 trigram 유사도를
+        계산해야 하는데, 대상이 73건(사원 43 + 거래처 5 + 부서 25)뿐이라 그 비용을 들일
+        이유가 없다. 사용자도 "사원 → 거래처 → 부서" 라는 예측 가능한 순서를 더 편해한다.
+
+        keyword 가 비면 조건 없이 전부 준다. 화면 첫 진입에서 조직도를 그대로 펼쳐
+        보여 줄 수 있어야 해서 빈 검색을 허용한다(대상이 73건이라 부담이 없다).
+    -->
+    <select id="search" resultMap="mailRecipientRow">
+        (
+            SELECT
+                'USER'                          AS type,
+                CAST(u.user_idx AS BIGINT)      AS ref_idx,
+                u.user_name                     AS name,
+                LOWER(u.user_email)             AS email,
+                COALESCE(d.dept_nm, '')         AS dept_nm,
+                0                               AS member_cnt
+            FROM user_mst u
+            LEFT JOIN dept_mst d ON d.dept_idx = u.dept_idx
+            <!--
+                메일주소가 없는 사원은 수신자로 고를 수 없으니 아예 안 보여 준다.
+                목록에 띄워 놓고 고르면 실패하게 두면 사용자가 원인을 알 수 없다.
+
+                퇴사자(work_yn != 'Y')도 제외한다. 남겨 두면 이미 없어진 사내 주소로
+                발송해 매번 바운스가 쌓인다.
+            -->
+            WHERE u.user_email IS NOT NULL
+              AND u.user_email != ''
+              AND u.work_yn = 'Y'
+            <if test="keyword != null and keyword != ''">
+              AND (u.user_name ILIKE '%' || #{keyword} || '%'
+                   OR u.user_email ILIKE '%' || #{keyword} || '%'
+                   OR d.dept_nm ILIKE '%' || #{keyword} || '%')
+            </if>
+        )
+        UNION ALL
+        (
+            SELECT
+                'PARTNER'                       AS type,
+                CAST(p.partner_idx AS BIGINT)   AS ref_idx,
+                p.partner_nm                    AS name,
+                LOWER(p.partner_email)          AS email,
+                ''                              AS dept_nm,
+                0                               AS member_cnt
+            FROM partner_mst p
+            <!--
+                partner_status 로는 거르지 않는다. 실제 값이 '예비창업자'/'PROSPECT'/
+                '가맹점사업자' 처럼 한글·영문이 섞여 있어 코드값 규칙이 없다.
+                여기서 특정 값을 골라 내면 데이터가 정리될 때마다 이 쿼리가 조용히 틀린다.
+            -->
+            WHERE p.partner_email IS NOT NULL
+              AND p.partner_email != ''
+            <if test="keyword != null and keyword != ''">
+              AND (p.partner_nm ILIKE '%' || #{keyword} || '%'
+                   OR p.partner_email ILIKE '%' || #{keyword} || '%')
+            </if>
+        )
+        UNION ALL
+        (
+            SELECT
+                'DEPT'                          AS type,
+                CAST(d.dept_idx AS BIGINT)      AS ref_idx,
+                d.dept_nm                       AS name,
+                <!--
+                    부서 자체에는 주소가 없다. 화면이 부서를 고르면
+                    GET /mail/recipients/dept/{deptIdx} 로 부서원 주소를 펼쳐 받는다.
+                -->
+                ''                              AS email,
+                COALESCE(pd.dept_nm, '')        AS dept_nm,
+                <!--
+                    메일주소를 가진 재직 부서원 수. 화면이 "50명을 넘으면 나눠 발송됩니다"
+                    라고 미리 알리는 데 쓴다(Resend to 상한이 50명).
+                    상관 서브쿼리지만 부서가 25개뿐이라 비용이 문제되지 않는다.
+                -->
+                CAST((SELECT COUNT(*)
+                      FROM user_mst mu
+                      WHERE mu.dept_idx = d.dept_idx
+                        AND mu.work_yn = 'Y'
+                        AND mu.user_email IS NOT NULL
+                        AND mu.user_email != '') AS INTEGER) AS member_cnt
+            FROM dept_mst d
+            LEFT JOIN dept_mst pd ON pd.dept_idx = d.upper_dept_idx
+            WHERE d.use_yn = 'Y'
+            <if test="keyword != null and keyword != ''">
+              AND d.dept_nm ILIKE '%' || #{keyword} || '%'
+            </if>
+        )
+        ORDER BY type, name
+        LIMIT #{limit}
+    </select>
+
+    <!--
+        부서원 주소 펼치기.
+
+        includeSub=true 면 재귀 CTE 로 하위 부서까지 훑는다. 기본을 false 로 둔 이유는
+        다우오피스가 트리에서 고른 노드만 넣기 때문이고, 무엇보다 상위 부서를 잘못 고르면
+        전 직원에게 나가는 사고가 나기 때문이다.
+
+        재귀에 UNION(중복 제거)을 쓰는 것이 중요하다. 부서 데이터에 순환 참조가
+        생기면(A의 상위가 B, B의 상위가 A) UNION ALL 은 무한 루프에 빠져 서버가 멈춘다.
+        UNION 은 이미 방문한 노드를 걸러 내 그 상황에서도 끝난다.
+
+        DISTINCT 는 겸직 등으로 같은 사람이 두 번 나오는 것을 막는다 — 같은 주소가
+        to 에 두 번 들어가면 Resend 가 거부하거나 메일이 두 통 간다.
+    -->
+    <select id="selectDeptMembers" resultMap="mailRecipientRow">
+        <if test="includeSub">
+            WITH RECURSIVE sub_dept AS (
+                SELECT d.dept_idx
+                FROM dept_mst d
+                WHERE d.dept_idx = #{deptIdx}
+                UNION
+                SELECT c.dept_idx
+                FROM dept_mst c
+                JOIN sub_dept s ON c.upper_dept_idx = s.dept_idx
+                WHERE c.use_yn = 'Y'
+            )
+        </if>
+        SELECT DISTINCT
+            'USER'                          AS type,
+            CAST(u.user_idx AS BIGINT)      AS ref_idx,
+            u.user_name                     AS name,
+            LOWER(u.user_email)             AS email,
+            COALESCE(d.dept_nm, '')         AS dept_nm,
+            0                               AS member_cnt
+        FROM user_mst u
+        LEFT JOIN dept_mst d ON d.dept_idx = u.dept_idx
+        WHERE u.user_email IS NOT NULL
+          AND u.user_email != ''
+          AND u.work_yn = 'Y'
+        <choose>
+            <when test="includeSub">
+                AND u.dept_idx IN (SELECT dept_idx FROM sub_dept)
+            </when>
+            <otherwise>
+                AND u.dept_idx = #{deptIdx}
+            </otherwise>
+        </choose>
+        ORDER BY name
+    </select>
+
+    <resultMap id="mailUserRefRow" type="com.yeokjeon.erp.mail.dto.MailUserRefJdbcRow">
+        <constructor>
+            <arg column="email" javaType="java.lang.String"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <!--
+        메일주소 → 사원 역방향 조회 (mal001-K/L).
+
+        자동분류·자동전달은 개인 설정인데 수신 메일에는 주소만 적혀 있고
+        mail_mst.user_id 는 아직 비어 있다(담당자 배정은 사람이 한다). 그래서 규칙 주인을
+        주소로 되짚는다.
+
+        user_id 가 NULL 인 행을 빼는 것이 중요하다. 로그인 계정이 없는 사원이 실제로 있고,
+        그 행이 섞이면 호출부가 null 을 소유자로 들고 가서 조건 없는 규칙 조회로 이어진다.
+
+        퇴사자(work_yn != 'Y')도 뺀다 — 이미 나간 사람의 전달 설정이 계속 돌면 메일이
+        회사 밖으로 새어 나간다. 이건 편의가 아니라 보안 문제다.
+
+        LOWER 로 비교하는 이유: user_mst.user_email 은 입력값 그대로 저장돼 대소문자가 섞여
+        있는데, 넘어오는 주소는 mail_addr_dtl 기준이라 이미 소문자다.
+    -->
+    <select id="selectUserRefsByEmails" resultMap="mailUserRefRow">
+        SELECT DISTINCT
+            LOWER(u.user_email) AS email,
+            u.user_id           AS user_id
+        FROM user_mst u
+        WHERE u.user_id IS NOT NULL
+          AND u.user_email IS NOT NULL
+          AND u.work_yn = 'Y'
+          AND LOWER(u.user_email) IN
+        <foreach collection="emails" item="email" open="(" separator="," close=")">
+            #{email}
+        </foreach>
+    </select>
+</mapper>

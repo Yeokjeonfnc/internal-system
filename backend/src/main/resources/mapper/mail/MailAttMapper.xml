@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.mail.mapper.MailAttMapper">
+
+    <resultMap id="mailAttRow" type="com.yeokjeon.erp.mail.dto.MailAttJdbcRow">
+        <constructor>
+            <arg column="mail_att_idx" javaType="java.lang.Long"/>
+            <arg column="mail_idx" javaType="java.lang.Long"/>
+            <arg column="resend_att_id" javaType="java.lang.String"/>
+            <arg column="file_name" javaType="java.lang.String"/>
+            <arg column="stored_name" javaType="java.lang.String"/>
+            <arg column="file_size" javaType="java.lang.Long"/>
+            <arg column="content_type" javaType="java.lang.String"/>
+            <arg column="content_id" javaType="java.lang.String"/>
+            <arg column="inline_yn" javaType="java.lang.String"/>
+            <arg column="fetched_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="fetch_try_cnt" javaType="java.lang.Integer"/>
+            <arg column="fetch_tried_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="fetch_err" javaType="java.lang.String"/>
+            <arg column="attached_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="modified_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="modified_by" javaType="java.lang.String"/>
+            <arg column="deleted_yn" javaType="java.lang.Boolean"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="mailAttColumns">
+        a.mail_att_idx,
+        a.mail_idx,
+        a.resend_att_id,
+        a.file_name,
+        a.stored_name,
+        a.file_size,
+        a.content_type,
+        a.content_id,
+        a.inline_yn,
+        a.fetched_at,
+        a.fetch_try_cnt,
+        a.fetch_tried_at,
+        a.fetch_err,
+        a.attached_at,
+        a.modified_at,
+        a.modified_by,
+        a.deleted_yn
+    </sql>
+
+    <select id="selectByMailIdx" resultMap="mailAttRow">
+        SELECT <include refid="mailAttColumns"/>
+        FROM mail_att a
+        WHERE a.mail_idx = #{mailIdx}
+          AND a.deleted_yn = false
+        ORDER BY a.mail_att_idx
+    </select>
+
+    <!-- 다운로드 권한 검사를 위해 삭제된 행도 돌려준다. 판단은 서비스가 한다 -->
+    <select id="selectByIdx" resultMap="mailAttRow">
+        SELECT <include refid="mailAttColumns"/>
+        FROM mail_att a
+        WHERE a.mail_att_idx = #{mailAttIdx}
+    </select>
+
+    <!--
+        ON CONFLICT (mail_idx, resend_att_id) DO NOTHING — 웹훅 재전달과 재동기화
+        배치가 같은 첨부를 동시에 집어넣을 수 있어서다.
+
+        발신 메일 첨부는 resend_att_id 가 NULL 이고 NULL 끼리는 서로 충돌로 보지
+        않으므로, 사용자가 같은 파일을 두 번 올리면 정상적으로 두 행이 된다.
+
+        file_size 는 웹훅 시점에 알 수 없어(페이로드에 size 가 없다) 0 으로 넣고
+        나중에 updateFetched 가 실제 크기로 갱신한다.
+    -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="mailAttIdx" keyColumn="mail_att_idx">
+        INSERT INTO mail_att (
+            mail_idx, resend_att_id, file_name, stored_name, file_size,
+            content_type, content_id, inline_yn, fetched_at,
+            attached_at, modified_at, modified_by, deleted_yn
+        ) VALUES (
+            #{mailIdx},
+            #{resendAttId,jdbcType=VARCHAR},
+            #{fileName},
+            #{storedName,jdbcType=VARCHAR},
+            COALESCE(#{fileSize,jdbcType=BIGINT}, 0),
+            #{contentType,jdbcType=VARCHAR},
+            #{contentId,jdbcType=VARCHAR},
+            COALESCE(#{inlineYn,jdbcType=VARCHAR}, 'N'),
+            #{fetchedAt,jdbcType=TIMESTAMP_WITH_TIMEZONE},
+            now(),
+            now(),
+            #{modifiedBy,jdbcType=VARCHAR},
+            false
+        )
+        ON CONFLICT (mail_idx, resend_att_id) DO NOTHING
+    </insert>
+
+    <!--
+        실물 수집 대기열. ORDER BY 를 부분 인덱스
+        idx_mail_att_pending (fetch_tried_at NULLS FIRST, mail_att_idx) 에 맞췄다.
+
+        resend_att_id 가 없으면 Attachments API 를 부를 키가 없다(우리가 직접 올린
+        발신 첨부가 여기 해당한다). 빼지 않으면 워커가 매번 집어 들고 아무것도
+        못 한 채 시도 횟수만 태운다.
+    -->
+    <select id="selectFetchPending" resultMap="mailAttRow">
+        SELECT <include refid="mailAttColumns"/>
+        FROM mail_att a
+        WHERE a.fetched_at IS NULL
+          AND a.deleted_yn = false
+          AND a.resend_att_id IS NOT NULL
+          AND a.fetch_try_cnt &lt; #{maxTryCnt}
+          AND (a.fetch_tried_at IS NULL
+               OR a.fetch_tried_at &lt; now() - (#{backoffMinutes} * INTERVAL '1 minute'))
+        ORDER BY a.fetch_tried_at NULLS FIRST, a.mail_att_idx
+        LIMIT #{limit}
+    </select>
+
+    <!-- 외부 호출 직전에 부른다. 호출이 유실돼도 시도 횟수는 남아야 무한 재시도를 막는다 -->
+    <update id="markFetchTried">
+        UPDATE mail_att
+        SET fetch_try_cnt  = fetch_try_cnt + 1,
+            fetch_tried_at = now(),
+            modified_at    = now()
+        WHERE mail_att_idx = #{mailAttIdx}
+    </update>
+
+    <!--
+        fetched_at 이 채워지는 순간부터 이 첨부는 다운로드 가능 상태가 된다.
+        디스크에 파일을 다 쓴 뒤에 불러야 한다 — 먼저 부르면 화면에 다운로드
+        버튼이 열리는데 실제 파일이 없어 404 가 난다.
+    -->
+    <update id="updateFetched">
+        UPDATE mail_att
+        SET stored_name  = #{storedName},
+            file_size    = COALESCE(#{fileSize,jdbcType=BIGINT}, file_size),
+            content_type = COALESCE(#{contentType,jdbcType=VARCHAR}, content_type),
+            fetched_at   = now(),
+            fetch_err    = NULL,
+            modified_at  = now()
+        WHERE mail_att_idx = #{mailAttIdx}
+    </update>
+
+    <!--
+        오류만 기록하고 상태 컬럼은 건드리지 않는다. 첨부에는 body_status 같은
+        종결 상태가 없고 fetched_at IS NULL 자체가 대기 조건이라, selectFetchPending
+        의 maxTryCnt 가 소진 판정을 대신한다.
+    -->
+    <update id="updateFetchFailed">
+        UPDATE mail_att
+        SET fetch_err      = #{fetchErr,jdbcType=VARCHAR},
+            fetch_tried_at = now(),
+            modified_at    = now()
+        WHERE mail_att_idx = #{mailAttIdx}
+    </update>
+
+    <!-- 디스크 파일은 남긴 채 메타만 내린다 — 실수 삭제를 복구할 여지를 둔다 -->
+    <update id="softDelete">
+        UPDATE mail_att
+        SET deleted_yn  = true,
+            modified_by = #{modifiedBy,jdbcType=VARCHAR},
+            modified_at = now()
+        WHERE mail_att_idx = #{mailAttIdx}
+          AND deleted_yn = false
+    </update>
+
+    <select id="countByMailIdx" resultType="int">
+        SELECT COUNT(*)
+        FROM mail_att a
+        WHERE a.mail_idx = #{mailIdx}
+          AND a.deleted_yn = false
+    </select>
+</mapper>

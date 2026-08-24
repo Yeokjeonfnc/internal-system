@@ -36,6 +36,14 @@ const String kMenuGrpDev = 'grp_dev';
 const String kMenuGrpAct = 'grp_act';
 const String kMenuGrpMst = 'grp_mst';
 
+/// 메일 그룹 — 메일함들이 이 아래로 펼쳐진다.
+///
+/// 예전에는 mal001 하나가 루트 메뉴였고 받은/보낸/임시보관은 **화면 안쪽 탭**이었다.
+/// 메일함을 옮길 때마다 메일 화면에 들어가서 탭을 다시 골라야 해 불편하다는 지적이
+/// 있어, 전자결재(grp_eap)·마스터(grp_mst)처럼 좌측 그룹 아래 메일함을 하나씩
+/// 노출하는 구조로 바꿨다.
+const String kMenuGrpMail = 'grp_mail';
+
 /// 마스터 — 사원
 const String kMenuMst001 = 'mst001';
 
@@ -62,3 +70,33 @@ const String kMenuMst006 = 'mst006';
 
 /// 마스터 — 서식관리
 const String kMenuMst007 = 'mst007';
+
+// 메일 — grp_mail 하위 메일함들.
+//
+// **코드 하나 = 메일함 하나**다. 예전처럼 `/mail` 전체를 mal001 로 뭉뚱그리면
+// 보낸메일함에 들어가도 사이드바 하이라이트가 받은메일함에 남는다.
+// (menu_route_access.dart 의 경로 매핑을 반드시 함께 맞출 것.)
+
+/// 메일 — 받은메일함
+const String kMenuMal001 = 'mal001';
+
+/// 메일 — 보낸메일함
+const String kMenuMal002 = 'mal002';
+
+/// 메일 — 임시보관함
+const String kMenuMal003 = 'mal003';
+
+/// 메일 — 예약메일함
+const String kMenuMal004 = 'mal004';
+
+/// 메일 — 스팸메일함
+const String kMenuMal005 = 'mal005';
+
+/// 메일 — 휴지통
+const String kMenuMal006 = 'mal006';
+
+/// 메일 — 전체메일
+const String kMenuMal007 = 'mal007';
+
+/// 메일 — 메일설정
+const String kMenuMal008 = 'mal008';

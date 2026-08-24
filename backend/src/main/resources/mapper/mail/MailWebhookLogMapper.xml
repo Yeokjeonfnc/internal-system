@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.mail.mapper.MailWebhookLogMapper">
+
+    <resultMap id="mailWebhookLogRow" type="com.yeokjeon.erp.mail.dto.MailWebhookLogJdbcRow">
+        <constructor>
+            <arg column="svix_id" javaType="java.lang.String"/>
+            <arg column="event_type" javaType="java.lang.String"/>
+            <arg column="resend_email_id" javaType="java.lang.String"/>
+            <arg column="payload" javaType="java.lang.String"/>
+            <arg column="received_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="process_status" javaType="java.lang.String"/>
+            <arg column="try_cnt" javaType="java.lang.Integer"/>
+            <arg column="tried_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="error_msg" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="mailWebhookLogColumns">
+        w.svix_id,
+        w.event_type,
+        w.resend_email_id,
+        w.payload,
+        w.received_at,
+        w.process_status,
+        w.try_cnt,
+        w.tried_at,
+        w.error_msg
+    </sql>
+
+    <!--
+        반환값 1 = 신규, 0 = 이미 받은 중복 전달. Resend 는 at-least-once 배달이라
+        같은 이벤트가 여러 번 오는데 모든 재시도에서 svix-id 가 동일하다는 것이
+        유일한 중복 판별 근거다. 호출부는 0 이면 아무 처리도 하지 말고 200 만 돌려야 한다.
+
+        event_type 은 'email.received' 처럼 접두가 붙은 원문 그대로 넣는다.
+        원장은 원문 보존이 목적이라 가공하지 않는다(가공된 값은 mail_event_log 쪽).
+
+        payload 는 검증이 끝난 원본 요청 본문이다. 재처리는 이 값만으로 다시 돌 수
+        있어야 하므로 축약하지 않는다.
+    -->
+    <insert id="insertIfAbsent">
+        INSERT INTO mail_webhook_log (
+            svix_id, event_type, resend_email_id, payload,
+            received_at, process_status, try_cnt
+        ) VALUES (
+            #{svixId},
+            #{eventType},
+            #{resendEmailId,jdbcType=VARCHAR},
+            CAST(#{payload,jdbcType=VARCHAR} AS jsonb),
+            now(),
+            'PENDING',
+            0
+        )
+        ON CONFLICT (svix_id) DO NOTHING
+    </insert>
+
+    <select id="selectBySvixId" resultMap="mailWebhookLogRow">
+        SELECT <include refid="mailWebhookLogColumns"/>
+        FROM mail_webhook_log w
+        WHERE w.svix_id = #{svixId}
+    </select>
+
+    <!-- try_cnt 를 올리고 tried_at 을 찍는다. 재처리 백오프·소진 판정의 기준이 된다 -->
+    <update id="markStatus">
+        UPDATE mail_webhook_log
+        SET process_status = #{processStatus},
+            error_msg      = #{errorMsg,jdbcType=VARCHAR},
+            try_cnt        = try_cnt + 1,
+            tried_at       = now()
+        WHERE svix_id = #{svixId}
+    </update>
+
+    <!--
+        PENDING 뿐 아니라 FAILED 도 집는다. 웹훅 컨트롤러는 처리 중 예외가 나도
+        200 을 돌려주고 FAILED 로만 기록하는데(Resend 무한 재시도 폭주 방지),
+        여기서 FAILED 를 빼면 그 메일은 두 번 다시 처리되지 않고 조용히 사라진다.
+
+        DONE/SKIP 은 다시 볼 필요가 없다.
+    -->
+    <select id="selectPending" resultMap="mailWebhookLogRow">
+        SELECT <include refid="mailWebhookLogColumns"/>
+        FROM mail_webhook_log w
+        WHERE w.process_status IN ('PENDING', 'FAILED')
+          AND w.try_cnt &lt; #{maxTryCnt}
+        ORDER BY w.tried_at NULLS FIRST, w.received_at
+        LIMIT #{limit}
+    </select>
+
+    <!-- 운영 화면(최근 웹훅 수신 현황). 인덱스 (received_at DESC) 를 탄다 -->
+    <select id="selectRecent" resultMap="mailWebhookLogRow">
+        SELECT <include refid="mailWebhookLogColumns"/>
+        FROM mail_webhook_log w
+        ORDER BY w.received_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <!--
+        보존기간 정리. 상태를 가리지 않고 지운다 — 보존 창을 넘긴 FAILED 는
+        재처리 대상도 아니고(Resend 가 수신 메일을 30일만 보관해 본문을 다시
+        받을 수도 없다) 남겨 두면 원장만 무한정 불어난다.
+        실제 메일 이력은 mail_mst 에 남으므로 여기서 지워도 이력이 사라지지는 않는다.
+    -->
+    <delete id="deleteOlderThan">
+        DELETE FROM mail_webhook_log
+        WHERE received_at &lt; now() - (#{days} * INTERVAL '1 day')
+    </delete>
+</mapper>

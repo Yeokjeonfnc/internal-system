@@ -14,6 +14,7 @@ import 'package:app_flutter/pages/development/dev001/dev001_controller.dart';
 import 'package:app_flutter/pages/development/dev003/dev003_controller.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_controller.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_provider.dart';
+import 'package:app_flutter/pages/mail/mal001/mal001_provider.dart';
 
 /// 저장·삭제 등 쓰기 작업 후 전체 무효화.
 ///
@@ -27,6 +28,7 @@ void refreshAllScreenData(WidgetRef ref) {
   _invalidateSalesAreas(ref);
   _invalidateUsers(ref);
   _invalidateEap(ref);
+  _invalidateMail(ref);
 }
 
 /// 화면 이동 시 무효화 — 방금 들어간 화면의 목록만 갱신한다.
@@ -52,6 +54,8 @@ void refreshRouteScreenData(WidgetRef ref, String path) {
     _invalidateUsers(ref);
   } else if (menuCd == kMenuEap001 || menuCd == kMenuMst007) {
     _invalidateEap(ref);
+  } else if (menuCd == kMenuMal001) {
+    _invalidateMail(ref);
   }
 }
 
@@ -100,4 +104,17 @@ void _invalidateEap(WidgetRef ref) {
   ref.invalidate(eapFormsProvider);
   ref.invalidate(eapEnabledFormsProvider);
   ref.invalidate(eapFormDetailProvider);
+}
+
+/// 메일 — 메일함·건수·상세·스레드.
+///
+/// 메일은 **남이 보내는 변화**다. 우리 쪽에서 아무 조작을 하지 않아도 새 메일이
+/// 들어오고 발송 상태(전달·반송)가 바뀌므로, 캐시를 믿지 않고 화면에 들어올 때마다
+/// 다시 읽는다. 특히 안 읽음 건수는 캐시가 남으면 사용자가 이미 읽은 메일을
+/// 계속 "안 읽음" 으로 보게 되어 신뢰를 잃는다.
+void _invalidateMail(WidgetRef ref) {
+  ref.invalidate(mailListProvider);
+  ref.invalidate(mailDetailProvider);
+  ref.invalidate(mailCountsProvider);
+  ref.invalidate(mailThreadProvider);
 }

@@ -2,6 +2,7 @@
 
 import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
+import 'package:app_flutter/pages/mail/shared/mail_routes.dart';
 
 import 'app_router.dart';
 
@@ -64,6 +65,15 @@ RouteMeta resolveRouteMeta(String path) {
     return RouteMeta(
       title: EapRoutes.titleFor(path),
       parentPath: EapRoutes.parentFor(path),
+    );
+  }
+
+  // 메일도 `appRouteDefs` 에 없는 SPA 셸 경로다. 이 분기를 빼면 상단 히스토리 탭
+  // 이름이 기본값(`역전에프앤씨`)으로 떨어진다.
+  if (path == MailRoutes.root || path.startsWith('${MailRoutes.root}/')) {
+    return RouteMeta(
+      title: MailRoutes.titleFor(path),
+      parentPath: MailRoutes.parentFor(path),
     );
   }
 

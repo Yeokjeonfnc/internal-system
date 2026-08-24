@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.mail.mapper.MailSignatureMapper">
+
+    <!-- arg 순서 = MailSignatureJdbcRow 생성자 순서 = mail_signature 컬럼 순서 -->
+    <resultMap id="mailSignatureRow" type="com.yeokjeon.erp.mail.dto.MailSignatureJdbcRow">
+        <constructor>
+            <arg column="mail_sign_idx" javaType="java.lang.Long"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="sign_nm" javaType="java.lang.String"/>
+            <arg column="sign_html" javaType="java.lang.String"/>
+            <arg column="default_new_yn" javaType="java.lang.String"/>
+            <arg column="default_reply_yn" javaType="java.lang.String"/>
+            <arg column="sort_order" javaType="java.lang.Integer"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="mailSignatureColumns">
+        s.mail_sign_idx,
+        s.user_id,
+        s.sign_nm,
+        s.sign_html,
+        s.default_new_yn,
+        s.default_reply_yn,
+        s.sort_order,
+        s.created_at,
+        s.updated_at
+    </sql>
+
+    <select id="selectByUserId" resultMap="mailSignatureRow">
+        SELECT <include refid="mailSignatureColumns"/>
+        FROM mail_signature s
+        WHERE s.user_id = #{userId}
+        ORDER BY s.sort_order, s.mail_sign_idx
+    </select>
+
+    <!-- 소유자 조건이 붙어 있어 남의 서명이면 null. 서비스가 404 로 바꾼다 -->
+    <select id="selectByIdx" resultMap="mailSignatureRow">
+        SELECT <include refid="mailSignatureColumns"/>
+        FROM mail_signature s
+        WHERE s.mail_sign_idx = #{signIdx}
+          AND s.user_id       = #{userId}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true"
+            keyProperty="mailSignIdx" keyColumn="mail_sign_idx">
+        <!--
+            NOT NULL 기본값 컬럼은 여기서 COALESCE 로 막는다. 호출부마다 챙기게 하면
+            언젠가 한 곳이 빠지고 그때 제약 위반으로 INSERT 가 통째로 죽는다.
+            default_new_yn / default_reply_yn 은 CHECK ('Y','N') 이 걸려 있어
+            빈 문자열이나 소문자가 들어가면 즉시 실패한다.
+        -->
+        INSERT INTO mail_signature (
+            user_id, sign_nm, sign_html, default_new_yn, default_reply_yn,
+            sort_order, created_at, updated_at
+        ) VALUES (
+            #{userId},
+            #{signNm},
+            COALESCE(#{signHtml,jdbcType=VARCHAR}, ''),
+            COALESCE(#{defaultNewYn,jdbcType=CHAR}, 'N'),
+            COALESCE(#{defaultReplyYn,jdbcType=CHAR}, 'N'),
+            COALESCE(#{sortOrder,jdbcType=INTEGER}, 0),
+            now(),
+            now()
+        )
+    </insert>
+
+    <!--
+        부분 수정 — null 인 항목은 기존 값을 유지한다.
+
+        기본 서명 지정(default_*_yn)은 여기서 '올리기'만 한다. "사용자당 하나만 Y" 규칙은
+        서비스가 clearDefaultNew/clearDefaultReply 를 먼저 부르고 같은 트랜잭션 안에서
+        이 update 를 태워 보장한다. 한 문장으로 묶으려면 다른 행을 건드리는 서브쿼리가
+        필요한데, 그러면 이 update 가 "내 서명 하나만 바꾼다"는 단순한 계약을 잃는다.
+    -->
+    <update id="update">
+        UPDATE mail_signature
+        SET sign_nm          = COALESCE(#{signNm,jdbcType=VARCHAR}, sign_nm),
+            sign_html        = COALESCE(#{signHtml,jdbcType=VARCHAR}, sign_html),
+            default_new_yn   = COALESCE(#{defaultNewYn,jdbcType=CHAR}, default_new_yn),
+            default_reply_yn = COALESCE(#{defaultReplyYn,jdbcType=CHAR}, default_reply_yn),
+            sort_order       = COALESCE(#{sortOrder,jdbcType=INTEGER}, sort_order),
+            updated_at       = now()
+        WHERE mail_sign_idx = #{signIdx}
+          AND user_id       = #{userId}
+    </update>
+
+    <!--
+        이 사용자의 '새 메일 기본 서명'을 전부 내린다.
+
+        default_new_yn = 'Y' 조건을 두어 실제로 Y 인 행만 건드린다. 조건 없이 돌리면
+        서명이 20개일 때 20행을 매번 갱신해 updated_at 이 통째로 바뀌고, 정렬이
+        updated_at 기준인 화면이 있으면 순서까지 흔들린다.
+
+        exceptIdx 로 지정 대상을 제외하는 이유: 그 행까지 N 으로 내렸다가 다시 Y 로
+        올리면 굳이 안 해도 될 UPDATE 를 한 번 더 하는 셈이다.
+    -->
+    <update id="clearDefaultNew">
+        UPDATE mail_signature
+        SET default_new_yn = 'N',
+            updated_at     = now()
+        WHERE user_id        = #{userId}
+          AND default_new_yn = 'Y'
+        <if test="exceptIdx != null">
+            AND mail_sign_idx != #{exceptIdx}
+        </if>
+    </update>
+
+    <update id="clearDefaultReply">
+        UPDATE mail_signature
+        SET default_reply_yn = 'N',
+            updated_at       = now()
+        WHERE user_id          = #{userId}
+          AND default_reply_yn = 'Y'
+        <if test="exceptIdx != null">
+            AND mail_sign_idx != #{exceptIdx}
+        </if>
+    </update>
+
+    <!--
+        물리 삭제. 메일 본체와 달리 소프트 삭제가 필요 없다 — 서명은 발송 시점에
+        본문으로 복사돼 나가므로 지워도 이미 보낸 메일의 서명은 그대로 남는다.
+        감사 이력이 걸리는 대상이 아니다.
+    -->
+    <delete id="delete">
+        DELETE FROM mail_signature
+        WHERE mail_sign_idx = #{signIdx}
+          AND user_id       = #{userId}
+    </delete>
+
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*)
+        FROM mail_signature s
+        WHERE s.user_id = #{userId}
+    </select>
+
+    <select id="selectNextSortOrder" resultType="int">
+        SELECT COALESCE(MAX(s.sort_order) + 1, 0)
+        FROM mail_signature s
+        WHERE s.user_id = #{userId}
+    </select>
+</mapper>

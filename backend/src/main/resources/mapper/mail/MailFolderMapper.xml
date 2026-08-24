@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.mail.mapper.MailFolderMapper">
+
+    <!--
+        arg 순서 = MailFolderJdbcRow 생성자 인자 순서 = mail_folder_mst 컬럼 순서.
+        셋 중 하나만 틀어져도 컴파일은 통과하고 런타임에 값이 뒤섞인다.
+    -->
+    <resultMap id="mailFolderRow" type="com.yeokjeon.erp.mail.dto.MailFolderJdbcRow">
+        <constructor>
+            <arg column="mail_folder_idx" javaType="java.lang.Long"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="parent_folder_idx" javaType="java.lang.Long"/>
+            <arg column="folder_nm" javaType="java.lang.String"/>
+            <arg column="sort_order" javaType="java.lang.Integer"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="mailFolderCountRow" type="com.yeokjeon.erp.mail.dto.MailFolderCountDto">
+        <constructor>
+            <!--
+                "_long"/"_int" 은 원시 타입 별칭이다. javaType="long"/"int" 로 적으면
+                Long/Integer 로 해석돼 record 의 원시 타입 생성자와 시그니처가 어긋나고,
+                MyBatis 가 생성자를 못 찾아 런타임에 터진다
+                (MailMstMapper.xml 의 같은 resultMap 주석 참고).
+            -->
+            <arg column="folder_idx" javaType="_long"/>
+            <arg column="folder_nm" javaType="java.lang.String"/>
+            <arg column="total" javaType="_int"/>
+            <arg column="unread" javaType="_int"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="mailFolderColumns">
+        f.mail_folder_idx,
+        f.user_id,
+        f.parent_folder_idx,
+        f.folder_nm,
+        f.sort_order,
+        f.created_at,
+        f.updated_at
+    </sql>
+
+    <!--
+        정렬은 sort_order → idx 순.
+
+        다우오피스는 메일함을 가나다순으로 고정해 두어서 사용자가 순서를 바꾸려면
+        "1_영업", "2_회계" 처럼 이름 앞에 숫자를 붙여야 했다. 여기서는 sort_order 를
+        직접 두어 이름을 더럽히지 않아도 되게 한다. 값이 같을 때 idx 로 한 번 더
+        정렬하는 이유는, 기준이 하나뿐이면 순서가 매 조회마다 달라져 사이드바가 흔들리기 때문이다.
+    -->
+    <select id="selectByUserId" resultMap="mailFolderRow">
+        SELECT <include refid="mailFolderColumns"/>
+        FROM mail_folder_mst f
+        WHERE f.user_id = #{userId}
+        ORDER BY f.sort_order, f.mail_folder_idx
+    </select>
+
+    <!--
+        소유자 조건이 붙어 있어 남의 메일함이면 null 이 돌아온다.
+        서비스는 이 null 을 404 로 바꾼다 — 403 으로 주면 "그 번호의 메일함이 존재한다"는
+        사실이 새어 나가 남의 메일함 개수를 셀 수 있다.
+    -->
+    <select id="selectByIdx" resultMap="mailFolderRow">
+        SELECT <include refid="mailFolderColumns"/>
+        FROM mail_folder_mst f
+        WHERE f.mail_folder_idx = #{folderIdx}
+          AND f.user_id         = #{userId}
+    </select>
+
+    <!--
+        메일함별 건수. MailMstMapper.selectCustomFolderCounts 와 같은 쿼리를 여기에도
+        두는 이유는 호출 맥락이 다르기 때문이다 — 이쪽은 메일함 관리 화면에서
+        "지우기 전에 몇 통 들어 있나"를 보여 줄 때 쓴다.
+
+        LEFT JOIN 조건에 deleted_yn 을 넣는 것이 핵심이다. WHERE 로 빼면 LEFT JOIN 이
+        INNER JOIN 처럼 동작해 빈 메일함이 목록에서 사라진다.
+    -->
+    <select id="selectFolderCounts" resultMap="mailFolderCountRow">
+        SELECT
+            f.mail_folder_idx                                              AS folder_idx,
+            f.folder_nm                                                    AS folder_nm,
+            CAST(COUNT(m.mail_idx) AS INTEGER)                             AS total,
+            CAST(COUNT(m.mail_idx) FILTER (WHERE m.read_yn = 'N'
+                                             AND m.direction = 'IN') AS INTEGER) AS unread
+        FROM mail_folder_mst f
+        LEFT JOIN mail_mst m
+               ON m.folder_idx  = f.mail_folder_idx
+              AND m.deleted_yn  = false
+        WHERE f.user_id = #{userId}
+        GROUP BY f.mail_folder_idx, f.folder_nm, f.sort_order
+        ORDER BY f.sort_order, f.mail_folder_idx
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true"
+            keyProperty="mailFolderIdx" keyColumn="mail_folder_idx">
+        INSERT INTO mail_folder_mst (
+            user_id, parent_folder_idx, folder_nm, sort_order, created_at, updated_at
+        ) VALUES (
+            #{userId},
+            #{parentFolderIdx,jdbcType=BIGINT},
+            #{folderNm},
+            COALESCE(#{sortOrder,jdbcType=INTEGER}, 0),
+            now(),
+            now()
+        )
+    </insert>
+
+    <!--
+        부분 수정 — null 인 항목은 기존 값을 유지한다(PATCH 의미론).
+
+        parent_folder_idx 만 COALESCE 를 쓸 수 없다. null 이 "안 바꿈"이 아니라
+        "최상위로 옮김"이라는 의미 있는 값이라서, 두 경우를 구분하려면 별도 플래그가 필요하다.
+        그래서 호출부가 parentGiven 으로 "요청에 그 필드가 있었는가"를 알려 준다.
+
+        소유자 조건이 없으면 idx 만 바꿔 남의 메일함 이름을 고칠 수 있다.
+    -->
+    <update id="update">
+        UPDATE mail_folder_mst
+        SET folder_nm  = COALESCE(#{folderNm,jdbcType=VARCHAR}, folder_nm),
+            sort_order = COALESCE(#{sortOrder,jdbcType=INTEGER}, sort_order),
+            <if test="parentGiven">
+            parent_folder_idx = #{parentFolderIdx,jdbcType=BIGINT},
+            </if>
+            updated_at = now()
+        WHERE mail_folder_idx = #{folderIdx}
+          AND user_id         = #{userId}
+    </update>
+
+    <!--
+        물리 삭제.
+
+        안에 있던 메일은 함께 지워지지 않는다 — mail_mst.folder_idx 의 FK 가
+        ON DELETE SET NULL 이라 folder_idx 만 풀리고 메일은 기본함으로 돌아간다.
+        하위 메일함은 parent_folder_idx 의 ON DELETE CASCADE 로 같이 지워지고,
+        그 안의 메일도 같은 규칙으로 풀린다. 즉 메일이 유실되는 경로가 없다.
+    -->
+    <delete id="delete">
+        DELETE FROM mail_folder_mst
+        WHERE mail_folder_idx = #{folderIdx}
+          AND user_id         = #{userId}
+    </delete>
+
+    <!--
+        같은 부모 아래 이름 중복 확인.
+
+        uq_mail_folder_owner_name 이 (user_id, COALESCE(parent_folder_idx, 0), folder_nm)
+        유니크라 DB 도 막아 주지만, 그대로 두면 사용자에게 제약 위반 메시지가 그대로 나간다.
+        여기서 미리 세어 "같은 이름의 메일함이 이미 있습니다" 로 바꿔 주려는 것이다.
+        인덱스와 같은 COALESCE 표현을 써야 판정이 어긋나지 않는다.
+    -->
+    <select id="countByName" resultType="int">
+        SELECT COUNT(*)
+        FROM mail_folder_mst f
+        WHERE f.user_id   = #{userId}
+          AND f.folder_nm = #{folderNm}
+          AND COALESCE(f.parent_folder_idx, 0) = COALESCE(#{parentFolderIdx,jdbcType=BIGINT}, 0)
+        <if test="excludeIdx != null">
+            AND f.mail_folder_idx != #{excludeIdx}
+        </if>
+    </select>
+
+    <!-- 사용자당 메일함 개수 상한 검사용. 계층과 무관하게 전부 센다 -->
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*)
+        FROM mail_folder_mst f
+        WHERE f.user_id = #{userId}
+    </select>
+
+    <!-- 맨 뒤에 붙일 정렬값. 행이 없으면 MAX 가 NULL 이라 COALESCE 로 0 을 준다 -->
+    <select id="selectNextSortOrder" resultType="int">
+        SELECT COALESCE(MAX(f.sort_order) + 1, 0)
+        FROM mail_folder_mst f
+        WHERE f.user_id = #{userId}
+          AND COALESCE(f.parent_folder_idx, 0) = COALESCE(#{parentFolderIdx,jdbcType=BIGINT}, 0)
+    </select>
+</mapper>
