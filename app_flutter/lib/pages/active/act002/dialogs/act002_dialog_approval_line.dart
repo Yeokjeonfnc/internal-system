@@ -40,10 +40,12 @@ Future<ActivityApprovalLineResult?> showActivityApprovalLineDialog(
   List<String> initialUserIds = const [],
   Set<String> blockedKeys = const {},
   String blockedMessage = '이미 다른 결재라인에 지정된 사람은 선택할 수 없습니다.',
+  bool requestFocus = true,
 }) {
   return showDialog<ActivityApprovalLineResult?>(
     context: context,
     barrierColor: const Color(0x66000000),
+    requestFocus: requestFocus,
     builder: (ctx) {
       final compact = useCompactErpLayout(ctx);
       return Dialog(

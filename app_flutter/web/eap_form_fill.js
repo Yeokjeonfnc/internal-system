@@ -57,20 +57,215 @@
     return ' style="width:' + esc(w) + ';max-width:100%"';
   }
 
-  function applyInlineWidgetWidth(row) {
+  function widgetFillControls(row) {
+    return row.querySelectorAll(
+      'input.eap-in-cell, textarea.eap-in-cell, select.eap-in-cell, '
+      + 'input.eap-w-text-inp, input.eap-w-amt-inp, input.eap-w-date, '
+      + '.eap-w-face select, .eap-w-checks input'
+    );
+  }
+
+  /** 셀·문단 안에 위젯 밖 텍스트가 있으면 — "할맥 [입력] 점 폐점" 같은 인라인 흐름 */
+  function widgetInInlineTextFlow(widget) {
+    if (!widget) return false;
+    var cell = widget.closest('td, th');
+    var host = cell || widget.parentElement;
+    if (!host) return false;
+
+    function hasSiblingText(parent, skipEl) {
+      for (var i = 0; i < parent.childNodes.length; i++) {
+        var n = parent.childNodes[i];
+        if (n === skipEl || (skipEl && skipEl.contains && skipEl.contains(n))) continue;
+        if (n.nodeType === 3 && String(n.textContent || '').replace(/\u00a0/g, ' ').trim()) return true;
+        if (n.nodeType !== 1) continue;
+        var tag = (n.tagName || '').toUpperCase();
+        if (tag === 'BR') continue;
+        if (tag === 'P' || tag === 'DIV' || tag === 'SPAN') {
+          if (n.contains(widget)) {
+            if (hasSiblingText(n, widget)) return true;
+            continue;
+          }
+        }
+        if (String(n.textContent || '').replace(/\u00a0/g, ' ').trim()) return true;
+      }
+      return false;
+    }
+
+    return hasSiblingText(host, widget);
+  }
+
+  function activateWidgetFace(row) {
+    var id = row.getAttribute('data-eap-id') || '';
+    var type = row.getAttribute('data-eap-type') || '';
+    row.querySelectorAll('.eap-w-del').forEach(function (el) { el.remove(); });
+
+    if (type.indexOf('auto_') === 0) {
+      row.querySelectorAll('.eap-w-face input').forEach(function (inp) {
+        inp.readOnly = true;
+        inp.value = autoValue(type);
+        if (id) inp.setAttribute('data-eap-id', id);
+      });
+      return;
+    }
+
+    if (type === 'checkbox' || type === 'radio') {
+      var checks = row.querySelector('.eap-w-checks');
+      if (checks && id) checks.setAttribute('data-eap-id', id);
+      row.querySelectorAll('.eap-w-check-item').forEach(function (item) {
+        var inp = item.querySelector('input');
+        var lbl = item.querySelector('.eap-w-check-lbl');
+        if (!inp) return;
+        inp.removeAttribute('disabled');
+        if (lbl && lbl.textContent) inp.value = lbl.textContent.trim();
+        if (type === 'radio' && id) inp.name = 'r_' + id;
+      });
+      return;
+    }
+
+    if (type === 'select') {
+      var sel = row.querySelector('.eap-w-face select, select.eap-w-select-el');
+      if (sel) {
+        sel.removeAttribute('disabled');
+        if (id) sel.setAttribute('data-eap-id', id);
+        sel.classList.add('eap-trigger');
+      }
+      return;
+    }
+
+    row.querySelectorAll('.eap-w-face input, .eap-w-face textarea').forEach(function (inp) {
+      inp.removeAttribute('disabled');
+      if (id) inp.setAttribute('data-eap-id', id);
+      if (type === 'number') inp.classList.add('eap-number');
+      if (type === 'amount') inp.classList.add('eap-amount', 'eap-sum-src');
+    });
+  }
+
+  /** 미리보기와 동일 DOM(eap-w-face) 유지 — buildInput 치환은 레거시·복합 타입만 */
+  function activateWidgetRow(row) {
+    if (row.classList.contains('eap-approval-line')) return;
+    var type = row.getAttribute('data-eap-type') || '';
+    var useBuildInput = type === 'user' || type === 'dept' || type === 'sum_display'
+      || type === 'period' || type === 'time' || type === 'multiline' || type === 'richtext';
+    var val = fieldContainer(row);
+
+    if (!val && row.classList.contains('eap-widget')) {
+      if (!useBuildInput && row.querySelector('.eap-w-face-wrap')) {
+        activateWidgetFace(row);
+      } else {
+        row.innerHTML = buildInput(row);
+      }
+      applyFillWidgetLayout(row);
+      return;
+    }
+
+    if (val) {
+      if (!useBuildInput && row.querySelector('.eap-w-face-wrap')) {
+        activateWidgetFace(row);
+      } else {
+        val.innerHTML = buildInput(row);
+      }
+    }
+    if (row.classList.contains('eap-widget')) applyFillWidgetLayout(row);
+  }
+
+  function applyFillWidgetLayout(row) {
     if (!row || !row.classList.contains('eap-widget')) return;
     var w = row.getAttribute('data-eap-width') || '';
-    if (!w && row.getAttribute('data-eap-inline') !== '0') w = '10em';
-    if (w) {
-      row.style.width = w;
-      row.style.maxWidth = '100%';
-      row.style.display = 'inline-block';
-      row.style.boxSizing = 'border-box';
-      row.style.verticalAlign = widgetInTableCell(row) ? 'middle' : 'baseline';
+    var type = row.getAttribute('data-eap-type') || '';
+    var cell = row.closest('td, th');
+    var merged = false;
+    if (cell) {
+      var cs = parseInt(cell.getAttribute('colspan') || '1', 10) || 1;
+      var rs = parseInt(cell.getAttribute('rowspan') || '1', 10) || 1;
+      merged = cs > 1 || rs > 1;
     }
-    row.querySelectorAll('input.eap-in-cell, textarea.eap-in-cell, select.eap-in-cell').forEach(function (inp) {
-      inp.style.width = '100%';
-      inp.style.maxWidth = '100%';
+    var isChecks = type === 'checkbox' || type === 'radio';
+    var inlineFlow = widgetInInlineTextFlow(row);
+    var soleInCell = cell && !inlineFlow && !merged && !isChecks;
+
+    var inputs = widgetFillControls(row);
+    var checks = row.querySelector('.eap-checks, .eap-w-checks');
+    var faceWrap = row.querySelector('.eap-w-face-wrap');
+
+    row.style.minWidth = '';
+    row.style.minHeight = '';
+
+    if (isChecks && (merged || (w && isPercentWidth(w)))) {
+      row.removeAttribute('data-eap-inline');
+      row.style.display = 'block';
+      row.style.width = w || '100%';
+      row.style.maxWidth = '100%';
+      row.style.margin = '0';
+      if (checks) {
+        checks.style.width = w || '100%';
+        checks.style.maxWidth = '100%';
+      }
+      return;
+    }
+
+    if (soleInCell || (!inlineFlow && w && isPercentWidth(w) && cell)) {
+      row.removeAttribute('data-eap-inline');
+      row.style.display = 'block';
+      row.style.width = w || '100%';
+      row.style.maxWidth = '100%';
+      row.style.margin = '0';
+      row.style.verticalAlign = '';
+      if (faceWrap) {
+        faceWrap.style.display = 'block';
+        faceWrap.style.width = '100%';
+        faceWrap.style.maxWidth = '100%';
+      }
+      inputs.forEach(function (inp) {
+        inp.style.width = '100%';
+        inp.style.maxWidth = '100%';
+        inp.style.boxSizing = 'border-box';
+      });
+      return;
+    }
+
+    if (inlineFlow || row.getAttribute('data-eap-inline') === '1'
+      || (cell && !merged && !isChecks && row.getAttribute('data-eap-inline') !== '0')) {
+      row.setAttribute('data-eap-inline', '1');
+      row.style.display = 'inline-block';
+      row.style.verticalAlign = 'baseline';
+      row.style.margin = '0 2px';
+      row.style.boxSizing = 'border-box';
+      row.style.maxWidth = '100%';
+      var effW = w || '10em';
+      row.style.width = effW;
+      if (faceWrap) {
+        faceWrap.style.display = 'block';
+        faceWrap.style.width = '100%';
+        faceWrap.style.maxWidth = '100%';
+        faceWrap.style.boxSizing = 'border-box';
+      }
+      var face = row.querySelector('.eap-w-face');
+      if (face) {
+        face.style.width = '100%';
+        face.style.maxWidth = '100%';
+        face.style.boxSizing = 'border-box';
+      }
+      inputs.forEach(function (inp) {
+        inp.style.width = '100%';
+        inp.style.maxWidth = '100%';
+        inp.style.boxSizing = 'border-box';
+        inp.style.display = 'block';
+      });
+      return;
+    }
+
+    row.style.display = '';
+    row.style.width = w || '';
+    row.style.maxWidth = w ? '100%' : '';
+    row.style.margin = '';
+    inputs.forEach(function (inp) {
+      if (w) {
+        inp.style.width = '100%';
+        inp.style.maxWidth = '100%';
+      } else {
+        inp.style.width = '';
+        inp.style.maxWidth = '';
+      }
       inp.style.boxSizing = 'border-box';
     });
   }
@@ -190,9 +385,9 @@
       if (row.classList.contains('eap-widget')) val = row;
       else return '';
     }
-    if (type === 'period') return readValue(val.querySelector('.eap-period') || val);
-    if (type === 'time') return readValue(val.querySelector('.eap-time') || val);
-    if (['radio', 'checkbox'].indexOf(type) >= 0) return readValue(val.querySelector('.eap-checks') || val);
+    if (type === 'period') return readValue(val.querySelector('.eap-period, .eap-period-dt, .eap-w-period') || val);
+    if (type === 'time') return readValue(val.querySelector('.eap-time, .eap-w-time') || val);
+    if (['radio', 'checkbox'].indexOf(type) >= 0) return readValue(val.querySelector('.eap-checks, .eap-w-checks') || val);
     var inp = val.querySelector('input,select,textarea');
     return readValue(inp);
   }
@@ -227,22 +422,19 @@
 
   function activateTemplate(html) {
     page.innerHTML = html || '';
+    var isNative = window.eapIsNativeEditorHtml
+      ? window.eapIsNativeEditorHtml(page)
+      : !!page.querySelector('.eap-widget[data-eap-type], .eap-doc-header, table.eap-form-table');
     if (window.eapMigrateDaouHtml) window.eapMigrateDaouHtml(page);
+    // 다우/Word 붙여넣기 HTML 만 import 후처리를 한 번 더 — 네이티브 양식은 건너뛴다.
+    if (!isNative && window.eapPrepareImportedHtmlForEdit) {
+      window.eapPrepareImportedHtmlForEdit(page);
+    }
     if (window.eapSanitizeFormHtml) window.eapSanitizeFormHtml(page, { preserveTableLayout: true });
     if (window.eapInitFormFillLayout) window.eapInitFormFillLayout({ root: page });
     else if (window.eapPrepareFormFillTables) window.eapPrepareFormFillTables(page);
     page.querySelectorAll('.eap-field, .eap-grid-field, .eap-widget[data-eap-type]').forEach(function (row) {
-      if (row.classList.contains('eap-approval-line')) return;
-      var val = fieldContainer(row);
-      if (!val) {
-        if (row.classList.contains('eap-widget')) {
-          row.innerHTML = buildInput(row);
-          applyInlineWidgetWidth(row);
-        }
-        return;
-      }
-      val.innerHTML = buildInput(row);
-      if (row.classList.contains('eap-widget')) applyInlineWidgetWidth(row);
+      activateWidgetRow(row);
     });
     page.querySelectorAll('.eap-richtext').forEach(function (rt) {
       rt.contentEditable = 'true';
@@ -273,18 +465,20 @@
   }
 
   window.eapFillBuildInput = buildInput;
+  window.eapFillApplyWidgetLayout = applyFillWidgetLayout;
+  window.eapFillActivateWidgetRow = activateWidgetRow;
 
   function readValue(el) {
     if (!el) return '';
-    if (el.classList.contains('eap-time')) {
-      var th = el.querySelector('.eap-h');
-      var tm = el.querySelector('.eap-m');
+    if (el.classList.contains('eap-time') || el.classList.contains('eap-w-time')) {
+      var th = el.querySelector('.eap-h, .eap-w-h');
+      var tm = el.querySelector('.eap-m, .eap-w-m');
       return (th ? th.value : '00') + ':' + (tm ? tm.value : '00');
     }
     if (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type !== 'radio' && el.type !== 'checkbox')) {
       return el.value.trim();
     }
-    if (el.classList.contains('eap-checks')) {
+    if (el.classList.contains('eap-checks') || el.classList.contains('eap-w-checks')) {
       if (el.querySelector('input[type=radio]')) {
         var chk = el.querySelector('input[type=radio]:checked');
         return chk ? chk.value : '';
@@ -343,9 +537,9 @@
       if (!val) return;
       var text = '';
       if (type === 'sum_display') text = readValue(val.querySelector('.eap-sum-display') || val);
-      else if (type === 'period') text = readValue(val.querySelector('.eap-period') || val);
-      else if (type === 'time') text = readValue(val.querySelector('.eap-time') || val);
-      else if (['radio', 'checkbox'].indexOf(type) >= 0) text = readValue(val.querySelector('.eap-checks') || val);
+      else if (type === 'period') text = readValue(val.querySelector('.eap-period, .eap-period-dt, .eap-w-period') || val);
+      else if (type === 'time') text = readValue(val.querySelector('.eap-time, .eap-w-time') || val);
+      else if (['radio', 'checkbox'].indexOf(type) >= 0) text = readValue(val.querySelector('.eap-checks, .eap-w-checks') || val);
       else {
         var inp = val.querySelector('input,select,textarea');
         text = readValue(inp);
@@ -362,9 +556,9 @@
     if (!val) return '';
     var text = '';
     if (type === 'sum_display') text = readControlText(val.querySelector('.eap-sum-display') || val);
-    else if (type === 'period') text = readControlText(val.querySelector('.eap-period') || val);
-    else if (type === 'time') text = readControlText(val.querySelector('.eap-time') || val);
-    else if (['radio', 'checkbox'].indexOf(type) >= 0) text = readControlText(val.querySelector('.eap-checks') || val);
+    else if (type === 'period') text = readControlText(val.querySelector('.eap-period, .eap-period-dt, .eap-w-period') || val);
+    else if (type === 'time') text = readControlText(val.querySelector('.eap-time, .eap-w-time') || val);
+    else if (['radio', 'checkbox'].indexOf(type) >= 0) text = readControlText(val.querySelector('.eap-checks, .eap-w-checks') || val);
     else {
       var inp = val.querySelector('input,select,textarea');
       text = readControlText(inp);

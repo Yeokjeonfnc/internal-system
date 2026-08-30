@@ -76,7 +76,7 @@ class EapComposeLinePick {
     for (var i = skipLeading; i < userIds.length; i++) {
       final id = userIds[i].trim();
       final nm = i < names.length ? names[i].trim() : '';
-      final uid = id.isNotEmpty ? id : nm;
+      final uid = id.isNotEmpty ? id : '';
       if (uid.isEmpty) continue;
       out.add(
         EapLineMember(
@@ -159,6 +159,56 @@ class EapComposeLineSet {
       ...ccs.occupiedKeys(),
     };
     return viewers.removeKeys(blocked);
+  }
+
+  void clear() {
+    for (final pick in [approvers, agreers, ccs, viewers]) {
+      pick.names = List<String>.filled(kActivityApprovalLineSlotCount, '');
+      pick.titles = List<String>.filled(kActivityApprovalLineSlotCount, '');
+      pick.userIds = List<String>.filled(kActivityApprovalLineSlotCount, '');
+    }
+  }
+
+  void loadFromMembers(List<EapLineMember> members) {
+    clear();
+    final byRole = <String, EapComposeLinePick>{
+      'APPROVER': approvers,
+      'AGREE': agreers,
+      'CC': ccs,
+      'VIEWER': viewers,
+    };
+    final sorted = [...members]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    for (final m in sorted) {
+      final role = m.roleCd.trim().toUpperCase();
+      if (role == 'DRAFTER' || role == 'DRAFT') continue;
+      final pick = byRole[role];
+      if (pick == null) continue;
+      final uid = m.userId.trim();
+      final nm = m.userNm.trim();
+      if (uid.isEmpty && nm.isEmpty) continue;
+      var slot = -1;
+      for (var i = 0; i < pick.userIds.length; i++) {
+        if (pick.userIds[i].trim().isEmpty && pick.names[i].trim().isEmpty) {
+          slot = i;
+          break;
+        }
+      }
+      if (slot < 0) continue;
+      pick.userIds[slot] = uid;
+      pick.names[slot] = nm.isNotEmpty ? nm : uid;
+      pick.titles[slot] = m.titleNm.trim();
+    }
+  }
+
+  bool get hasMemberWithoutUserId {
+    for (final pick in [approvers, agreers, ccs, viewers]) {
+      for (var i = 0; i < pick.names.length; i++) {
+        final nm = pick.names[i].trim();
+        final id = i < pick.userIds.length ? pick.userIds[i].trim() : '';
+        if (nm.isNotEmpty && id.isEmpty) return true;
+      }
+    }
+    return false;
   }
 
   List<EapLineMember> allLines(AuthProvider auth) {

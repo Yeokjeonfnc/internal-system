@@ -946,7 +946,8 @@ class _SidebarMenuItem extends StatelessWidget {
 
 /// 클릭 시 하위 메뉴를 펼치고 접는 사이드바 메뉴.
 ///
-/// 상위 항목 자체는 라우팅을 하지 않으며, 하위 [children] 이 실제 이동/액션을 담당합니다.
+/// 헤더를 다시 누르면 트리를 접는다. [onHeaderTap] 이 있으면 접힌 상태에서
+/// 펼칠 때만 그 이동을 한다. 하위 [children] 이 각 화면으로의 이동을 담당한다.
 class _SidebarExpandableMenuItem extends StatefulWidget {
   const _SidebarExpandableMenuItem({
     required this.icon,
@@ -963,8 +964,9 @@ class _SidebarExpandableMenuItem extends StatefulWidget {
   /// 현재 경로가 하위 메뉴에 해당하는 경우 펼친 상태로 시작할 때 사용.
   final bool initiallyExpanded;
 
-  /// 지정하면 상위 항목 클릭 시 접고 펴는 대신(또는 그와 함께) 이 이동을 수행하고
-  /// 목록을 펼친다. 미지정 시 기존처럼 접기/펴기 토글만 한다.
+  /// 접힌 상태에서 헤더를 눌렀을 때 펼치면서 함께 실행할 이동(전자결재 홈 등).
+  /// 이미 펼쳐져 있으면 헤더는 트리만 접고 이 콜백은 부르지 않는다.
+  /// 미지정 시 접기/펴기 토글만 한다.
   final VoidCallback? onHeaderTap;
 
   @override
@@ -987,12 +989,12 @@ class _SidebarExpandableMenuItemState
 
   void _handleHeaderTap() {
     final onHeaderTap = widget.onHeaderTap;
-    if (onHeaderTap != null) {
-      setState(() => _expanded = true);
-      onHeaderTap();
+    if (_expanded) {
+      setState(() => _expanded = false);
       return;
     }
-    setState(() => _expanded = !_expanded);
+    setState(() => _expanded = true);
+    onHeaderTap?.call();
   }
 
   @override

@@ -91,9 +91,58 @@ final storeProvider = NotifierProvider<StoreNotifier, StoreFilter>(
   StoreNotifier.new,
 );
 
-/// 가맹점 데이터 로더 (비동기)
+/// 가맹점 데이터 로더 (비동기) — 대시보드·상세 무효화용 전체 목록.
 final storeDataProvider = FutureProvider<List<Store>>((ref) async {
   return await ref.watch(storeRepositoryProvider).all();
+});
+
+class StoreListPaging {
+  const StoreListPaging({this.page = 1, this.pageSize = 50});
+
+  final int page;
+  final int pageSize;
+
+  int get offset => (page - 1) * pageSize;
+}
+
+class StoreListPagingNotifier extends Notifier<StoreListPaging> {
+  @override
+  StoreListPaging build() {
+    ref.listen<StoreFilter>(storeProvider, (prev, next) {
+      if (state.page != 1) {
+        state = StoreListPaging(page: 1, pageSize: state.pageSize);
+      }
+    });
+    return const StoreListPaging();
+  }
+
+  void setPage(int page) {
+    final next = page < 1 ? 1 : page;
+    if (next == state.page) return;
+    state = StoreListPaging(page: next, pageSize: state.pageSize);
+  }
+
+  void setPageSize(int pageSize) {
+    state = StoreListPaging(page: 1, pageSize: pageSize);
+  }
+}
+
+final storeListPagingProvider =
+    NotifierProvider<StoreListPagingNotifier, StoreListPaging>(
+      StoreListPagingNotifier.new,
+    );
+
+/// 목록 화면용 서버 페이지. 필터·페이지가 바뀌면 다시 조회한다.
+final storeListPageProvider = FutureProvider<StoreListPage>((ref) async {
+  final filter = ref.watch(storeProvider);
+  final paging = ref.watch(storeListPagingProvider);
+  return ref
+      .watch(storeApiServiceProvider)
+      .listStoresPaged(
+        limit: paging.pageSize,
+        offset: paging.offset,
+        filter: filter,
+      );
 });
 
 class StoreNotifier extends BaseListNotifier<StoreFilter, Store> {
@@ -114,6 +163,7 @@ class StoreNotifier extends BaseListNotifier<StoreFilter, Store> {
   /// 화면 진입 시(배경 갱신)에는 목록만 갱신해 불필요한 왕복 6회를 줄인다.
   void refresh({bool includeCodes = true}) {
     ref.invalidate(storeDataProvider);
+    ref.invalidate(storeListPageProvider);
     if (!includeCodes) return;
     ref.invalidate(regionNamesProvider);
     ref.invalidate(brandNamesProvider);

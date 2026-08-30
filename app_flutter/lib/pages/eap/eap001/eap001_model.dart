@@ -141,6 +141,12 @@ class EapDocument {
   final List<EapLineMember> lines;
   final bool canApprove;
 
+  /// 임시저장·작성중 문서는 상세가 아니라 기안 화면에서 이어 쓴다.
+  bool get isResumable =>
+      status == EapDocStatus.tempSave ||
+      status == EapDocStatus.writing ||
+      status == EapDocStatus.draft;
+
   bool canActAs(String userId) {
     if (canApprove) return true;
     final uid = userId.trim();

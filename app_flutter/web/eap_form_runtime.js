@@ -168,7 +168,11 @@
   function activateClonedRow(row) {
     row.querySelectorAll('.eap-widget[data-eap-type]').forEach(function (w) {
       if (w.querySelector('input, select, textarea')) return;
-      if (g.eapFillBuildInput) w.innerHTML = g.eapFillBuildInput(w);
+      if (g.eapFillActivateWidgetRow) g.eapFillActivateWidgetRow(w);
+      else if (g.eapFillBuildInput) {
+        w.innerHTML = g.eapFillBuildInput(w);
+        if (g.eapFillApplyWidgetLayout) g.eapFillApplyWidgetLayout(w);
+      }
     });
   }
 

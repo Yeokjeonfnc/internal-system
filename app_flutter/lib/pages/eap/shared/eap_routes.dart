@@ -24,6 +24,19 @@ abstract final class EapRoutes {
   static String composeWith(String formCode) =>
       '$compose?form=${Uri.encodeQueryComponent(formCode)}';
 
+  static String composeResume({required String formCode, required String docId}) {
+    final form = formCode.trim();
+    final doc = docId.trim();
+    final params = <String>[];
+    if (form.isNotEmpty) {
+      params.add('form=${Uri.encodeQueryComponent(form)}');
+    }
+    if (doc.isNotEmpty) {
+      params.add('doc=${Uri.encodeQueryComponent(doc)}');
+    }
+    return params.isEmpty ? compose : '$compose?${params.join('&')}';
+  }
+
   static String? formCodeFromEditPath(String path) {
     const prefix = '$root/forms/edit/';
     if (!path.startsWith(prefix)) return null;
@@ -70,6 +83,12 @@ abstract final class EapRoutes {
   }
 
   static void openDocument(BuildContext context, EapDocument doc) {
+    if (doc.isResumable) {
+      context.go(
+        composeResume(formCode: doc.formCode, docId: doc.docId),
+      );
+      return;
+    }
     context.push(documentDetail(doc.docId));
   }
 }

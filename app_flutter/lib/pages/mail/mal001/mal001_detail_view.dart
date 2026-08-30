@@ -346,8 +346,10 @@ class _Mal001DetailViewState extends ConsumerState<Mal001DetailView> {
     }
     // 본문 iframe 이 떠 있으면 다이얼로그가 포인터를 못 받는다 — 게이트를 태운다.
     final picked = await IframePointerGate.whileBlocked(
+      context,
       () => showDialog<MailUserFolder>(
         context: context,
+        requestFocus: false,
         builder: (ctx) => SimpleDialog(
           title: const Text('메일함으로 이동'),
           children: [
@@ -472,8 +474,10 @@ class _Mal001DetailViewState extends ConsumerState<Mal001DetailView> {
     // 본문 iframe 이 떠 있으면 다이얼로그가 포인터를 못 받는다 —
     // 전자결재와 같은 게이트를 태운다.
     final ok = await IframePointerGate.whileBlocked(
+      context,
       () => showDialog<bool>(
         context: context,
+        requestFocus: false,
         builder: (ctx) => AlertDialog(
           title: const Text('메일 삭제'),
           content: Text('「${detail.summary.subjectLabel}」 메일을 삭제하시겠습니까?'),
@@ -552,8 +556,10 @@ class _Mal001DetailViewState extends ConsumerState<Mal001DetailView> {
 
   Future<void> _deleteAttachment(MailAttachment att) async {
     final ok = await IframePointerGate.whileBlocked(
+      context,
       () => showDialog<bool>(
         context: context,
+        requestFocus: false,
         builder: (ctx) => AlertDialog(
           title: const Text('첨부 삭제'),
           content: Text('「${att.fileNameLabel}」 첨부를 삭제하시겠습니까?'),

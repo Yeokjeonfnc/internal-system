@@ -175,6 +175,10 @@ public class EapDocumentService {
             if (!Set.of("WRITING", "TEMPSAVE", "DRAFT").contains(st)) {
                 throw new IllegalArgumentException("작성중·임시저장 문서만 수정할 수 있습니다. 현재 상태: " + existing.status());
             }
+            String existingDrafter = existing.draftUserId() == null ? "" : existing.draftUserId().trim();
+            if (!existingDrafter.isEmpty() && !existingDrafter.equalsIgnoreCase(draftUserId)) {
+                throw new IllegalArgumentException("작성자만 문서를 수정할 수 있습니다.");
+            }
             String erpSourceId = blankTo(existing.erpSourceId(), blankTo(body.erpSourceId(), "TMP-" + mappingId));
             String content = sanitizeHtml(
                     blankTo(body.contentHtml(), buildSimpleHtml(title, form.formName(), erpMenuId, erpSourceId)));
@@ -475,6 +479,9 @@ public class EapDocumentService {
     private static String draftSavedMessage(String status) {
         if ("TEMPSAVE".equals(status)) {
             return "임시 저장했습니다.";
+        }
+        if ("INPROGRESS".equals(status) || "DRAFT".equals(status)) {
+            return "상신했습니다.";
         }
         return "저장했습니다.";
     }

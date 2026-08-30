@@ -132,11 +132,80 @@
                  ) usv ON TRUE
     </sql>
 
+    <sql id="storeListWhere">
+        <where>
+            <if test="q.brandNm != null and q.brandNm != ''">
+                AND COALESCE(br.code_nm, CAST(sm.brand_cd AS VARCHAR)) = #{q.brandNm}
+            </if>
+            <if test="q.regionNms != null and q.regionNms.size() &gt; 0">
+                AND COALESCE(reg.code_nm, CAST(sm.region_cd AS VARCHAR)) IN
+                <foreach collection="q.regionNms" item="nm" open="(" separator="," close=")">
+                    #{nm}
+                </foreach>
+            </if>
+            <if test="q.storeStatusNms != null and q.storeStatusNms.size() &gt; 0">
+                AND COALESCE(st.code_nm, CAST(sm.store_status AS VARCHAR)) IN
+                <foreach collection="q.storeStatusNms" item="nm" open="(" separator="," close=")">
+                    #{nm}
+                </foreach>
+            </if>
+            <if test="q.storeNm != null and q.storeNm != ''">
+                AND sm.store_nm ILIKE '%' || #{q.storeNm} || '%'
+            </if>
+            <if test="q.storeCd != null and q.storeCd != ''">
+                AND COALESCE(sm.store_cd, '') ILIKE '%' || #{q.storeCd} || '%'
+            </if>
+            <if test="q.ownerNm != null and q.ownerNm != ''">
+                AND COALESCE(sm.owner_nm, '') ILIKE '%' || #{q.ownerNm} || '%'
+            </if>
+            <if test="q.storeTel != null and q.storeTel != ''">
+                AND COALESCE(sm.store_tel, '') ILIKE '%' || #{q.storeTel} || '%'
+            </if>
+            <if test="q.address != null and q.address != ''">
+                AND (COALESCE(sm.address, '') || ' ' || COALESCE(sm.adress_detail, ''))
+                    ILIKE '%' || #{q.address} || '%'
+            </if>
+            <if test="q.contStartDt != null and q.contStartDt != ''">
+                AND CAST(sm.cont_start_dt AS TEXT) ILIKE '%' || #{q.contStartDt} || '%'
+            </if>
+            <if test="q.contEndDt != null and q.contEndDt != ''">
+                AND CAST(sm.cont_end_dt AS TEXT) ILIKE '%' || #{q.contEndDt} || '%'
+            </if>
+            <if test="q.sv != null and q.sv != ''">
+                AND (COALESCE(sm.sv_id, '') ILIKE '%' || #{q.sv} || '%'
+                 OR COALESCE(usv.user_name, '') ILIKE '%' || #{q.sv} || '%')
+            </if>
+            <if test="q.businessNumber != null and q.businessNumber != ''">
+                AND COALESCE(sm.business_number, '') ILIKE '%' || #{q.businessNumber} || '%'
+            </if>
+            <if test="q.notes != null and q.notes != ''">
+                AND COALESCE(sm.notes, '') ILIKE '%' || #{q.notes} || '%'
+            </if>
+        </where>
+    </sql>
+
     <select id="selectStoreListOrdered" resultMap="storeMstDto">
         SELECT
         <include refid="storeMstDtoColumnList"/>
         <include refid="storeMstFromJoins"/>
         ORDER BY sm.store_idx DESC
+    </select>
+
+    <select id="selectStoreListPaged" resultMap="storeMstDto">
+        SELECT
+        <include refid="storeMstDtoColumnList"/>
+        <include refid="storeMstFromJoins"/>
+        <include refid="storeListWhere"/>
+        ORDER BY sm.store_idx DESC
+        <if test="q.limit != null">
+            LIMIT #{q.limit} OFFSET #{q.offset}
+        </if>
+    </select>
+
+    <select id="countStoreList" resultType="int">
+        SELECT CAST(COUNT(*) AS INTEGER)
+        <include refid="storeMstFromJoins"/>
+        <include refid="storeListWhere"/>
     </select>
 
     <select id="selectStoresByStoreNmLike" resultMap="storeMstDto">

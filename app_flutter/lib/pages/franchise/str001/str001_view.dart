@@ -21,6 +21,7 @@ import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_data_table.dart';
 import 'package:app_flutter/core/widgets/common/data_table/common_erp_table_cells.dart';
 import 'package:app_flutter/core/widgets/common/common_list_page_template.dart';
+import 'package:app_flutter/core/widgets/common/common_pager_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_active_filter_chips.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_multi_select.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_controller.dart';
@@ -243,27 +244,43 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
   Widget build(BuildContext context) {
     final filter = ref.watch(storeProvider);
     final n = ref.read(storeProvider.notifier);
-    final storesAsync = ref.watch(storeDataProvider);
+    final pageAsync = ref.watch(storeListPageProvider);
+    final paging = ref.watch(storeListPagingProvider);
     final regionsAsync = ref.watch(regionNamesProvider);
     final brandsAsync = ref.watch(brandNamesProvider);
 
-    return storesAsync.when(
-      data: (stores) {
+    return pageAsync.when(
+      data: (page) {
         return regionsAsync.when(
           data: (regions) {
             return brandsAsync.when(
               data: (brands) {
-                // 로드된 데이터로 필터링
-                final rows = n.getFilteredList();
+                final rows = page.rows;
 
                 return ListPageTemplate(
                   activeFilters: const <ActiveFilterChip>[],
-                  countText: '총 ${rows.length}개의 가맹점이 조회되었습니다.',
+                  countText: '총 ${page.total}개의 가맹점이 조회되었습니다.',
                   registerMenuCd: kMenuStr001,
                   onRegister: () =>
                       context.goNamed(AppRouteNames.storeRegister),
                   onRefresh: () => n.refresh(),
-                  table: _StoreTable(rows: rows),
+                  table: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: _StoreTable(rows: rows)),
+                      CommonPagerBar(
+                        totalCount: page.total,
+                        page: paging.page,
+                        pageSize: paging.pageSize,
+                        onPageChanged: ref
+                            .read(storeListPagingProvider.notifier)
+                            .setPage,
+                        onPageSizeChanged: ref
+                            .read(storeListPagingProvider.notifier)
+                            .setPageSize,
+                      ),
+                    ],
+                  ),
                   mainSearchFields: _StoreConditionFilter(
                     filter: filter,
                     notifier: n,
@@ -868,6 +885,7 @@ class _StoreTable extends ConsumerWidget {
 
     if (deleted) {
       ref.invalidate(storeDataProvider);
+      ref.invalidate(storeListPageProvider);
       await showAlertDialog(context, '삭제되었습니다.');
     } else {
       await showAlertDialog(context, serverMessage ?? '삭제에 실패했습니다.');

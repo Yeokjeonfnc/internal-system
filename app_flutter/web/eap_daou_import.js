@@ -234,6 +234,17 @@
     try { return JSON.parse(s.textContent || '{}'); } catch (e) { return null; }
   }
 
+  /** 자체 양식 편집기가 만든 HTML — Word/다우 import 용 칸 편집 처리를 하면 안 된다. */
+  function eapIsNativeEditorHtml(root) {
+    if (!root || !root.querySelector) return false;
+    if (root.querySelector('.eap-doc-header, .eap-doc-body')) return true;
+    if (root.querySelector('.eap-widget[data-eap-type], .eap-field[data-eap-type], .eap-grid-field[data-eap-type]')) {
+      return true;
+    }
+    if (root.querySelector('table.eap-form-table, table.eap-product-table, table.eap-compact-table')) return true;
+    return false;
+  }
+
   function eapMigrateDaouHtml(root) {
     if (!root) return;
     removeDaouChrome(root);
@@ -242,10 +253,17 @@
     tagRowTools(root);
     var cfg = extractScripts(root);
     if (cfg) storeScriptConfig(root, cfg);
-    if (window.eapPrepareImportedHtmlForEdit) window.eapPrepareImportedHtmlForEdit(root);
+    // 기안 입력·미리보기는 편집기와 다른 파이프라인이다. import 용 prepare 는
+    // 모든 td/th 를 contentEditable 로 바꾸고 colgroup 을 강제로 넣는데,
+    // 네이티브 양식(eap-form-table·eap-widget)에까지 적용하면 표·위젯 배치가
+    // 미리보기와 달라져 기안 화면에서 칸·글자가 비어 보이는 경우가 있다.
+    if (!eapIsNativeEditorHtml(root) && window.eapPrepareImportedHtmlForEdit) {
+      window.eapPrepareImportedHtmlForEdit(root);
+    }
   }
 
   g.eapMigrateDaouHtml = eapMigrateDaouHtml;
+  g.eapIsNativeEditorHtml = eapIsNativeEditorHtml;
   g.eapExtractFormScriptConfig = extractScriptConfig;
   g.eapReadFormScriptConfig = readScriptConfig;
 })(typeof window !== 'undefined' ? window : this);

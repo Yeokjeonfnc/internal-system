@@ -23,3 +23,4 @@ void main() {
     expect(find.text('가맹계약/개점'), findsOneWidget);
   });
 }
+

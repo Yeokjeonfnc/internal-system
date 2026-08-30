@@ -169,11 +169,13 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
     // **그 위로 겹친 영역의 클릭을 iframe 이 먼저 가져간다.** 그래서 편집기
     // 다이얼로그 안을 눌렀는데 아무 반응이 없는 일이 생긴다.
     // (기안하기 쪽 `_pickLine`·`_pickFormField` 는 이미 이 처리를 하고 있었다.)
-    IframePointerGate.push();
     try {
-      final result = await showEapFormEditorDialog(
+      final result = await IframePointerGate.whileBlocked(
         context,
-        controller: _builderCtrl,
+        () => showEapFormEditorDialog(
+          context,
+          controller: _builderCtrl,
+        ),
       );
       if (!mounted || result == null) return;
       setState(() {
@@ -181,7 +183,6 @@ class _Eap001FormEditorViewState extends ConsumerState<Eap001FormEditorView> {
         _fieldSchemaJson = result.schemaJson;
       });
     } finally {
-      IframePointerGate.pop();
       if (mounted) setState(() => _openingBuilder = false);
     }
   }

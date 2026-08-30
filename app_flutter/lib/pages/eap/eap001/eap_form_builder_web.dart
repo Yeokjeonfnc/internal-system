@@ -26,7 +26,7 @@ class EapFormBuilderController {
   }) {
     _set = setHtml;
     _get = getFormData;
-    if (_html.isNotEmpty) _set!(_html);
+    // onLoad 에서만 본문 전송 — attach 직후 postMessage 크래시 방지.
   }
 
   void detach() {
@@ -63,9 +63,11 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost> {
   html.IFrameElement? _iframe;
   StreamSubscription<html.MessageEvent>? _sub;
   StreamSubscription<html.Event>? _loadSub;
+  Completer<void>? _ready;
   int _req = 0;
   final Map<int, Completer<({String html, String schemaJson})>> _pending = {};
   var _alive = true;
+  var _loaded = false;
 
   @override
   void initState() {
@@ -75,9 +77,13 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost> {
     );
     _iframe = iframe;
     _viewType = registerEapIframeView('eap-form-builder', iframe);
+    _ready = Completer<void>();
     _sub = html.window.onMessage.listen(_onMessage);
     _loadSub = iframe.onLoad.listen((_) {
       if (!_alive || !mounted) return;
+      _loaded = true;
+      final ready = _ready;
+      if (ready != null && !ready.isCompleted) ready.complete();
       if (widget.controller._html.isNotEmpty) {
         _postSetHtml(widget.controller._html);
       }
@@ -124,20 +130,53 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost> {
     postEapIframeMessage(_iframe, {'type': 'eapSetHtml', 'html': htmlText});
   }
 
-  Future<({String html, String schemaJson})> _postGetFormData() {
-    final id = ++_req;
-    final c = Completer<({String html, String schemaJson})>();
-    _pending[id] = c;
-    postEapIframeMessage(_iframe, {'type': 'eapGetHtml', 'id': id});
-    return c.future.timeout(
-      const Duration(seconds: 3),
-      // 시간 안에 응답이 없으면 **실패로 알린다.**
-      // 예전에는 마지막으로 보냈던 원본 html 과 빈 스키마('[]')를 돌려줬다.
-      // 그러면 사용자가 편집기에서 한 작업이 통째로 사라진 채 「확인」이 성공한 것처럼
-      // 보이고, 저장하면 **필드 정의까지 함께 지워졌다.**
-      onTimeout: () =>
-          throw StateError('양식 편집기가 응답하지 않습니다. 편집기를 닫았다가 다시 열어 주세요.'),
+  Future<void> _ensureIframeReady() async {
+    if (_loaded) return;
+    final ready = _ready;
+    if (ready == null) return;
+    await ready.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () => throw StateError(
+        '양식 편집기가 아직 로드되지 않았습니다. 잠시 후 다시 시도해 주세요.',
+      ),
     );
+  }
+
+  Future<({String html, String schemaJson})> _postGetFormData() async {
+    await _ensureIframeReady();
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final id = ++_req;
+      final c = Completer<({String html, String schemaJson})>();
+      _pending[id] = c;
+      var sent = postEapIframeMessage(_iframe, {'type': 'eapGetHtml', 'id': id});
+      if (!sent) {
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+        sent = postEapIframeMessage(_iframe, {'type': 'eapGetHtml', 'id': id});
+      }
+      if (!sent) {
+        _pending.remove(id);
+        throw StateError(
+          '양식 편집기와 통신할 수 없습니다. 편집기를 닫았다가 다시 열어 주세요.',
+        );
+      }
+      try {
+        return await c.future.timeout(
+          const Duration(seconds: 8),
+          onTimeout: () => throw StateError(
+            '양식 편집기가 응답하지 않습니다. 편집기를 닫았다가 다시 열어 주세요.',
+          ),
+        );
+      } on StateError catch (e) {
+        lastError = e;
+        _pending.remove(id);
+        if (attempt == 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 120));
+        }
+      }
+    }
+    throw lastError ??
+        StateError('양식 편집기가 응답하지 않습니다. 편집기를 닫았다가 다시 열어 주세요.');
   }
 
   Future<void> _replyFormsList() async {
@@ -161,11 +200,37 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost> {
   }
 
   void _onMessage(html.MessageEvent e) {
-    // 전역 메시지 스트림이라 다른 iframe 의 응답도 들어온다 — 내 것만 처리한다.
-    if (!isFromEapIframe(e, _iframe)) return;
     final data = parseEapIframeMessage(e.data);
     if (data == null) return;
     final type = data['type']?.toString();
+
+    // HTML·스키마 응답 — 대기 중인 요청 id 가 있으면 출처 검사 실패여도 수신한다.
+    // (dart2js Window 래퍼 불일치로 isFromEapIframe 이 false 가 되는 경우 대비)
+    if (type == 'eapFormData' || type == 'eapHtml') {
+      final id = data['id'];
+      if (id is num) {
+        final reqId = id.toInt();
+        final c = _pending[reqId];
+        if (c != null && !c.isCompleted) {
+          _pending.remove(reqId);
+          final err = data['error']?.toString().trim() ?? '';
+          if (err.isNotEmpty) {
+            c.completeError(StateError(err));
+            return;
+          }
+          final htmlText = data['html']?.toString() ?? '';
+          final schema = data['schema'];
+          c.complete((
+            html: htmlText,
+            schemaJson: schema == null ? '[]' : jsonEncode(schema),
+          ));
+          return;
+        }
+      }
+    }
+
+    // 전역 메시지 스트림이라 다른 iframe 의 응답도 들어온다 — 내 것만 처리한다.
+    if (!isFromEapIframe(e, _iframe)) return;
     if (type == 'eapWheel') return;
     if (type == 'eapRequestForms') {
       _replyFormsList();
@@ -174,19 +239,7 @@ class _EapFormBuilderHostState extends ConsumerState<EapFormBuilderHost> {
     if (type == 'eapLoadForm') {
       final code = data['formCode']?.toString() ?? '';
       if (code.isNotEmpty) _loadForm(code);
-      return;
     }
-    if (type != 'eapFormData' && type != 'eapHtml') return;
-    final id = data['id'];
-    if (id is! num) return;
-    final c = _pending.remove(id.toInt());
-    if (c == null || c.isCompleted) return;
-    final htmlText = data['html']?.toString() ?? '';
-    final schema = data['schema'];
-    c.complete((
-      html: htmlText,
-      schemaJson: schema == null ? '[]' : jsonEncode(schema),
-    ));
   }
 
   @override
@@ -213,8 +266,7 @@ class EapFormFillController {
     _setContext = setContext;
     _get = getHtml;
     _validate = validate;
-    if (_html.isNotEmpty) _set!(_html);
-    if (_context.isNotEmpty) _setContext!(_context);
+    // onLoad(_syncContent) 에서만 본문·context 전송 — attach 직후 크래시 방지.
   }
 
   void detach() {
@@ -222,6 +274,16 @@ class EapFormFillController {
     _setContext = null;
     _get = null;
     _validate = null;
+  }
+
+  /// iframe attach 전에 본문만 저장한다.
+  void primeHtml(String html) {
+    _html = html;
+  }
+
+  /// iframe attach 전에 context 만 저장한다.
+  void primeContext(Map<String, String> context) {
+    _context = Map<String, String>.from(context);
   }
 
   void setHtml(String html) {
@@ -301,6 +363,7 @@ class _EapFormFillHostState extends State<EapFormFillHost>
   final Map<int, Completer<({bool ok, List<String> errors})>> _pendingVal = {};
   var _alive = true;
   var _loaded = false;
+  String? _initError;
 
   @override
   html.IFrameElement? get iframeForPointerGate => _iframe;
@@ -311,32 +374,44 @@ class _EapFormFillHostState extends State<EapFormFillHost>
   @override
   void initState() {
     super.initState();
-    final iframe = createEapIframe(eapWebAssetUrl(kEapFormFillPage));
-    _iframe = iframe;
-    _viewType = registerEapIframeView('eap-form-fill', iframe);
-    _sub = html.window.onMessage.listen(_onMessage);
-    _loadSub = iframe.onLoad.listen((_) {
-      if (!_alive || !mounted) return;
-      _loaded = true;
-      refreshEapIframePointerGate();
-      _syncContent();
-    });
-    widget.controller.attach(
-      setHtml: _postSetHtml,
-      setContext: _postSetContext,
-      getHtml: _postGetHtml,
-      validate: _postValidate,
-    );
-    bindEapIframePointerGate();
+    try {
+      final iframe = createEapIframe(eapWebAssetUrl(kEapFormFillPage));
+      _iframe = iframe;
+      _viewType = registerEapIframeView('eap-form-fill', iframe);
+      _sub = html.window.onMessage.listen(_onMessage);
+      _loadSub = iframe.onLoad.listen((_) => _onIframeLoad());
+      widget.controller.attach(
+        setHtml: _postSetHtml,
+        setContext: _postSetContext,
+        getHtml: _postGetHtml,
+        validate: _postValidate,
+      );
+      bindEapIframePointerGate();
+    } catch (e) {
+      _initError = '$e';
+    }
   }
 
-  void _syncContent() {
-    if (!_loaded) return;
-    if (widget.controller._html.isNotEmpty) {
-      _postSetHtml(widget.controller._html);
-    }
-    if (widget.controller._context.isNotEmpty) {
-      _postSetContext(widget.controller._context);
+  void _onIframeLoad() {
+    if (!_alive || !mounted) return;
+    _loaded = true;
+    refreshEapIframePointerGate();
+    unawaited(_syncContent());
+  }
+
+  Future<void> _syncContent() async {
+    if (!_alive || !mounted || !_loaded) return;
+    final htmlText = widget.controller._html;
+    final context = widget.controller._context;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (!_alive || !mounted) return;
+      var ok = true;
+      if (htmlText.isNotEmpty) ok = _postSetHtml(htmlText);
+      if (context.isNotEmpty) {
+        ok = _postSetContext(context) && ok;
+      }
+      if (ok || htmlText.isEmpty) return;
+      await Future<void>.delayed(Duration(milliseconds: 60 * (attempt + 1)));
     }
   }
 
@@ -350,22 +425,29 @@ class _EapFormFillHostState extends State<EapFormFillHost>
     retireEapIframe(_iframe);
     _iframe = null;
     for (final c in _pendingHtml.values) {
-      if (!c.isCompleted) c.complete('');
+      if (!c.isCompleted) {
+        c.completeError(StateError('본문 편집기가 닫혔습니다.'));
+      }
     }
     for (final c in _pendingVal.values) {
-      if (!c.isCompleted) c.complete((ok: true, errors: <String>[]));
+      if (!c.isCompleted) {
+        c.complete((ok: false, errors: <String>['본문 편집기가 닫혔습니다']));
+      }
     }
     _pendingHtml.clear();
     _pendingVal.clear();
     super.dispose();
   }
 
-  void _postSetHtml(String htmlText) {
-    postEapIframeMessage(_iframe, {'type': 'eapSetHtml', 'html': htmlText});
+  bool _postSetHtml(String htmlText) {
+    return postEapIframeMessage(_iframe, {
+      'type': 'eapSetHtml',
+      'html': htmlText,
+    });
   }
 
-  void _postSetContext(Map<String, String> context) {
-    postEapIframeMessage(_iframe, {
+  bool _postSetContext(Map<String, String> context) {
+    return postEapIframeMessage(_iframe, {
       'type': 'eapSetContext',
       'context': context,
     });
@@ -400,8 +482,7 @@ class _EapFormFillHostState extends State<EapFormFillHost>
     final pick = data['pick']?.toString() ?? '';
     final fieldId = data['fieldId']?.toString() ?? '';
     if (fieldId.isEmpty || widget.onPickField == null) return;
-    IframePointerGate.push();
-    try {
+    await IframePointerGate.whileBlocked(context, () async {
       final value = await widget.onPickField!(pick);
       if (!_alive || !mounted || value == null) return;
       postEapIframeMessage(_iframe, {
@@ -409,9 +490,7 @@ class _EapFormFillHostState extends State<EapFormFillHost>
         'fieldId': fieldId,
         'value': value,
       });
-    } finally {
-      IframePointerGate.pop();
-    }
+    });
   }
 
   void _onMessage(html.MessageEvent e) {
@@ -449,6 +528,18 @@ class _EapFormFillHostState extends State<EapFormFillHost>
 
   @override
   Widget build(BuildContext context) {
+    if (_initError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            '양식 입력 화면을 불러오지 못했습니다.\n$_initError',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+          ),
+        ),
+      );
+    }
     return buildEapIframeView(_viewType, height: widget.height);
   }
 }

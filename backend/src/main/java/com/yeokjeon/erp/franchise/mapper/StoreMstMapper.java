@@ -1,6 +1,7 @@
 package com.yeokjeon.erp.franchise.mapper;
 
 import com.yeokjeon.erp.franchise.dto.StoreDeleteBlockerRow;
+import com.yeokjeon.erp.franchise.dto.StoreListQuery;
 import com.yeokjeon.erp.franchise.dto.StoreMstDto;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -11,6 +12,10 @@ import java.util.List;
 public interface StoreMstMapper {
 
     List<StoreMstDto> selectStoreListOrdered();
+
+    List<StoreMstDto> selectStoreListPaged(@Param("q") StoreListQuery q);
+
+    int countStoreList(@Param("q") StoreListQuery q);
 
     /** {@code pattern} 예: {@code "%검색어%"} — Spring Data {@code Containing} 과 동일한 LIKE 검색. */
     List<StoreMstDto> selectStoresByStoreNmLike(@Param("pattern") String pattern);

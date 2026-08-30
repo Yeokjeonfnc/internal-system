@@ -6,7 +6,6 @@ import 'package:app_flutter/core/layout/detail_screen_scaffold.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_filter.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_list_view.dart';
-import 'package:app_flutter/pages/eap/eap001/eap001_widgets.dart';
 
 class Eap001InboxView extends StatefulWidget {
   const Eap001InboxView({super.key});
@@ -144,7 +143,7 @@ class _Eap001SimpleFolderViewState extends State<Eap001SimpleFolderView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          EapPageHeader(title: widget.title, showSearch: false),
+          DetailScreenHeadline.plain(text: widget.title),
           EapDocumentSearchBar(
             controller: _keywordCtrl,
             onChanged: (_) => setState(() {}),

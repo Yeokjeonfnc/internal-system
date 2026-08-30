@@ -165,39 +165,76 @@
   }
 
   function syncFaceInputWidth(widget, w, inline) {
-    var faceInputs = widget.querySelectorAll('.eap-w-text-inp, .eap-w-amt-inp');
+    var faceInputs = widget.querySelectorAll(
+      '.eap-w-text-inp, .eap-w-amt-inp, .eap-w-select-el, select.eap-w-select-el, input.eap-w-date'
+    );
     var effW = w || (inline ? defaultInlineWidth(widget) : '');
     var isPct = isPercentWidth(effW);
     var wrap = widget.querySelector('.eap-w-face-wrap');
-    if (wrap) {
-      if (inline && isPct) {
-        wrap.style.display = 'inline-block';
+    var face = widget.querySelector('.eap-w-face');
+
+    function fillFaceChain() {
+      if (wrap) {
+        wrap.style.display = inline ? 'block' : wrap.style.display;
         wrap.style.width = '100%';
         wrap.style.maxWidth = '100%';
-      } else if (inline) {
-        wrap.style.width = '';
-        wrap.style.maxWidth = '';
+        wrap.style.boxSizing = 'border-box';
       }
+      if (face) {
+        face.style.width = '100%';
+        face.style.maxWidth = '100%';
+        face.style.boxSizing = 'border-box';
+      }
+      faceInputs.forEach(function (inp) {
+        inp.style.width = '100%';
+        inp.style.maxWidth = '100%';
+        inp.style.boxSizing = 'border-box';
+        if (inline) inp.style.display = 'block';
+      });
     }
-    faceInputs.forEach(function (inp) {
-      if (inline) {
-        if (isPct) {
-          inp.style.width = '100%';
-          inp.style.maxWidth = '100%';
-        } else if (effW) {
-          inp.style.width = effW;
-          inp.style.maxWidth = '100%';
-        } else {
+
+    if (inline) {
+      if (isPct || effW) {
+        widget.style.width = effW;
+        widget.style.maxWidth = '100%';
+        widget.style.boxSizing = 'border-box';
+        fillFaceChain();
+      } else {
+        widget.style.width = 'auto';
+        widget.style.maxWidth = '100%';
+        if (wrap) {
+          wrap.style.display = '';
+          wrap.style.width = '';
+          wrap.style.maxWidth = '';
+        }
+        if (face) {
+          face.style.width = '';
+          face.style.maxWidth = '';
+        }
+        faceInputs.forEach(function (inp) {
           inp.style.width = '';
           inp.style.maxWidth = '';
-        }
-      } else if (w) {
+          inp.style.display = '';
+        });
+      }
+      return;
+    }
+
+    if (wrap) {
+      wrap.style.display = w ? 'block' : '';
+      wrap.style.width = w ? '100%' : '';
+      wrap.style.maxWidth = w ? '100%' : '';
+    }
+    faceInputs.forEach(function (inp) {
+      if (w) {
         inp.style.width = '100%';
         inp.style.maxWidth = '';
       } else {
         inp.style.width = '';
         inp.style.maxWidth = '';
       }
+      inp.style.boxSizing = 'border-box';
+      inp.style.display = '';
     });
   }
 
@@ -280,7 +317,8 @@
   function faceHtmlForType(type, opts, ph, el) {
     if (type === 'select') {
       var items = opts.length ? opts : ['옵션1', '옵션2', '옵션3'];
-      var h = '<span class="eap-w-face eap-w-select"><select disabled class="eap-w-select-el">';
+      var h = '<span class="eap-w-face eap-w-select"><select disabled class="eap-w-select-el"'
+        + faceWidthAttr(el, defaultInlineWidth(el)) + '>';
       h += '<option>' + escHtml(ph || '선택하세요') + '</option>';
       items.forEach(function (o) { h += '<option>' + escHtml(o) + '</option>'; });
       return h + '</select></span>';
@@ -985,6 +1023,34 @@
     return type && type !== 'sum_display' && !isAuto(type);
   }
 
+  function fieldRowHint(el) {
+    var cell = el.closest('td, th');
+    if (!cell) return '';
+    var tr = cell.closest('tr');
+    if (!tr) return '';
+    var cells = tr.querySelectorAll('td, th');
+    if (cells.length < 2) return '';
+    var first = cells[0];
+    if (first === cell || (first.contains && first.contains(el))) return '';
+    var text = (first.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+    if (text.length > 36) text = text.slice(0, 34) + '…';
+    return text;
+  }
+
+  function formatFieldOptionLabel(f, labelCounts) {
+    var typeLabel = WIDGET_LABEL[f.type] || '';
+    var isGeneric = !f.label || f.label === typeLabel;
+    var base = f.rowHint
+      ? (isGeneric ? f.rowHint : f.rowHint + ' · ' + f.label)
+      : f.label;
+    var countKey = f.rowHint ? f.rowHint + '\0' + f.label : f.label;
+    if ((labelCounts[countKey] || 0) > 1 || (!f.rowHint && isGeneric)) {
+      return base + ' (' + f.id + ')';
+    }
+    return base;
+  }
+
   function listEditorFields(excludeEl) {
     var out = [];
     editor.querySelectorAll('.eap-widget[data-eap-id][data-eap-type]').forEach(function (el) {
@@ -994,10 +1060,23 @@
       var id = (el.getAttribute('data-eap-id') || '').trim();
       if (!id) return;
       var label = (el.getAttribute('data-eap-label') || WIDGET_LABEL[type] || id).trim();
-      out.push({ id: id, label: label || id, type: type });
+      out.push({
+        id: id,
+        label: label || id,
+        type: type,
+        rowHint: fieldRowHint(el)
+      });
+    });
+    var labelCounts = {};
+    out.forEach(function (f) {
+      var key = f.rowHint ? f.rowHint + '\0' + f.label : f.label;
+      labelCounts[key] = (labelCounts[key] || 0) + 1;
+    });
+    out.forEach(function (f) {
+      f.displayLabel = formatFieldOptionLabel(f, labelCounts);
     });
     out.sort(function (a, b) {
-      return a.label.localeCompare(b.label, 'ko');
+      return a.displayLabel.localeCompare(b.displayLabel, 'ko');
     });
     return out;
   }
@@ -1010,7 +1089,7 @@
     listEditorFields(selectedWidget).forEach(function (f) {
       var opt = document.createElement('option');
       opt.value = f.id;
-      opt.textContent = f.label;
+      opt.textContent = f.displayLabel || f.label;
       opt.title = f.id;
       sel.appendChild(opt);
     });

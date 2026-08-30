@@ -25,7 +25,11 @@ bool isFromEapIframe(html.MessageEvent e, html.IFrameElement? iframe) {
   final win = e.source;
   if (win == null) return false;
   try {
-    return identical(win, iframe.contentWindow);
+    final cw = iframe.contentWindow;
+    if (cw == null) return false;
+    // dart2js 는 같은 JS Window 를 서로 다른 Dart 래퍼로 노출할 수 있다.
+    // identical() 은 false 인데 실제로는 같은 창인 경우가 있어 == 로 비교한다.
+    return win == cw;
   } catch (_) {
     return false;
   }
@@ -94,18 +98,23 @@ String registerEapIframeView(String prefix, html.IFrameElement iframe) {
 ///
 /// 여기서 건너뛴 메시지는 유실되지 않는다. 각 호스트가 `iframe.onLoad` 에서
 /// 본문을 다시 보내므로, 로드가 끝난 뒤 정상적으로 전달된다.
-void postEapIframeMessage(
+/// iframe 으로 postMessage 를 보낸다. 성공 여부를 돌려준다.
+///
+/// [eapSetHtml] 등은 로드 전 호출될 수 있어 실패해도 onLoad 에서 재전송한다.
+/// [eapGetHtml] 처럼 **응답이 꼭 필요한** 호출은 반환값을 보고 재시도·오류 처리한다.
+bool postEapIframeMessage(
   html.IFrameElement? iframe,
   Map<String, dynamic> payload,
 ) {
-  if (iframe == null) return;
-  // DOM 에 붙기 전에는 보낼 대상 자체가 없다.
-  if (iframe.isConnected != true) return;
+  if (iframe == null) return false;
   try {
-    iframe.contentWindow?.postMessage(jsonEncode(payload), '*');
+    final win = iframe.contentWindow;
+    if (win == null) return false;
+    win.postMessage(jsonEncode(payload), '*');
+    return true;
   } catch (_) {
     // 로드 직전·직후의 짧은 구간에서는 contentWindow 가 비어 있을 수 있다.
-    // onLoad 에서 다시 보내므로 여기서 삼켜도 내용이 사라지지 않는다.
+    return false;
   }
 }
 
@@ -143,7 +152,11 @@ void forwardEapIframeWheel(
 }
 
 Widget buildEapIframeView(String viewType, {double? height}) {
-  final view = RepaintBoundary(child: HtmlElementView(viewType: viewType));
+  // iframe 은 DOM 포커스를 따로 갖는다. Flutter 포커스 트리에 넣으면 웹에서
+  // 뷰 포커스가 오갈 때 아직 레이아웃되지 않은 Overlay 를 읽어 assert 가 난다.
+  final view = ExcludeFocus(
+    child: RepaintBoundary(child: HtmlElementView(viewType: viewType)),
+  );
   if (height == null) return SizedBox.expand(child: view);
   return SizedBox(height: height, width: double.infinity, child: view);
 }

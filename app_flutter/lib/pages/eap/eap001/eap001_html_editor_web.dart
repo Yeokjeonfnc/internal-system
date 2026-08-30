@@ -20,12 +20,18 @@ class EapHtmlEditorController {
   }) {
     _set = setHtml;
     _get = getHtml;
-    if (_html.isNotEmpty) _set!(_html);
+    // 본문은 iframe onLoad 에서만 보낸다 — attach 직후 postMessage 는 DOM 미부착·
+    // contentWindow null 로 크래시(릴리즈 ErrorWidget 회색 화면)를 일으킨다.
   }
 
   void detach() {
     _set = null;
     _get = null;
+  }
+
+  /// iframe attach 전에 본문만 저장한다 — postMessage 를 부르지 않는다.
+  void primeHtml(String html) {
+    _html = html;
   }
 
   void setHtml(String html) {
@@ -34,9 +40,11 @@ class EapHtmlEditorController {
   }
 
   Future<String> getHtml() async {
-    if (_get != null) {
-      _html = await _get!();
+    final get = _get;
+    if (get == null) {
+      throw StateError('본문 편집기가 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.');
     }
+    _html = await get();
     return _html;
   }
 }
@@ -74,6 +82,8 @@ class _EapHtmlEditorHostWebState extends State<EapHtmlEditorHost>
   int _req = 0;
   final Map<int, Completer<String>> _pending = {};
   var _alive = true;
+  var _loaded = false;
+  String? _initError;
 
   @override
   html.IFrameElement? get iframeForPointerGate => _iframe;
@@ -84,26 +94,43 @@ class _EapHtmlEditorHostWebState extends State<EapHtmlEditorHost>
   @override
   void initState() {
     super.initState();
-    final iframe = createEapIframe(
-      eapWebAssetUrl(widget.editorPage, mode: widget.editorMode),
-    );
-    _iframe = iframe;
-    _viewType = registerEapIframeView('eap-html-editor', iframe);
-    _sub = html.window.onMessage.listen(_onMessage);
-    _loadSub = iframe.onLoad.listen((_) {
-      if (!_alive || !mounted) return;
-      refreshEapIframePointerGate();
-      postEapIframeMessage(_iframe, {
-        'type': 'eapSetPlaceholder',
-        'text': widget.placeholder,
-      });
-      final htmlText = widget.controller._html.isNotEmpty
-          ? widget.controller._html
-          : widget.initialHtml;
-      if (htmlText.isNotEmpty) _postSetHtml(htmlText);
+    try {
+      final iframe = createEapIframe(
+        eapWebAssetUrl(widget.editorPage, mode: widget.editorMode),
+      );
+      _iframe = iframe;
+      _viewType = registerEapIframeView('eap-html-editor', iframe);
+      _sub = html.window.onMessage.listen(_onMessage);
+      _loadSub = iframe.onLoad.listen((_) => _onIframeLoad());
+      widget.controller.attach(setHtml: _postSetHtml, getHtml: _postGetHtml);
+      bindEapIframePointerGate();
+    } catch (e) {
+      _initError = '$e';
+    }
+  }
+
+  void _onIframeLoad() {
+    if (!_alive || !mounted) return;
+    _loaded = true;
+    refreshEapIframePointerGate();
+    unawaited(_syncContent());
+  }
+
+  Future<void> _syncContent() async {
+    if (!_alive || !mounted || !_loaded) return;
+    postEapIframeMessage(_iframe, {
+      'type': 'eapSetPlaceholder',
+      'text': widget.placeholder,
     });
-    widget.controller.attach(setHtml: _postSetHtml, getHtml: _postGetHtml);
-    bindEapIframePointerGate();
+    final htmlText = widget.controller._html.isNotEmpty
+        ? widget.controller._html
+        : widget.initialHtml;
+    if (htmlText.isEmpty) return;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (!_alive || !mounted) return;
+      if (_postSetHtml(htmlText)) return;
+      await Future<void>.delayed(Duration(milliseconds: 60 * (attempt + 1)));
+    }
   }
 
   @override
@@ -122,8 +149,11 @@ class _EapHtmlEditorHostWebState extends State<EapHtmlEditorHost>
     super.dispose();
   }
 
-  void _postSetHtml(String htmlText) {
-    postEapIframeMessage(_iframe, {'type': 'eapSetHtml', 'html': htmlText});
+  bool _postSetHtml(String htmlText) {
+    return postEapIframeMessage(_iframe, {
+      'type': 'eapSetHtml',
+      'html': htmlText,
+    });
   }
 
   Future<String> _postGetHtml() {
@@ -165,6 +195,18 @@ class _EapHtmlEditorHostWebState extends State<EapHtmlEditorHost>
 
   @override
   Widget build(BuildContext context) {
+    if (_initError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            '본문 편집기를 불러오지 못했습니다.\n$_initError',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+          ),
+        ),
+      );
+    }
     return buildEapIframeView(_viewType, height: widget.height);
   }
 }

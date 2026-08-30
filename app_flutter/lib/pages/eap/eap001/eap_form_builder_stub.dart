@@ -26,7 +26,11 @@ class EapFormBuilderHost extends StatelessWidget {
 class EapFormFillController {
   String _html = '';
 
+  void primeHtml(String html) => _html = html;
+
   void setHtml(String html) => _html = html;
+
+  void primeContext(Map<String, String> context) {}
 
   // 웹 버전(eap_form_builder_web.dart)과 같은 인터페이스를 맞추기 위한 자리.
   // 이 스텁은 애초에 아무것도 그리지 않으므로(build 가 "웹에서만" 안내만 띄움)

@@ -7,7 +7,8 @@ import 'package:app_flutter/core/theme/app_colors.dart';
 /// 검색 필터 패널 내부 요소들이 공유하는 공통 텍스트 크기/색상.
 ///
 /// 라벨 · 입력값 · placeholder · 드롭다운 값 모두 이 값을 기준으로 통일합니다.
-const double kSearchFilterFontSize = 13;
+const double kSearchFilterFontSize = 14;
+const double kSearchFilterFieldHeight = 36;
 const Color kSearchFilterTextColor = AppTheme.textPrimary;
 const Color kSearchFilterHintColor = AppTheme.textPlaceholder;
 
@@ -319,16 +320,22 @@ class SearchFilterTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      onChanged: isPhoneNumber ? _formatPhoneNumber : onChanged,
-      decoration: searchFilterFieldDecoration(
-        hint: hint,
-        prefixIcon: prefixIcon,
-        borderRadius: borderRadius,
+    return SizedBox(
+      height: kSearchFilterFieldHeight,
+      child: TextField(
+        controller: controller,
+        onChanged: isPhoneNumber ? _formatPhoneNumber : onChanged,
+        expands: true,
+        maxLines: null,
+        textAlignVertical: TextAlignVertical.center,
+        decoration: searchFilterFieldDecoration(
+          hint: hint,
+          prefixIcon: prefixIcon,
+          borderRadius: borderRadius,
+        ),
+        style: kSearchFilterValueTextStyle.copyWith(height: 1.0),
+        keyboardType: isPhoneNumber ? TextInputType.phone : TextInputType.text,
       ),
-      style: kSearchFilterValueTextStyle,
-      keyboardType: isPhoneNumber ? TextInputType.phone : TextInputType.text,
     );
   }
 
@@ -370,18 +377,18 @@ InputDecoration searchFilterFieldDecoration({
   hintText: hint,
   hintStyle: const TextStyle(
     fontSize: kSearchFilterFontSize,
+    height: 1.0,
     color: kSearchFilterHintColor,
     fontFamilyFallback: AppTheme.koreanFontFallback,
   ),
   prefixIcon: prefixIcon,
   prefixIconConstraints: prefixIcon != null
-      ? const BoxConstraints(minWidth: 40, maxHeight: 36)
+      ? const BoxConstraints(minWidth: 40, maxHeight: kSearchFilterFieldHeight)
       : null,
   contentPadding: EdgeInsets.symmetric(
     horizontal: prefixIcon != null ? 4 : 8,
-    vertical: 8,
+    vertical: 0,
   ),
-  constraints: const BoxConstraints(minHeight: 36, maxHeight: 36),
   border: OutlineInputBorder(
     borderRadius: BorderRadius.circular(borderRadius),
     borderSide: const BorderSide(color: AppTheme.inputBorder),
@@ -432,30 +439,38 @@ class SearchFilterLabeledItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(9),
         border: Border.all(color: AppTheme.inputBorder),
       ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 140,
-            child: Text(
-              data.label.isEmpty ? '\u00a0' : data.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: kSearchFilterFontSize,
-                color: kSearchFilterTextColor,
-                fontWeight: FontWeight.w500,
-                fontFamilyFallback: AppTheme.koreanFontFallback,
+      child: SizedBox(
+        height: kSearchFilterFieldHeight,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 100,
+              child: Align(
+                alignment: Alignment.center,
+                child: Text(
+                  data.label.isEmpty ? '\u00a0' : data.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: kSearchFilterFontSize,
+                    height: 1.0,
+                    color: kSearchFilterTextColor,
+                    fontWeight: FontWeight.w500,
+                    fontFamilyFallback: AppTheme.koreanFontFallback,
+                  ),
+                ),
               ),
             ),
-          ),
-          Expanded(child: data.child),
-        ],
+            Expanded(child: data.child),
+          ],
+        ),
       ),
     );
   }

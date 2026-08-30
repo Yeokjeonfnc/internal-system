@@ -16,7 +16,7 @@ class DetailScreenHeadline extends StatelessWidget {
 
   final Widget child;
 
-  static const EdgeInsets headlinePadding = EdgeInsets.fromLTRB(16, 14, 16, 10);
+  static const EdgeInsets headlinePadding = EdgeInsets.fromLTRB(20, 14, 20, 10);
 
   /// 굵은 [lead] + 보조 [tail] (예: 이름 + `님 상세 정보`).
   factory DetailScreenHeadline.leadTail({

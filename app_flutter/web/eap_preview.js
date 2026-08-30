@@ -108,6 +108,7 @@
     if (!root) return;
     mergeDocHeaders(root);
     preparePreviewHeaders(root);
+    prepareExcelTables(root);
     root.querySelectorAll('table.eap-excel-import').forEach(function (t) {
       if (g.eapTrimExcelTableGrid) g.eapTrimExcelTableGrid(t);
       if (g.eapPreserveExcelColWidths) g.eapPreserveExcelColWidths(t);

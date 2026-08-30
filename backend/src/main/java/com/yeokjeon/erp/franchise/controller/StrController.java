@@ -5,6 +5,7 @@ import com.yeokjeon.erp.auth.access.MenuCodes;
 import com.yeokjeon.erp.common.ApiResponse;
 import com.yeokjeon.erp.franchise.dto.StoreDocumentDto;
 import com.yeokjeon.erp.franchise.dto.StoreHistoryRowDto;
+import com.yeokjeon.erp.franchise.dto.StoreListQuery;
 import com.yeokjeon.erp.franchise.dto.StoreMstDto;
 import com.yeokjeon.erp.franchise.dto.StoreMstWriteRequestDto;
 import com.yeokjeon.erp.franchise.service.StoreDocumentService;
@@ -23,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -36,10 +38,54 @@ public class StrController {
     private final MenuAccessGuard menuAccessGuard;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<StoreMstDto>>> getAllStores() {
-        log.info("가맹점 목록 조회 요청");
-        List<StoreMstDto> stores = strService.list();
-        return ResponseEntity.ok(ApiResponse.success(stores));
+    public ResponseEntity<ApiResponse<List<StoreMstDto>>> getAllStores(
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false, defaultValue = "0") int offset,
+            @RequestParam(required = false) String brandNm,
+            @RequestParam(required = false) List<String> regionNm,
+            @RequestParam(required = false) List<String> storeStatusNm,
+            @RequestParam(required = false) String storeNm,
+            @RequestParam(required = false) String storeCd,
+            @RequestParam(required = false) String ownerNm,
+            @RequestParam(required = false) String storeTel,
+            @RequestParam(required = false) String address,
+            @RequestParam(required = false) String contStartDt,
+            @RequestParam(required = false) String contEndDt,
+            @RequestParam(required = false) String sv,
+            @RequestParam(required = false) String businessNumber,
+            @RequestParam(required = false) String notes) {
+        StoreListQuery query = buildStoreListQuery(
+                brandNm, regionNm, storeStatusNm, storeNm, storeCd, ownerNm, storeTel,
+                address, contStartDt, contEndDt, sv, businessNumber, notes);
+        if (limit == null && !query.hasFilters()) {
+            log.info("가맹점 목록 조회 요청(전체)");
+            return ResponseEntity.ok(ApiResponse.success(strService.list()));
+        }
+        Integer clamped = limit == null ? null : StrService.clampListLimit(limit);
+        log.info("가맹점 목록 조회 요청 limit={} offset={}", clamped, Math.max(offset, 0));
+        return ResponseEntity.ok(ApiResponse.success(
+                strService.listPaged(query.withPaging(clamped, offset))));
+    }
+
+    @GetMapping("/count")
+    public ResponseEntity<ApiResponse<Integer>> countStores(
+            @RequestParam(required = false) String brandNm,
+            @RequestParam(required = false) List<String> regionNm,
+            @RequestParam(required = false) List<String> storeStatusNm,
+            @RequestParam(required = false) String storeNm,
+            @RequestParam(required = false) String storeCd,
+            @RequestParam(required = false) String ownerNm,
+            @RequestParam(required = false) String storeTel,
+            @RequestParam(required = false) String address,
+            @RequestParam(required = false) String contStartDt,
+            @RequestParam(required = false) String contEndDt,
+            @RequestParam(required = false) String sv,
+            @RequestParam(required = false) String businessNumber,
+            @RequestParam(required = false) String notes) {
+        StoreListQuery query = buildStoreListQuery(
+                brandNm, regionNm, storeStatusNm, storeNm, storeCd, ownerNm, storeTel,
+                address, contStartDt, contEndDt, sv, businessNumber, notes);
+        return ResponseEntity.ok(ApiResponse.success("가맹점 건수", strService.count(query)));
     }
 
     @GetMapping("/{storeIdx}")
@@ -170,5 +216,67 @@ public class StrController {
         log.info("가맹점 검색 요청: {}", storeNm);
         List<StoreMstDto> stores = strService.listByStoreName(storeNm);
         return ResponseEntity.ok(ApiResponse.success(stores));
+    }
+
+    private static StoreListQuery buildStoreListQuery(
+            String brandNm,
+            List<String> regionNm,
+            List<String> storeStatusNm,
+            String storeNm,
+            String storeCd,
+            String ownerNm,
+            String storeTel,
+            String address,
+            String contStartDt,
+            String contEndDt,
+            String sv,
+            String businessNumber,
+            String notes) {
+        return new StoreListQuery(
+                null,
+                0,
+                blankToNull(normalizeBrand(brandNm)),
+                cleanList(regionNm),
+                cleanList(storeStatusNm),
+                blankToNull(storeNm),
+                blankToNull(storeCd),
+                blankToNull(ownerNm),
+                blankToNull(storeTel),
+                blankToNull(address),
+                blankToNull(contStartDt),
+                blankToNull(contEndDt),
+                blankToNull(sv),
+                blankToNull(businessNumber),
+                blankToNull(notes));
+    }
+
+    private static String normalizeBrand(String brandNm) {
+        String v = blankToNull(brandNm);
+        if (v == null || "전체".equals(v)) {
+            return null;
+        }
+        return v;
+    }
+
+    private static String blankToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private static List<String> cleanList(List<String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (String s : raw) {
+            String t = blankToNull(s);
+            if (t != null && !"전체".equals(t)) {
+                out.add(t);
+            }
+        }
+        return out;
     }
 }

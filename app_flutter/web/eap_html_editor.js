@@ -106,7 +106,9 @@
       if (window.eapRunFormRuntime) window.eapRunFormRuntime(editor);
     }
     clearTableSelection();
-    editor.focus();
+    // Flutter 가 본문을 밀어 넣을 때 iframe 이 DOM 포커스를 뺏으면, 같은 프레임에
+    // Overlay 가 아직 레이아웃되지 않은 채로 뷰 포커스 전환이 일어나
+    // `_RenderTheater` hasSize assert 가 터진다. 사용자가 편집기를 누를 때만 포커스한다.
   }
 
   function hideImgBox() {
@@ -3138,6 +3140,14 @@
     });
   }
 
+  function replyToHost(payload) {
+    var s = JSON.stringify(payload);
+    try { window.parent.postMessage(s, '*'); } catch (err1) {}
+    try {
+      if (window.top && window.top !== window) window.top.postMessage(s, '*');
+    } catch (err2) {}
+  }
+
   window.addEventListener('message', function (e) {
     var d = e.data;
     if (typeof d === 'string') {
@@ -3154,12 +3164,23 @@
       }
     }
     if (d.type === 'eapGetHtml') {
-      parent.postMessage(JSON.stringify({
-        type: 'eapHtml',
-        id: d.id,
-        html: currentHtml(),
-        schema: window.collectFormSchema ? window.collectFormSchema() : []
-      }), '*');
+      var replyType = formMode ? 'eapFormData' : 'eapHtml';
+      try {
+        replyToHost({
+          type: replyType,
+          id: d.id,
+          html: currentHtml(),
+          schema: window.collectFormSchema ? window.collectFormSchema() : []
+        });
+      } catch (err) {
+        replyToHost({
+          type: replyType,
+          id: d.id,
+          html: '',
+          schema: [],
+          error: err && err.message ? String(err.message) : String(err)
+        });
+      }
     }
     if (d.type === 'eapSetPlaceholder' && d.text) {
       editor.setAttribute('data-placeholder', d.text);

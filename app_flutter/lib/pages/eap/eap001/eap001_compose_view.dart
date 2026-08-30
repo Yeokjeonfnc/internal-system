@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart' as provider;
 
+import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/core/auth/auth_provider.dart';
 import 'package:app_flutter/core/menu/menu_codes.dart';
 import 'package:app_flutter/core/theme/app_colors.dart';
@@ -23,9 +24,10 @@ import 'package:app_flutter/pages/eap/eap001/eap001_quill.dart';
 import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 
 class Eap001ComposeView extends ConsumerStatefulWidget {
-  const Eap001ComposeView({super.key, this.formCode});
+  const Eap001ComposeView({super.key, this.formCode, this.resumeDocId});
 
   final String? formCode;
+  final String? resumeDocId;
 
   @override
   ConsumerState<Eap001ComposeView> createState() => _Eap001ComposeViewState();
@@ -44,13 +46,27 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
   bool _bodyHostsReady = false;
   bool _saving = false;
   bool _approvalExpanded = false;
+  int? _mappingId;
+  String? _resumeHtml;
+  String? _resumeFormCode;
+  String get _effectiveFormCode {
+    final q = (widget.formCode ?? '').trim();
+    if (q.isNotEmpty) return q;
+    return (_resumeFormCode ?? '').trim();
+  }
+  bool _resumeLoading = false;
+  String? _resumeError;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _syncFormFromProvider(),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if ((widget.resumeDocId ?? '').trim().isNotEmpty) {
+        _loadResume();
+      } else {
+        _syncFormFromProvider();
+      }
+    });
   }
 
   @override
@@ -58,25 +74,101 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
     super.didUpdateWidget(oldWidget);
     final oldCode = oldWidget.formCode?.trim() ?? '';
     final newCode = widget.formCode?.trim() ?? '';
-    if (oldCode != newCode) {
+    final oldDoc = oldWidget.resumeDocId?.trim() ?? '';
+    final newDoc = widget.resumeDocId?.trim() ?? '';
+    if (oldCode != newCode || oldDoc != newDoc) {
       setState(() {
         _loadedFormCode = null;
         _bodyHostsReady = false;
+        _resumeHtml = null;
+        _resumeFormCode = null;
+        _resumeError = null;
+        _mappingId = null;
       });
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _syncFormFromProvider(),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (newDoc.isNotEmpty) {
+          _loadResume();
+        } else {
+          _syncFormFromProvider();
+        }
+      });
     }
   }
 
   void _syncFormFromProvider() {
     if (!mounted) return;
-    final formCode = widget.formCode?.trim() ?? '';
+    if ((widget.resumeDocId ?? '').trim().isNotEmpty &&
+        _resumeHtml == null &&
+        _resumeError == null) {
+      return;
+    }
+    final formCode = _effectiveFormCode;
     if (formCode.isEmpty) return;
     final form = ref.read(eapFormDetailProvider(formCode)).valueOrNull;
     if (form != null && form.formCode != _loadedFormCode) {
       _applyForm(form);
     }
+  }
+
+  Future<void> _loadResume() async {
+    final docId = widget.resumeDocId?.trim() ?? '';
+    if (docId.isEmpty) return;
+    setState(() {
+      _resumeLoading = true;
+      _resumeError = null;
+    });
+    try {
+      final doc = await ref.read(eapApiProvider).getDocument(docId);
+      if (!mounted) return;
+      if (doc == null) {
+        setState(() {
+          _resumeLoading = false;
+          _resumeError = '문서를 찾을 수 없습니다.';
+        });
+        return;
+      }
+      if (!doc.isResumable) {
+        context.go(EapRoutes.documentDetail(doc.docId));
+        return;
+      }
+      _mappingId = doc.mappingId;
+      _titleCtrl.text = doc.title;
+      _resumeHtml = doc.contentHtml;
+      _resumeFormCode = doc.formCode.trim();
+      _lines.loadFromMembers(doc.lines);
+      setState(() => _resumeLoading = false);
+      final formCode = (widget.formCode ?? '').trim().isNotEmpty
+          ? widget.formCode!.trim()
+          : doc.formCode.trim();
+      if (formCode.isEmpty) {
+        _applyResumeBodyOnly();
+        return;
+      }
+      final form = ref.read(eapFormDetailProvider(formCode)).valueOrNull;
+      if (form != null) {
+        _applyForm(form);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _resumeLoading = false;
+        _resumeError = formatApiUserMessage(e, fallback: '문서를 불러오지 못했습니다.');
+      });
+    }
+  }
+
+  void _applyResumeBodyOnly() {
+    final html = _resumeHtml ?? '';
+    final useFill = eapHtmlHasFormFields(html);
+    if (useFill) {
+      _fillCtrl.primeHtml(html);
+    } else {
+      _htmlCtrl.primeHtml(html);
+    }
+    setState(() {
+      _useFormFill = useFill;
+      _bodyHostsReady = true;
+    });
   }
 
   Widget _bodyMessage(String message, [Object? error]) {
@@ -106,7 +198,15 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
   }
 
   Widget _buildBodyHost() {
-    final formCode = widget.formCode?.trim() ?? '';
+    if (_resumeLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_resumeError != null) {
+      return _bodyMessage(_resumeError!);
+    }
+    final formCode = (widget.formCode ?? '').trim().isNotEmpty
+        ? widget.formCode!.trim()
+        : (_resumeFormCode ?? '');
 
     if (formCode.isEmpty && !_bodyHostsReady) {
       return Center(
@@ -149,22 +249,20 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return IndexedStack(
-      index: _useFormFill ? 0 : 1,
-      sizing: StackFit.expand,
-      children: [
-        EapFormFillHost(
-          key: const ValueKey('eap-compose-fill'),
-          controller: _fillCtrl,
-          onPickField: _pickFormField,
-        ),
-        EapHtmlEditorHost(
-          key: const ValueKey('eap-compose-html'),
-          controller: _htmlCtrl,
-          placeholder: '서식을 선택하면 본문이 여기에 로드됩니다.',
-          editorMode: 'compose',
-        ),
-      ],
+    // 서식 유형마다 iframe 하나만 띄운다. IndexedStack 으로 두 개를 동시에 만들면
+    // 숨겨진 쪽도 initState·postMessage 를 타서 불필요한 크래시·로드를 유발한다.
+    if (_useFormFill) {
+      return EapFormFillHost(
+        key: ValueKey('eap-compose-fill-$_loadedFormCode'),
+        controller: _fillCtrl,
+        onPickField: _pickFormField,
+      );
+    }
+    return EapHtmlEditorHost(
+      key: ValueKey('eap-compose-html-$_loadedFormCode'),
+      controller: _htmlCtrl,
+      placeholder: '서식을 선택하면 본문이 여기에 로드됩니다.',
+      editorMode: 'compose',
     );
   }
 
@@ -177,8 +275,17 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
 
   void _applyForm(EapFormConfig form) {
     if (_loadedFormCode == form.formCode) return;
-    final html = eapStoredBodyToHtml(form.contentHtml, form.contentDelta);
+    final html = (_resumeHtml != null && _resumeHtml!.trim().isNotEmpty)
+        ? _resumeHtml!
+        : eapStoredBodyToHtml(form.contentHtml, form.contentDelta);
     final useFill = eapHtmlHasFormFields(html);
+    // iframe 이 attach 되기 전에 본문·context 를 채워 둔다 — onLoad 동기화가 빈 HTML 을
+    // 보내는 레이스를 막는다.
+    if (useFill) {
+      _fillCtrl.primeHtml(html);
+    } else {
+      _htmlCtrl.primeHtml(html);
+    }
     setState(() {
       _loadedFormCode = form.formCode;
       _useFormFill = useFill;
@@ -188,14 +295,13 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
       }
     });
     if (useFill) {
-      _fillCtrl.setHtml(html);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final auth = provider.Provider.of<AuthProvider>(context, listen: false);
-        _fillCtrl.setContext(_fillContext(auth));
+        final ctx = _fillContext(auth);
+        _fillCtrl.primeContext(ctx);
+        _fillCtrl.setContext(ctx);
       });
-    } else {
-      _htmlCtrl.setHtml(html);
     }
   }
 
@@ -261,34 +367,33 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
   }
 
   Future<String?> _pickFormField(String pickType) async {
-    IframePointerGate.push();
-    try {
-      final r = await showActivityApprovalLineDialog(context);
-      if (!mounted || r == null) return null;
-      // 고른 사람을 모두 반영한다.
-      //
-      // 예전에는 반복문 첫 회차에서 곧바로 return 해서, 사용자가 여러 명을
-      // 선택해도 **첫 사람만 들어가고 나머지는 소리 없이 버려졌다.**
-      final picked = <String>[];
-      for (var i = 0; i < r.names.length; i++) {
-        final nm = r.names[i].trim();
-        if (nm.isEmpty) continue;
-        final title = i < r.titles.length ? r.titles[i].trim() : '';
-        picked.add(title.isEmpty ? nm : '$title $nm');
-      }
-      if (picked.isEmpty) return null;
-      return picked.join(', ');
-    } finally {
-      IframePointerGate.pop();
+    // iframe → Flutter 포커스 전환 직후 게이트·다이얼로그는 [EapFormFillHost] 가 처리한다.
+    final r = await showActivityApprovalLineDialog(
+      context,
+      requestFocus: false,
+    );
+    if (!mounted || r == null) return null;
+    // 고른 사람을 모두 반영한다.
+    //
+    // 예전에는 반복문 첫 회차에서 곧바로 return 해서, 사용자가 여러 명을
+    // 선택해도 **첫 사람만 들어가고 나머지는 소리 없이 버려졌다.**
+    final picked = <String>[];
+    for (var i = 0; i < r.names.length; i++) {
+      final nm = r.names[i].trim();
+      if (nm.isEmpty) continue;
+      final title = i < r.titles.length ? r.titles[i].trim() : '';
+      picked.add(title.isEmpty ? nm : '$title $nm');
     }
+    if (picked.isEmpty) return null;
+    return picked.join(', ');
   }
 
   Future<void> _pickLine(EapComposeLinePick pick) async {
-    IframePointerGate.push();
-    try {
+    await IframePointerGate.whileBlocked(context, () async {
       final auth = provider.Provider.of<AuthProvider>(context, listen: false);
       final r = await showActivityApprovalLineDialog(
         context,
+        requestFocus: false,
         initialNames: pick.names,
         initialTitles: pick.titles,
         initialUserIds: pick.userIds,
@@ -314,13 +419,11 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
           ),
         );
       }
-    } finally {
-      IframePointerGate.pop();
-    }
+    });
   }
 
   Future<void> _submit(String status) async {
-    final formCode = widget.formCode?.trim() ?? '';
+    final formCode = _effectiveFormCode;
     final title = _titleCtrl.text.trim();
     if (formCode.isEmpty) {
       ScaffoldMessenger.of(
@@ -332,6 +435,12 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('제목을 입력해 주세요.')));
+      return;
+    }
+    if (_lines.hasMemberWithoutUserId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('결재선에 사원 번호가 없는 사람이 있습니다. 다시 지정해 주세요.')),
+      );
       return;
     }
     if (status != 'TEMPSAVE' &&
@@ -367,24 +476,46 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
               draftUserId: auth.userId,
               contentHtml: await _documentBodyHtml(),
               status: status,
+              mappingId: _mappingId,
               lines: _allLines(),
             ),
           );
       if (!mounted) return;
+      if (result.mappingId > 0) {
+        _mappingId = result.mappingId;
+      }
       ref.invalidate(eapDocumentsProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            result.message.trim().isEmpty ? '저장했습니다.' : result.message,
+            result.message.trim().isEmpty
+                ? (status == 'TEMPSAVE' ? '임시 저장했습니다.' : '상신했습니다.')
+                : result.message,
           ),
         ),
       );
+      if (status == 'TEMPSAVE') {
+        final docId = result.documentId.trim();
+        final currentDoc = (widget.resumeDocId ?? '').trim();
+        if (docId.isNotEmpty && docId != currentDoc) {
+          context.go(
+            EapRoutes.composeResume(formCode: formCode, docId: docId),
+          );
+        }
+        return;
+      }
       context.go(EapRoutes.sent);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('저장에 실패했습니다.\n$e')));
+      ).showSnackBar(
+        SnackBar(
+          content: Text(
+            formatApiUserMessage(e, fallback: '저장에 실패했습니다.'),
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -431,7 +562,7 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
     final today = DateTime.now();
     final dateLabel =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-    final formCode = widget.formCode?.trim() ?? '';
+    final formCode = _effectiveFormCode;
 
     if (formCode.isNotEmpty) {
       ref.listen(eapFormDetailProvider(formCode), (prev, next) {
@@ -481,7 +612,7 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
                     backgroundColor: AppTheme.accentRed,
                     foregroundColor: Colors.white,
                   ),
-                  child: Text(_saving ? '저장 중...' : '저장'),
+                  child: Text(_saving ? '상신 중...' : '상신'),
                 ),
               ],
             ),
@@ -546,25 +677,41 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
                       ),
                     ),
                     Expanded(
-                      child: ColoredBox(
-                        color: const Color(0xFFE8E8E4),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: AppTheme.cardBackground,
-                              borderRadius: BorderRadius.circular(4),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x14000000),
-                                  blurRadius: 6,
-                                  offset: Offset(0, 1),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          if (constraints.maxHeight < 72) {
+                            return Center(
+                              child: Text(
+                                '본문 영역 높이가 부족합니다.\n결재 정보를 접거나 창 크기를 키워 주세요.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 13,
                                 ),
-                              ],
+                              ),
+                            );
+                          }
+                          return ColoredBox(
+                            color: const Color(0xFFE8E8E4),
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: AppTheme.cardBackground,
+                                  borderRadius: BorderRadius.circular(4),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x14000000),
+                                      blurRadius: 6,
+                                      offset: Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                                child: _buildBodyHost(),
+                              ),
                             ),
-                            child: _buildBodyHost(),
-                          ),
-                        ),
+                          );
+                        },
                       ),
                     ),
                     Padding(

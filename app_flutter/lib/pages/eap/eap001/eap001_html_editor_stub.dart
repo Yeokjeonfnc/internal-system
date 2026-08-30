@@ -20,6 +20,10 @@ class EapHtmlEditorController {
     _set = null;
   }
 
+  void primeHtml(String html) {
+    _html = html;
+  }
+
   void setHtml(String html) {
     _html = html;
     _set?.call(html);

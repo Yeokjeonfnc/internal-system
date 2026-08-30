@@ -35,7 +35,7 @@ class Eap001DetailView extends ConsumerWidget {
         color: AppTheme.appSurface,
         child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       ),
-      error: (_, _) => _notFound(context),
+      error: (e, _) => _loadFailed(context, e),
       data: (doc) {
         if (doc == null) return _notFound(context);
         final uid = provider.Provider.of<AuthProvider>(
@@ -47,6 +47,10 @@ class Eap001DetailView extends ConsumerWidget {
           listen: false,
         ).isSuperAdmin;
         final showApprove = doc.canActAs(uid);
+        final showResume =
+            doc.isResumable &&
+            (doc.draftUserId.trim().isEmpty ||
+                doc.draftUserId.trim().toLowerCase() == uid.trim().toLowerCase());
         return ColoredBox(
           color: AppTheme.appSurface,
           child: Column(
@@ -57,10 +61,17 @@ class Eap001DetailView extends ConsumerWidget {
                 status: doc.status,
                 showApprove: showApprove,
                 showDelete: isAdmin,
+                showResume: showResume,
                 onBack: () => context.pop(),
                 onDelete: () => _delete(context, ref, doc),
                 onReject: () => _reject(context, ref, doc),
                 onApprove: () => _approve(context, ref, doc),
+                onResume: () => context.go(
+                  EapRoutes.composeResume(
+                    formCode: doc.formCode,
+                    docId: doc.docId,
+                  ),
+                ),
               ),
               Expanded(
                 child: Padding(
@@ -81,8 +92,10 @@ class Eap001DetailView extends ConsumerWidget {
     EapDocument doc,
   ) async {
     final ok = await IframePointerGate.whileBlocked(
+      context,
       () => showDialog<bool>(
         context: context,
+        requestFocus: false,
         builder: (ctx) => AlertDialog(
           title: const Text('문서 삭제'),
           content: Text('「${doc.title}」 문서를 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.'),
@@ -128,8 +141,10 @@ class Eap001DetailView extends ConsumerWidget {
     EapDocument doc,
   ) async {
     final ok = await IframePointerGate.whileBlocked(
+      context,
       () => showDialog<bool>(
         context: context,
+        requestFocus: false,
         builder: (ctx) => AlertDialog(
           title: const Text('결재하기'),
           content: const Text('이 문서를 결재하시겠습니까?'),
@@ -171,8 +186,10 @@ class Eap001DetailView extends ConsumerWidget {
     EapDocument doc,
   ) async {
     final ok = await IframePointerGate.whileBlocked(
+      context,
       () => showDialog<bool>(
         context: context,
+        requestFocus: false,
         builder: (ctx) => AlertDialog(
           title: const Text('반려'),
           content: const Text('이 문서를 반려하시겠습니까?'),
@@ -211,6 +228,33 @@ class Eap001DetailView extends ConsumerWidget {
     }
   }
 
+  Widget _loadFailed(BuildContext context, Object error) {
+    return ColoredBox(
+      color: AppTheme.appSurface,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              formatApiUserMessage(error, fallback: '문서를 불러오지 못했습니다.'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 15,
+                color: AppTheme.textSecondary,
+                fontFamilyFallback: AppTheme.koreanFontFallback,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => context.go(EapRoutes.home),
+              child: const Text('전자결재 홈으로'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _notFound(BuildContext context) {
     return ColoredBox(
       color: AppTheme.appSurface,
@@ -228,7 +272,7 @@ class Eap001DetailView extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             TextButton(
-              onPressed: () => context.go(EapRoutes.compose),
+              onPressed: () => context.go(EapRoutes.home),
               child: const Text('전자결재 홈으로'),
             ),
           ],
@@ -244,20 +288,24 @@ class _EapDetailToolbar extends StatelessWidget {
     required this.status,
     required this.showApprove,
     required this.showDelete,
+    this.showResume = false,
     required this.onBack,
     required this.onDelete,
     required this.onReject,
     required this.onApprove,
+    this.onResume,
   });
 
   final String title;
   final EapDocStatus status;
   final bool showApprove;
   final bool showDelete;
+  final bool showResume;
   final VoidCallback onBack;
   final VoidCallback onDelete;
   final VoidCallback onReject;
   final VoidCallback onApprove;
+  final VoidCallback? onResume;
 
   @override
   Widget build(BuildContext context) {
@@ -283,6 +331,13 @@ class _EapDetailToolbar extends StatelessWidget {
             ),
           ),
           EapStatusBadge(status: status),
+          if (showResume) ...[
+            const SizedBox(width: 8),
+            OutlinedButton(
+              onPressed: onResume,
+              child: const Text('이어쓰기'),
+            ),
+          ],
           if (showDelete) ...[
             const SizedBox(width: 8),
             OutlinedButton(

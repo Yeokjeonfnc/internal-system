@@ -8,6 +8,7 @@ import com.yeokjeon.erp.development.dto.PartnerMstWriteRequestDto;
 import com.yeokjeon.erp.development.service.DevService;
 import com.yeokjeon.erp.franchise.dto.StoreDeleteBlockerRow;
 import com.yeokjeon.erp.franchise.dto.StoreHistoryRowDto;
+import com.yeokjeon.erp.franchise.dto.StoreListQuery;
 import com.yeokjeon.erp.franchise.dto.StoreMstDto;
 import com.yeokjeon.erp.franchise.dto.StoreMstWriteRequestDto;
 import com.yeokjeon.erp.franchise.entity.Store;
@@ -39,8 +40,26 @@ public class StrService {
     private final ObjectMapper objectMapper;
     private final DevService devService;
 
+    public static final int DEFAULT_LIST_LIMIT = 50;
+    public static final int MAX_LIST_LIMIT = 500;
+
     public List<StoreMstDto> list() {
         return storeMstMapper.selectStoreListOrdered();
+    }
+
+    public List<StoreMstDto> listPaged(StoreListQuery query) {
+        return storeMstMapper.selectStoreListPaged(query);
+    }
+
+    public int count(StoreListQuery query) {
+        return storeMstMapper.countStoreList(query);
+    }
+
+    public static int clampListLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return DEFAULT_LIST_LIMIT;
+        }
+        return Math.min(limit, MAX_LIST_LIMIT);
     }
 
     public StoreMstDto one(Integer storeIdx) {

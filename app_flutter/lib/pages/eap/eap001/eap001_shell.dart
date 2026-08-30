@@ -39,8 +39,9 @@ class EapShell extends StatelessWidget {
     }
     if (normalized == EapRoutes.compose) {
       return Eap001ComposeView(
-        key: ValueKey(query['form'] ?? ''),
+        key: ValueKey('${query['form'] ?? ''}|${query['doc'] ?? ''}'),
         formCode: query['form'],
+        resumeDocId: query['doc'],
       );
     }
     if (normalized == EapRoutes.inbox) {

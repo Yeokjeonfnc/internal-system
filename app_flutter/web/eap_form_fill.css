@@ -182,22 +182,17 @@ body.eap-form-fill-host {
   overflow: hidden;
 }
 
-/* 위젯 → 실제 입력 치환 후에도 편집기·미리보기와 같은 칸 안 배치 */
+/* 위젯 → 실제 입력 치환 후 — 폭은 applyFillWidgetLayout(JS) + eap_form_design.css 가 담당 */
 .eap-a4.eap-form-fill .eap-widget {
-  display: inline-block;
   max-width: 100%;
-  margin: 0 2px;
-  vertical-align: middle;
   box-sizing: border-box;
 }
 
-.eap-a4.eap-form-fill table.eap-excel-import td .eap-widget,
-.eap-a4.eap-form-fill table.eap-excel-import th .eap-widget {
-  vertical-align: middle;
-}
-
+/* 인라인 위젯(문장 안 입력) — 폭은 applyFillWidgetLayout(JS) 이 담당 */
 .eap-a4.eap-form-fill table td .eap-widget[data-eap-inline="1"],
 .eap-a4.eap-form-fill table th .eap-widget[data-eap-inline="1"] {
+  display: inline-block !important;
+  max-width: 100%;
   vertical-align: baseline;
 }
 
@@ -222,9 +217,9 @@ body.eap-form-fill-host {
   padding: 4px 0;
 }
 
-.eap-a4.eap-form-fill input,
-.eap-a4.eap-form-fill select,
-.eap-a4.eap-form-fill textarea {
+.eap-a4.eap-form-fill .eap-val input,
+.eap-a4.eap-form-fill .eap-val select,
+.eap-a4.eap-form-fill .eap-val textarea {
   width: 100%;
   border: 1px solid #D0D0CC;
   border-radius: 3px;
@@ -234,12 +229,28 @@ body.eap-form-fill-host {
   box-sizing: border-box;
 }
 
-.eap-a4.eap-form-fill table td input.eap-in-cell,
-.eap-a4.eap-form-fill table td select.eap-in-cell,
-.eap-a4.eap-form-fill table td textarea.eap-in-cell,
-.eap-a4.eap-form-fill table th input.eap-in-cell,
-.eap-a4.eap-form-fill table th select.eap-in-cell,
-.eap-a4.eap-form-fill table th textarea.eap-in-cell {
+.eap-a4.eap-form-fill .eap-field input,
+.eap-a4.eap-form-fill .eap-field select,
+.eap-a4.eap-form-fill .eap-field textarea,
+.eap-a4.eap-form-fill .eap-grid-field input,
+.eap-a4.eap-form-fill .eap-grid-field select,
+.eap-a4.eap-form-fill .eap-grid-field textarea {
+  width: 100%;
+  border: 1px solid #D0D0CC;
+  border-radius: 3px;
+  padding: 6px 8px;
+  font: inherit;
+  background: #FAFAFA;
+  box-sizing: border-box;
+}
+
+/* 레거시 eap-field 행 — 위젯 없이 td/th 직접 입력만 전체 폭 */
+.eap-a4.eap-form-fill table td > input.eap-in-cell,
+.eap-a4.eap-form-fill table td > select.eap-in-cell,
+.eap-a4.eap-form-fill table td > textarea.eap-in-cell,
+.eap-a4.eap-form-fill table th > input.eap-in-cell,
+.eap-a4.eap-form-fill table th > select.eap-in-cell,
+.eap-a4.eap-form-fill table th > textarea.eap-in-cell {
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -252,47 +263,52 @@ body.eap-form-fill-host {
   text-align: center;
 }
 
-.eap-a4.eap-form-fill table td input.eap-in-cell::placeholder,
-.eap-a4.eap-form-fill table td textarea.eap-in-cell::placeholder,
-.eap-a4.eap-form-fill table th input.eap-in-cell::placeholder,
-.eap-a4.eap-form-fill table th textarea.eap-in-cell::placeholder {
+.eap-a4.eap-form-fill table td > input.eap-in-cell::placeholder,
+.eap-a4.eap-form-fill table td > textarea.eap-in-cell::placeholder,
+.eap-a4.eap-form-fill table th > input.eap-in-cell::placeholder,
+.eap-a4.eap-form-fill table th > textarea.eap-in-cell::placeholder {
   text-align: center;
 }
 
-.eap-a4.eap-form-fill table td textarea.eap-in-cell,
-.eap-a4.eap-form-fill table th textarea.eap-in-cell {
+.eap-a4.eap-form-fill table td > textarea.eap-in-cell,
+.eap-a4.eap-form-fill table th > textarea.eap-in-cell {
   height: auto;
   min-height: 48px;
   padding: 4px;
 }
 
-.eap-a4.eap-form-fill table td select.eap-in-cell,
-.eap-a4.eap-form-fill table th select.eap-in-cell {
+.eap-a4.eap-form-fill table td > select.eap-in-cell,
+.eap-a4.eap-form-fill table th > select.eap-in-cell {
   text-align: center;
   text-align-last: center;
 }
 
-.eap-a4.eap-form-fill table td input[type=date].eap-in-cell,
-.eap-a4.eap-form-fill table th input[type=date].eap-in-cell {
+.eap-a4.eap-form-fill table td > input[type=date].eap-in-cell,
+.eap-a4.eap-form-fill table th > input[type=date].eap-in-cell {
   width: auto;
   min-width: 0;
   max-width: 100%;
 }
 
-.eap-a4.eap-form-fill input:focus,
-.eap-a4.eap-form-fill select:focus,
-.eap-a4.eap-form-fill textarea:focus {
+.eap-a4.eap-form-fill .eap-val input:focus,
+.eap-a4.eap-form-fill .eap-val select:focus,
+.eap-a4.eap-form-fill .eap-val textarea:focus,
+.eap-a4.eap-form-fill .eap-widget > input:focus,
+.eap-a4.eap-form-fill .eap-widget > select:focus,
+.eap-a4.eap-form-fill .eap-widget > textarea:focus {
   outline: none;
   border-color: #BC1F26;
   background: #fff;
 }
 
-.eap-a4.eap-form-fill input[readonly] {
+.eap-a4.eap-form-fill input[readonly],
+.eap-a4.eap-form-fill .eap-widget > input[readonly] {
   background: #F5F5F5;
   color: #555;
 }
 
-.eap-a4.eap-form-fill textarea {
+.eap-a4.eap-form-fill .eap-val textarea,
+.eap-a4.eap-form-fill .eap-widget > textarea.eap-in-cell {
   min-height: 72px;
   resize: vertical;
 }
@@ -381,14 +397,6 @@ body.eap-form-fill-host {
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
-}
-
-.eap-a4.eap-form-fill .eap-widget > input,
-.eap-a4.eap-form-fill .eap-widget > select,
-.eap-a4.eap-form-fill .eap-widget > textarea {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
 }
 
 .eap-a4.eap-form-fill .eap-picker-row {

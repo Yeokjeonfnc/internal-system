@@ -16,6 +16,7 @@ Future<({String html, String schemaJson})?> showEapFormEditorDialog(
     context: context,
     barrierDismissible: false,
     useRootNavigator: true,
+    requestFocus: false,
     builder: (dialogCtx) => _EapFormEditorDialog(controller: controller),
   );
 }
@@ -39,6 +40,15 @@ class _EapFormEditorDialogState extends ConsumerState<_EapFormEditorDialog> {
       final data = await widget.controller.getFormData();
       if (!mounted) return;
       Navigator.of(context).pop(data);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e is StateError ? e.message : '양식을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.\n$e',
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _confirming = false);
     }

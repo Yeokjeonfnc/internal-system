@@ -102,6 +102,7 @@ class _StoreDetailViewState extends ConsumerState<StoreDetailView> {
     if (!mounted || widget.isRegisterMode || widget.storeIdx == null) return;
     ref.invalidate(storeDetailProvider(widget.storeIdx!));
     ref.invalidate(storeDataProvider);
+    ref.invalidate(storeListPageProvider);
   }
 
   StoreRegisterDraft? _draftForStore(Store? store) {
@@ -1238,32 +1239,6 @@ class _CommonStoreInfoSectionState
           ),
         ],
       ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 미구현 탭
-// ---------------------------------------------------------------------------
-
-/// 아직 별도 폼이 준비되지 않은 탭의 기본 안내 플레이스홀더.
-class PlaceholderTabContent extends StatelessWidget {
-  const PlaceholderTabContent({super.key, required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      child: Text(
-        '$title 영역은 준비 중입니다.',
-        style: const TextStyle(
-          color: FormStylePalette.textMuted,
-          fontSize: 14,
-          fontFamilyFallback: AppTheme.koreanFontFallback,
-        ),
-      ),
     );
   }
 }
@@ -3843,6 +3818,7 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
       ref.invalidate(storeHistoriesProvider(storeIdx));
     }
     ref.invalidate(storeDataProvider);
+    ref.invalidate(storeListPageProvider);
   }
 
   void editStore() {
@@ -3950,6 +3926,7 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
     }
 
     ref.invalidate(storeDataProvider);
+    ref.invalidate(storeListPageProvider);
     ref.invalidate(storeHistoriesProvider(store.storeIdx));
     final refreshed = await ref.refresh(
       storeDetailProvider(store.storeIdx).future,
@@ -4031,6 +4008,7 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
     }
 
     ref.invalidate(storeDataProvider);
+    ref.invalidate(storeListPageProvider);
     await showAlertDialog(context, '저장되었습니다.');
     if (!mounted) return;
     Navigator.of(context).maybePop();
@@ -4193,9 +4171,8 @@ class _StoreDetailPanelState extends ConsumerState<StoreDetailPanel> {
         return DocumentsTab(store: widget.store);
       case '히스토리':
         return HistoryTab(store: widget.store);
-      default:
-        return PlaceholderTabContent(title: widget.title);
     }
+    throw StateError('알 수 없는 탭: ${widget.title}');
   }
 
   @override

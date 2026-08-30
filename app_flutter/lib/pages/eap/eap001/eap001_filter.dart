@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:app_flutter/core/theme/app_dimensions.dart';
-import 'package:app_flutter/core/widgets/common/common_filter_bar.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/pages/eap/eap001/eap001_model.dart';
 
@@ -32,6 +31,8 @@ List<EapDocument> eapDocumentsMatchingKeyword(
 }
 
 /// 문서함 목록 상단 키워드 검색 (품의번호·제목·기안자·문서분류).
+///
+/// 물건관리와 같은 [SearchFilterTextField] — 라벨 열 없이 검색 아이콘 + 전체 폭.
 class EapDocumentSearchBar extends StatelessWidget {
   const EapDocumentSearchBar({
     super.key,
@@ -51,15 +52,16 @@ class EapDocumentSearchBar extends StatelessWidget {
         AppDimensions.listScreenHPadding,
         8,
       ),
-      child: SearchFilterStackedItems(
-        items: [
-          FilterTextSlot(
-            label: '키워드',
-            hint: '품의번호·제목·기안자·문서분류',
-            controller: controller,
-            onChanged: onChanged,
-          ).toItem(),
-        ],
+      child: SearchFilterTextField(
+        controller: controller,
+        hint: '키워드 검색',
+        borderRadius: 8,
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          color: Colors.grey.shade500,
+          size: 22,
+        ),
+        onChanged: onChanged,
       ),
     );
   }

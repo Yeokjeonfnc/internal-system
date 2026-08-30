@@ -65,6 +65,7 @@ void _invalidateDashboard(WidgetRef ref) {
 
 void _invalidateStores(WidgetRef ref) {
   ref.invalidate(storeDataProvider);
+  ref.invalidate(storeListPageProvider);
   ref.invalidate(regionNamesProvider);
   ref.invalidate(brandNamesProvider);
   ref.invalidate(codeOptionsProvider(10));

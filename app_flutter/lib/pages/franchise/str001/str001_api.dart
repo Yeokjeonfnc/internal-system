@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:app_flutter/core/api/api_client.dart';
 import 'package:app_flutter/core/api/base_repository.dart';
 import 'package:app_flutter/core/auth/auth_token_store.dart';
+import 'package:app_flutter/pages/franchise/str001/str001_filter.dart';
 import 'package:app_flutter/pages/franchise/str001/str001_model.dart';
 import 'package:app_flutter/core/store_mst/store_mst_write_request.dart';
 
@@ -76,6 +77,76 @@ class StoreApiService extends BaseRepository {
       );
     }
     return out;
+  }
+
+  /// 목록 화면용 페이지 조회. [limit] 없으면 서버가 전체를 돌려 준다.
+  Future<StoreListPage> listStoresPaged({
+    required int limit,
+    required int offset,
+    StoreFilter? filter,
+  }) async {
+    final params = storeListQueryParams(
+      filter: filter,
+      limit: limit,
+      offset: offset,
+    );
+    final countParams = storeListQueryParams(filter: filter);
+    try {
+      final results = await Future.wait([
+        client.get(StoreMstApiPaths.root, queryParameters: params),
+        client.get(StoreMstApiPaths.count, queryParameters: countParams),
+      ]);
+      final rows = _parseStoreList(
+        results[0],
+        '가맹점 목록을 불러오지 못했습니다.',
+      );
+      final total = _parseCount(results[1]);
+      return StoreListPage(rows: rows, total: total);
+    } on DioException catch (e) {
+      throw StateError(
+        envelopeMessage(e.response?.data) ??
+            '가맹점 목록을 불러오지 못했습니다. (${e.response?.statusCode ?? e.type.name})',
+      );
+    }
+  }
+
+  List<Store> _parseStoreList(Response r, String fallback) {
+    if (!isHttpSuccess(r.statusCode) || r.data == null) {
+      throw StateError('$fallback (HTTP ${r.statusCode})');
+    }
+    final root = responseMap(r);
+    if (root['success'] != true) {
+      throw StateError(envelopeMessage(r.data) ?? fallback);
+    }
+    final data = root['data'];
+    if (data is! List) {
+      throw StateError('가맹점 목록 응답 형식이 올바르지 않습니다.');
+    }
+    final out = <Store>[];
+    for (final raw in data) {
+      if (raw is! Map) continue;
+      final m = Map<String, dynamic>.from(raw);
+      try {
+        out.add(Store.fromJson(m));
+      } catch (e, st) {
+        debugPrint('Store.fromJson skip storeIdx=${m['storeIdx']}: $e\n$st');
+      }
+    }
+    return out;
+  }
+
+  int _parseCount(Response r) {
+    if (!isHttpSuccess(r.statusCode) || r.data == null) {
+      throw StateError('가맹점 건수를 불러오지 못했습니다. (HTTP ${r.statusCode})');
+    }
+    final root = responseMap(r);
+    if (root['success'] != true) {
+      throw StateError(envelopeMessage(r.data) ?? '가맹점 건수를 불러오지 못했습니다.');
+    }
+    final data = root['data'];
+    if (data is int) return data;
+    if (data is num) return data.toInt();
+    throw StateError('가맹점 건수 응답 형식이 올바르지 않습니다.');
   }
 
   /// 가맹점 인덱스로 조회
@@ -428,4 +499,53 @@ class StoreApiService extends BaseRepository {
     final sep = url.contains('?') ? '&' : '?';
     return '$url${sep}token=${Uri.encodeQueryComponent(AuthTokenStore.token)}';
   }
+}
+
+class StoreListPage {
+  const StoreListPage({required this.rows, required this.total});
+
+  final List<Store> rows;
+  final int total;
+}
+
+Map<String, dynamic> storeListQueryParams({
+  StoreFilter? filter,
+  int? limit,
+  int? offset,
+}) {
+  final params = <String, dynamic>{};
+  if (limit != null) params['limit'] = limit;
+  if (offset != null) params['offset'] = offset;
+  final f = filter;
+  if (f == null) return params;
+
+  final brand = f.brandCd.trim();
+  if (brand.isNotEmpty && brand != '전체') {
+    params['brandNm'] = brand;
+  }
+  if (f.regionNms.isNotEmpty) {
+    params['regionNm'] = f.regionNms.where((e) => e.trim().isNotEmpty).toList();
+  }
+  if (f.storeStatus.isNotEmpty) {
+    params['storeStatusNm'] =
+        f.storeStatus.where((e) => e.trim().isNotEmpty).toList();
+  }
+  for (final c in f.conditions) {
+    final value = c.value.trim();
+    if (value.isEmpty) continue;
+    final key = switch (c.field) {
+      StoreFilterField.storeName => 'storeNm',
+      StoreFilterField.storeCode => 'storeCd',
+      StoreFilterField.ownerName => 'ownerNm',
+      StoreFilterField.phone => 'storeTel',
+      StoreFilterField.address => 'address',
+      StoreFilterField.contractStartDate => 'contStartDt',
+      StoreFilterField.contractEndDate => 'contEndDt',
+      StoreFilterField.supervisor => 'sv',
+      StoreFilterField.businessNumber => 'businessNumber',
+      StoreFilterField.notes => 'notes',
+    };
+    params.putIfAbsent(key, () => value);
+  }
+  return params;
 }

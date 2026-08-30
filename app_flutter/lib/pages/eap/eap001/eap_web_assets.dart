@@ -8,7 +8,7 @@
 /// 옛것이 쓰여, 고친 내용이 반영되지 않은 채 "고쳤는데 그대로다" 가 된다.
 /// 편집기 자산을 고쳤으면 **여기와 두 HTML 을 함께** 바꿀 것:
 ///   `cd app_flutter/web && sed -i 's/v=<옛버전>/v=<새버전>/g' *.html`
-const kEapWebAssetVersion = '20260822a';
+const kEapWebAssetVersion = '20260826b';
 
 const kEapHtmlEditorPage = 'eap_html_editor.html';
 const kEapFormFillPage = 'eap_form_fill.html';

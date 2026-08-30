@@ -11,19 +11,20 @@ import 'package:app_flutter/pages/eap/eap001/eap001_provider.dart';
 import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 
 Future<void> showEapNewDraftSheet(BuildContext context) async {
-  IframePointerGate.push();
-  try {
-    final formCode = await showModalBottomSheet<String>(
+  final formCode = await IframePointerGate.whileBlocked(
+    context,
+    () => showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      requestFocus: false,
       builder: (ctx) => const _EapNewDraftSheet(),
-    );
-    if (!context.mounted || formCode == null || formCode.isEmpty) return;
-    context.go(EapRoutes.composeWith(formCode));
-  } finally {
-    IframePointerGate.pop();
-  }
+    ),
+  );
+  if (!context.mounted || formCode == null || formCode.isEmpty) return;
+  await IframePointerGate.deferOverlayFrame();
+  if (!context.mounted) return;
+  context.go(EapRoutes.composeWith(formCode));
 }
 
 class _EapNewDraftSheet extends ConsumerStatefulWidget {

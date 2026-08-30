@@ -67,6 +67,8 @@ class StoreMstWriteRequest {
 abstract final class StoreMstApiPaths {
   static const String root = '/stores';
 
+  static const String count = '$root/count';
+
   static String one(int storeIdx) => '$root/$storeIdx';
 
   static String histories(int storeIdx) => '$root/$storeIdx/histories';
