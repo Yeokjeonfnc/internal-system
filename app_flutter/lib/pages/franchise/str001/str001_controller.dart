@@ -108,10 +108,10 @@ class StoreListPaging {
 class StoreListPagingNotifier extends Notifier<StoreListPaging> {
   @override
   StoreListPaging build() {
-    ref.listen<StoreFilter>(storeProvider, (prev, next) {
-      if (state.page != 1) {
-        state = StoreListPaging(page: 1, pageSize: state.pageSize);
-      }
+    ref.listen<String>(storeListFilterQueryKeyProvider, (prev, next) {
+      if (prev == next) return;
+      if (state.page == 1) return;
+      state = StoreListPaging(page: 1, pageSize: state.pageSize);
     });
     return const StoreListPaging();
   }
@@ -132,12 +132,26 @@ final storeListPagingProvider =
       StoreListPagingNotifier.new,
     );
 
-/// 목록 화면용 서버 페이지. 필터·페이지가 바뀌면 다시 조회한다.
-final storeListPageProvider = FutureProvider<StoreListPage>((ref) async {
+/// 필터만의 조회 키. 빈 조건 추가는 키가 같아서 페이지를 리셋하지 않는다.
+final storeListFilterQueryKeyProvider = Provider<String>((ref) {
   final filter = ref.watch(storeProvider);
+  return storeListQueryParams(filter: filter).toString();
+});
+
+/// 서버에 실제로 보내는 조회 키(필터+페이지).
+final storeListQueryKeyProvider = Provider<String>((ref) {
+  final filterKey = ref.watch(storeListFilterQueryKeyProvider);
   final paging = ref.watch(storeListPagingProvider);
+  return '$filterKey|${paging.pageSize}|${paging.offset}';
+});
+
+/// 목록 화면용 서버 페이지.
+final storeListPageProvider = FutureProvider<StoreListPage>((ref) async {
+  ref.watch(storeListQueryKeyProvider);
+  final filter = ref.read(storeProvider);
+  final paging = ref.read(storeListPagingProvider);
   return ref
-      .watch(storeApiServiceProvider)
+      .read(storeApiServiceProvider)
       .listStoresPaged(
         limit: paging.pageSize,
         offset: paging.offset,
@@ -162,7 +176,6 @@ class StoreNotifier extends BaseListNotifier<StoreFilter, Store> {
   /// [includeCodes]가 true(새로고침 버튼)면 공통코드·지역·브랜드까지 갱신하고,
   /// 화면 진입 시(배경 갱신)에는 목록만 갱신해 불필요한 왕복 6회를 줄인다.
   void refresh({bool includeCodes = true}) {
-    ref.invalidate(storeDataProvider);
     ref.invalidate(storeListPageProvider);
     if (!includeCodes) return;
     ref.invalidate(regionNamesProvider);

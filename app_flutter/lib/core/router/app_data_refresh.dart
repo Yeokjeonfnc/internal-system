@@ -9,6 +9,7 @@ import 'package:app_flutter/pages/dashboard/dsh001/dsh001_screen.dart'
     show dashboardHomeDataProvider;
 
 import 'package:app_flutter/pages/master/mst001/mst001_controller.dart';
+import 'package:app_flutter/pages/master/org001/org001_provider.dart';
 import 'package:app_flutter/pages/development/dev002/dev002_controller.dart';
 import 'package:app_flutter/pages/development/dev001/dev001_controller.dart';
 import 'package:app_flutter/pages/development/dev003/dev003_controller.dart';
@@ -72,7 +73,9 @@ void _invalidateStores(WidgetRef ref) {
   ref.invalidate(codeOptionsProvider(20));
   ref.invalidate(codeOptionsProvider(30));
   ref.invalidate(codeOptionsProvider(40));
-  ref.invalidate(storeProvider);
+  // storeProvider(필터)는 무효화하지 않는다.
+  // storeListPageProvider 가 필터를 watch 하므로, 같은 틱에 둘 다 깨면
+  // 페이징 listen 이 빌드 중에 state 를 바꿔 예외가 난다.
 }
 
 void _invalidatePartners(WidgetRef ref) {
@@ -95,6 +98,7 @@ void _invalidateSalesAreas(WidgetRef ref) {
 void _invalidateUsers(WidgetRef ref) {
   ref.invalidate(userDataProvider);
   ref.invalidate(userProvider);
+  ref.invalidate(orgChartDataProvider);
 }
 
 /// 전자결재 — 문서함·서식 목록. 결재 진행은 다른 사람이 만드는 변화라

@@ -286,7 +286,7 @@ class _PartnerTable extends ConsumerWidget {
         0: const FixedColumnWidth(50),
         1: const FixedColumnWidth(100),
         2: const FlexColumnWidth(0.9),
-        3: const FixedColumnWidth(100),
+        3: const FixedColumnWidth(120),
         4: const FixedColumnWidth(150),
         5: const FlexColumnWidth(1.2),
         6: const FixedColumnWidth(80),

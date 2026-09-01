@@ -18,6 +18,7 @@ import 'package:app_flutter/pages/active/shared/activity_routes.dart';
 import 'package:app_flutter/pages/eap/shared/eap_routes.dart';
 import 'package:app_flutter/pages/mail/shared/mail_routes.dart';
 import 'package:app_flutter/pages/mail/shared/mail_sidebar_menu.dart';
+import 'package:app_flutter/pages/master/org001/org001_view.dart';
 import '../theme/app_colors.dart';
 import '../theme/shell_tab_chrome.dart';
 import '../auth/auth_provider.dart';
@@ -1293,6 +1294,19 @@ class _SidebarUserProfile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
+              if (!authProvider.isFranchiseOwner)
+                IconButton(
+                  tooltip: '조직도',
+                  onPressed: () => showOrgChartPopover(context),
+                  icon: const Icon(Icons.account_tree_outlined, size: 18),
+                  color: const Color(0xFFADB5BD),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: 0.03),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
               NotificationBellIconButton(currentPath: currentPath),
               IconButton(
                 tooltip: '설정',

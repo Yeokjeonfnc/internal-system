@@ -143,6 +143,42 @@ class BoardDocument {
   }
 }
 
+class BoardComment {
+  const BoardComment({
+    required this.commentIdx,
+    required this.postIdx,
+    required this.bodyTxt,
+    required this.createdBy,
+    required this.authorNm,
+    required this.createdAtRaw,
+  });
+
+  final int commentIdx;
+  final int postIdx;
+  final String bodyTxt;
+  final String createdBy;
+  final String authorNm;
+  final String createdAtRaw;
+
+  String get createdAtLabel {
+    final raw = createdAtRaw.trim();
+    if (raw.isEmpty) return '-';
+    final date = raw.contains('T') ? raw.split('T').first : raw;
+    return date.replaceAll('-', '.');
+  }
+
+  factory BoardComment.fromJson(Map<String, dynamic> json) {
+    return BoardComment(
+      commentIdx: asJsonIntOpt(json[BoardApiJsonKeys.commentIdx]) ?? 0,
+      postIdx: asJsonIntOpt(json[BoardApiJsonKeys.postIdx]) ?? 0,
+      bodyTxt: json.jsonString(BoardApiJsonKeys.bodyTxt),
+      createdBy: json.jsonString(BoardApiJsonKeys.createdBy),
+      authorNm: json.jsonString(BoardApiJsonKeys.authorNm),
+      createdAtRaw: json.jsonString(BoardApiJsonKeys.createdAt),
+    );
+  }
+}
+
 bool boardDocumentIsImage(String fileName, String contentType) {
   if (contentType.toLowerCase().startsWith('image/')) return true;
   return storeDocumentPreviewKindFor(fileName) ==

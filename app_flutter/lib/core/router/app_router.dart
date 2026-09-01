@@ -781,7 +781,7 @@ class _RouteDataRefreshBoundaryState
   void initState() {
     super.initState();
     ApiReachability.recoveryTick.addListener(_onBackendRecovered);
-    Future.microtask(_onRouteEntered);
+    _scheduleRouteEntered();
   }
 
   @override
@@ -794,8 +794,15 @@ class _RouteDataRefreshBoundaryState
   void didUpdateWidget(covariant _RouteDataRefreshBoundary oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.routeKey != widget.routeKey) {
-      Future.microtask(_onRouteEntered);
+      _scheduleRouteEntered();
     }
+  }
+
+  void _scheduleRouteEntered() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _onRouteEntered();
+    });
   }
 
   void _onBackendRecovered() {

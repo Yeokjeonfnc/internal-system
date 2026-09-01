@@ -204,7 +204,29 @@
 
     <select id="countStoreList" resultType="int">
         SELECT CAST(COUNT(*) AS INTEGER)
-        <include refid="storeMstFromJoins"/>
+        FROM store_mst sm
+        <if test="q.brandNm != null and q.brandNm != ''">
+            LEFT JOIN code_mst br ON br.grp_cd = 40
+                AND CAST(br.code_cd AS TEXT) = CAST(sm.brand_cd AS VARCHAR)
+        </if>
+        <if test="q.regionNms != null and q.regionNms.size() &gt; 0">
+            LEFT JOIN code_mst reg ON reg.grp_cd = 20
+                AND CAST(reg.code_cd AS TEXT) = CAST(sm.region_cd AS TEXT)
+        </if>
+        <if test="q.storeStatusNms != null and q.storeStatusNms.size() &gt; 0">
+            LEFT JOIN code_mst st ON st.grp_cd = 10
+                AND CAST(st.code_cd AS TEXT) = CAST(sm.store_status AS TEXT)
+        </if>
+        <if test="q.sv != null and q.sv != ''">
+            LEFT JOIN LATERAL (
+                SELECT u.user_name
+                FROM user_mst u
+                WHERE TRIM(COALESCE(sm.sv_id, '')) &lt;&gt; ''
+                  AND (u.user_id = TRIM(sm.sv_id) OR u.user_name = TRIM(sm.sv_id))
+                ORDER BY (u.user_id = TRIM(sm.sv_id)) DESC, u.user_idx
+                LIMIT 1
+            ) usv ON TRUE
+        </if>
         <include refid="storeListWhere"/>
     </select>
 

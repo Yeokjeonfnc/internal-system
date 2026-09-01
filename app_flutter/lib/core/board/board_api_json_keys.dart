@@ -31,6 +31,9 @@ abstract final class BoardApiJsonKeys {
   static const String attachedAt = 'attachedAt';
   static const String fileExists = 'fileExists';
 
+  static const String commentIdx = 'commentIdx';
+  static const String commentCnt = 'commentCnt';
+
   static const String userId = 'userId';
   static const String keyword = 'keyword';
 }
@@ -45,4 +48,7 @@ abstract final class BoardApiPaths {
       '${post(postIdx)}/documents/$bbsDocIdx/download';
   static String document(int postIdx, int bbsDocIdx) =>
       '${post(postIdx)}/documents/$bbsDocIdx';
+  static String comments(int postIdx) => '${post(postIdx)}/comments';
+  static String comment(int postIdx, int commentIdx) =>
+      '${comments(postIdx)}/$commentIdx';
 }

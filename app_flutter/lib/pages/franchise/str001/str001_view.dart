@@ -53,10 +53,6 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
   void initState() {
     super.initState();
     _keywordCtrl = TextEditingController();
-    // 진입 시에는 목록만 배경 갱신(이전 데이터는 그대로 보이므로 스피너 없음).
-    Future.microtask(
-      () => ref.read(storeProvider.notifier).refresh(includeCodes: false),
-    );
   }
 
   @override
@@ -246,119 +242,78 @@ class _StoreListViewState extends ConsumerState<StoreListView> {
     final n = ref.read(storeProvider.notifier);
     final pageAsync = ref.watch(storeListPageProvider);
     final paging = ref.watch(storeListPagingProvider);
-    final regionsAsync = ref.watch(regionNamesProvider);
-    final brandsAsync = ref.watch(brandNamesProvider);
 
-    return pageAsync.when(
-      data: (page) {
-        return regionsAsync.when(
-          data: (regions) {
-            return brandsAsync.when(
-              data: (brands) {
-                final rows = page.rows;
-
-                return ListPageTemplate(
-                  activeFilters: const <ActiveFilterChip>[],
-                  countText: '총 ${page.total}개의 가맹점이 조회되었습니다.',
-                  registerMenuCd: kMenuStr001,
-                  onRegister: () =>
-                      context.goNamed(AppRouteNames.storeRegister),
-                  onRefresh: () => n.refresh(),
-                  table: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(child: _StoreTable(rows: rows)),
-                      CommonPagerBar(
-                        totalCount: page.total,
-                        page: paging.page,
-                        pageSize: paging.pageSize,
-                        onPageChanged: ref
-                            .read(storeListPagingProvider.notifier)
-                            .setPage,
-                        onPageSizeChanged: ref
-                            .read(storeListPagingProvider.notifier)
-                            .setPageSize,
-                      ),
-                    ],
-                  ),
-                  mainSearchFields: _StoreConditionFilter(
-                    filter: filter,
-                    notifier: n,
-                    onSave: _saveFilter,
-                    isSaving: _isSavingFilter,
-                  ),
-                  filterSheetBuilder: (sheetCtx) => Consumer(
-                    builder: (_, sheetRef, _) => _StoreConditionFilter(
-                      filter: sheetRef.watch(storeProvider),
-                      notifier: sheetRef.read(storeProvider.notifier),
-                      onSave: _saveFilter,
-                      isSaving: _isSavingFilter,
-                    ),
-                  ),
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) =>
-                  Center(child: Text('브랜드 데이터를 불러오는 중 오류가 발생했습니다: $error')),
-            );
-          },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stack) => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                const SizedBox(height: 16),
-                Text(
-                  '지역 데이터를 불러오는 중 오류가 발생했습니다.',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '$error',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    ref.invalidate(regionNamesProvider);
-                    n.refresh();
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('다시 시도'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stack) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(
-              '데이터를 불러오는 중 오류가 발생했습니다.',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              // DioException 원문을 그대로 뿌리면 사용자가 읽을 수 없다.
-              formatApiUserMessage(
-                error,
-                fallback: '가맹점 목록을 불러오지 못했습니다.',
+    return ListPageTemplate(
+      activeFilters: const <ActiveFilterChip>[],
+      countText: pageAsync.when(
+        skipLoadingOnReload: true,
+        data: (page) => '총 ${page.total}개의 가맹점이 조회되었습니다.',
+        loading: () => '조회 중입니다.',
+        error: (error, stack) => '조회에 실패했습니다.',
+      ),
+      registerMenuCd: kMenuStr001,
+      onRegister: () => context.goNamed(AppRouteNames.storeRegister),
+      onRefresh: () => n.refresh(),
+      table: pageAsync.when(
+        skipLoadingOnReload: true,
+        data: (page) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: _StoreTable(rows: page.rows)),
+              CommonPagerBar(
+                totalCount: page.total,
+                page: paging.page,
+                pageSize: paging.pageSize,
+                onPageChanged: ref.read(storeListPagingProvider.notifier).setPage,
+                onPageSizeChanged: ref
+                    .read(storeListPagingProvider.notifier)
+                    .setPageSize,
               ),
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => n.refresh(),
-              icon: const Icon(Icons.refresh),
-              label: const Text('다시 시도'),
-            ),
-          ],
+            ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text(
+                '데이터를 불러오는 중 오류가 발생했습니다.',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                formatApiUserMessage(
+                  error,
+                  fallback: '가맹점 목록을 불러오지 못했습니다.',
+                ),
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => n.refresh(),
+                icon: const Icon(Icons.refresh),
+                label: const Text('다시 시도'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      mainSearchFields: _StoreConditionFilter(
+        filter: filter,
+        notifier: n,
+        onSave: _saveFilter,
+        isSaving: _isSavingFilter,
+      ),
+      filterSheetBuilder: (sheetCtx) => Consumer(
+        builder: (_, sheetRef, _) => _StoreConditionFilter(
+          filter: sheetRef.watch(storeProvider),
+          notifier: sheetRef.read(storeProvider.notifier),
+          onSave: _saveFilter,
+          isSaving: _isSavingFilter,
         ),
       ),
     );

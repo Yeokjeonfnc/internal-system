@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yeokjeon.erp.board.mapper.BbsCommentMapper">
+
+    <resultMap id="bbsCommentRow" type="com.yeokjeon.erp.board.dto.BbsCommentJdbcRow">
+        <constructor>
+            <arg column="comment_idx" javaType="java.lang.Integer"/>
+            <arg column="post_idx" javaType="java.lang.Integer"/>
+            <arg column="body_txt" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="author_nm" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="commentSelect">
+        SELECT c.comment_idx,
+               c.post_idx,
+               c.body_txt,
+               c.created_by,
+               COALESCE(um.user_name, c.created_by, '') AS author_nm,
+               c.created_at,
+               c.updated_at
+        FROM bbs_comment c
+                 LEFT JOIN user_mst um ON um.user_id = c.created_by
+    </sql>
+
+    <select id="selectByPostIdx" resultMap="bbsCommentRow">
+        <include refid="commentSelect"/>
+        WHERE c.post_idx = #{postIdx}
+          AND c.deleted_yn = false
+        ORDER BY c.created_at ASC, c.comment_idx ASC
+    </select>
+
+    <select id="selectByIdx" resultMap="bbsCommentRow">
+        <include refid="commentSelect"/>
+        WHERE c.comment_idx = #{commentIdx}
+          AND c.post_idx = #{postIdx}
+          AND c.deleted_yn = false
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="commentIdx" keyColumn="comment_idx">
+        INSERT INTO bbs_comment (post_idx, body_txt, created_by, updated_at)
+        VALUES (#{postIdx}, TRIM(#{bodyTxt}), #{userId}, CURRENT_TIMESTAMP)
+    </insert>
+
+    <update id="softDelete">
+        UPDATE bbs_comment
+        SET deleted_yn = true,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE comment_idx = #{commentIdx}
+          AND post_idx = #{postIdx}
+          AND deleted_yn = false
+    </update>
+</mapper>

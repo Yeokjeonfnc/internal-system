@@ -21,6 +21,43 @@
     return '';
   }
 
+  /** 자동 항목 위젯에 기안자·부서 등 실제 값을 넣는다.
+   *
+   * 양식 편집기는 `{기안자}` 같은 `.eap-w-ph` 만 두고 input 이 없다.
+   * 예전에는 `.eap-w-face input` 만 채워 자리표시가 기안 화면에도 남았다.
+   */
+  function applyAutoToRow(row) {
+    if (!row) return;
+    var type = row.getAttribute('data-eap-type') || '';
+    if (type.indexOf('auto_') !== 0) return;
+    var value = autoValue(type);
+    var id = row.getAttribute('data-eap-id') || '';
+    var inputs = row.querySelectorAll('input');
+    if (inputs.length) {
+      inputs.forEach(function (inp) {
+        inp.readOnly = true;
+        inp.value = value;
+        if (id) inp.setAttribute('data-eap-id', id);
+      });
+      return;
+    }
+    var ph = row.querySelector('.eap-w-ph');
+    if (ph) {
+      if (value) ph.textContent = value;
+      return;
+    }
+    var wrap = row.querySelector('.eap-w-face-wrap');
+    if (wrap && value) wrap.textContent = value;
+  }
+
+  function applyAllAutos() {
+    page.querySelectorAll(
+      '.eap-widget[data-eap-type^="auto_"], '
+      + '.eap-field[data-eap-type^="auto_"], '
+      + '.eap-grid-field[data-eap-type^="auto_"]'
+    ).forEach(applyAutoToRow);
+  }
+
   function buildHmSelects(hId, mId, reqAttr) {
     var h = '<select class="eap-h" data-eap-id="' + esc(hId) + '"' + reqAttr + '>';
     for (var i = 0; i < 24; i++) {
@@ -100,11 +137,7 @@
     row.querySelectorAll('.eap-w-del').forEach(function (el) { el.remove(); });
 
     if (type.indexOf('auto_') === 0) {
-      row.querySelectorAll('.eap-w-face input').forEach(function (inp) {
-        inp.readOnly = true;
-        inp.value = autoValue(type);
-        if (id) inp.setAttribute('data-eap-id', id);
-      });
+      applyAutoToRow(row);
       return;
     }
 
@@ -458,6 +491,7 @@
     });
     applyConditionalVisibility();
     recalcSumGroups();
+    applyAllAutos();
     if (window.eapPrepareFormFillTables) window.eapPrepareFormFillTables(page);
     else if (window.eapFixDocTables) window.eapFixDocTables(page);
     delete page._eapMileageCalcBound;
@@ -625,12 +659,7 @@
     d = d || {};
     if (d.type === 'eapSetContext') {
       ctx = d.context || {};
-      page.querySelectorAll('.eap-field input[readonly], .eap-grid-field input[readonly], .eap-widget[data-eap-auto="1"] input[readonly]').forEach(function (inp) {
-        var row = inp.closest('.eap-field, .eap-grid-field, .eap-widget');
-        if (row && (row.getAttribute('data-eap-type') || '').indexOf('auto_') === 0) {
-          inp.value = autoValue(row.getAttribute('data-eap-type'));
-        }
-      });
+      applyAllAutos();
     }
     if (d.type === 'eapSetHtml') activateTemplate(d.html || '');
     if (d.type === 'eapPickResult') {

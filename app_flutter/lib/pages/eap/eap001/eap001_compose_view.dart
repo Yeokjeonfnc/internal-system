@@ -283,6 +283,8 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
     // 보내는 레이스를 막는다.
     if (useFill) {
       _fillCtrl.primeHtml(html);
+      final auth = provider.Provider.of<AuthProvider>(context, listen: false);
+      _fillCtrl.primeContext(_fillContext(auth));
     } else {
       _htmlCtrl.primeHtml(html);
     }
@@ -298,9 +300,7 @@ class _Eap001ComposeViewState extends ConsumerState<Eap001ComposeView> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final auth = provider.Provider.of<AuthProvider>(context, listen: false);
-        final ctx = _fillContext(auth);
-        _fillCtrl.primeContext(ctx);
-        _fillCtrl.setContext(ctx);
+        _fillCtrl.setContext(_fillContext(auth));
       });
     }
   }

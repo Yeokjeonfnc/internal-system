@@ -170,6 +170,43 @@ class Bbs001ApiService extends BaseRepository {
     return null;
   }
 
+  Future<List<BoardComment>> getComments({
+    required int postIdx,
+    required String userId,
+  }) => getDataList(
+    BoardApiPaths.comments(postIdx),
+    queryParameters: {BoardApiJsonKeys.userId: userId},
+    fromJson: BoardComment.fromJson,
+  );
+
+  Future<BoardComment?> createComment({
+    required int postIdx,
+    required String userId,
+    required String bodyTxt,
+  }) => postDataOrNull(
+    BoardApiPaths.comments(postIdx),
+    queryParameters: {BoardApiJsonKeys.userId: userId},
+    data: {BoardApiJsonKeys.bodyTxt: bodyTxt},
+    fromJson: BoardComment.fromJson,
+  );
+
+  Future<bool> deleteComment({
+    required int postIdx,
+    required int commentIdx,
+    required String userId,
+  }) async {
+    try {
+      final r = await client.delete(
+        BoardApiPaths.comment(postIdx, commentIdx),
+        queryParameters: {BoardApiJsonKeys.userId: userId},
+      );
+      return isHttpSuccess(r.statusCode);
+    } catch (e) {
+      debugPrint('deleteComment failed: $e');
+      return false;
+    }
+  }
+
   MediaType? _mimeTypeForFileName(String fileName) {
     final kind = storeDocumentPreviewKindFor(fileName);
     return switch (kind) {

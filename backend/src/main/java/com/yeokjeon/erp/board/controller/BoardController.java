@@ -1,10 +1,13 @@
 package com.yeokjeon.erp.board.controller;
 
+import com.yeokjeon.erp.board.dto.BbsCommentDto;
+import com.yeokjeon.erp.board.dto.BbsCommentSaveRequestDto;
 import com.yeokjeon.erp.board.dto.BbsFolderDto;
 import com.yeokjeon.erp.board.dto.BbsFolderSaveRequestDto;
 import com.yeokjeon.erp.board.dto.BbsPostDto;
 import com.yeokjeon.erp.board.dto.BbsPostSaveRequestDto;
 import com.yeokjeon.erp.board.dto.BbsDocumentDto;
+import com.yeokjeon.erp.board.service.BoardCommentService;
 import com.yeokjeon.erp.board.service.BoardDocumentService;
 import com.yeokjeon.erp.board.service.BoardService;
 import com.yeokjeon.erp.common.ApiResponse;
@@ -42,6 +45,7 @@ public class BoardController {
 
     private final BoardService boardService;
     private final BoardDocumentService boardDocumentService;
+    private final BoardCommentService boardCommentService;
 
     @GetMapping("/folders")
     public ResponseEntity<ApiResponse<List<BbsFolderDto>>> listFolders(
@@ -145,6 +149,33 @@ public class BoardController {
                                 ? MediaType.parseMediaType(payload.contentType())
                                 : MediaType.APPLICATION_OCTET_STREAM)
                 .body(payload.resource());
+    }
+
+    @GetMapping("/posts/{postIdx}/comments")
+    public ResponseEntity<ApiResponse<List<BbsCommentDto>>> listComments(
+            @PathVariable int postIdx, @RequestParam String userId) {
+        return ResponseEntity.ok(
+                ApiResponse.success(boardCommentService.list(postIdx, userId)));
+    }
+
+    @PostMapping("/posts/{postIdx}/comments")
+    public ResponseEntity<ApiResponse<BbsCommentDto>> createComment(
+            @PathVariable int postIdx,
+            @RequestParam String userId,
+            @Valid @RequestBody BbsCommentSaveRequestDto body) {
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "댓글이 등록되었습니다.",
+                        boardCommentService.create(postIdx, userId, body)));
+    }
+
+    @DeleteMapping("/posts/{postIdx}/comments/{commentIdx}")
+    public ResponseEntity<ApiResponse<Void>> deleteComment(
+            @PathVariable int postIdx,
+            @PathVariable int commentIdx,
+            @RequestParam String userId) {
+        boardCommentService.delete(postIdx, commentIdx, userId);
+        return ResponseEntity.ok(ApiResponse.success("댓글이 삭제되었습니다.", null));
     }
 
     @DeleteMapping("/posts/{postIdx}/documents/{bbsDocIdx}")

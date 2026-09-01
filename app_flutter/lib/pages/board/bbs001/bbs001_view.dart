@@ -14,6 +14,7 @@ import 'package:app_flutter/core/widgets/common/common_alert_dialog.dart';
 import 'package:app_flutter/core/widgets/common/common_search_filter_panel.dart';
 import 'package:app_flutter/pages/board/bbs001/bbs001_api.dart';
 import 'package:app_flutter/pages/board/bbs001/bbs001_attachment_image.dart';
+import 'package:app_flutter/pages/board/bbs001/bbs001_comment.dart';
 import 'package:app_flutter/pages/board/bbs001/bbs001_model.dart';
 import 'package:app_flutter/pages/board/bbs001/bbs001_post_editor_dialog.dart';
 import 'package:app_flutter/pages/board/bbs001/bbs001_quill.dart';
@@ -34,6 +35,8 @@ class _BoardViewState extends ConsumerState<BoardView> {
   List<BoardFolder> _folders = const [];
   List<BoardPost> _posts = const [];
   int? _selectedFolderIdx;
+  BoardPost? _openedPost;
+  bool _openingDetail = false;
   String _keyword = '';
   int _page = 0;
   bool _loading = true;
@@ -169,44 +172,26 @@ class _BoardViewState extends ConsumerState<BoardView> {
 
   Future<void> _openDetail(BoardPost post) async {
     final userId = _userId;
+    setState(() => _openingDetail = true);
     final detail = await _api.getPost(postIdx: post.postIdx, userId: userId);
     if (!mounted) return;
     if (detail == null) {
+      setState(() => _openingDetail = false);
       await showAlertDialog(context, '게시글을 불러오지 못했습니다.');
       return;
     }
-    final canEdit =
-        _canUpdate && (_isFranchiseOwner ? detail.createdBy == userId : true);
-    final canDel =
-        _canDelete && (_isFranchiseOwner ? detail.createdBy == userId : true);
+    setState(() {
+      _openedPost = detail;
+      _openingDetail = false;
+    });
+  }
 
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => _BoardPostDetailDialog(
-        post: detail,
-        userId: userId,
-        api: _api,
-        canEdit: canEdit,
-        canDelete: canDel,
-        onEdit: () async {
-          Navigator.of(ctx).pop();
-          await _openEditor(post: detail);
-        },
-        onDelete: () async {
-          final ok = await _api.deletePost(
-            postIdx: detail.postIdx,
-            userId: userId,
-          );
-          if (!ctx.mounted) return;
-          Navigator.of(ctx).pop();
-          if (ok) {
-            await _reload();
-          } else if (mounted) {
-            await showAlertDialog(context, '삭제에 실패했습니다.');
-          }
-        },
-      ),
-    );
+  void _closeDetail() {
+    if (_openedPost == null && !_openingDetail) return;
+    setState(() {
+      _openedPost = null;
+      _openingDetail = false;
+    });
   }
 
   @override
@@ -243,6 +228,45 @@ class _BoardViewState extends ConsumerState<BoardView> {
 
   /// 게시글 목록(로딩/에러 포함) — 넓은·컴팩트 레이아웃 공통.
   Widget _postContent() {
+    if (_openingDetail && _openedPost == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_openedPost != null) {
+      final detail = _openedPost!;
+      final userId = _userId;
+      final canEdit =
+          _canUpdate && (_isFranchiseOwner ? detail.createdBy == userId : true);
+      final canDel =
+          _canDelete && (_isFranchiseOwner ? detail.createdBy == userId : true);
+      return _BoardPostDetailPanel(
+        key: ValueKey(detail.postIdx),
+        post: detail,
+        userId: userId,
+        api: _api,
+        canEdit: canEdit,
+        canDelete: canDel,
+        onWrite: _canCreate ? () => _openEditor() : null,
+        onClose: _closeDetail,
+        onEdit: () async {
+          await _openEditor(post: detail);
+          if (!mounted || _openedPost == null) return;
+          await _openDetail(_openedPost!);
+        },
+        onDelete: () async {
+          final ok = await _api.deletePost(
+            postIdx: detail.postIdx,
+            userId: userId,
+          );
+          if (!mounted) return;
+          if (ok) {
+            _closeDetail();
+            await _reload();
+          } else {
+            await showAlertDialog(context, '삭제에 실패했습니다.');
+          }
+        },
+      );
+    }
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -271,7 +295,11 @@ class _BoardViewState extends ConsumerState<BoardView> {
   }
 
   void _onSelectFolder(int? idx) {
-    setState(() => _selectedFolderIdx = idx);
+    setState(() {
+      _selectedFolderIdx = idx;
+      _openedPost = null;
+      _openingDetail = false;
+    });
     _reload();
   }
 
@@ -1042,8 +1070,9 @@ class _Pagination extends StatelessWidget {
   }
 }
 
-class _BoardPostDetailDialog extends StatefulWidget {
-  const _BoardPostDetailDialog({
+class _BoardPostDetailPanel extends StatefulWidget {
+  const _BoardPostDetailPanel({
+    super.key,
     required this.post,
     required this.userId,
     required this.api,
@@ -1051,6 +1080,8 @@ class _BoardPostDetailDialog extends StatefulWidget {
     required this.canDelete,
     required this.onEdit,
     required this.onDelete,
+    required this.onClose,
+    this.onWrite,
   });
 
   final BoardPost post;
@@ -1060,12 +1091,14 @@ class _BoardPostDetailDialog extends StatefulWidget {
   final bool canDelete;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onClose;
+  final VoidCallback? onWrite;
 
   @override
-  State<_BoardPostDetailDialog> createState() => _BoardPostDetailDialogState();
+  State<_BoardPostDetailPanel> createState() => _BoardPostDetailPanelState();
 }
 
-class _BoardPostDetailDialogState extends State<_BoardPostDetailDialog> {
+class _BoardPostDetailPanelState extends State<_BoardPostDetailPanel> {
   List<BoardDocument> _docs = const [];
   bool _loadingDocs = true;
 
@@ -1183,139 +1216,103 @@ class _BoardPostDetailDialogState extends State<_BoardPostDetailDialog> {
       );
     }
 
-    return Dialog(
-      backgroundColor: Colors.white,
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: compactReading ? 0 : 28,
-        vertical: compactReading ? 0 : 28,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(compactReading ? 0 : 14),
-        side: compactReading
-            ? BorderSide.none
-            : const BorderSide(color: AppTheme.hairline),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: compactReading ? double.infinity : 1040,
-          maxHeight: compactReading ? double.infinity : size.height - 72,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _readingTopBar(context, p),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  compactReading ? 18 : 40,
-                  compactReading ? 20 : 32,
-                  compactReading ? 18 : 40,
-                  compactReading ? 28 : 40,
-                ),
-                child: Center(
-                  child: ConstrainedBox(
-                    // 본문 컬럼 폭 ~760px — 리딩 가독성 핵심(CHANGES_턴7 §3).
-                    constraints: const BoxConstraints(maxWidth: 760),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _badgeRow(p),
-                        const SizedBox(height: 14),
+    return ColoredBox(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _readingTopBar(),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                compactReading ? 18 : 40,
+                compactReading ? 20 : 32,
+                compactReading ? 18 : 40,
+                compactReading ? 28 : 40,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1200),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _badgeRow(p),
+                      const SizedBox(height: 14),
+                      Text(
+                        p.title,
+                        style: TextStyle(
+                          fontSize: compactReading ? 20 : 27,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
+                          height: 1.3,
+                          color: AppTheme.textPrimary,
+                          fontFamilyFallback: AppTheme.koreanFontFallback,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _metaRow(p),
+                      const SizedBox(height: 18),
+                      const Divider(height: 1),
+                      const SizedBox(height: 22),
+                      bodyContent,
+                      if (!_loadingDocs && fileDocs.isNotEmpty) ...[
+                        const SizedBox(height: 28),
                         Text(
-                          p.title,
-                          style: TextStyle(
-                            fontSize: compactReading ? 20 : 27,
+                          '첨부파일 ${fileDocs.length}',
+                          style: const TextStyle(
+                            fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            letterSpacing: -0.5,
-                            height: 1.3,
                             color: AppTheme.textPrimary,
                             fontFamilyFallback: AppTheme.koreanFontFallback,
                           ),
                         ),
-                        const SizedBox(height: 14),
-                        _metaRow(p),
-                        const SizedBox(height: 18),
-                        const Divider(height: 1),
-                        const SizedBox(height: 22),
-                        bodyContent,
-                        if (!_loadingDocs && fileDocs.isNotEmpty) ...[
-                          const SizedBox(height: 28),
-                          Text(
-                            '첨부파일 ${fileDocs.length}',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
-                              fontFamilyFallback: AppTheme.koreanFontFallback,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          for (final d in fileDocs) ...[
-                            _attachmentCard(d),
-                            const SizedBox(height: 8),
-                          ],
+                        const SizedBox(height: 10),
+                        for (final d in fileDocs) ...[
+                          _attachmentCard(d),
+                          const SizedBox(height: 8),
                         ],
                       ],
-                    ),
+                      BoardCommentSection(
+                        postIdx: p.postIdx,
+                        userId: widget.userId,
+                        api: widget.api,
+                        canDeleteAny: widget.canDelete,
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  /// 상단 바 — breadcrumb(게시판 / 폴더) + 수정·삭제·닫기.
-  Widget _readingTopBar(BuildContext context, BoardPost p) {
+  /// 상단 바 — 새글쓰기·수정·삭제 + 목록.
+  Widget _readingTopBar() {
     return Container(
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: AppTheme.hairline)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 10, 10, 10),
+      padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
       child: Row(
         children: [
-          const Text(
-            '게시판',
-            style: TextStyle(
-              fontSize: 12.5,
-              color: AppTheme.textMuted,
-              fontWeight: FontWeight.w500,
-              fontFamilyFallback: AppTheme.koreanFontFallback,
-            ),
-          ),
-          if (p.folderNm.trim().isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6),
-              child: Text(
-                '/',
-                style: TextStyle(fontSize: 12, color: AppTheme.textPlaceholder),
+          if (widget.onWrite != null)
+            TextButton.icon(
+              onPressed: widget.onWrite,
+              icon: const Icon(Icons.edit_outlined, size: 16),
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.textSecondary,
+              ),
+              label: const Text(
+                '새글쓰기',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
               ),
             ),
-            Flexible(
-              child: Text(
-                p.folderNm,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  color: AppTheme.textSecondary,
-                  fontWeight: FontWeight.w600,
-                  fontFamilyFallback: AppTheme.koreanFontFallback,
-                ),
-              ),
-            ),
-          ],
-          const Spacer(),
           if (widget.canEdit)
             TextButton(
               onPressed: widget.onEdit,
-              // styleFrom 의 textStyle 은 테마 스타일과 **합쳐지지 않고 교체**된다.
-              // 여기에 fontFamily 를 안 적으면 번들 폰트(Pretendard)가 빠져
-              // CanvasKit 에서 한글이 빈 글자로 그려진다. 크기·굵기는 child 에 준다.
               style: TextButton.styleFrom(
                 foregroundColor: AppTheme.textSecondary,
               ),
@@ -1333,11 +1330,17 @@ class _BoardPostDetailDialogState extends State<_BoardPostDetailDialog> {
                 style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
               ),
             ),
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.close_rounded, size: 20),
-            color: AppTheme.textMuted,
-            tooltip: '닫기',
+          const Spacer(),
+          TextButton.icon(
+            onPressed: widget.onClose,
+            icon: const Icon(Icons.list_alt_outlined, size: 16),
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.textSecondary,
+            ),
+            label: const Text(
+              '목록',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),

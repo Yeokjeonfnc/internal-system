@@ -406,10 +406,10 @@ class _EapFormFillHostState extends State<EapFormFillHost>
     for (var attempt = 0; attempt < 3; attempt++) {
       if (!_alive || !mounted) return;
       var ok = true;
-      if (htmlText.isNotEmpty) ok = _postSetHtml(htmlText);
-      if (context.isNotEmpty) {
-        ok = _postSetContext(context) && ok;
-      }
+      // 본문보다 context 를 먼저 보낸다. 자동 항목({기안자} 등)이
+      // HTML 활성화 시점에 이미 값을 갖게 하기 위함이다.
+      if (context.isNotEmpty) ok = _postSetContext(context);
+      if (htmlText.isNotEmpty) ok = _postSetHtml(htmlText) && ok;
       if (ok || htmlText.isEmpty) return;
       await Future<void>.delayed(Duration(milliseconds: 60 * (attempt + 1)));
     }
